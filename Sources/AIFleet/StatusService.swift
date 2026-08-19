@@ -3,7 +3,7 @@ import Combine
 import UserNotifications
 
 @MainActor
-final class StatusService: ObservableObject {
+final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = StatusService()
     private static let kimiCodeClientID = "17e5f671-d194-4dfb-9706-5516cb48c098"
 
@@ -38,7 +38,9 @@ final class StatusService: ObservableObject {
         }
     }
 
-    private init() {}
+    private override init() {
+        super.init()
+    }
 
     private var notificationsAvailable: Bool {
         // UNUserNotificationCenter crashes when the binary runs outside an .app bundle.
@@ -47,7 +49,9 @@ final class StatusService: ObservableObject {
 
     func start() {
         if notificationsAvailable {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            let notificationCenter = UNUserNotificationCenter.current()
+            notificationCenter.delegate = self
+            notificationCenter.requestAuthorization(options: [.alert, .sound]) { _, _ in }
         }
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
@@ -106,23 +110,45 @@ final class StatusService: ObservableObject {
             }
 
             let drained = max(0, min(100, 100 - weekly.remainingPercent))
-            let key = "notify.weeklyDrained.\(provider.id)"
+            let legacyKey = "notify.weeklyDrained.\(provider.id)"
+            let observedKey = "notify.weeklyDrainedObserved.\(provider.id)"
+            let notifiedKey = "notify.weeklyDrainedNotified.\(provider.id)"
             let initializedKey = "notify.weeklyDrainedInitialized.\(provider.id)"
             let bucket = (drained / step) * step
 
             guard defaults.bool(forKey: initializedKey) else {
                 // First observation: record the current bucket without notifying.
-                defaults.set(bucket, forKey: key)
+                defaults.set(bucket, forKey: legacyKey)
+                defaults.set(bucket, forKey: observedKey)
+                defaults.set(bucket, forKey: notifiedKey)
                 defaults.set(true, forKey: initializedKey)
                 continue
             }
 
-            let stored = defaults.integer(forKey: key)
-            if drained < stored {
+            var observedBucket = defaults.object(forKey: observedKey) == nil
+                ? defaults.integer(forKey: legacyKey)
+                : defaults.integer(forKey: observedKey)
+            var notifiedBucket = defaults.object(forKey: notifiedKey) == nil
+                ? 0
+                : defaults.integer(forKey: notifiedKey)
+
+            if drained < observedBucket {
                 // Quota refilled: re-arm from the current level.
-                defaults.set(bucket, forKey: key)
-            } else if bucket > stored {
-                defaults.set(bucket, forKey: key)
+                observedBucket = bucket
+                notifiedBucket = bucket
+                defaults.set(bucket, forKey: legacyKey)
+                defaults.set(bucket, forKey: observedKey)
+                defaults.set(bucket, forKey: notifiedKey)
+                continue
+            }
+
+            if bucket > observedBucket {
+                defaults.set(bucket, forKey: legacyKey)
+                defaults.set(bucket, forKey: observedKey)
+            }
+
+            if bucket > notifiedBucket {
+                defaults.set(bucket, forKey: notifiedKey)
                 sendDrainNotification(providerName: provider.name, remaining: weekly.remainingPercent)
             }
         }
@@ -138,7 +164,20 @@ final class StatusService: ObservableObject {
             content: content,
             trigger: nil
         )
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            guard error != nil else { return }
+            Task { @MainActor in
+                self?.lastError = "Notification failed"
+            }
+        }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     // MARK: - Kimi
