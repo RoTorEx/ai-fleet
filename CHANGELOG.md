@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-22
+
 - Kept Statistics data visible from a local cache while Codex usage refreshes
   continue in the background after closing the Statistics window.
 - Simplified the Statistics overview into direct Codex token/cost and Kimi
