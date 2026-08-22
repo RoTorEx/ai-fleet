@@ -16,6 +16,8 @@ Tracks real product and release progress.
   Days, kept Dataset & accounting compact at larger window sizes, and made the
   total-token help cycle through 15 real-book comparisons using natural
   copy-based wording instead of a visible words-per-token formula.
+- Clarified that Total tokens is all model-read Input plus generated Output,
+  including cached context and reported internal reasoning—not only user text.
 - Moved the app version from the menu footer into the final `Version` row of the
   top status summary.
 - Flattened and tightened the Statistics layout so period controls and complete

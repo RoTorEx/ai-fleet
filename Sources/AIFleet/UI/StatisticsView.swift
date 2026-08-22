@@ -72,13 +72,13 @@ struct StatisticsView: View {
                     title: "Input",
                     value: compactCount(selection.totals.inputTokens),
                     detail: "uncached \(compactCount(selection.totals.billableInputTokens))",
-                    help: "All input tokens reported by Codex, including cached reads and cache writes."
+                    help: "Everything the model read: your messages, instructions, earlier conversation, files, and tool results. This includes repeated context served from cache."
                 )
                 MetricCard(
                     title: "Output",
                     value: compactCount(selection.totals.outputTokens),
                     detail: "reasoning \(compactCount(selection.totals.reasoningOutputTokens))",
-                    help: "Generated output tokens. Reasoning is the internally processed subset reported by Codex."
+                    help: "Everything the model generated. It combines the reply and actions returned to you with internal reasoning reported by Codex. Reasoning is part of Output and is usually not visible."
                 )
                 MetricCard(
                     title: "Estimate",
@@ -627,7 +627,7 @@ func tokenVolumeHelpExamples(_ tokens: Int) -> [String] {
             .number.grouping(.automatic).precision(.fractionLength(copies < 10 ? 1 : 0))
         )
         let formattedWords = book.approximateWords.formatted(.number.grouping(.automatic))
-        return "Your selected usage is roughly equivalent to \(formattedCopies) × \(book.title) (~\(formattedWords) words). Book lengths and the token-to-text conversion are approximate. Repeated cached context is counted again, so this is processed volume, not unique reading. Hover again for another book."
+        return "Total tokens = Input + Output. It is not just what you typed.\n\nInput is everything the model read: your messages plus instructions, conversation context, files, and tool results. Output combines what was returned to you with internal reasoning reported by Codex.\n\nBook scale: your selected usage is roughly equivalent to \(formattedCopies) × \(book.title) (~\(formattedWords) words). Book lengths and the token-to-text conversion are approximate. Repeated cached context is counted again, so this is processed volume, not unique reading. Hover again for another book."
     }
 }
 

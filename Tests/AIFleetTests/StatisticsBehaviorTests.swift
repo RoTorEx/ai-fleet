@@ -157,7 +157,10 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertTrue(combined.contains("1984"))
         XCTAssertTrue(combined.contains("Brave New World"))
         XCTAssertTrue(combined.lowercased().contains("repeated cached context"))
-        XCTAssertTrue(examples.allSatisfy { $0.hasPrefix("Your selected usage is roughly equivalent to") })
+        XCTAssertTrue(examples.allSatisfy { $0.hasPrefix("Total tokens = Input + Output") })
+        XCTAssertTrue(combined.contains("It is not just what you typed"))
+        XCTAssertTrue(combined.contains("internal reasoning reported by Codex"))
+        XCTAssertTrue(combined.contains("Book scale: your selected usage is roughly equivalent to"))
         XCTAssertFalse(combined.contains("0.75"))
         XCTAssertFalse(combined.contains("Russian"))
     }

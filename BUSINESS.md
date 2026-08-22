@@ -44,6 +44,12 @@ subscription charges.
   so it cannot cover the analytics window.
 - API-equivalent cost is derived from model token rates and is always labeled as
   an estimate, never as a subscription bill.
+- Total tokens means `Input + Output`, not merely user-typed text. Input covers
+  everything the model reads, including user messages, instructions, prior
+  conversation, files, tool results, and cached context. Output covers returned
+  replies/actions plus reported internal reasoning; reasoning is a subset of
+  Output and may not be visible to the user. Metric help explains this before
+  presenting the rotating book comparison.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
 - All windows follow the current macOS light or dark appearance.

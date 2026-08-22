@@ -83,8 +83,10 @@ There is no outer page scroll: the compact dashboard stays in one view while
 the two long tables scroll their rows vertically without horizontal scrolling.
 Days omits dates with no recorded activity. On each hover, the total-token help
 cycles through 15 approximate comparisons with well-known English fantasy and
-science-fiction books or complete series while retaining the cache caveat. The
-window resets to its compact size and opens centered on the visible screen.
+science-fiction books or complete series. The same help explains that Total is
+all model-read Input plus generated Output, including repeated cache context and
+reported internal reasoning—not only text typed by the user. The window resets
+to its compact size and opens centered on the visible screen.
 
 Opening Statistics never starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen
