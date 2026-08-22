@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-22
+
 ### Changed
 
 - Rebuilt Statistics as a resizable Codex/Kimi view with all-time and custom
