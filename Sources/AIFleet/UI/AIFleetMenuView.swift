@@ -7,6 +7,7 @@ struct AIFleetMenuView: View {
 
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
+    @ObservedObject private var updater = UpdateService.shared
 
     private var providers: [ProviderStatus] {
         service.providerStatuses.filter { provider in
@@ -57,6 +58,18 @@ struct AIFleetMenuView: View {
 
                 ActionButton(title: "Settings…", shortcut: "", keyEquivalent: nil) {
                     openSettings()
+                }
+
+                ActionButton(title: updater.actionTitle, shortcut: "", keyEquivalent: nil) {
+                    updater.update()
+                }
+
+                if let detail = updater.detailText {
+                    Text(detail)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(FleetPalette.muted)
+                        .lineLimit(2)
+                        .padding(.leading, 8)
                 }
 
                 ActionButton(title: "Quit", shortcut: "⌘Q", keyEquivalent: "q", modifiers: .command) {

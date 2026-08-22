@@ -20,6 +20,11 @@ let package = Package(
             resources: [
                 .process("Resources")
             ]
+        ),
+        .testTarget(
+            name: "AIFleetTests",
+            dependencies: ["AIFleet"],
+            path: "Tests/AIFleetTests"
         )
     ]
 )

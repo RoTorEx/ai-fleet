@@ -38,6 +38,9 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 4. `GlobalHotKey` registers `⌘⇧I` to toggle the same popover as clicking the menu-bar icon.
 5. Each provider returns a `ProviderStatus` with `ok`, `limited`, `offline`, `noKey`, or `notInstalled` state.
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
+7. `UpdateService` resolves the latest GitHub Release for the current CPU,
+   verifies the published checksum and application bundle, atomically replaces
+   the installed app, and relaunches it.
 
 ## Models
 
@@ -59,6 +62,17 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Codex token: read automatically from `~/.codex/auth.json`.
 - Claude login detection: local Claude credential files such as `~/.claude.json`.
 - Qwen login detection: local Qwen credential files such as `~/.qwen/oauth_creds.json`.
+
+## Delivery and updates
+
+- Annotated `vMAJOR.MINOR.PATCH` tags trigger native Apple Silicon and Intel
+  builds in GitHub Actions.
+- Release ZIPs and their SHA-256 files are attached to GitHub Releases.
+- In-app updates accept only HTTPS assets from `RoTorEx/ai-fleet`, require the
+  expected architecture-specific filenames, verify SHA-256, bundle identifier,
+  release version, and code signature, then replace the running app.
+- The updater never removes macOS quarantine attributes. Developer ID signing
+  and notarization remain required for frictionless public distribution.
 
 ## Extension points
 

@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build-macos-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: aarch64
+          - runner: macos-15-intel
+            arch: x86_64
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' AppBundle/Info.plist)
+          test "$GITHUB_REF_NAME" = "v$version"
+
+      - name: Build release assets
+        env:
+          DIST_DIR: ${{ runner.temp }}/ai-fleet-dist
+        run: make release-publish
+
+      - name: Smoke-check application bundle
+        env:
+          DIST_DIR: ${{ runner.temp }}/ai-fleet-dist
+        shell: bash
+        run: |
+          archives=("$DIST_DIR/release/"*.zip)
+          test "${#archives[@]}" -eq 1
+          archive="${archives[0]}"
+          (cd "$DIST_DIR/release" && shasum -a 256 -c "$(basename "$archive").sha256")
+          mkdir -p "$RUNNER_TEMP/ai-fleet-smoke"
+          ditto -x -k "$archive" "$RUNNER_TEMP/ai-fleet-smoke"
+          app="$RUNNER_TEMP/ai-fleet-smoke/AIFleet.app"
+          test -x "$app/Contents/MacOS/AIFleet"
+          plutil -lint "$app/Contents/Info.plist"
+          codesign --verify --deep --strict "$app"
+
+      - name: Include terminal installer
+        if: matrix.arch == 'aarch64'
+        env:
+          DIST_DIR: ${{ runner.temp }}/ai-fleet-dist
+        run: cp scripts/install.sh "$DIST_DIR/release/ai-fleet-install.sh"
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ai-fleet-macos-${{ matrix.arch }}
+          path: ${{ runner.temp }}/ai-fleet-dist/release/*
+          if-no-files-found: error
+
+  publish:
+    name: publish-github-release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: release-assets
+          pattern: ai-fleet-macos-*
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          files=(release-assets/*)
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
