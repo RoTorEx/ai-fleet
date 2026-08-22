@@ -80,6 +80,8 @@ The selected range recalculates totals, model and daily tables, reasoning usage,
 cost estimates, and the GitHub-style activity heatmap from cached aggregates.
 There is no outer page scroll: the compact dashboard stays in one view while
 only the two long native tables scroll their rows. The window can be resized.
+Activity is the final block, separates months using standard abbreviated names,
+and shows the date and token activity when a day square is hovered.
 
 Opening Statistics never starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen

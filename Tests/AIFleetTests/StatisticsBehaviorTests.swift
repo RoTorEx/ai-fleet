@@ -77,6 +77,37 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertFalse(record.matches(CodexLogFile(url: url, modifiedAt: date, size: 43)))
     }
 
+    func testAllTimeSelectionKeepsHistoryBeyondThirtyDays() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let firstDay = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)))
+        let totals = totals(input: 10, output: 2, reasoning: 1)
+        let days = (0..<45).compactMap { offset -> DailyUsage? in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: firstDay) else { return nil }
+            return DailyUsage(day: day, totals: totals)
+        }
+        let dailyModels = days.map {
+            DailyModelUsage(day: $0.day, model: "gpt-test", totals: totals, events: 1)
+        }
+        let codex = CodexUsageAnalytics(
+            total: days.reduce(into: UsageTotals.zero) { $0.add($1.totals) },
+            today: .zero,
+            sevenDays: .zero,
+            thirtyDays: .zero,
+            daily: days,
+            models: [],
+            dailyModels: dailyModels,
+            eventCount: days.count,
+            fileCount: 1,
+            source: "test"
+        )
+
+        let selection = codexUsageSelection(from: codex, start: nil, end: nil, calendar: calendar)
+
+        XCTAssertEqual(selection.daily.count, 45)
+        XCTAssertEqual(selection.eventCount, 45)
+    }
+
     private func totals(input: Int, output: Int, reasoning: Int) -> UsageTotals {
         UsageTotals(
             inputTokens: input,

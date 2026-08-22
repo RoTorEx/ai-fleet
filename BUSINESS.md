@@ -22,6 +22,11 @@ subscription charges.
   not reread session logs.
 - Statistics opens on the all-time range so Activity exposes the full cached
   history; shorter ranges are explicit user filters.
+- Statistics has no outer content scroll. Period controls remain unboxed,
+  accounting values are grouped by meaning, complete model/day tables precede
+  Activity, and Activity is the final block. Its calendar separates and labels
+  months with standard abbreviated month names and exposes date plus token
+  activity on hover.
 - API-equivalent cost is derived from model token rates and is always labeled as
   an estimate, never as a subscription bill.
 - Cached input, cache writes, output, and reasoning remain separate accounting

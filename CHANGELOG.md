@@ -4,6 +4,17 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Flattened and tightened the Statistics layout so period controls and complete
+  table headers fit without an outer scroll, while accounting values are grouped
+  into clear Data, Input, Output, and Estimate columns.
+- Moved Activity to the final block, preserved ranges longer than 30 days,
+  separated calendar months with standard abbreviated labels, and added a
+  date/activity hover card for every day square.
+- Added explanations to the four summary metrics and clarified why per-model
+  reasoning is shown while keeping the daily table compact.
+
 ## [1.2.0] - 2026-08-22
 
 ### Changed
