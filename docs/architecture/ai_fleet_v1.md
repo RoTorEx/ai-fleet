@@ -25,6 +25,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 │        /balance                         │
 │  Codex: chatgpt.com/backend-api/wham/   │
 │         /usage                          │
+│  Codex stats: ~/.codex/sessions JSONL   │
 │  Claude/Qwen: local install + auth      │
 │               detection                 │
 └─────────────────────────────────────────┘
@@ -38,7 +39,10 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 4. `GlobalHotKey` registers `⌘⇧I` to toggle the same popover as clicking the menu-bar icon.
 5. Each provider returns a `ProviderStatus` with `ok`, `limited`, `offline`, `noKey`, or `notInstalled` state.
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
-7. `UpdateService` resolves the latest GitHub Release for the current CPU,
+7. `UsageAnalyticsService` reads local Codex JSONL usage metadata for token
+   totals, 30-day heatmap data, model breakdowns, and API-equivalent cost
+   estimates. Kimi statistics use quota windows from `StatusService`.
+8. `UpdateService` resolves the latest GitHub Release for the current CPU,
    verifies the published checksum and application bundle, atomically replaces
    the installed app, and relaunches it.
 
@@ -50,6 +54,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `CodexUsageResponse` — ChatGPT WHAM usage payload.
 - `CodexAuth` — minimal `~/.codex/auth.json` shape.
 - `ProviderCatalog` — supported provider list, executable names, and local credential paths used for install/login detection.
+- `UsageAnalyticsSnapshot` — Codex token analytics and Kimi quota analytics for the Statistics window.
 
 ## UI
 
@@ -60,6 +65,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Kimi Code credentials: `~/.kimi-code/credentials/kimi-code.json`.
 - Kimi API key fallback: `~/Library/Application Support/AI Fleet/config.json` (`kimiApiKey`) or `KIMI_API_KEY` environment variable.
 - Codex token: read automatically from `~/.codex/auth.json`.
+- Codex local usage analytics: numeric token-usage metadata from `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`.
 - Claude login detection: local Claude credential files such as `~/.claude.json`.
 - Qwen login detection: local Qwen credential files such as `~/.qwen/oauth_creds.json`.
 

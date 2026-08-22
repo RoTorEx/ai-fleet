@@ -731,7 +731,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             resetAt: parseISO8601(window.resetTime),
             usedCount: usedCount,
             limitCount: limitCount,
-            unit: usedCount == nil ? nil : "tokens"
+            unit: usedCount == nil ? nil : "quota"
         )
     }
 
