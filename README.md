@@ -26,6 +26,16 @@ make run
 make reinstall
 ```
 
+## Kernel sync
+
+```bash
+make vibe-kernel-set
+make vibe-pull
+```
+
+No release command is exposed until the app has a real versioned delivery
+process.
+
 This builds `~/construction_side/ai-fleet.noindex/dist/AIFleet.app`, stops any running copy, replaces `/Applications/AIFleet.app`, and launches the new app.
 
 ## Setup

@@ -1,4 +1,4 @@
-.PHONY: dist-dir build bundle-app run check lint clean stop-app reinstall
+.PHONY: dist-dir build bundle-app run check clean stop-app reinstall vibe-kernel-path vibe-kernel-set vibe-pull
 
 APP_NAME := AIFleet
 APP_BUNDLE_ID := dev.ai-fleet
@@ -34,10 +34,6 @@ run:
 check:
 	swift build --target AIFleet
 
-lint:
-	@echo "lint is not configured"
-	@exit 1
-
 clean:
 	rm -rf .build "$(DIST_DIR)"
 
@@ -64,3 +60,19 @@ reinstall: bundle-app
 	@cp -R "$(APP_BUNDLE)" "/Applications/$(APP_NAME).app"
 	@open "/Applications/$(APP_NAME).app"
 	@echo "Reinstalled and launched /Applications/$(APP_NAME).app"
+
+vibe-kernel-path:
+	@test -f .vibe/KERNEL_SOURCE || { echo "Missing .vibe/KERNEL_SOURCE. Run: make vibe-kernel-set" >&2; exit 1; }
+	@sed -n '1p' .vibe/KERNEL_SOURCE
+
+vibe-kernel-set:
+	@mkdir -p .vibe; \
+	if [ -n "$(KERNEL)" ]; then kernel_root="$(KERNEL)"; else printf "Kernel path: "; read -r kernel_root; fi; \
+	case "$$kernel_root" in /*) ;; *) echo "ERROR: kernel path must be absolute." >&2; exit 1;; esac; \
+	test -f "$$kernel_root/tools/vibe-pull" || { echo "ERROR: invalid kernel path: $$kernel_root" >&2; exit 1; }; \
+	printf "%s\n" "$$kernel_root" > .vibe/KERNEL_SOURCE
+
+vibe-pull:
+	@test -f .vibe/KERNEL_SOURCE || { echo "Missing .vibe/KERNEL_SOURCE. Run: make vibe-kernel-set" >&2; exit 1; }
+	@kernel_root="$$(sed -n '1p' .vibe/KERNEL_SOURCE)"; \
+	python3 "$$kernel_root/tools/vibe-pull" .
