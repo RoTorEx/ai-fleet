@@ -6,6 +6,8 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Reworked Statistics into clearly labeled panels with stable table layouts,
+  five-row pagination, and hover explanations for metrics and calculations.
 - Removed redundant used-quota values from the compact menu.
 - Routed Swift build output to the disposable
   `~/construction_side/ai-fleet.noindex/swift-build` tree.

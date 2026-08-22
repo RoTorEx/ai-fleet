@@ -69,6 +69,10 @@ Detailed usage data remains available in **Statistics…**.
 
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
+**Statistics…** groups provider metrics into labeled panels. Hover the small
+info icons for calculation details; longer model and daily tables use five-row
+pages to keep the window layout stable.
+
 ## Quit
 
 Choose **Quit** from the menu.

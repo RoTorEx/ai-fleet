@@ -4,6 +4,10 @@ struct StatisticsView: View {
     @ObservedObject private var analytics = UsageAnalyticsService.shared
     @ObservedObject private var service = StatusService.shared
     @State private var tab: AnalyticsTab = .overview
+    @State private var modelPage = 0
+    @State private var dayPage = 0
+
+    private let rowsPerPage = 5
 
     private var snapshot: UsageAnalyticsSnapshot {
         analytics.snapshot
@@ -16,7 +20,7 @@ struct StatisticsView: View {
             content
         }
         .padding(18)
-        .frame(width: 720, height: 520, alignment: .topLeading)
+        .frame(width: 780, height: 560, alignment: .topLeading)
         .onAppear {
             analytics.refreshIfNeeded(kimi: service.kimi)
         }
@@ -49,12 +53,8 @@ struct StatisticsView: View {
         case .overview:
             overview
         case .codex:
-            ScrollView {
-                codexDetail
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(.trailing, 4)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            codexDetail
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         case .kimi:
             kimiDetail
         }
@@ -94,22 +94,26 @@ struct StatisticsView: View {
                 SimpleMetricCard(
                     title: "Today",
                     value: compactCount(snapshot.codex.today.totalTokens),
-                    detail: money(snapshot.codex.today.estimatedCostUSD)
+                    detail: money(snapshot.codex.today.estimatedCostUSD),
+                    help: "Input plus output tokens recorded in local Codex session logs since midnight. Cost is an API-equivalent estimate, not a subscription charge."
                 )
                 SimpleMetricCard(
                     title: "7 days",
                     value: compactCount(snapshot.codex.sevenDays.totalTokens),
-                    detail: money(snapshot.codex.sevenDays.estimatedCostUSD)
+                    detail: money(snapshot.codex.sevenDays.estimatedCostUSD),
+                    help: "Input plus output tokens from today and the previous 6 calendar days. Cost uses model-specific API-equivalent rates."
                 )
                 SimpleMetricCard(
                     title: "30 days",
                     value: compactCount(snapshot.codex.thirtyDays.totalTokens),
-                    detail: money(snapshot.codex.thirtyDays.estimatedCostUSD)
+                    detail: money(snapshot.codex.thirtyDays.estimatedCostUSD),
+                    help: "Input plus output tokens from today and the previous 29 calendar days. Cost uses model-specific API-equivalent rates."
                 )
                 SimpleMetricCard(
                     title: "Kimi left",
                     value: kimiRemainingText,
-                    detail: kimiResetText
+                    detail: kimiResetText,
+                    help: "The lowest remaining percentage among active Kimi quota windows, with its next provider-reported reset time."
                 )
             }
 
@@ -118,33 +122,72 @@ struct StatisticsView: View {
     }
 
     private var codexDetail: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let models = snapshot.codex.models
+        let days = Array(snapshot.codex.daily.reversed())
+        let modelPages = pageCount(itemCount: models.count, pageSize: rowsPerPage)
+        let dayPages = pageCount(itemCount: days.count, pageSize: rowsPerPage)
+        let visibleModelPage = min(modelPage, max(0, modelPages - 1))
+        let visibleDayPage = min(dayPage, max(0, dayPages - 1))
+
+        return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                UsageMetricCard(title: "All time", totals: snapshot.codex.total, subtitle: "local session logs")
-                UsageMetricCard(title: "Input", totals: snapshot.codex.total, subtitle: "uncached \(compactCount(snapshot.codex.total.billableInputTokens))", mode: .input)
-                UsageMetricCard(title: "Output", totals: snapshot.codex.total, subtitle: "reasoning \(compactCount(snapshot.codex.total.reasoningOutputTokens))", mode: .output)
+                UsageMetricCard(
+                    title: "All time",
+                    totals: snapshot.codex.total,
+                    subtitle: "local session logs",
+                    help: "All input plus output tokens found in ~/.codex/sessions. Cached input is included in the token total."
+                )
+                UsageMetricCard(
+                    title: "Input",
+                    totals: snapshot.codex.total,
+                    subtitle: "uncached \(compactCount(snapshot.codex.total.billableInputTokens))",
+                    help: "All reported input tokens. Uncached input equals input minus cached-input reads and cache writes.",
+                    mode: .input
+                )
+                UsageMetricCard(
+                    title: "Output",
+                    totals: snapshot.codex.total,
+                    subtitle: "reasoning \(compactCount(snapshot.codex.total.reasoningOutputTokens))",
+                    help: "All reported output tokens. The subtitle shows the reasoning-token subset reported by Codex.",
+                    mode: .output
+                )
             }
 
             breakdownGrid
 
             HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionTitle("Top models")
-                    ForEach(snapshot.codex.models.prefix(6)) { model in
+                StatisticsSection(
+                    title: "Top models",
+                    help: "Models ranked by estimated API-equivalent cost, then by token count.",
+                    page: visibleModelPage,
+                    pageCount: modelPages,
+                    previousPage: { modelPage = max(0, visibleModelPage - 1) },
+                    nextPage: { modelPage = min(modelPages - 1, visibleModelPage + 1) }
+                ) {
+                    ModelUsageHeader()
+                    ForEach(pageItems(models, page: visibleModelPage, pageSize: rowsPerPage)) { model in
                         ModelUsageRow(model: model)
                     }
-                    if snapshot.codex.models.isEmpty {
+                    if models.isEmpty {
                         emptyText("No Codex token usage found")
                     }
                 }
-                .frame(width: 324, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionTitle("Recent days")
-                    ForEach(Array(snapshot.codex.daily.suffix(10).reversed())) { day in
+                StatisticsSection(
+                    title: "Recent days",
+                    help: "Calendar-day totals from the rolling 30-day local Codex history, newest first.",
+                    page: visibleDayPage,
+                    pageCount: dayPages,
+                    previousPage: { dayPage = max(0, visibleDayPage - 1) },
+                    nextPage: { dayPage = min(dayPages - 1, visibleDayPage + 1) }
+                ) {
+                    DailyUsageHeader()
+                    ForEach(pageItems(days, page: visibleDayPage, pageSize: rowsPerPage)) { day in
                         DailyUsageRow(day: day)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
     }
@@ -156,59 +199,76 @@ struct StatisticsView: View {
                     title: "Kimi",
                     primary: kimiPrimaryText,
                     secondary: "quota only",
-                    footnote: snapshot.kimi.source
+                    footnote: snapshot.kimi.source,
+                    help: "The Kimi quota window with the lowest remaining percentage, read from the provider quota API."
                 )
 
                 ProviderSummaryPanel(
                     title: "Windows",
                     primary: "\(snapshot.kimi.windows.count)",
                     secondary: "active quota windows",
-                    footnote: "usage counts are provider quota units"
+                    footnote: "usage counts are provider quota units",
+                    help: "The number of quota windows returned by Kimi. Each window has its own duration, usage and reset time."
                 )
             }
 
-            sectionTitle("Quota windows")
+            InfoLabel(
+                title: "Quota windows",
+                help: "Provider-reported Kimi limits. Used/limit values are quota units; remaining is calculated by the provider."
+            )
 
             if snapshot.kimi.windows.isEmpty {
                 emptyText("No Kimi quota windows loaded")
             } else {
                 VStack(alignment: .leading, spacing: 7) {
+                    KimiQuotaHeader()
                     ForEach(snapshot.kimi.windows) { window in
                         KimiQuotaRow(window: window)
                     }
                 }
+                .padding(12)
+                .statisticsPanel()
             }
         }
     }
 
     private var breakdownGrid: some View {
-        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 6) {
-            GridRow {
-                statLabel("Source")
-                statValue(snapshot.codex.source)
-                statLabel("Events")
-                statValue("\(snapshot.codex.eventCount)")
-            }
-            GridRow {
-                statLabel("Uncached input")
-                statValue(compactCount(snapshot.codex.total.billableInputTokens))
-                statLabel("Cached input")
-                statValue(compactCount(snapshot.codex.total.cachedInputTokens))
-            }
-            GridRow {
-                statLabel("Cache writes")
-                statValue(compactCount(snapshot.codex.total.cacheWriteInputTokens))
-                statLabel("Output")
-                statValue(compactCount(snapshot.codex.total.outputTokens))
-            }
-            GridRow {
-                statLabel("Cost basis")
-                statValue("API-equivalent estimate")
-                statLabel("Estimate")
-                statValue(money(snapshot.codex.total.estimatedCostUSD))
+        VStack(alignment: .leading, spacing: 9) {
+            InfoLabel(
+                title: "Dataset & accounting",
+                help: "Where the Codex statistics come from and how token categories contribute to the estimate."
+            )
+
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 6) {
+                GridRow {
+                    statLabel("Source", help: "Local directory scanned for Codex session JSONL logs.")
+                    statValue(snapshot.codex.source)
+                    statLabel("Events", help: "Number of token-usage events parsed from all session logs.")
+                    statValue("\(snapshot.codex.eventCount)")
+                }
+                GridRow {
+                    statLabel("Uncached input", help: "Input tokens minus cached-input reads and cache-write tokens.")
+                    statValue(compactCount(snapshot.codex.total.billableInputTokens))
+                    statLabel("Cached input", help: "Input tokens served from a prompt cache, as reported in session logs.")
+                    statValue(compactCount(snapshot.codex.total.cachedInputTokens))
+                }
+                GridRow {
+                    statLabel("Cache writes", help: "Input tokens written into a prompt cache, as reported in session logs.")
+                    statValue(compactCount(snapshot.codex.total.cacheWriteInputTokens))
+                    statLabel("Output", help: "All generated output tokens, including the reported reasoning-token subset.")
+                    statValue(compactCount(snapshot.codex.total.outputTokens))
+                }
+                GridRow {
+                    statLabel("Cost basis", help: "Model-specific public API token rates applied to local usage; this is not your subscription bill.")
+                    statValue("API-equivalent estimate")
+                    statLabel("Estimate", help: "Uncached input, cached input, cache writes and output multiplied by their model-specific rates.")
+                    statValue(money(snapshot.codex.total.estimatedCostUSD))
+                }
             }
         }
         .font(.system(size: 11.5, weight: .medium))
+        .padding(12)
+        .statisticsPanel()
     }
 
     private var refreshText: String {
@@ -260,15 +320,8 @@ struct StatisticsView: View {
         return lowest.resetAt.map { "resets \(shortDateTime($0))" } ?? lowest.label
     }
 
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(.secondary)
-    }
-
-    private func statLabel(_ text: String) -> some View {
-        Text("\(text):")
-            .foregroundColor(.secondary)
+    private func statLabel(_ text: String, help: String) -> some View {
+        InfoLabel(title: "\(text):", help: help, fontSize: 11.5)
     }
 
     private func statValue(_ text: String) -> some View {
@@ -325,12 +378,11 @@ private struct SimpleMetricCard: View {
     let title: String
     let value: String
     let detail: String
+    let help: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundColor(.secondary)
+            InfoLabel(title: title, help: help, fontSize: 11.5)
 
             Text(value)
                 .font(.system(size: 17, weight: .semibold, design: .monospaced))
@@ -345,10 +397,7 @@ private struct SimpleMetricCard: View {
         }
         .padding(11)
         .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .statisticsPanel()
     }
 }
 
@@ -362,13 +411,12 @@ private struct UsageMetricCard: View {
     let title: String
     let totals: UsageTotals
     let subtitle: String
+    let help: String
     var mode: UsageMetricMode = .total
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundColor(.secondary)
+            InfoLabel(title: title, help: help, fontSize: 11.5)
 
             Text(primaryText)
                 .font(.system(size: 18, weight: .semibold, design: .monospaced))
@@ -383,10 +431,7 @@ private struct UsageMetricCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 86, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .statisticsPanel()
     }
 
     private var primaryText: String {
@@ -415,11 +460,11 @@ private struct ProviderSummaryPanel: View {
     let primary: String
     let secondary: String
     let footnote: String
+    let help: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
+            InfoLabel(title: title, help: help, fontSize: 13)
             Text(primary)
                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
                 .lineLimit(1)
@@ -437,10 +482,7 @@ private struct ProviderSummaryPanel: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 98, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .statisticsPanel()
     }
 }
 
@@ -454,9 +496,10 @@ private struct HeatmapSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Codex 30-day heatmap")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary)
+                InfoLabel(
+                    title: "Codex 30-day heatmap",
+                    help: "Each cell is one calendar day. Opacity is relative to the busiest day in this 30-day window; hover a cell for tokens and estimated cost."
+                )
                 Spacer()
                 Text("tokens · API-equivalent estimate")
                     .font(.system(size: 10.5, weight: .medium))
@@ -477,10 +520,7 @@ private struct HeatmapSection: View {
             }
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .statisticsPanel()
     }
 
     private func opacity(for day: DailyUsage) -> Double {
@@ -508,6 +548,38 @@ private struct ModelUsageRow: View {
             Text("\(model.events)x")
                 .font(rowFont)
                 .foregroundColor(.secondary)
+                .frame(width: 44, alignment: .trailing)
+        }
+    }
+}
+
+private struct ModelUsageHeader: View {
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            ColumnInfoLabel(
+                title: "Model",
+                help: "Model name recorded in Codex session usage events.",
+                width: 116,
+                alignment: .leading
+            )
+            ColumnInfoLabel(
+                title: "Tokens",
+                help: "Input plus output tokens attributed to this model.",
+                width: 76,
+                alignment: .trailing
+            )
+            ColumnInfoLabel(
+                title: "Estimate",
+                help: "API-equivalent cost using this model's input, cache and output rates.",
+                width: 70,
+                alignment: .trailing
+            )
+            ColumnInfoLabel(
+                title: "Events",
+                help: "Number of token-usage events attributed to this model.",
+                width: 44,
+                alignment: .trailing
+            )
         }
     }
 }
@@ -527,6 +599,31 @@ private struct DailyUsageRow: View {
                 .font(rowFont)
                 .foregroundColor(.secondary)
                 .frame(width: 74, alignment: .trailing)
+        }
+    }
+}
+
+private struct DailyUsageHeader: View {
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            ColumnInfoLabel(
+                title: "Date",
+                help: "Local calendar day for the usage events.",
+                width: 54,
+                alignment: .leading
+            )
+            ColumnInfoLabel(
+                title: "Tokens",
+                help: "Input plus output tokens recorded on this day.",
+                width: 82,
+                alignment: .trailing
+            )
+            ColumnInfoLabel(
+                title: "Estimate",
+                help: "API-equivalent cost of this day's token usage.",
+                width: 74,
+                alignment: .trailing
+            )
         }
     }
 }
@@ -566,8 +663,175 @@ private struct KimiQuotaRow: View {
     }
 }
 
+private struct KimiQuotaHeader: View {
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            ColumnInfoLabel(
+                title: "Window",
+                help: "Provider-defined quota duration, such as 5 hours or 7 days.",
+                width: 42,
+                alignment: .leading
+            )
+            ColumnInfoLabel(
+                title: "Usage",
+                help: "Used quota units divided by the provider-reported limit.",
+                width: 120,
+                alignment: .leading
+            )
+            ColumnInfoLabel(
+                title: "Remaining",
+                help: "Percentage of quota still available in this window.",
+                width: 86,
+                alignment: .leading
+            )
+            ColumnInfoLabel(
+                title: "Reset",
+                help: "Provider-reported date and time when this quota window resets.",
+                width: 150,
+                alignment: .leading
+            )
+        }
+    }
+}
+
+private struct InfoLabel: View {
+    let title: String
+    let help: String
+    var fontSize: CGFloat = 12
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(title)
+                .font(.system(size: fontSize, weight: .semibold))
+            Image(systemName: "info.circle")
+                .font(.system(size: max(9, fontSize - 1), weight: .medium))
+                .help(help)
+                .accessibilityLabel("About \(title)")
+                .accessibilityHint(help)
+        }
+        .foregroundColor(.secondary)
+    }
+}
+
+private struct ColumnInfoLabel: View {
+    let title: String
+    let help: String
+    let width: CGFloat
+    let alignment: Alignment
+
+    var body: some View {
+        InfoLabel(title: title, help: help, fontSize: 9.5)
+            .lineLimit(1)
+            .frame(width: width, alignment: alignment)
+    }
+}
+
+private struct StatisticsSection<Content: View>: View {
+    let title: String
+    let help: String
+    let page: Int
+    let pageCount: Int
+    let previousPage: () -> Void
+    let nextPage: () -> Void
+    let content: Content
+
+    init(
+        title: String,
+        help: String,
+        page: Int,
+        pageCount: Int,
+        previousPage: @escaping () -> Void,
+        nextPage: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.help = help
+        self.page = page
+        self.pageCount = pageCount
+        self.previousPage = previousPage
+        self.nextPage = nextPage
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                InfoLabel(title: title, help: help)
+                Spacer(minLength: 8)
+                PaginationControl(
+                    page: page,
+                    pageCount: pageCount,
+                    previousPage: previousPage,
+                    nextPage: nextPage
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                content
+            }
+            .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+        }
+        .padding(12)
+        .statisticsPanel()
+    }
+}
+
+private struct PaginationControl: View {
+    let page: Int
+    let pageCount: Int
+    let previousPage: () -> Void
+    let nextPage: () -> Void
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Button(action: previousPage) {
+                Image(systemName: "chevron.left")
+            }
+            .disabled(page <= 0)
+            .help("Previous page")
+
+            Text("\(page + 1) / \(pageCount)")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(minWidth: 34)
+
+            Button(action: nextPage) {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(page >= pageCount - 1)
+            .help("Next page")
+        }
+        .buttonStyle(.borderless)
+    }
+}
+
 private var rowFont: Font {
     .system(size: 11.5, weight: .medium, design: .monospaced)
+}
+
+private extension View {
+    func statisticsPanel() -> some View {
+        background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+private func pageCount(itemCount: Int, pageSize: Int) -> Int {
+    guard pageSize > 0 else { return 1 }
+    return max(1, (itemCount + pageSize - 1) / pageSize)
+}
+
+private func pageItems<Element>(_ items: [Element], page: Int, pageSize: Int) -> [Element] {
+    guard pageSize > 0, !items.isEmpty else { return [] }
+    let lowerBound = min(max(0, page) * pageSize, items.count)
+    let upperBound = min(lowerBound + pageSize, items.count)
+    return Array(items[lowerBound..<upperBound])
 }
 
 private func compactCount(_ value: Int) -> String {

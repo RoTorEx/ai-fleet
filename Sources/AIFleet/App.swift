@@ -105,7 +105,7 @@ private final class StatisticsWindowController: NSWindowController {
     init() {
         let hostingController = NSHostingController(rootView: StatisticsView())
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 780, height: 560),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
