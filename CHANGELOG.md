@@ -6,6 +6,7 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Removed redundant used-quota values from the compact menu.
 - Routed Swift build output to the disposable
   `~/construction_side/ai-fleet.noindex/swift-build` tree.
 

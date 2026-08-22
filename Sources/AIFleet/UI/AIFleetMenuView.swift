@@ -253,13 +253,6 @@ struct LimitWindowLine: View {
                 .foregroundColor(windowColor)
                 .frame(width: 40, alignment: .leading)
 
-            Text(burnedText)
-                .font(limitWindowFont)
-                .foregroundColor(resetColor)
-                .frame(width: 92, alignment: .leading)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
             Text(resetText)
                 .font(limitWindowFont)
                 .foregroundColor(resetColor)
@@ -307,16 +300,6 @@ struct LimitWindowLine: View {
             return "-"
         }
         return "↻ \(window.resetAt.map(formatResetTime) ?? "unknown")"
-    }
-
-    private var burnedText: String {
-        if blockingWindow != nil {
-            return "-"
-        }
-        if let used = window.usedCount, let limit = window.limitCount {
-            return "used \(compactCount(used))/\(compactCount(limit))"
-        }
-        return "used \(max(0, min(100, 100 - window.remainingPercent)))%"
     }
 
     private var resetColor: Color {
@@ -513,15 +496,4 @@ private func profileMarker(for status: ProviderStatus) -> String {
 
 private func formatResetTime(_ date: Date) -> String {
     date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-}
-
-private func compactCount(_ value: Int) -> String {
-    let absolute = abs(value)
-    if absolute >= 1_000_000 {
-        return String(format: "%.1fM", Double(value) / 1_000_000)
-    }
-    if absolute >= 1_000 {
-        return String(format: "%.1fK", Double(value) / 1_000)
-    }
-    return "\(value)"
 }
