@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-08-22
+
 - Fixed the terminal installer on macOS `sh` when printing the selected
   architecture before downloading a release.
 
