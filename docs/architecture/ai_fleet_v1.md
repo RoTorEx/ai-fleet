@@ -65,7 +65,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Kimi Code credentials: `~/.kimi-code/credentials/kimi-code.json`.
 - Kimi API key fallback: `~/Library/Application Support/AI Fleet/config.json` (`kimiApiKey`) or `KIMI_API_KEY` environment variable.
 - Codex token: read automatically from `~/.codex/auth.json`.
-- Codex local usage analytics: numeric token-usage metadata from `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`.
+- Codex local usage analytics: numeric token-usage metadata from `~/.codex/sessions/**/*.jsonl`.
 - Claude login detection: local Claude credential files such as `~/.claude.json`.
 - Qwen login detection: local Qwen credential files such as `~/.qwen/oauth_creds.json`.
 

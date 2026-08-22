@@ -9,9 +9,8 @@ credential files are currently used only to detect whether the local CLI appears
 signed in. Tokens are not logged or shown in the UI.
 
 AI Fleet also reads local Codex session JSONL files under `~/.codex/sessions`
-and `~/.codex/archived_sessions` to extract numeric token-usage metadata for
-the Statistics window. The app does not display prompt, response, diff, or file
-content from those logs.
+to extract numeric token-usage metadata for the Statistics window. The app does
+not display prompt, response, diff, or file content from those logs.
 
 The optional Kimi API key fallback lives at
 `~/Library/Application Support/AI Fleet/config.json`. AI Fleet restricts that

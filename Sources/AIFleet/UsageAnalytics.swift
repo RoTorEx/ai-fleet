@@ -117,17 +117,22 @@ final class UsageAnalyticsService: ObservableObject {
         task?.cancel()
         isRefreshing = true
 
-        let kimiWindows = kimi.limitWindows
+        let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
+        snapshot = UsageAnalyticsSnapshot(
+            codex: snapshot.codex,
+            kimi: kimiAnalytics,
+            refreshedAt: snapshot.refreshedAt
+        )
+
         task = Task { [weak self] in
             let codex = await Task.detached(priority: .utility) {
                 CodexUsageLogReader().read()
             }.value
-            let kimi = Self.kimiAnalytics(from: kimiWindows)
 
             guard !Task.isCancelled else { return }
             self?.snapshot = UsageAnalyticsSnapshot(
                 codex: codex,
-                kimi: kimi,
+                kimi: kimiAnalytics,
                 refreshedAt: Date()
             )
             self?.isRefreshing = false
@@ -195,8 +200,7 @@ private struct CodexUsageLogReader {
     private func codexLogFiles() -> [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let roots = [
-            home.appendingPathComponent(".codex/sessions"),
-            home.appendingPathComponent(".codex/archived_sessions")
+            home.appendingPathComponent(".codex/sessions")
         ]
 
         var files: [URL] = []
