@@ -67,8 +67,12 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
   panels. Zero-activity dates are omitted from the day table. Only
   accounting-specific terms carry hover explanations; token volume cycles
   through 15 approximate real-book comparisons after explaining the Input,
-  Output, cache, returned-content, and reasoning boundaries. Each open resets
-  the window to its compact size before centering it on the visible screen.
+  Output, cache, returned-content, and reasoning boundaries. Total, Input, and
+  Output calculate their comparisons independently and place them in a separate
+  paragraph. Headline cards and Dataset & accounting do not repeat totals: the
+  former summarize, while the latter exposes source and accounting details.
+  Each open resets the window to its compact size before centering it on the
+  visible screen.
 
 ## Configuration
 

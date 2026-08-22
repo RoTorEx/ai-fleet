@@ -37,7 +37,9 @@ subscription charges.
   directly with the natural book equivalence instead of defining a token as a
   fraction of a word. It states each title's rounded word-count basis and warns
   that cached context repeats make this processed volume rather than unique
-  reading.
+  reading. Total, Input, and Output each receive their own rotating comparison,
+  calculated from that metric's value and separated from its definition by a
+  paragraph break.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover
@@ -48,10 +50,13 @@ subscription charges.
   everything the model reads, including user messages, instructions, prior
   conversation, files, tool results, and cached context. Output covers returned
   replies/actions plus reported internal reasoning; reasoning is a subset of
-  Output and may not be visible to the user. Metric help explains this before
-  presenting the rotating book comparison.
+  Output and may not be visible to the user. Each metric's help states its own
+  boundary in a short first paragraph before a separate book-scale paragraph.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
+- Summary cards contain headline values only (plus the all-time date range).
+  Dataset & accounting contains the unique source and accounting breakdown and
+  does not repeat headline Output or Estimate totals.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.

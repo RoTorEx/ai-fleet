@@ -66,24 +66,21 @@ struct StatisticsView: View {
                     title: "Total tokens",
                     value: compactCount(selection.totals.totalTokens),
                     detail: periodDetail,
-                    helpExamples: tokenVolumeHelpExamples(selection.totals.totalTokens)
+                    helpExamples: tokenVolumeHelpExamples(selection.totals.totalTokens, metric: .total)
                 )
                 MetricCard(
                     title: "Input",
                     value: compactCount(selection.totals.inputTokens),
-                    detail: "uncached \(compactCount(selection.totals.billableInputTokens))",
-                    help: "Everything the model read: your messages, instructions, earlier conversation, files, and tool results. This includes repeated context served from cache."
+                    helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input)
                 )
                 MetricCard(
                     title: "Output",
                     value: compactCount(selection.totals.outputTokens),
-                    detail: "reasoning \(compactCount(selection.totals.reasoningOutputTokens))",
-                    help: "Everything the model generated. It combines the reply and actions returned to you with internal reasoning reported by Codex. Reasoning is part of Output and is usually not visible."
+                    helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output)
                 )
                 MetricCard(
                     title: "Estimate",
                     value: money(selection.totals.estimatedCostUSD),
-                    detail: "API-equivalent",
                     help: "Sum of the per-model estimates below. For each model: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. Rounded table rows can differ slightly from this total. This is not a subscription charge."
                 )
             }
@@ -252,17 +249,17 @@ private struct PeriodToolbar: View {
 private struct MetricCard: View {
     let title: String
     let value: String
-    let detail: String
+    let detail: String?
     var helpExamples = ["Current provider value for this metric."]
 
-    init(title: String, value: String, detail: String, help: String = "Current provider value for this metric.") {
+    init(title: String, value: String, detail: String? = nil, help: String = "Current provider value for this metric.") {
         self.title = title
         self.value = value
         self.detail = detail
         helpExamples = [help]
     }
 
-    init(title: String, value: String, detail: String, helpExamples: [String]) {
+    init(title: String, value: String, detail: String? = nil, helpExamples: [String]) {
         self.title = title
         self.value = value
         self.detail = detail
@@ -281,11 +278,13 @@ private struct MetricCard: View {
                 .font(.system(size: 18, weight: .semibold, design: .monospaced))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
-            Text(detail)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
         }
         .padding(9)
         .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
@@ -314,12 +313,10 @@ private struct DatasetPanel: View {
                 ])
                 Divider()
                 AccountingGroup(title: "Output", rows: [
-                    AccountingRow(label: "Generated", value: compactCount(selection.totals.outputTokens)),
                     AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
                 ])
                 Divider()
                 AccountingGroup(title: "Estimate", rows: [
-                    AccountingRow(label: "API-equivalent", value: money(selection.totals.estimatedCostUSD), help: "Model-rate estimate; not a subscription bill."),
                     AccountingRow(label: "Basis", value: "model rates")
                 ])
             }
@@ -394,8 +391,9 @@ private struct HoverInfoTip: View {
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
                 Text(currentText.isEmpty ? (texts.first ?? "No additional information.") : currentText)
                     .font(.system(size: 11, weight: .medium))
+                    .lineSpacing(2)
                     .padding(10)
-                    .frame(width: 310, alignment: .leading)
+                    .frame(width: 320, alignment: .leading)
             }
             .accessibilityLabel(texts.first ?? "Additional information")
     }
@@ -604,7 +602,7 @@ struct BookTokenComparison: Equatable {
 let bookTokenComparisons: [BookTokenComparison] = [
     BookTokenComparison(title: "The Little Prince", approximateWords: 16_500),
     BookTokenComparison(title: "The Hobbit", approximateWords: 95_000),
-    BookTokenComparison(title: "the complete The Lord of the Rings trilogy", approximateWords: 481_000),
+    BookTokenComparison(title: "the complete Lord of the Rings trilogy", approximateWords: 481_000),
     BookTokenComparison(title: "the complete seven-book Harry Potter series", approximateWords: 1_084_000),
     BookTokenComparison(title: "Dune", approximateWords: 188_000),
     BookTokenComparison(title: "1984", approximateWords: 89_000),
@@ -619,7 +617,33 @@ let bookTokenComparisons: [BookTokenComparison] = [
     BookTokenComparison(title: "Fahrenheit 451", approximateWords: 46_000)
 ]
 
-func tokenVolumeHelpExamples(_ tokens: Int) -> [String] {
+enum TokenHelpMetric {
+    case total
+    case input
+    case output
+
+    var explanation: String {
+        switch self {
+        case .total:
+            return "Total tokens cover everything the model processed—not only what you typed. Total is Input + Output."
+        case .input:
+            return "Input tokens cover everything the model read: your messages, instructions, earlier conversation, files, tool results, and cached context."
+        case .output:
+            return "Output tokens cover everything the model generated: replies and actions returned to you, plus internal reasoning reported by Codex. Reasoning is usually not visible."
+        }
+    }
+
+    var cacheNote: String {
+        switch self {
+        case .total, .input:
+            return " Cached context can be counted repeatedly, so this is processed text rather than unique reading."
+        case .output:
+            return ""
+        }
+    }
+}
+
+func tokenVolumeHelpExamples(_ tokens: Int, metric: TokenHelpMetric = .total) -> [String] {
     let words = Double(max(0, tokens)) * 0.75
     return bookTokenComparisons.map { book in
         let copies = words / Double(book.approximateWords)
@@ -627,7 +651,7 @@ func tokenVolumeHelpExamples(_ tokens: Int) -> [String] {
             .number.grouping(.automatic).precision(.fractionLength(copies < 10 ? 1 : 0))
         )
         let formattedWords = book.approximateWords.formatted(.number.grouping(.automatic))
-        return "Total tokens = Input + Output. It is not just what you typed.\n\nInput is everything the model read: your messages plus instructions, conversation context, files, and tool results. Output combines what was returned to you with internal reasoning reported by Codex.\n\nBook scale: your selected usage is roughly equivalent to \(formattedCopies) × \(book.title) (~\(formattedWords) words). Book lengths and the token-to-text conversion are approximate. Repeated cached context is counted again, so this is processed volume, not unique reading. Hover again for another book."
+        return "\(metric.explanation)\n\nFor a sense of scale, that is roughly \(formattedCopies) times the length of \(book.title) (~\(formattedWords) words). Book lengths and the token-to-text conversion are approximate.\(metric.cacheNote) Hover again for another book."
     }
 }
 

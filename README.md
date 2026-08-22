@@ -85,8 +85,11 @@ Days omits dates with no recorded activity. On each hover, the total-token help
 cycles through 15 approximate comparisons with well-known English fantasy and
 science-fiction books or complete series. The same help explains that Total is
 all model-read Input plus generated Output, including repeated cache context and
-reported internal reasoning—not only text typed by the user. The window resets
-to its compact size and opens centered on the visible screen.
+reported internal reasoning—not only text typed by the user. Total, Input, and
+Output each show their own comparison in a separate paragraph. The window
+resets to its compact size and opens centered on the visible screen.
+Headline cards stay concise; Dataset & accounting shows only the source and
+additional accounting breakdown instead of repeating the same totals.
 
 Opening Statistics never starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen

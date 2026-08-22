@@ -146,21 +146,26 @@ final class StatisticsBehaviorTests: XCTestCase {
     }
 
     func testTokenVolumeHelpCyclesThroughRequiredBooksAndElevenMore() {
-        let examples = tokenVolumeHelpExamples(1_000_000)
+        let examples = tokenVolumeHelpExamples(1_000_000, metric: .total)
         let combined = examples.joined(separator: "\n")
+        let input = tokenVolumeHelpExamples(750_000, metric: .input)
+        let output = tokenVolumeHelpExamples(250_000, metric: .output)
 
         XCTAssertEqual(examples.count, 15)
         XCTAssertTrue(combined.contains("The Little Prince"))
         XCTAssertTrue(combined.contains("The Hobbit"))
-        XCTAssertTrue(combined.contains("complete The Lord of the Rings trilogy"))
+        XCTAssertTrue(combined.contains("complete Lord of the Rings trilogy"))
         XCTAssertTrue(combined.contains("complete seven-book Harry Potter series"))
         XCTAssertTrue(combined.contains("1984"))
         XCTAssertTrue(combined.contains("Brave New World"))
-        XCTAssertTrue(combined.lowercased().contains("repeated cached context"))
-        XCTAssertTrue(examples.allSatisfy { $0.hasPrefix("Total tokens = Input + Output") })
-        XCTAssertTrue(combined.contains("It is not just what you typed"))
-        XCTAssertTrue(combined.contains("internal reasoning reported by Codex"))
-        XCTAssertTrue(combined.contains("Book scale: your selected usage is roughly equivalent to"))
+        XCTAssertTrue(combined.contains("Cached context can be counted repeatedly"))
+        XCTAssertTrue(examples.allSatisfy { $0.hasPrefix("Total tokens cover everything the model processed") })
+        XCTAssertTrue(input.allSatisfy { $0.hasPrefix("Input tokens cover everything the model read") })
+        XCTAssertTrue(output.allSatisfy { $0.hasPrefix("Output tokens cover everything the model generated") })
+        XCTAssertTrue(output.joined().contains("internal reasoning reported by Codex"))
+        XCTAssertTrue((examples + input + output).allSatisfy { $0.contains("\n\nFor a sense of scale") })
+        XCTAssertTrue(input.joined().contains("Cached context can be counted repeatedly"))
+        XCTAssertFalse(output.joined().contains("Cached context can be counted repeatedly"))
         XCTAssertFalse(combined.contains("0.75"))
         XCTAssertFalse(combined.contains("Russian"))
     }
