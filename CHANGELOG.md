@@ -13,10 +13,12 @@ Tracks real product and release progress.
   relaunches AI Fleet.
 - Added a terminal installer for verified latest or exact-version GitHub
   Releases, defaulting to `~/Applications` without `sudo`.
+- Added editable remaining-quota notification thresholds and burned quota stats
+  in the menu.
 - Hardened local Kimi API key permissions and added a repository-history secret
   audit for public-source safety.
 - Added the working kernel-sync Make targets and removed the fake lint target.
-- Tiny macOS menu-bar app with a paper-ship icon.
+- Tiny macOS menu-bar app with a ship icon.
 - No CLI wrapper, install script, or `~/.x-cli-ai-fleet` setup.
 - Polls Kimi Code (`api.kimi.com/coding/v1/usages`, with Moonshot balance fallback) and Codex (`chatgpt.com/backend-api/wham/usage`) directly every 60 seconds.
 - Simple menu showing only Kimi and Codex status.

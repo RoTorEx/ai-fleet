@@ -2,7 +2,7 @@
 
 A tiny macOS menu-bar app that checks Kimi and Codex status once per minute.
 
-It sits in the menu bar as a paper-ship icon and shows a simple dropdown:
+It sits in the menu bar as a ship icon and shows a simple dropdown:
 
 - **Kimi** — Kimi Code usage from `~/.kimi-code`, falling back to Moonshot API balance.
 - **Codex** — remaining usage percent from the ChatGPT backend.
@@ -55,6 +55,17 @@ The app reads your ChatGPT OAuth token from `~/.codex/auth.json` (created automa
 ## Refresh
 
 Status is refreshed automatically every 60 seconds. Click **Refresh now** in the menu to poll immediately.
+
+## Notifications
+
+Settings lets you manage remaining-quota thresholds such as `50`, `25`, `10`,
+`5`, and `0` percent. Thresholds are sorted automatically, can be added or
+removed, and fire when a provider crosses that remaining percentage from above.
+
+The menu also shows burned quota stats per limit window. Kimi shows absolute
+`used/limit` values when the Kimi endpoint provides them; Codex currently shows
+used percentage because the ChatGPT quota endpoint does not provide token
+counts.
 
 ## Menu View
 
