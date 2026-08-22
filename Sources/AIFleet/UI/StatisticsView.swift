@@ -12,6 +12,7 @@ struct StatisticsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
+            loadProgressView
 
             switch tab {
             case .overview:
@@ -55,6 +56,40 @@ struct StatisticsView: View {
             .disabled(analytics.isRefreshing)
             .help("Refresh usage")
         }
+    }
+
+    private var loadProgressView: some View {
+        TimelineView(.periodic(from: Date(), by: 0.25)) { timeline in
+            VStack(alignment: .leading, spacing: 5) {
+                if analytics.progress.isLoading {
+                    if let fraction = analytics.progress.fractionCompleted {
+                        ProgressView(value: fraction)
+                            .progressViewStyle(.linear)
+                    } else {
+                        ProgressView()
+                            .progressViewStyle(.linear)
+                    }
+                } else {
+                    ProgressView(value: analytics.progress.fractionCompleted ?? 0)
+                        .progressViewStyle(.linear)
+                        .opacity(0.22)
+                }
+
+                HStack(spacing: 10) {
+                    Text(loadStatusText(now: timeline.date))
+                    if analytics.progress.isLoading,
+                       let fileName = analytics.progress.currentFileName {
+                        Text(fileName)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .foregroundColor(.secondary)
+            }
+        }
+        .frame(height: 32)
     }
 
     private var overview: some View {
@@ -183,7 +218,24 @@ struct StatisticsView: View {
         guard let refreshedAt = snapshot.refreshedAt else {
             return analytics.isRefreshing ? "loading" : "not loaded"
         }
-        return refreshedAt.formatted(date: .omitted, time: .standard)
+        let duration = analytics.progress.lastDuration.map { " · \(durationText($0))" } ?? ""
+        return refreshedAt.formatted(date: .omitted, time: .standard) + duration
+    }
+
+    private func loadStatusText(now: Date) -> String {
+        let progress = analytics.progress
+        if progress.isLoading {
+            let elapsed = progress.startedAt.map { now.timeIntervalSince($0) } ?? 0
+            if progress.totalFiles > 0 {
+                return "Loading Codex logs \(progress.processedFiles)/\(progress.totalFiles) · elapsed \(durationText(elapsed))"
+            }
+            return "Finding Codex logs · elapsed \(durationText(elapsed))"
+        }
+
+        guard let lastDuration = progress.lastDuration else {
+            return "Usage analytics not loaded"
+        }
+        return "Last load \(durationText(lastDuration)) · \(progress.totalFiles) files"
     }
 
     private var kimiPrimaryText: String {
@@ -465,6 +517,16 @@ private func money(_ value: Double) -> String {
         return String(format: "$%.1f", value)
     }
     return String(format: "$%.2f", value)
+}
+
+private func durationText(_ value: TimeInterval) -> String {
+    if value < 1 {
+        return String(format: "%.0fms", value * 1_000)
+    }
+    if value < 10 {
+        return String(format: "%.2fs", value)
+    }
+    return String(format: "%.1fs", value)
 }
 
 private func shortDate(_ date: Date) -> String {
