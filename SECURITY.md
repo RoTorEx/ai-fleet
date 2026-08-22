@@ -13,10 +13,12 @@ to extract numeric token-usage metadata for the Statistics window. The app does
 not display prompt, response, diff, or file content from those logs.
 
 The optional Kimi API key fallback lives at
-`~/Library/Application Support/AI Fleet/config.json`. AI Fleet restricts that
-directory to mode `0700` and the file to mode `0600` when it reads or writes the
-configuration. Never copy real credentials, auth files, or environment files
-into this repository.
+`~/Library/Application Support/AI Fleet/config.json`. The Statistics window also
+caches the latest numeric usage snapshot at
+`~/Library/Application Support/AI Fleet/usage-analytics-cache.json`. AI Fleet
+restricts that directory to mode `0700` and those files to mode `0600` when it
+reads or writes them. Never copy real credentials, auth files, local usage
+caches, or environment files into this repository.
 
 ## Public-source check
 

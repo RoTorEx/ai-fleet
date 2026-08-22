@@ -10,36 +10,21 @@ struct StatisticsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             header
             loadProgressView
-
-            switch tab {
-            case .overview:
-                overview
-            case .codex:
-                codexDetail
-            case .kimi:
-                kimiDetail
-            }
+            content
         }
         .padding(18)
         .frame(width: 720, height: 520, alignment: .topLeading)
         .onAppear {
-            analytics.refresh(kimi: service.kimi)
+            analytics.refreshIfNeeded(kimi: service.kimi)
         }
     }
 
     private var header: some View {
         HStack(spacing: 12) {
-            Picker("", selection: $tab) {
-                ForEach(AnalyticsTab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 300)
+            AnalyticsTabControl(selection: $tab)
 
             Spacer()
 
@@ -58,9 +43,26 @@ struct StatisticsView: View {
         }
     }
 
+    @ViewBuilder
+    private var content: some View {
+        switch tab {
+        case .overview:
+            overview
+        case .codex:
+            ScrollView {
+                codexDetail
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(.trailing, 4)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        case .kimi:
+            kimiDetail
+        }
+    }
+
     private var loadProgressView: some View {
         TimelineView(.periodic(from: Date(), by: 0.25)) { timeline in
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 if analytics.progress.isLoading {
                     if let fraction = analytics.progress.fractionCompleted {
                         ProgressView(value: fraction)
@@ -69,54 +71,49 @@ struct StatisticsView: View {
                         ProgressView()
                             .progressViewStyle(.linear)
                     }
-                } else {
-                    ProgressView(value: analytics.progress.fractionCompleted ?? 0)
-                        .progressViewStyle(.linear)
-                        .opacity(0.22)
-                }
 
-                HStack(spacing: 10) {
-                    Text(loadStatusText(now: timeline.date))
-                    if analytics.progress.isLoading,
-                       let fileName = analytics.progress.currentFileName {
-                        Text(fileName)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                    HStack(spacing: 10) {
+                        Text(loadStatusText(now: timeline.date))
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+                } else if snapshot.refreshedAt == nil {
+                    Text("No usage snapshot yet")
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
                 }
-                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                .foregroundColor(.secondary)
             }
         }
-        .frame(height: 32)
+        .frame(height: analytics.progress.isLoading || snapshot.refreshedAt == nil ? 28 : 0)
     }
 
     private var overview: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                UsageMetricCard(title: "Today", totals: snapshot.codex.today, subtitle: "Codex local estimate")
-                UsageMetricCard(title: "7 days", totals: snapshot.codex.sevenDays, subtitle: "Codex local estimate")
-                UsageMetricCard(title: "30 days", totals: snapshot.codex.thirtyDays, subtitle: "Codex local estimate")
+                SimpleMetricCard(
+                    title: "Today",
+                    value: compactCount(snapshot.codex.today.totalTokens),
+                    detail: money(snapshot.codex.today.estimatedCostUSD)
+                )
+                SimpleMetricCard(
+                    title: "7 days",
+                    value: compactCount(snapshot.codex.sevenDays.totalTokens),
+                    detail: money(snapshot.codex.sevenDays.estimatedCostUSD)
+                )
+                SimpleMetricCard(
+                    title: "30 days",
+                    value: compactCount(snapshot.codex.thirtyDays.totalTokens),
+                    detail: money(snapshot.codex.thirtyDays.estimatedCostUSD)
+                )
+                SimpleMetricCard(
+                    title: "Kimi left",
+                    value: kimiRemainingText,
+                    detail: kimiResetText
+                )
             }
 
             HeatmapSection(daily: snapshot.codex.daily)
-
-            HStack(alignment: .top, spacing: 12) {
-                ProviderSummaryPanel(
-                    title: "Codex",
-                    primary: "\(compactCount(snapshot.codex.thirtyDays.totalTokens)) tokens",
-                    secondary: "\(money(snapshot.codex.thirtyDays.estimatedCostUSD)) API-equivalent · 30d",
-                    footnote: "\(snapshot.codex.eventCount) usage events · \(snapshot.codex.fileCount) files"
-                )
-
-                ProviderSummaryPanel(
-                    title: "Kimi",
-                    primary: kimiPrimaryText,
-                    secondary: "quota windows · no dollar estimate",
-                    footnote: snapshot.kimi.source
-                )
-            }
         }
     }
 
@@ -218,8 +215,9 @@ struct StatisticsView: View {
         guard let refreshedAt = snapshot.refreshedAt else {
             return analytics.isRefreshing ? "loading" : "not loaded"
         }
-        let duration = analytics.progress.lastDuration.map { " · \(durationText($0))" } ?? ""
-        return refreshedAt.formatted(date: .omitted, time: .standard) + duration
+        let duration = (snapshot.lastLoadDuration ?? analytics.progress.lastDuration)
+            .map { " · \(durationText($0))" } ?? ""
+        return "Updated \(dateTimeText(refreshedAt))" + duration
     }
 
     private func loadStatusText(now: Date) -> String {
@@ -227,15 +225,15 @@ struct StatisticsView: View {
         if progress.isLoading {
             let elapsed = progress.startedAt.map { now.timeIntervalSince($0) } ?? 0
             if progress.totalFiles > 0 {
-                return "Loading Codex logs \(progress.processedFiles)/\(progress.totalFiles) · elapsed \(durationText(elapsed))"
+                return "Updating Codex \(progress.processedFiles)/\(progress.totalFiles) · \(durationText(elapsed))"
             }
-            return "Finding Codex logs · elapsed \(durationText(elapsed))"
+            return "Finding Codex logs · \(durationText(elapsed))"
         }
 
         guard let lastDuration = progress.lastDuration else {
             return "Usage analytics not loaded"
         }
-        return "Last load \(durationText(lastDuration)) · \(progress.totalFiles) files"
+        return "Last load \(durationText(lastDuration))"
     }
 
     private var kimiPrimaryText: String {
@@ -246,6 +244,20 @@ struct StatisticsView: View {
             return "\(lowest.label) \(used)/\(limit)"
         }
         return "\(lowest.label) \(lowest.remainingPercent)% left"
+    }
+
+    private var kimiRemainingText: String {
+        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
+            return "--"
+        }
+        return "\(lowest.remainingPercent)%"
+    }
+
+    private var kimiResetText: String {
+        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
+            return "no quota data"
+        }
+        return lowest.resetAt.map { "resets \(shortDateTime($0))" } ?? lowest.label
     }
 
     private func sectionTitle(_ text: String) -> some View {
@@ -278,6 +290,66 @@ private enum AnalyticsTab: String, CaseIterable, Identifiable {
     case kimi = "Kimi"
 
     var id: String { rawValue }
+}
+
+private struct AnalyticsTabControl: View {
+    @Binding var selection: AnalyticsTab
+
+    var body: some View {
+        HStack(spacing: 1) {
+            ForEach(AnalyticsTab.allCases) { tab in
+                Button {
+                    selection = tab
+                } label: {
+                    Text(tab.rawValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(selection == tab ? .white : .primary)
+                        .frame(width: 88, height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selection == tab ? Color.accentColor : Color.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
+}
+
+private struct SimpleMetricCard: View {
+    let title: String
+    let value: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            Text(value)
+                .font(.system(size: 17, weight: .semibold, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(detail)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.76)
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
 }
 
 private enum UsageMetricMode {
@@ -531,6 +603,14 @@ private func durationText(_ value: TimeInterval) -> String {
 
 private func shortDate(_ date: Date) -> String {
     date.formatted(.dateTime.month(.abbreviated).day())
+}
+
+private func dateTimeText(_ date: Date) -> String {
+    date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+}
+
+private func shortDateTime(_ date: Date) -> String {
+    date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
 }
 
 private func formatResetDate(_ date: Date) -> String {

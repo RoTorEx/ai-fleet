@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Kept Statistics data visible from a local cache while Codex usage refreshes
+  continue in the background after closing the Statistics window.
+- Simplified the Statistics overview into direct Codex token/cost and Kimi
+  quota answers, with detailed provider breakdowns kept on their own tabs.
+
 ## [1.1.0] - 2026-08-22
 
 - Added the standard tag-driven release flow: interactive version preparation,

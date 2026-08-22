@@ -41,7 +41,9 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
 7. `UsageAnalyticsService` reads local Codex JSONL usage metadata for token
    totals, 30-day heatmap data, model breakdowns, and API-equivalent cost
-   estimates. Kimi statistics use quota windows from `StatusService`.
+   estimates. It keeps the last successful snapshot on disk and refreshes in
+   the background so closing the Statistics window does not cancel an active
+   load. Kimi statistics use quota windows from `StatusService`.
 8. `UpdateService` resolves the latest GitHub Release for the current CPU,
    verifies the published checksum and application bundle, atomically replaces
    the installed app, and relaunches it.
@@ -54,7 +56,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `CodexUsageResponse` — ChatGPT WHAM usage payload.
 - `CodexAuth` — minimal `~/.codex/auth.json` shape.
 - `ProviderCatalog` — supported provider list, executable names, and local credential paths used for install/login detection.
-- `UsageAnalyticsSnapshot` — Codex token analytics and Kimi quota analytics for the Statistics window.
+- `UsageAnalyticsSnapshot` — cached Codex token analytics, Kimi quota analytics, last refresh time, and last load duration for the Statistics window.
 
 ## UI
 
@@ -66,6 +68,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Kimi API key fallback: `~/Library/Application Support/AI Fleet/config.json` (`kimiApiKey`) or `KIMI_API_KEY` environment variable.
 - Codex token: read automatically from `~/.codex/auth.json`.
 - Codex local usage analytics: numeric token-usage metadata from `~/.codex/sessions/**/*.jsonl`.
+- Statistics cache: `~/Library/Application Support/AI Fleet/usage-analytics-cache.json`.
 - Claude login detection: local Claude credential files such as `~/.claude.json`.
 - Qwen login detection: local Qwen credential files such as `~/.qwen/oauth_creds.json`.
 

@@ -1,14 +1,16 @@
 import Foundation
 
-struct UsageAnalyticsSnapshot: Equatable {
+struct UsageAnalyticsSnapshot: Codable, Equatable {
     var codex: CodexUsageAnalytics
     var kimi: KimiQuotaAnalytics
     var refreshedAt: Date?
+    var lastLoadDuration: TimeInterval?
 
     static let empty = UsageAnalyticsSnapshot(
         codex: .empty,
         kimi: .empty,
-        refreshedAt: nil
+        refreshedAt: nil,
+        lastLoadDuration: nil
     )
 }
 
@@ -37,7 +39,7 @@ struct UsageAnalyticsLoadProgress: Equatable {
     }
 }
 
-struct CodexUsageAnalytics: Equatable {
+struct CodexUsageAnalytics: Codable, Equatable {
     var total: UsageTotals
     var today: UsageTotals
     var sevenDays: UsageTotals
@@ -61,14 +63,14 @@ struct CodexUsageAnalytics: Equatable {
     )
 }
 
-struct KimiQuotaAnalytics: Equatable {
+struct KimiQuotaAnalytics: Codable, Equatable {
     var windows: [KimiQuotaWindow]
     var source: String
 
     static let empty = KimiQuotaAnalytics(windows: [], source: "Kimi quota API")
 }
 
-struct KimiQuotaWindow: Identifiable, Equatable {
+struct KimiQuotaWindow: Codable, Identifiable, Equatable {
     let id: String
     let label: String
     let remainingPercent: Int
@@ -77,14 +79,14 @@ struct KimiQuotaWindow: Identifiable, Equatable {
     let resetAt: Date?
 }
 
-struct DailyUsage: Identifiable, Equatable {
+struct DailyUsage: Codable, Identifiable, Equatable {
     let day: Date
     var totals: UsageTotals
 
     var id: Date { day }
 }
 
-struct ModelUsage: Identifiable, Equatable {
+struct ModelUsage: Codable, Identifiable, Equatable {
     let model: String
     var totals: UsageTotals
     var events: Int
@@ -92,7 +94,7 @@ struct ModelUsage: Identifiable, Equatable {
     var id: String { model }
 }
 
-struct UsageTotals: Equatable {
+struct UsageTotals: Codable, Equatable {
     var inputTokens: Int
     var cachedInputTokens: Int
     var cacheWriteInputTokens: Int
@@ -130,6 +132,7 @@ struct UsageTotals: Equatable {
 @MainActor
 final class UsageAnalyticsService: ObservableObject {
     static let shared = UsageAnalyticsService()
+    private static let staleRefreshInterval: TimeInterval = 10 * 60
 
     @Published private(set) var snapshot = UsageAnalyticsSnapshot.empty
     @Published private(set) var isRefreshing = false
@@ -137,10 +140,45 @@ final class UsageAnalyticsService: ObservableObject {
 
     private var task: Task<Void, Never>?
 
-    private init() {}
+    private init() {
+        let cached = Self.loadCachedSnapshot()
+        snapshot = cached
+        progress = UsageAnalyticsLoadProgress(
+            isLoading: false,
+            processedFiles: 0,
+            totalFiles: cached.codex.fileCount,
+            startedAt: nil,
+            lastDuration: cached.lastLoadDuration,
+            lastCompletedAt: cached.refreshedAt,
+            currentFileName: nil
+        )
+    }
 
     func refresh(kimi: ProviderStatus) {
-        task?.cancel()
+        startRefresh(kimi: kimi, restartExisting: true)
+    }
+
+    func refreshIfNeeded(kimi: ProviderStatus) {
+        let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
+        snapshot = snapshot.withKimi(kimiAnalytics)
+
+        guard !isRefreshing else {
+            return
+        }
+        if let refreshedAt = snapshot.refreshedAt,
+           Date().timeIntervalSince(refreshedAt) < Self.staleRefreshInterval {
+            return
+        }
+
+        startRefresh(kimi: kimi, restartExisting: false)
+    }
+
+    private func startRefresh(kimi: ProviderStatus, restartExisting: Bool) {
+        if isRefreshing {
+            guard restartExisting else { return }
+            task?.cancel()
+        }
+
         isRefreshing = true
         let startedAt = Date()
         progress = UsageAnalyticsLoadProgress(
@@ -148,36 +186,32 @@ final class UsageAnalyticsService: ObservableObject {
             processedFiles: 0,
             totalFiles: 0,
             startedAt: startedAt,
-            lastDuration: progress.lastDuration,
-            lastCompletedAt: progress.lastCompletedAt,
+            lastDuration: snapshot.lastLoadDuration ?? progress.lastDuration,
+            lastCompletedAt: snapshot.refreshedAt ?? progress.lastCompletedAt,
             currentFileName: nil
         )
 
         let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
-        snapshot = UsageAnalyticsSnapshot(
-            codex: snapshot.codex,
-            kimi: kimiAnalytics,
-            refreshedAt: snapshot.refreshedAt
-        )
+        snapshot = snapshot.withKimi(kimiAnalytics)
 
-        task = Task { [weak self] in
+        task = Task { [self, startedAt, kimiAnalytics] in
             let files = await Task.detached(priority: .utility) {
                 CodexUsageLogReader().codexLogFiles()
             }.value
             guard !Task.isCancelled else { return }
 
-            self?.progress.totalFiles = files.count
+            self.progress.totalFiles = files.count
 
             var entries: [CodexUsageLogEntry] = []
             for (index, file) in files.enumerated() {
                 guard !Task.isCancelled else { return }
-                self?.progress.currentFileName = file.lastPathComponent
+                self.progress.currentFileName = file.lastPathComponent
 
                 let fileEntries = await Task.detached(priority: .utility) {
                     CodexUsageLogReader().readEntries(from: file)
                 }.value
                 entries.append(contentsOf: fileEntries)
-                self?.progress.processedFiles = index + 1
+                self.progress.processedFiles = index + 1
             }
 
             let codex = await Task.detached(priority: .utility) {
@@ -186,21 +220,25 @@ final class UsageAnalyticsService: ObservableObject {
 
             guard !Task.isCancelled else { return }
             let duration = Date().timeIntervalSince(startedAt)
-            self?.snapshot = UsageAnalyticsSnapshot(
+            let completedAt = Date()
+            let nextSnapshot = UsageAnalyticsSnapshot(
                 codex: codex,
                 kimi: kimiAnalytics,
-                refreshedAt: Date()
+                refreshedAt: completedAt,
+                lastLoadDuration: duration
             )
-            self?.progress = UsageAnalyticsLoadProgress(
+            self.snapshot = nextSnapshot
+            self.progress = UsageAnalyticsLoadProgress(
                 isLoading: false,
                 processedFiles: files.count,
                 totalFiles: files.count,
                 startedAt: nil,
                 lastDuration: duration,
-                lastCompletedAt: Date(),
+                lastCompletedAt: completedAt,
                 currentFileName: nil
             )
-            self?.isRefreshing = false
+            self.isRefreshing = false
+            Self.saveCachedSnapshot(nextSnapshot)
         }
     }
 
@@ -219,17 +257,94 @@ final class UsageAnalyticsService: ObservableObject {
             source: "Kimi quota API"
         )
     }
+
+    private static var cacheURL: URL {
+        FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first!
+            .appendingPathComponent("AI Fleet", isDirectory: true)
+            .appendingPathComponent("usage-analytics-cache.json")
+    }
+
+    private static var cacheDirectoryURL: URL {
+        cacheURL.deletingLastPathComponent()
+    }
+
+    private static func loadCachedSnapshot() -> UsageAnalyticsSnapshot {
+        do {
+            let data = try Data(contentsOf: cacheURL)
+            protectCacheFile()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(UsageAnalyticsSnapshot.self, from: data)
+        } catch {
+            return .empty
+        }
+    }
+
+    private static func saveCachedSnapshot(_ snapshot: UsageAnalyticsSnapshot) {
+        do {
+            try FileManager.default.createDirectory(
+                at: cacheDirectoryURL,
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: cacheDirectoryURL.path
+            )
+
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(snapshot)
+            try data.write(to: cacheURL, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: cacheURL.path
+            )
+        } catch {
+            // Statistics cache is best-effort; the next refresh can rebuild it.
+        }
+    }
+
+    private static func protectCacheFile() {
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o700],
+            ofItemAtPath: cacheDirectoryURL.path
+        )
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: cacheURL.path
+        )
+    }
 }
 
-private struct CodexUsageLogEntry {
+private extension UsageAnalyticsSnapshot {
+    func withKimi(_ kimi: KimiQuotaAnalytics) -> UsageAnalyticsSnapshot {
+        UsageAnalyticsSnapshot(
+            codex: codex,
+            kimi: kimi,
+            refreshedAt: refreshedAt,
+            lastLoadDuration: lastLoadDuration
+        )
+    }
+}
+
+struct CodexUsageLogEntry {
     let timestamp: Date
     let model: String
     let totals: UsageTotals
 }
 
-private struct CodexUsageLogReader {
+struct CodexUsageLogReader {
     private let calendar = Calendar.autoupdatingCurrent
     private let iso8601 = ISO8601DateFormatter()
+    private let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     func read() -> CodexUsageAnalytics {
         let files = codexLogFiles()
@@ -329,17 +444,27 @@ private struct CodexUsageLogReader {
             }
 
             guard text.contains("\"last_token_usage\""),
-                  let timestamp = timestamp(in: text),
-                  let usageStart = text.range(of: "\"last_token_usage\"")?.lowerBound else {
+                  let timestamp = timestamp(in: text) else {
                 continue
             }
 
-            let usageText = String(text[usageStart...])
-            let input = intValue("input_tokens", in: usageText)
-            let cached = intValue("cached_input_tokens", in: usageText)
-            let cacheWrite = intValue("cache_write_input_tokens", in: usageText)
-            let output = intValue("output_tokens", in: usageText)
-            let reasoning = intValue("reasoning_output_tokens", in: usageText)
+            let usageObject = tokenUsageObject(in: text)
+            let usageText: String
+            if let usageStart = text.range(of: "\"last_token_usage\"")?.lowerBound {
+                usageText = String(text[usageStart...])
+            } else {
+                usageText = text
+            }
+            let input = usageObject.map { intValue("input_tokens", in: $0) }
+                ?? intValue("input_tokens", in: usageText)
+            let cached = usageObject.map { intValue("cached_input_tokens", in: $0) }
+                ?? intValue("cached_input_tokens", in: usageText)
+            let cacheWrite = usageObject.map { intValue("cache_write_input_tokens", in: $0) }
+                ?? intValue("cache_write_input_tokens", in: usageText)
+            let output = usageObject.map { intValue("output_tokens", in: $0) }
+                ?? intValue("output_tokens", in: usageText)
+            let reasoning = usageObject.map { intValue("reasoning_output_tokens", in: $0) }
+                ?? intValue("reasoning_output_tokens", in: usageText)
             let totals = usageTotals(
                 model: sessionModel,
                 input: input,
@@ -355,13 +480,36 @@ private struct CodexUsageLogReader {
         return entries
     }
 
+    private func tokenUsageObject(in text: String) -> [String: Any]? {
+        guard let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        if let payload = object["payload"] as? [String: Any],
+           let info = payload["info"] as? [String: Any],
+           let usage = info["last_token_usage"] as? [String: Any] {
+            return usage
+        }
+
+        if let usage = object["last_token_usage"] as? [String: Any] {
+            return usage
+        }
+
+        return nil
+    }
+
     private func timestamp(in text: String) -> Date? {
         guard let range = text.range(of: "\"timestamp\"") else { return nil }
         let rest = text[range.upperBound...]
         guard let firstQuote = rest.firstIndex(of: "\"") else { return nil }
         let afterFirstQuote = rest.index(after: firstQuote)
         guard let secondQuote = rest[afterFirstQuote...].firstIndex(of: "\"") else { return nil }
-        return iso8601.date(from: String(rest[afterFirstQuote..<secondQuote]))
+        return timestamp(from: String(rest[afterFirstQuote..<secondQuote]))
+    }
+
+    private func timestamp(from value: String) -> Date? {
+        iso8601WithFractionalSeconds.date(from: value) ?? iso8601.date(from: value)
     }
 
     private func intValue(_ key: String, in text: String) -> Int {
@@ -386,6 +534,23 @@ private struct CodexUsageLogReader {
 
         guard start < index else { return 0 }
         return Int(text[start..<index]) ?? 0
+    }
+
+    private func intValue(_ key: String, in object: [String: Any]) -> Int {
+        guard let value = object[key] else {
+            return 0
+        }
+
+        if let int = value as? Int {
+            return int
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        if let string = value as? String {
+            return Int(string) ?? 0
+        }
+        return 0
     }
 
     private func knownModel(in text: String) -> String? {
