@@ -32,6 +32,8 @@ subscription charges.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
 - All windows follow the current macOS light or dark appearance.
+- The compact menu presents the application version as the final `Version`
+  key/value row in its top summary; it has no separate version footer.
 
 ## Decision-bearing defaults
 

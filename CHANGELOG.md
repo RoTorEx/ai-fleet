@@ -6,6 +6,8 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Moved the app version from the menu footer into the final `Version` row of the
+  top status summary.
 - Flattened and tightened the Statistics layout so period controls and complete
   table headers fit without an outer scroll, while accounting values are grouped
   into clear Data, Input, Output, and Estimate columns.

@@ -78,12 +78,6 @@ struct AIFleetMenuView: View {
             }
             .padding(.horizontal, 16)
 
-            Text(versionText)
-                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                .foregroundColor(FleetPalette.faint)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
         }
         .padding(.vertical, 14)
         .frame(width: 354)
@@ -121,6 +115,10 @@ struct AIFleetMenuView: View {
             GridRow {
                 summaryLabel("Bridge")
                 summaryValue(providers.isEmpty ? "no installed lanes" : "\(activeProviderCount)/\(providers.count) lanes")
+            }
+            GridRow {
+                summaryLabel("Version")
+                summaryValue(versionText)
             }
         }
         .padding(.horizontal, 16)
@@ -187,9 +185,9 @@ struct AIFleetMenuView: View {
         guard let version = Bundle.main.object(
             forInfoDictionaryKey: "CFBundleShortVersionString"
         ) as? String else {
-            return "AI Fleet development build"
+            return "development build"
         }
-        return "AI Fleet v\(version)"
+        return version
     }
 }
 
