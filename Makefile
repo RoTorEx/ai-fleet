@@ -34,7 +34,7 @@ run:
 
 test:
 	@./scripts/test-release.sh
-	@./scripts/install.sh --help >/dev/null
+	@./scripts/test-install.sh
 	swift test
 
 check: public-audit test

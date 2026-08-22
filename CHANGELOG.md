@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Fixed the terminal installer on macOS `sh` when printing the selected
+  architecture before downloading a release.
+
 ## [1.1.1] - 2026-08-22
 
 - Kept Statistics data visible from a local cache while Codex usage refreshes

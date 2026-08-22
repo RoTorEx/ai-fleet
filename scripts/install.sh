@@ -83,7 +83,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-echo "Downloading AI Fleet $tag for $architecture…"
+echo "Downloading AI Fleet $tag for ${architecture}…"
 curl -fL --retry 3 --connect-timeout 15 \
     -o "$work_dir/$archive" "$download_base/$archive"
 curl -fL --retry 3 --connect-timeout 15 \
