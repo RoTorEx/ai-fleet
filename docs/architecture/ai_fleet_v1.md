@@ -40,7 +40,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 5. Each provider returns a `ProviderStatus` with `ok`, `limited`, `offline`, `noKey`, or `notInstalled` state.
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
 7. `UsageAnalyticsService` reads local Codex JSONL usage metadata for token
-   totals, all-day heatmap data, model/day breakdowns, reasoning usage, and
+   totals, model/day breakdowns, reasoning usage, and
    API-equivalent cost estimates. Opening Statistics reads only the aggregate
    snapshot. Manual or scheduled background refreshes reuse unchanged files
    from a per-file aggregate cache and parse changed files at background
@@ -62,16 +62,17 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 ## UI
 
 - `AIFleetMenuView` — minimal popover with Kimi and Codex rows, last update time, and Refresh / Quit buttons.
-- `StatisticsView` — resizable provider analytics window with date-range
-  filtering, native scrolling tables, adaptive panels, and a square activity
-  heatmap. Only accounting-specific terms carry hover explanations.
+- `StatisticsView` — centered, resizable provider analytics window with
+  date-range filtering, vertically scrolling fixed-column tables, and adaptive
+  panels. Only accounting-specific terms carry hover explanations.
 
 ## Configuration
 
 - Kimi Code credentials: `~/.kimi-code/credentials/kimi-code.json`.
 - Kimi API key fallback: `~/Library/Application Support/AI Fleet/config.json` (`kimiApiKey`) or `KIMI_API_KEY` environment variable.
 - Codex token: read automatically from `~/.codex/auth.json`.
-- Codex local usage analytics: numeric token-usage metadata from `~/.codex/sessions/**/*.jsonl`.
+- Codex local usage analytics: numeric token-usage metadata from active
+  `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl` files.
 - Statistics cache: `~/Library/Application Support/AI Fleet/usage-analytics-cache.json`.
 - Incremental per-file statistics cache:
   `~/Library/Application Support/AI Fleet/usage-analytics-files-cache.json`.

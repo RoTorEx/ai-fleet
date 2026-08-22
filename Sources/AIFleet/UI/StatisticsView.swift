@@ -19,6 +19,13 @@ struct StatisticsView: View {
         return codexUsageSelection(from: snapshot.codex, start: bounds.start, end: bounds.end)
     }
 
+    private var periodDetail: String {
+        guard period == .allTime, let first = selection.daily.first?.day, let last = selection.daily.last?.day else {
+            return period.label
+        }
+        return "\(rangeDate(first)) – \(rangeDate(last))"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
@@ -58,7 +65,7 @@ struct StatisticsView: View {
                 MetricCard(
                     title: "Total tokens",
                     value: compactCount(selection.totals.totalTokens),
-                    detail: period.label,
+                    detail: periodDetail,
                     help: "Input tokens plus output tokens for the selected period."
                 )
                 MetricCard(
@@ -90,7 +97,6 @@ struct StatisticsView: View {
                     .frame(minWidth: 330, maxWidth: .infinity)
             }
 
-            HeatmapSection(daily: selection.daily)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -360,149 +366,6 @@ private struct HoverInfoTip: View {
     }
 }
 
-private struct HeatmapCell: Identifiable {
-    let id: String
-    let usage: DailyUsage?
-}
-
-private struct HeatmapMonthGroup: Identifiable {
-    let id: Date
-    let label: String
-    let cells: [HeatmapCell]
-
-    var width: CGFloat {
-        CGFloat(max(1, Int(ceil(Double(cells.count) / 7.0)))) * 12 - 2
-    }
-}
-
-private struct HeatmapSection: View {
-    let daily: [DailyUsage]
-    private var maxTokens: Int { max(1, daily.map(\.totals.totalTokens).max() ?? 1) }
-
-    private var months: [HeatmapMonthGroup] {
-        let calendar = Calendar.autoupdatingCurrent
-        let grouped = Dictionary(grouping: daily) { usage in
-            let parts = calendar.dateComponents([.year, .month], from: usage.day)
-            return calendar.date(from: parts) ?? calendar.startOfDay(for: usage.day)
-        }
-        return grouped.keys.sorted().map { month in
-            let values = (grouped[month] ?? []).sorted { $0.day < $1.day }
-            let weekdayOffset = (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
-            let daysBeforeSelection = max(0, (values.first.map { calendar.component(.day, from: $0.day) } ?? 1) - 1)
-            let leading = weekdayOffset + daysBeforeSelection
-            let blanks = (0..<leading).map { HeatmapCell(id: "blank-\(month.timeIntervalSince1970)-\($0)", usage: nil) }
-            return HeatmapMonthGroup(
-                id: month,
-                label: month.formatted(.dateTime.month(.abbreviated)),
-                cells: blanks + values.map { HeatmapCell(id: "day-\($0.day.timeIntervalSince1970)", usage: $0) }
-            )
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Activity").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
-                Spacer()
-                HeatmapLegend()
-            }
-            if months.isEmpty {
-                Text("No Codex usage in this period")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 74, alignment: .center)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: months.count > 8) {
-                        HStack(alignment: .top, spacing: 14) {
-                            ForEach(months) { month in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(month.label)
-                                        .font(.system(size: 9.5, weight: .semibold))
-                                        .foregroundColor(.secondary)
-                                    LazyHGrid(rows: Array(repeating: GridItem(.fixed(10), spacing: 2), count: 7), spacing: 2) {
-                                        ForEach(month.cells) { cell in
-                                            HeatmapDayCell(cell: cell, maxTokens: maxTokens)
-                                                .id(cell.id)
-                                        }
-                                    }
-                                    .frame(width: month.width, height: 82, alignment: .leading)
-                                }
-                                .id(month.id)
-                            }
-                        }
-                        .padding(.vertical, 1)
-                    }
-                    .onAppear { scrollToLatest(proxy) }
-                    .onChange(of: months.last?.id) { _ in scrollToLatest(proxy) }
-                }
-                .frame(height: 100)
-            }
-        }
-        .padding(9)
-        .panelStyle()
-    }
-
-    private func scrollToLatest(_ proxy: ScrollViewProxy) {
-        guard let last = months.last else { return }
-        DispatchQueue.main.async { proxy.scrollTo(last.id, anchor: .trailing) }
-    }
-}
-
-private struct HeatmapDayCell: View {
-    let cell: HeatmapCell
-    let maxTokens: Int
-    @State private var showsDetails = false
-
-    var body: some View {
-        Group {
-            if let usage = cell.usage {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(heatmapColor(tokens: usage.totals.totalTokens))
-                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
-                    .onHover { showsDetails = $0 }
-                    .popover(isPresented: $showsDetails, arrowEdge: .bottom) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(usage.day.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
-                                .font(.system(size: 11, weight: .semibold))
-                            Text("Activity: \(compactCount(usage.totals.totalTokens)) tokens")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            Text("Estimate: \(money(usage.totals.estimatedCostUSD))")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(10)
-                    }
-            } else {
-                Color.clear
-            }
-        }
-        .frame(width: 10, height: 10)
-    }
-
-    private func heatmapColor(tokens: Int) -> Color {
-        guard tokens > 0 else { return Color(nsColor: .quaternaryLabelColor).opacity(0.22) }
-        let level = min(4, max(1, Int(ceil(Double(tokens) / Double(maxTokens) * 4))))
-        return Color.accentColor.opacity([0, 0.28, 0.46, 0.68, 0.92][level])
-    }
-}
-
-private struct HeatmapLegend: View {
-    var body: some View {
-        HStack(spacing: 4) {
-            Text("Less")
-            ForEach(0..<5, id: \.self) { level in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(level == 0 ? Color(nsColor: .quaternaryLabelColor).opacity(0.22) : Color.accentColor.opacity(Double(level) * 0.2 + 0.12))
-                    .frame(width: 10, height: 10)
-            }
-            Text("More")
-        }
-        .font(.system(size: 9.5, weight: .medium))
-        .foregroundColor(.secondary)
-    }
-}
-
 private struct ModelTablePanel: View {
     let models: [ModelUsage]
     var body: some View {
@@ -513,16 +376,45 @@ private struct ModelTablePanel: View {
             }
             .font(.system(size: 12.5, weight: .semibold))
             .foregroundColor(.secondary)
-            Table(models) {
-                TableColumn("Model", value: \.model).width(min: 125, ideal: 150)
-                TableColumn("Tokens") { Text(compactCount($0.totals.totalTokens)).monospacedDigit() }.width(min: 75, ideal: 90)
-                TableColumn("Reasoning") { Text(compactCount($0.totals.reasoningOutputTokens)).monospacedDigit() }.width(min: 82, ideal: 95)
-                TableColumn("Estimate") { Text(money($0.totals.estimatedCostUSD)).monospacedDigit() }.width(min: 70, ideal: 80)
+            compactModelRow(model: "Model", tokens: "Tokens", reasoning: "Reasoning", estimate: "Estimate", isHeader: true)
+            Divider()
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 0) {
+                    ForEach(models) { model in
+                        compactModelRow(
+                            model: model.model,
+                            tokens: compactCount(model.totals.totalTokens),
+                            reasoning: compactCount(model.totals.reasoningOutputTokens),
+                            estimate: money(model.totals.estimatedCostUSD),
+                            isHeader: false
+                        )
+                        Divider()
+                    }
+                }
             }
-            .frame(height: 122)
+            .frame(height: 184)
         }
         .padding(9)
         .panelStyle()
+    }
+
+    private func compactModelRow(
+        model: String,
+        tokens: String,
+        reasoning: String,
+        estimate: String,
+        isHeader: Bool
+    ) -> some View {
+        HStack(spacing: 8) {
+            Text(model).frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+            Text(tokens).frame(width: 76, alignment: .trailing)
+            Text(reasoning).frame(width: 78, alignment: .trailing)
+            Text(estimate).frame(width: 68, alignment: .trailing)
+        }
+        .font(.system(size: isHeader ? 10.5 : 11, weight: isHeader ? .semibold : .medium, design: isHeader ? .default : .monospaced))
+        .foregroundColor(isHeader ? .secondary : .primary)
+        .padding(.horizontal, 4)
+        .padding(.vertical, isHeader ? 3 : 5)
     }
 }
 
@@ -532,15 +424,37 @@ private struct DailyTablePanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Days").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
-            Table(newestFirst) {
-                TableColumn("Date") { Text(shortDate($0.day)) }.width(min: 80, ideal: 95)
-                TableColumn("Tokens") { Text(compactCount($0.totals.totalTokens)).monospacedDigit() }.width(min: 90, ideal: 110)
-                TableColumn("Estimate") { Text(money($0.totals.estimatedCostUSD)).monospacedDigit() }.width(min: 75, ideal: 90)
+            compactDayRow(date: "Date", tokens: "Tokens", estimate: "Estimate", isHeader: true)
+            Divider()
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 0) {
+                    ForEach(newestFirst) { day in
+                        compactDayRow(
+                            date: shortDate(day.day),
+                            tokens: compactCount(day.totals.totalTokens),
+                            estimate: money(day.totals.estimatedCostUSD),
+                            isHeader: false
+                        )
+                        Divider()
+                    }
+                }
             }
-            .frame(height: 122)
+            .frame(height: 184)
         }
         .padding(9)
         .panelStyle()
+    }
+
+    private func compactDayRow(date: String, tokens: String, estimate: String, isHeader: Bool) -> some View {
+        HStack(spacing: 10) {
+            Text(date).frame(maxWidth: .infinity, alignment: .leading)
+            Text(tokens).frame(width: 105, alignment: .trailing)
+            Text(estimate).frame(width: 76, alignment: .trailing)
+        }
+        .font(.system(size: isHeader ? 10.5 : 11, weight: isHeader ? .semibold : .medium, design: isHeader ? .default : .monospaced))
+        .foregroundColor(isHeader ? .secondary : .primary)
+        .padding(.horizontal, 4)
+        .padding(.vertical, isHeader ? 3 : 5)
     }
 }
 
@@ -639,6 +553,10 @@ private func durationText(_ value: TimeInterval) -> String {
 
 private func shortDate(_ date: Date) -> String {
     date.formatted(.dateTime.month(.abbreviated).day())
+}
+
+private func rangeDate(_ date: Date) -> String {
+    date.formatted(.dateTime.year().month(.abbreviated).day())
 }
 
 private func dateTimeText(_ date: Date) -> String {

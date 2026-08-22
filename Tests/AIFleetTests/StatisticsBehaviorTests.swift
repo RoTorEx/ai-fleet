@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import AIFleet
 
@@ -106,6 +107,41 @@ final class StatisticsBehaviorTests: XCTestCase {
 
         XCTAssertEqual(selection.daily.count, 45)
         XCTAssertEqual(selection.eventCount, 45)
+    }
+
+    func testLogDiscoveryIncludesArchiveAndDeduplicatesMovedSessions() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let active = root.appendingPathComponent("sessions")
+        let archive = root.appendingPathComponent("archived_sessions")
+        try FileManager.default.createDirectory(at: active, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: archive, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let movedName = "rollout-moved.jsonl"
+        try Data().write(to: active.appendingPathComponent(movedName))
+        try Data().write(to: archive.appendingPathComponent(movedName))
+        try Data().write(to: archive.appendingPathComponent("rollout-archived.jsonl"))
+
+        let files = CodexUsageLogReader().codexLogFileMetadata(roots: [active, archive])
+
+        XCTAssertEqual(files.count, 2)
+        XCTAssertTrue(files.contains {
+            $0.url.lastPathComponent == movedName && $0.url.deletingLastPathComponent().lastPathComponent == "sessions"
+        })
+        XCTAssertTrue(files.contains { $0.url.lastPathComponent == "rollout-archived.jsonl" })
+    }
+
+    func testStatisticsWindowCentersInsideVisibleScreen() {
+        let visible = NSRect(x: 100, y: 50, width: 1_200, height: 800)
+        let centered = centeredWindowFrame(
+            windowFrame: NSRect(x: -2_000, y: 2_000, width: 900, height: 650),
+            visibleFrame: visible
+        )
+
+        XCTAssertGreaterThanOrEqual(centered.minX, visible.minX)
+        XCTAssertGreaterThanOrEqual(centered.minY, visible.minY)
+        XCTAssertLessThanOrEqual(centered.maxX, visible.maxX)
+        XCTAssertLessThanOrEqual(centered.maxY, visible.maxY)
     }
 
     private func totals(input: Int, output: Int, reasoning: Int) -> UsageTotals {

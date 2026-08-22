@@ -6,6 +6,11 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Centered the Statistics window within the visible screen, removed Activity,
+  and replaced the model/day tables with fixed-width rows that cannot scroll
+  horizontally.
+- Included `~/.codex/archived_sessions` in incremental analytics so all-time
+  covers the complete locally retained history instead of only active sessions.
 - Moved the app version from the menu footer into the final `Version` row of the
   top status summary.
 - Flattened and tightened the Statistics layout so period controls and complete

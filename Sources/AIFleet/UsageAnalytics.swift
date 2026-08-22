@@ -61,7 +61,7 @@ struct CodexUsageAnalytics: Codable, Equatable {
         dailyModels: [],
         eventCount: 0,
         fileCount: 0,
-        source: "~/.codex/sessions"
+        source: "~/.codex sessions + archive"
     )
 
     init(
@@ -538,7 +538,7 @@ struct CodexUsageLogReader {
             dailyModels: dailyModels,
             eventCount: dailyModels.reduce(0) { $0 + $1.events },
             fileCount: fileCount,
-            source: "~/.codex/sessions"
+            source: "~/.codex sessions + archive"
         )
     }
 
@@ -546,13 +546,14 @@ struct CodexUsageLogReader {
         codexLogFileMetadata().map(\.url)
     }
 
-    func codexLogFileMetadata() -> [CodexLogFile] {
+    func codexLogFileMetadata(roots suppliedRoots: [URL]? = nil) -> [CodexLogFile] {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let roots = [
-            home.appendingPathComponent(".codex/sessions")
+        let roots = suppliedRoots ?? [
+            home.appendingPathComponent(".codex/sessions"),
+            home.appendingPathComponent(".codex/archived_sessions")
         ]
 
-        var files: [CodexLogFile] = []
+        var filesByName: [String: CodexLogFile] = [:]
         for root in roots {
             guard let enumerator = FileManager.default.enumerator(
                 at: root,
@@ -570,16 +571,17 @@ struct CodexUsageLogReader {
                       values.isRegularFile == true else {
                     continue
                 }
-                files.append(
-                    CodexLogFile(
-                        url: url,
-                        modifiedAt: values.contentModificationDate ?? .distantPast,
-                        size: values.fileSize ?? 0
-                    )
+                let file = CodexLogFile(
+                    url: url,
+                    modifiedAt: values.contentModificationDate ?? .distantPast,
+                    size: values.fileSize ?? 0
                 )
+                if filesByName[url.lastPathComponent] == nil {
+                    filesByName[url.lastPathComponent] = file
+                }
             }
         }
-        return files.sorted { $0.url.path < $1.url.path }
+        return filesByName.values.sorted { $0.url.path < $1.url.path }
     }
 
     func readEntries(from file: URL) -> [CodexUsageLogEntry] {
@@ -588,20 +590,19 @@ struct CodexUsageLogReader {
         }
 
         var entries: [CodexUsageLogEntry] = []
-        var sessionModel = "gpt-5.6-sol"
+        let modelHeader = String(content.prefix(100_000))
+        let sessionModel = knownModel(in: modelHeader) ?? "gpt-5.6-sol"
+        let usageMarker = "\"last_token_usage\""
+        var cursor = content.startIndex
 
-        for line in content.split(whereSeparator: \.isNewline) {
-            if line.contains("gpt-") {
-                let modelText = String(line)
-                if let model = knownModel(in: modelText) {
-                    sessionModel = model
-                }
-            }
+        while cursor < content.endIndex,
+              let usageRange = content.range(of: usageMarker, range: cursor..<content.endIndex) {
+            let lineStart = content[..<usageRange.lowerBound].lastIndex(of: "\n")
+                .map { content.index(after: $0) } ?? content.startIndex
+            let lineEnd = content[usageRange.upperBound...].firstIndex(of: "\n") ?? content.endIndex
+            let text = String(content[lineStart..<lineEnd])
+            cursor = lineEnd < content.endIndex ? content.index(after: lineEnd) : content.endIndex
 
-            guard line.contains("\"last_token_usage\"") else {
-                continue
-            }
-            let text = String(line)
             guard let timestamp = timestamp(in: text) else { continue }
 
             let usageText: String

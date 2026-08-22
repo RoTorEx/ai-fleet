@@ -136,11 +136,11 @@ private final class StatisticsWindowController: NSWindowController {
     func showStatistics(relativeTo anchorFrame: NSRect?) {
         guard let window else { return }
 
-        if let anchorFrame {
-            placeWindow(window, relativeTo: anchorFrame)
-        } else if !didPlaceWindow {
-            window.center()
-            didPlaceWindow = true
+        if !didPlaceWindow {
+            placeWindow(window, onScreenContaining: anchorFrame)
+        } else if let screen = window.screen ?? NSScreen.main {
+            let constrained = window.constrainFrameRect(window.frame, to: screen)
+            window.setFrame(constrained, display: true)
         }
 
         window.makeKeyAndOrderFront(nil)
@@ -156,24 +156,30 @@ private final class StatisticsWindowController: NSWindowController {
         }
     }
 
-    private func placeWindow(_ window: NSWindow, relativeTo anchorFrame: NSRect) {
-        let gap: CGFloat = 36
-        let visibleFrame = NSScreen.screens.first(where: { $0.frame.intersects(anchorFrame) })?.visibleFrame
+    private func placeWindow(_ window: NSWindow, onScreenContaining anchorFrame: NSRect?) {
+        let visibleFrame = anchorFrame.flatMap { anchor in
+            NSScreen.screens.first(where: { $0.frame.intersects(anchor) })?.visibleFrame
+        }
             ?? window.screen?.visibleFrame
             ?? NSScreen.main?.visibleFrame
 
         var frame = window.frame
-        frame.origin.x = anchorFrame.minX - frame.width - gap
-        frame.origin.y = anchorFrame.maxY - frame.height
-
         if let visibleFrame {
-            frame.origin.x = max(visibleFrame.minX + gap, min(frame.origin.x, visibleFrame.maxX - frame.width - gap))
-            frame.origin.y = max(visibleFrame.minY + gap, min(frame.origin.y, visibleFrame.maxY - frame.height - gap))
+            frame = centeredWindowFrame(windowFrame: frame, visibleFrame: visibleFrame)
         }
 
         window.setFrame(frame, display: true)
         didPlaceWindow = true
     }
+}
+
+func centeredWindowFrame(windowFrame: NSRect, visibleFrame: NSRect) -> NSRect {
+    var frame = windowFrame
+    frame.origin.x = visibleFrame.midX - frame.width / 2
+    frame.origin.y = visibleFrame.midY - frame.height / 2
+    frame.origin.x = max(visibleFrame.minX, min(frame.origin.x, visibleFrame.maxX - frame.width))
+    frame.origin.y = max(visibleFrame.minY, min(frame.origin.y, visibleFrame.maxY - frame.height))
+    return frame
 }
 
 @MainActor

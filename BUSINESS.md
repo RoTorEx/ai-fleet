@@ -20,13 +20,13 @@ subscription charges.
   no redundant remaining value follows the threshold.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
-- Statistics opens on the all-time range so Activity exposes the full cached
-  history; shorter ranges are explicit user filters.
+- Statistics opens on the all-time range and includes both active and archived
+  local Codex sessions; shorter ranges are explicit user filters.
 - Statistics has no outer content scroll. Period controls remain unboxed,
-  accounting values are grouped by meaning, complete model/day tables precede
-  Activity, and Activity is the final block. Its calendar separates and labels
-  months with standard abbreviated month names and exposes date plus token
-  activity on hover.
+  accounting values are grouped by meaning, and model/day tables scroll only
+  vertically without horizontal overflow.
+- Statistics opens centered and fully constrained to the visible screen instead
+  of being positioned beside the menu-bar popover.
 - API-equivalent cost is derived from model token rates and is always labeled as
   an estimate, never as a subscription bill.
 - Cached input, cache writes, output, and reasoning remain separate accounting

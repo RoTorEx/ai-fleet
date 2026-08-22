@@ -77,11 +77,11 @@ Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
 **Statistics…** provides `7d`, `30d`, `90d`, all-time, and custom date ranges.
 The selected range recalculates totals, model and daily tables, reasoning usage,
-cost estimates, and the GitHub-style activity heatmap from cached aggregates.
+and cost estimates from cached aggregates. All-time includes active sessions and
+files moved by Codex into `~/.codex/archived_sessions`.
 There is no outer page scroll: the compact dashboard stays in one view while
-only the two long native tables scroll their rows. The window can be resized.
-Activity is the final block, separates months using standard abbreviated names,
-and shows the date and token activity when a day square is hovered.
+the two long tables scroll their rows vertically without horizontal scrolling.
+The window opens centered on the visible screen and can be resized.
 
 Opening Statistics never starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen
