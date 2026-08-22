@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-22
+
 - Added the standard tag-driven release flow: interactive version preparation,
   macOS Apple Silicon and Intel artifacts, checksums, smoke checks, and automatic
   GitHub Release publication.
