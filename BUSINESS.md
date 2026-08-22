@@ -24,7 +24,11 @@ subscription charges.
   local Codex sessions; shorter ranges are explicit user filters.
 - Statistics has no outer content scroll. Period controls remain unboxed,
   accounting values are grouped by meaning, and model/day tables scroll only
-  vertically without horizontal overflow.
+  vertically without horizontal overflow. The day table omits zero-activity
+  dates.
+- Token help expresses the selected workload as an explicitly approximate
+  English-prose and 100,000-word-novel equivalent, while warning that cached
+  context repeats and non-English text or code tokenizes differently.
 - Statistics opens centered and fully constrained to the visible screen instead
   of being positioned beside the menu-bar popover.
 - API-equivalent cost is derived from model token rates and is always labeled as

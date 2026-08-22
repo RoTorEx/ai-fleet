@@ -11,6 +11,8 @@ Tracks real product and release progress.
   horizontally.
 - Included `~/.codex/archived_sessions` in incremental analytics so all-time
   covers the complete locally retained history instead of only active sessions.
+- Labeled refresh progress as session files, omitted zero-activity dates from
+  Days, and added a book-scale explanation to the total-token help popover.
 - Moved the app version from the menu footer into the final `Version` row of the
   top status summary.
 - Flattened and tightened the Statistics layout so period controls and complete

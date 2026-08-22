@@ -64,7 +64,9 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `AIFleetMenuView` — minimal popover with Kimi and Codex rows, last update time, and Refresh / Quit buttons.
 - `StatisticsView` — centered, resizable provider analytics window with
   date-range filtering, vertically scrolling fixed-column tables, and adaptive
-  panels. Only accounting-specific terms carry hover explanations.
+  panels. Zero-activity dates are omitted from the day table. Only
+  accounting-specific terms carry hover explanations, including a rough
+  book-scale interpretation of token volume.
 
 ## Configuration
 

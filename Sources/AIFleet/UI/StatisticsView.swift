@@ -66,7 +66,7 @@ struct StatisticsView: View {
                     title: "Total tokens",
                     value: compactCount(selection.totals.totalTokens),
                     detail: periodDetail,
-                    help: "Input tokens plus output tokens for the selected period."
+                    help: tokenVolumeHelp(selection.totals.totalTokens)
                 )
                 MetricCard(
                     title: "Input",
@@ -84,7 +84,7 @@ struct StatisticsView: View {
                     title: "Estimate",
                     value: money(selection.totals.estimatedCostUSD),
                     detail: "API-equivalent",
-                    help: "Estimated API cost from model-specific input, cache and output rates; not a subscription charge."
+                    help: "Sum of the per-model estimates below. For each model: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. Rounded table rows can differ slightly from this total. This is not a subscription charge."
                 )
             }
 
@@ -199,7 +199,7 @@ private struct RefreshStatus: View {
                     ProgressView(value: progress.fractionCompleted ?? 0)
                         .progressViewStyle(.linear)
                         .frame(width: 90)
-                    Text(progress.totalFiles > 0 ? "\(progress.processedFiles)/\(progress.totalFiles)" : "preparing")
+                    Text(progress.totalFiles > 0 ? "files \(progress.processedFiles)/\(progress.totalFiles)" : "preparing")
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
                 } else if let duration = progress.lastDuration {
@@ -420,7 +420,9 @@ private struct ModelTablePanel: View {
 
 private struct DailyTablePanel: View {
     let daily: [DailyUsage]
-    private var newestFirst: [DailyUsage] { Array(daily.reversed()) }
+    private var newestFirst: [DailyUsage] {
+        Array(daily.filter { $0.totals.totalTokens > 0 }.reversed())
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Days").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
@@ -557,6 +559,13 @@ private func shortDate(_ date: Date) -> String {
 
 private func rangeDate(_ date: Date) -> String {
     date.formatted(.dateTime.year().month(.abbreviated).day())
+}
+
+func tokenVolumeHelp(_ tokens: Int) -> String {
+    let words = Double(max(0, tokens)) * 0.75
+    let novels = words / 100_000
+    let formattedNovels = novels.formatted(.number.precision(.fractionLength(novels < 10 ? 1 : 0)))
+    return "A token is a chunk of text, not a word. As a rough English-prose estimate, 1M tokens is about 750,000 words, or 7.5 novels of 100,000 words each. This selection is about \(formattedNovels) such novels. Russian text and code tokenize differently. This is workload volume, not unique text: repeated cached context is counted again."
 }
 
 private func dateTimeText(_ date: Date) -> String {

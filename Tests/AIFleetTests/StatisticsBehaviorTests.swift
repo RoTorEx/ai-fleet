@@ -144,6 +144,13 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertLessThanOrEqual(centered.maxY, visible.maxY)
     }
 
+    func testTokenVolumeHelpUsesBookScaleAndExplainsRepeatedCache() {
+        let help = tokenVolumeHelp(1_000_000)
+
+        XCTAssertTrue(help.contains("7.5 novels"))
+        XCTAssertTrue(help.contains("repeated cached context"))
+    }
+
     private func totals(input: Int, output: Int, reasoning: Int) -> UsageTotals {
         UsageTotals(
             inputTokens: input,

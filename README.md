@@ -81,7 +81,9 @@ and cost estimates from cached aggregates. All-time includes active sessions and
 files moved by Codex into `~/.codex/archived_sessions`.
 There is no outer page scroll: the compact dashboard stays in one view while
 the two long tables scroll their rows vertically without horizontal scrolling.
-The window opens centered on the visible screen and can be resized.
+Days omits dates with no recorded activity. The total-token help gives a rough
+English-prose/book equivalent while noting tokenization and cache caveats. The
+window opens centered on the visible screen and can be resized.
 
 Opening Statistics never starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen
