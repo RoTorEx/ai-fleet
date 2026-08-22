@@ -9,9 +9,18 @@ fixture="$test_root/fixture"
 origin="$test_root/origin.git"
 mkdir -p "$fixture/AppBundle" "$fixture/scripts"
 cp "$repo_root/AppBundle/Info.plist" "$fixture/AppBundle/Info.plist"
-cp "$repo_root/CHANGELOG.md" "$fixture/CHANGELOG.md"
 cp "$repo_root/scripts/release.sh" "$fixture/scripts/release.sh"
 chmod +x "$fixture/scripts/release.sh"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.0.0' "$fixture/AppBundle/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 1.0.0' "$fixture/AppBundle/Info.plist"
+
+printf '%s\n' \
+    '# Changelog' \
+    '' \
+    '## [Unreleased]' \
+    '' \
+    '- Exercise the release flow.' \
+    > "$fixture/CHANGELOG.md"
 
 cat > "$fixture/Makefile" <<'EOF'
 .PHONY: check release
