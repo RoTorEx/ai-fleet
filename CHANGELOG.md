@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Routed Swift build output to the disposable
+  `~/construction_side/ai-fleet.noindex/swift-build` tree.
+
 ## [1.1.2] - 2026-08-22
 
 - Fixed the terminal installer on macOS `sh` when printing the selected

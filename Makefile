@@ -5,6 +5,7 @@ APP_BUNDLE_ID := dev.ai-fleet
 PROJECT_NAME := $(notdir $(CURDIR))
 CONSTRUCTION_SIDE := $(HOME)/construction_side
 DIST_DIR ?= $(CONSTRUCTION_SIDE)/$(PROJECT_NAME).noindex/dist
+SWIFT_BUILD_PATH ?= $(CONSTRUCTION_SIDE)/$(PROJECT_NAME).noindex/swift-build
 APP_BUNDLE := $(DIST_DIR)/$(APP_NAME).app
 APP_CONTENTS := $(APP_BUNDLE)/Contents
 APP_MACOS := $(APP_CONTENTS)/MacOS
@@ -15,12 +16,12 @@ dist-dir:
 	@mkdir -p "$(DIST_DIR)"
 
 build:
-	swift build -c release
+	swift build --build-path "$(SWIFT_BUILD_PATH)" -c release
 
 bundle-app: dist-dir build
 	@rm -rf "$(APP_BUNDLE)"
 	@mkdir -p "$(APP_MACOS)" "$(APP_RESOURCES)"
-	@cp .build/release/ai-fleet "$(APP_MACOS)/$(APP_NAME)"
+	@cp "$(SWIFT_BUILD_PATH)/release/ai-fleet" "$(APP_MACOS)/$(APP_NAME)"
 	@chmod +x $(APP_MACOS)/$(APP_NAME)
 	@xcrun actool AppBundle/Assets.xcassets --compile "$(APP_RESOURCES)" --platform macosx --minimum-deployment-target 13.0 --app-icon AppIcon --output-partial-info-plist "$(APP_RESOURCES)/partial.plist" >/dev/null 2>&1
 	@cp AppBundle/Info.plist "$(APP_CONTENTS)/Info.plist"
@@ -30,15 +31,15 @@ bundle-app: dist-dir build
 	@echo "Bundled $(APP_BUNDLE)"
 
 run:
-	swift run
+	swift run --build-path "$(SWIFT_BUILD_PATH)"
 
 test:
 	@./scripts/test-release.sh
 	@./scripts/test-install.sh
-	swift test
+	swift test --build-path "$(SWIFT_BUILD_PATH)"
 
 check: public-audit test
-	swift build --target AIFleet
+	swift build --build-path "$(SWIFT_BUILD_PATH)" --target AIFleet
 
 public-audit:
 	@./scripts/public-audit.sh
@@ -77,7 +78,7 @@ version-value:
 	@/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' AppBundle/Info.plist
 
 clean:
-	rm -rf .build "$(DIST_DIR)"
+	rm -rf .build "$(SWIFT_BUILD_PATH)" "$(DIST_DIR)"
 
 stop-app:
 	@if pgrep -x "$(APP_NAME)" >/dev/null 2>&1; then \
