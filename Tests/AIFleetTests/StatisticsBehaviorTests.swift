@@ -134,7 +134,7 @@ final class StatisticsBehaviorTests: XCTestCase {
     func testStatisticsWindowCentersInsideVisibleScreen() {
         let visible = NSRect(x: 100, y: 50, width: 1_200, height: 800)
         let centered = centeredWindowFrame(
-            windowFrame: NSRect(x: -2_000, y: 2_000, width: 900, height: 650),
+            windowFrame: NSRect(x: -2_000, y: 2_000, width: 1_600, height: 1_000),
             visibleFrame: visible
         )
 
@@ -142,13 +142,20 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(centered.minY, visible.minY)
         XCTAssertLessThanOrEqual(centered.maxX, visible.maxX)
         XCTAssertLessThanOrEqual(centered.maxY, visible.maxY)
+        XCTAssertEqual(centered.size, visible.size)
     }
 
-    func testTokenVolumeHelpUsesBookScaleAndExplainsRepeatedCache() {
-        let help = tokenVolumeHelp(1_000_000)
+    func testTokenVolumeHelpCyclesThroughRequiredBooksAndTenMore() {
+        let examples = tokenVolumeHelpExamples(1_000_000)
+        let combined = examples.joined(separator: "\n")
 
-        XCTAssertTrue(help.contains("7.5 novels"))
-        XCTAssertTrue(help.contains("repeated cached context"))
+        XCTAssertEqual(examples.count, 14)
+        XCTAssertTrue(combined.contains("The Little Prince"))
+        XCTAssertTrue(combined.contains("The Hobbit"))
+        XCTAssertTrue(combined.contains("complete The Lord of the Rings trilogy"))
+        XCTAssertTrue(combined.contains("complete seven-book Harry Potter series"))
+        XCTAssertTrue(combined.lowercased().contains("repeated cached context"))
+        XCTAssertFalse(combined.contains("Russian"))
     }
 
     private func totals(input: Int, output: Int, reasoning: Int) -> UsageTotals {

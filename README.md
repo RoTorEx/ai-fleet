@@ -81,9 +81,10 @@ and cost estimates from cached aggregates. All-time includes active sessions and
 files moved by Codex into `~/.codex/archived_sessions`.
 There is no outer page scroll: the compact dashboard stays in one view while
 the two long tables scroll their rows vertically without horizontal scrolling.
-Days omits dates with no recorded activity. The total-token help gives a rough
-English-prose/book equivalent while noting tokenization and cache caveats. The
-window opens centered on the visible screen and can be resized.
+Days omits dates with no recorded activity. On each hover, the total-token help
+cycles through 14 approximate comparisons with well-known English fantasy and
+science-fiction books or complete series while retaining the cache caveat. The
+window resets to its compact size and opens centered on the visible screen.
 
 Opening Statistics never starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen

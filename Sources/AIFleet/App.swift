@@ -110,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 private final class StatisticsWindowController: NSWindowController {
-    private var didPlaceWindow = false
+    private let defaultWindowSize = NSSize(width: 900, height: 650)
 
     init() {
         let hostingController = NSHostingController(rootView: StatisticsView())
@@ -136,12 +136,7 @@ private final class StatisticsWindowController: NSWindowController {
     func showStatistics(relativeTo anchorFrame: NSRect?) {
         guard let window else { return }
 
-        if !didPlaceWindow {
-            placeWindow(window, onScreenContaining: anchorFrame)
-        } else if let screen = window.screen ?? NSScreen.main {
-            let constrained = window.constrainFrameRect(window.frame, to: screen)
-            window.setFrame(constrained, display: true)
-        }
+        placeWindow(window, onScreenContaining: anchorFrame)
 
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
@@ -164,17 +159,19 @@ private final class StatisticsWindowController: NSWindowController {
             ?? NSScreen.main?.visibleFrame
 
         var frame = window.frame
+        frame.size = defaultWindowSize
         if let visibleFrame {
             frame = centeredWindowFrame(windowFrame: frame, visibleFrame: visibleFrame)
         }
 
         window.setFrame(frame, display: true)
-        didPlaceWindow = true
     }
 }
 
 func centeredWindowFrame(windowFrame: NSRect, visibleFrame: NSRect) -> NSRect {
     var frame = windowFrame
+    frame.size.width = min(frame.width, visibleFrame.width)
+    frame.size.height = min(frame.height, visibleFrame.height)
     frame.origin.x = visibleFrame.midX - frame.width / 2
     frame.origin.y = visibleFrame.midY - frame.height / 2
     frame.origin.x = max(visibleFrame.minX, min(frame.origin.x, visibleFrame.maxX - frame.width))

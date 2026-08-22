@@ -6,21 +6,20 @@ Tracks real product and release progress.
 
 ### Changed
 
-- Centered the Statistics window within the visible screen, removed Activity,
-  and replaced the model/day tables with fixed-width rows that cannot scroll
+- Reset and centered the Statistics window within the visible screen on every
+  open, closed the menu popover before showing it, removed Activity, and
+  replaced the model/day tables with fixed-width rows that cannot scroll
   horizontally.
 - Included `~/.codex/archived_sessions` in incremental analytics so all-time
   covers the complete locally retained history instead of only active sessions.
 - Labeled refresh progress as session files, omitted zero-activity dates from
-  Days, and added a book-scale explanation to the total-token help popover.
+  Days, kept Dataset & accounting compact at larger window sizes, and made the
+  total-token help cycle through 14 real-book comparisons.
 - Moved the app version from the menu footer into the final `Version` row of the
   top status summary.
 - Flattened and tightened the Statistics layout so period controls and complete
   table headers fit without an outer scroll, while accounting values are grouped
   into clear Data, Input, Output, and Estimate columns.
-- Moved Activity to the final block, preserved ranges longer than 30 days,
-  separated calendar months with standard abbreviated labels, and added a
-  date/activity hover card for every day square.
 - Added explanations to the four summary metrics and clarified why per-model
   reasoning is shown while keeping the daily table compact.
 

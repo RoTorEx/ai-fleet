@@ -36,7 +36,9 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
             },
             openStatistics: { [weak self] in
                 guard let self else { return }
-                self.openStatistics(self.popoverScreenFrame)
+                let anchorFrame = self.popoverScreenFrame
+                self.closePopover()
+                self.openStatistics(anchorFrame)
             }
         )
             .environmentObject(service)

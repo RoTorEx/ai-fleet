@@ -66,7 +66,7 @@ struct StatisticsView: View {
                     title: "Total tokens",
                     value: compactCount(selection.totals.totalTokens),
                     detail: periodDetail,
-                    help: tokenVolumeHelp(selection.totals.totalTokens)
+                    helpExamples: tokenVolumeHelpExamples(selection.totals.totalTokens)
                 )
                 MetricCard(
                     title: "Input",
@@ -253,13 +253,27 @@ private struct MetricCard: View {
     let title: String
     let value: String
     let detail: String
-    var help = "Current provider value for this metric."
+    var helpExamples = ["Current provider value for this metric."]
+
+    init(title: String, value: String, detail: String, help: String = "Current provider value for this metric.") {
+        self.title = title
+        self.value = value
+        self.detail = detail
+        helpExamples = [help]
+    }
+
+    init(title: String, value: String, detail: String, helpExamples: [String]) {
+        self.title = title
+        self.value = value
+        self.detail = detail
+        self.helpExamples = helpExamples
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 Text(title)
-                HoverInfoTip(text: help)
+                HoverInfoTip(texts: helpExamples)
             }
             .font(.system(size: 11.5, weight: .semibold))
             .foregroundColor(.secondary)
@@ -312,6 +326,7 @@ private struct DatasetPanel: View {
         }
         .padding(9)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .panelStyle()
     }
 }
@@ -351,18 +366,38 @@ private struct AccountingGroup: View {
 }
 
 private struct HoverInfoTip: View {
-    let text: String
+    let texts: [String]
     @State private var isPresented = false
+    @State private var nextIndex = 0
+    @State private var currentText = ""
+
+    init(text: String) {
+        texts = [text]
+    }
+
+    init(texts: [String]) {
+        self.texts = texts
+    }
 
     var body: some View {
         Image(systemName: "info.circle")
             .font(.system(size: 10, weight: .medium))
             .foregroundColor(.secondary)
-            .onHover { isPresented = $0 }
-            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                Text(text).font(.system(size: 11, weight: .medium)).padding(10).frame(width: 260, alignment: .leading)
+            .onHover { hovering in
+                if hovering {
+                    let safeTexts = texts.isEmpty ? ["No additional information."] : texts
+                    currentText = safeTexts[nextIndex % safeTexts.count]
+                    nextIndex = (nextIndex + 1) % safeTexts.count
+                }
+                isPresented = hovering
             }
-            .accessibilityLabel(text)
+            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+                Text(currentText.isEmpty ? (texts.first ?? "No additional information.") : currentText)
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(10)
+                    .frame(width: 310, alignment: .leading)
+            }
+            .accessibilityLabel(texts.first ?? "Additional information")
     }
 }
 
@@ -561,11 +596,38 @@ private func rangeDate(_ date: Date) -> String {
     date.formatted(.dateTime.year().month(.abbreviated).day())
 }
 
-func tokenVolumeHelp(_ tokens: Int) -> String {
+struct BookTokenComparison: Equatable {
+    let title: String
+    let approximateWords: Int
+}
+
+let bookTokenComparisons: [BookTokenComparison] = [
+    BookTokenComparison(title: "The Little Prince", approximateWords: 16_500),
+    BookTokenComparison(title: "The Hobbit", approximateWords: 95_000),
+    BookTokenComparison(title: "the complete The Lord of the Rings trilogy", approximateWords: 481_000),
+    BookTokenComparison(title: "the complete seven-book Harry Potter series", approximateWords: 1_084_000),
+    BookTokenComparison(title: "Dune", approximateWords: 188_000),
+    BookTokenComparison(title: "Nineteen Eighty-Four", approximateWords: 89_000),
+    BookTokenComparison(title: "A Game of Thrones", approximateWords: 298_000),
+    BookTokenComparison(title: "The Name of the Wind", approximateWords: 259_000),
+    BookTokenComparison(title: "American Gods", approximateWords: 183_000),
+    BookTokenComparison(title: "The Hitchhiker's Guide to the Galaxy", approximateWords: 46_000),
+    BookTokenComparison(title: "Ender's Game", approximateWords: 101_000),
+    BookTokenComparison(title: "Neuromancer", approximateWords: 79_000),
+    BookTokenComparison(title: "The Martian", approximateWords: 105_000),
+    BookTokenComparison(title: "Fahrenheit 451", approximateWords: 46_000)
+]
+
+func tokenVolumeHelpExamples(_ tokens: Int) -> [String] {
     let words = Double(max(0, tokens)) * 0.75
-    let novels = words / 100_000
-    let formattedNovels = novels.formatted(.number.precision(.fractionLength(novels < 10 ? 1 : 0)))
-    return "A token is a chunk of text, not a word. As a rough English-prose estimate, 1M tokens is about 750,000 words, or 7.5 novels of 100,000 words each. This selection is about \(formattedNovels) such novels. Russian text and code tokenize differently. This is workload volume, not unique text: repeated cached context is counted again."
+    return bookTokenComparisons.map { book in
+        let copies = words / Double(book.approximateWords)
+        let formattedCopies = copies.formatted(
+            .number.grouping(.automatic).precision(.fractionLength(copies < 10 ? 1 : 0))
+        )
+        let formattedWords = book.approximateWords.formatted(.number.grouping(.automatic))
+        return "A token is a chunk of text, not a word. At a rough 0.75 English words per token, this selection is about \(formattedCopies) × \(book.title) (~\(formattedWords) words). Repeated cached context is counted again, so this is processed volume, not unique reading. Hover again for another book."
+    }
 }
 
 private func dateTimeText(_ date: Date) -> String {

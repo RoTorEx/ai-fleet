@@ -25,12 +25,21 @@ subscription charges.
 - Statistics has no outer content scroll. Period controls remain unboxed,
   accounting values are grouped by meaning, and model/day tables scroll only
   vertically without horizontal overflow. The day table omits zero-activity
-  dates.
-- Token help expresses the selected workload as an explicitly approximate
-  English-prose and 100,000-word-novel equivalent, while warning that cached
-  context repeats and non-English text or code tokenizes differently.
-- Statistics opens centered and fully constrained to the visible screen instead
-  of being positioned beside the menu-bar popover.
+  dates. Dataset & accounting always stays at its intrinsic compact height and
+  never consumes spare vertical window space.
+- Token help cycles on each hover through `14` explicitly approximate
+  English-word-count comparisons: The Little Prince, The Hobbit, the complete
+  The Lord of the Rings and Harry Potter cycles, plus ten well-known fantasy or
+  science-fiction novels: Dune, Nineteen Eighty-Four, A Game of Thrones, The
+  Name of the Wind, American Gods, The Hitchhiker's Guide to the Galaxy,
+  Ender's Game, Neuromancer, The Martian, and Fahrenheit 451. The comparison
+  uses `0.75 English words per token`, states each title's rounded word-count
+  basis, and warns that cached context repeats make this processed volume
+  rather than unique reading.
+- Statistics resets to its compact `900 × 650 pt` size, centers, and fully
+  constrains itself to the visible screen on every open instead of retaining an
+  oversized off-center frame. Opening Statistics also closes the menu popover
+  so it cannot cover the analytics window.
 - API-equivalent cost is derived from model token rates and is always labeled as
   an estimate, never as a subscription bill.
 - Cached input, cache writes, output, and reasoning remain separate accounting
