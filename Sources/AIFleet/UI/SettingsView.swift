@@ -17,8 +17,14 @@ struct SettingsView: View {
 
             settingsRow("Providers") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Codex", isOn: providerBinding(\.codexEnabled))
-                    Toggle("Kimi", isOn: providerBinding(\.kimiEnabled))
+                    ForEach(ProviderCatalog.all) { provider in
+                        ProviderSettingsRow(
+                            provider: provider,
+                            status: service.status(for: provider.id),
+                            isInstalled: ProviderCatalog.isInstalled(provider),
+                            isOn: providerBinding(provider.id)
+                        )
+                    }
                 }
             }
 
@@ -67,7 +73,7 @@ struct SettingsView: View {
             }
         }
         .padding(20)
-        .frame(width: 340)
+        .frame(width: 380)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear {
             service.refreshNotificationSettings()
@@ -87,11 +93,11 @@ struct SettingsView: View {
         }
     }
 
-    private func providerBinding(_ keyPath: ReferenceWritableKeyPath<AppSettings, Bool>) -> Binding<Bool> {
+    private func providerBinding(_ providerID: String) -> Binding<Bool> {
         Binding(
-            get: { settings[keyPath: keyPath] },
+            get: { settings.isEnabled(providerID) },
             set: { newValue in
-                settings[keyPath: keyPath] = newValue
+                settings.setEnabled(newValue, for: providerID)
                 StatusService.shared.refresh()
             }
         )
@@ -164,6 +170,42 @@ struct SettingsView: View {
         service.resetNotificationThresholdState()
         newThresholdText = "\(threshold)"
         isAddingThreshold = false
+    }
+}
+
+private struct ProviderSettingsRow: View {
+    let provider: ProviderDefinition
+    let status: ProviderStatus
+    let isInstalled: Bool
+    let isOn: Binding<Bool>
+
+    var body: some View {
+        Toggle(isOn: isInstalled ? isOn : .constant(false)) {
+            HStack(spacing: 8) {
+                Text(provider.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 56, alignment: .leading)
+
+                Text(detailText)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .disabled(!isInstalled)
+        .opacity(isInstalled ? 1 : 0.45)
+        .help(detailText)
+    }
+
+    private var detailText: String {
+        if !isInstalled {
+            return "Not installed"
+        }
+        if status.state == .noKey {
+            return "Unavailable"
+        }
+        return status.detail
     }
 }
 

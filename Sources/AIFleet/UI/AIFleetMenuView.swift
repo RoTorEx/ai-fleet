@@ -9,10 +9,9 @@ struct AIFleetMenuView: View {
     @EnvironmentObject var settings: AppSettings
 
     private var providers: [ProviderStatus] {
-        var list: [ProviderStatus] = []
-        if settings.codexEnabled { list.append(service.codex) }
-        if settings.kimiEnabled { list.append(service.kimi) }
-        return list
+        service.providerStatuses.filter { provider in
+            settings.isEnabled(provider.id) && provider.isInstalled
+        }
     }
 
     private var lowestProvider: ProviderStatus? {
@@ -109,7 +108,7 @@ struct AIFleetMenuView: View {
             }
             GridRow {
                 summaryLabel("Bridge")
-                summaryValue("\(activeProviderCount)/\(providers.count) lanes")
+                summaryValue(providers.isEmpty ? "no installed lanes" : "\(activeProviderCount)/\(providers.count) lanes")
             }
         }
         .padding(.horizontal, 16)
@@ -130,6 +129,9 @@ struct AIFleetMenuView: View {
     }
 
     private var fleetStateLabel: String {
+        if providers.isEmpty {
+            return "no lanes"
+        }
         if providers.contains(where: { $0.state == .offline }) {
             return "degraded"
         }
@@ -210,6 +212,13 @@ struct ProviderLimitRow: View {
                     }
                 }
                 .padding(.leading, 40)
+            } else {
+                Text(status.detail)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(rowColor(for: status))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.leading, 40)
             }
         }
     }
@@ -473,8 +482,8 @@ private func rowColor(for status: ProviderStatus) -> Color {
         return FleetPalette.value
     case .limited:
         return FleetPalette.danger
-    case .offline, .noKey:
-        return FleetPalette.value
+    case .offline, .noKey, .notInstalled:
+        return FleetPalette.faint
     }
 }
 
@@ -482,6 +491,8 @@ private func profileMarker(for status: ProviderStatus) -> String {
     switch status.state {
     case .offline, .noKey:
         return "×"
+    case .notInstalled:
+        return "-"
     default:
         return "○"
     }

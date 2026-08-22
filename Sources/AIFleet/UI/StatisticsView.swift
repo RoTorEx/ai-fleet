@@ -6,10 +6,9 @@ struct StatisticsView: View {
     @State private var mode: StatisticsMode = .mixed
 
     private var providers: [ProviderStatus] {
-        var list: [ProviderStatus] = []
-        if settings.codexEnabled { list.append(service.codex) }
-        if settings.kimiEnabled { list.append(service.kimi) }
-        return list
+        service.providerStatuses.filter { provider in
+            settings.isEnabled(provider.id) && provider.isInstalled
+        }
     }
 
     private var rows: [StatisticsRow] {
@@ -104,7 +103,7 @@ struct StatisticsView: View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 6) {
             GridRow {
                 statLabel("Providers")
-                statValue("\(activeProviderCount)/\(providers.count) active")
+                statValue(providers.isEmpty ? "none installed" : "\(activeProviderCount)/\(providers.count) active")
             }
             GridRow {
                 statLabel("Lowest")
@@ -157,7 +156,7 @@ struct StatisticsView: View {
     }
 
     private var activeProviderCount: Int {
-        providers.filter { $0.state != .offline && $0.state != .noKey }.count
+        providers.filter { $0.state != .offline && $0.state != .noKey && $0.state != .notInstalled }.count
     }
 
     private var lowestText: String {

@@ -2,10 +2,11 @@
 
 ## Credential boundary
 
-AI Fleet reads existing Kimi Code and Codex credentials from the current user's
-home directory. It uses those credentials only for HTTPS requests to the
-provider endpoints documented in the architecture. Tokens are not logged or
-shown in the UI.
+AI Fleet reads existing provider credentials from the current user's home
+directory. Kimi and Codex credentials are used only for HTTPS requests to the
+corresponding provider endpoints documented in the architecture. Claude and Qwen
+credential files are currently used only to detect whether the local CLI appears
+signed in. Tokens are not logged or shown in the UI.
 
 The optional Kimi API key fallback lives at
 `~/Library/Application Support/AI Fleet/config.json`. AI Fleet restricts that

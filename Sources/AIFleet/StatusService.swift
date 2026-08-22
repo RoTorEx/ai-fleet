@@ -7,8 +7,10 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     static let shared = StatusService()
     private static let kimiCodeClientID = "17e5f671-d194-4dfb-9706-5516cb48c098"
 
-    @Published var kimi: ProviderStatus = ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "—", lastUpdated: nil)
-    @Published var codex: ProviderStatus = ProviderStatus(id: "codex", name: "Codex", state: .offline, detail: "—", lastUpdated: nil)
+    @Published var kimi: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.kimi)
+    @Published var codex: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.codex)
+    @Published var claude: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.claude)
+    @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var lastError: String?
     @Published var notificationStatusText = "Checking"
     @Published var notificationsEnabled = false
@@ -55,6 +57,74 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         super.init()
     }
 
+    private static func initialStatus(for provider: ProviderDefinition) -> ProviderStatus {
+        if ProviderCatalog.isInstalled(provider) {
+            return ProviderStatus(
+                id: provider.id,
+                name: provider.name,
+                state: .offline,
+                detail: "Checking",
+                lastUpdated: nil
+            )
+        }
+        return notInstalledStatus(for: provider)
+    }
+
+    private static func notInstalledStatus(for provider: ProviderDefinition) -> ProviderStatus {
+        ProviderStatus(
+            id: provider.id,
+            name: provider.name,
+            state: .notInstalled,
+            detail: "Not installed",
+            lastUpdated: nil
+        )
+    }
+
+    private static func disabledStatus(for provider: ProviderDefinition) -> ProviderStatus {
+        ProviderStatus(
+            id: provider.id,
+            name: provider.name,
+            state: .ok,
+            detail: "Disabled",
+            lastUpdated: nil
+        )
+    }
+
+    private static func unavailableStatus(for provider: ProviderDefinition) -> ProviderStatus {
+        ProviderStatus(
+            id: provider.id,
+            name: provider.name,
+            state: .noKey,
+            detail: "Unavailable · sign in",
+            lastUpdated: Date()
+        )
+    }
+
+    var providerStatuses: [ProviderStatus] {
+        [codex, kimi, claude, qwen]
+    }
+
+    func status(for providerID: String) -> ProviderStatus {
+        switch providerID {
+        case ProviderCatalog.codex.id:
+            return codex
+        case ProviderCatalog.kimi.id:
+            return kimi
+        case ProviderCatalog.claude.id:
+            return claude
+        case ProviderCatalog.qwen.id:
+            return qwen
+        default:
+            return ProviderStatus(
+                id: providerID,
+                name: providerID,
+                state: .notInstalled,
+                detail: "Not installed",
+                lastUpdated: nil
+            )
+        }
+    }
+
     private var notificationsAvailable: Bool {
         // UNUserNotificationCenter crashes when the binary runs outside an .app bundle.
         Bundle.main.bundleIdentifier != nil
@@ -95,7 +165,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     func resetNotificationThresholdState() {
         let defaults = UserDefaults.standard
-        for providerID in ["kimi", "codex"] {
+        for providerID in ProviderCatalog.allIDs {
             defaults.removeObject(forKey: "notify.remainingLast.\(providerID)")
             defaults.removeObject(forKey: "notify.remainingNotifiedThresholds.\(providerID)")
         }
@@ -114,24 +184,67 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             lastError = nil
             async let kimiResult = checkKimiIfEnabled()
             async let codexResult = checkCodexIfEnabled()
-            if let kimiStatus = await kimiResult {
-                self.kimi = kimiStatus
-            }
-            if let codexStatus = await codexResult {
-                self.codex = codexStatus
-            }
+            async let claudeResult = checkClaudeIfEnabled()
+            async let qwenResult = checkQwenIfEnabled()
+            self.kimi = await kimiResult
+            self.codex = await codexResult
+            self.claude = await claudeResult
+            self.qwen = await qwenResult
             processDrainNotifications()
         }
     }
 
-    private func checkKimiIfEnabled() async -> ProviderStatus? {
-        guard AppSettings.shared.kimiEnabled else { return nil }
+    private func checkKimiIfEnabled() async -> ProviderStatus {
+        guard ProviderCatalog.isInstalled(ProviderCatalog.kimi) else {
+            return Self.notInstalledStatus(for: ProviderCatalog.kimi)
+        }
+        guard AppSettings.shared.kimiEnabled else {
+            return Self.disabledStatus(for: ProviderCatalog.kimi)
+        }
         return await checkKimi()
     }
 
-    private func checkCodexIfEnabled() async -> ProviderStatus? {
-        guard AppSettings.shared.codexEnabled else { return nil }
+    private func checkCodexIfEnabled() async -> ProviderStatus {
+        guard ProviderCatalog.isInstalled(ProviderCatalog.codex) else {
+            return Self.notInstalledStatus(for: ProviderCatalog.codex)
+        }
+        guard AppSettings.shared.codexEnabled else {
+            return Self.disabledStatus(for: ProviderCatalog.codex)
+        }
         return await checkCodex()
+    }
+
+    private func checkClaudeIfEnabled() async -> ProviderStatus {
+        guard ProviderCatalog.isInstalled(ProviderCatalog.claude) else {
+            return Self.notInstalledStatus(for: ProviderCatalog.claude)
+        }
+        guard AppSettings.shared.claudeEnabled else {
+            return Self.disabledStatus(for: ProviderCatalog.claude)
+        }
+        return checkLocalProvider(ProviderCatalog.claude)
+    }
+
+    private func checkQwenIfEnabled() async -> ProviderStatus {
+        guard ProviderCatalog.isInstalled(ProviderCatalog.qwen) else {
+            return Self.notInstalledStatus(for: ProviderCatalog.qwen)
+        }
+        guard AppSettings.shared.qwenEnabled else {
+            return Self.disabledStatus(for: ProviderCatalog.qwen)
+        }
+        return checkLocalProvider(ProviderCatalog.qwen)
+    }
+
+    private func checkLocalProvider(_ provider: ProviderDefinition) -> ProviderStatus {
+        guard ProviderCatalog.hasCredentialFile(for: provider) else {
+            return Self.unavailableStatus(for: provider)
+        }
+        return ProviderStatus(
+            id: provider.id,
+            name: provider.name,
+            state: .ok,
+            detail: "No quota data",
+            lastUpdated: Date()
+        )
     }
 
     // MARK: - Drain notifications
@@ -174,7 +287,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let thresholds = settings.notificationThresholds
         let defaults = UserDefaults.standard
 
-        for provider in [kimi, codex] where settings.isEnabled(provider.id) {
+        for provider in providerStatuses where settings.isEnabled(provider.id) {
             guard provider.state == .ok || provider.state == .limited,
                   let weekly = provider.limitWindows.max(by: {
                       (durationSeconds(for: $0.label) ?? 0) < (durationSeconds(for: $1.label) ?? 0)
@@ -295,7 +408,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
         // 2. Fall back to Open Platform API key balance.
         guard let key = config.resolvedKimiKey, !key.isEmpty else {
-            return ProviderStatus(id: "kimi", name: "Kimi", state: .noKey, detail: "Sign in to Kimi", lastUpdated: nil)
+            return Self.unavailableStatus(for: ProviderCatalog.kimi)
         }
 
         let url = URL(string: "https://api.moonshot.ai/v1/users/me/balance")!
@@ -326,14 +439,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             case .refreshed(let refreshed):
                 activeAuth = refreshed
             case .unauthorized:
-                return ProviderStatus(id: "kimi", name: "Kimi", state: .noKey, detail: "Kimi sign in expired", lastUpdated: Date())
+                return Self.unavailableStatus(for: ProviderCatalog.kimi)
             case .failed:
                 return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Refresh failed", lastUpdated: Date())
             }
         }
 
         guard let token = activeAuth.accessToken, !token.isEmpty else {
-            return ProviderStatus(id: "kimi", name: "Kimi", state: .noKey, detail: "Sign in to Kimi", lastUpdated: nil)
+            return Self.unavailableStatus(for: ProviderCatalog.kimi)
         }
 
         let status = await fetchKimiCodeStatus(accessToken: token)
@@ -346,7 +459,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             guard let token = refreshed.accessToken else { return status }
             return await fetchKimiCodeStatus(accessToken: token)
         case .unauthorized:
-            return ProviderStatus(id: "kimi", name: "Kimi", state: .noKey, detail: "Kimi sign in expired", lastUpdated: Date())
+            return Self.unavailableStatus(for: ProviderCatalog.kimi)
         case .failed:
             return status
         }
@@ -363,7 +476,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 if let http = response as? HTTPURLResponse, http.statusCode == 401 {
-                    return ProviderStatus(id: "kimi", name: "Kimi", state: .noKey, detail: "Kimi sign in expired", lastUpdated: Date())
+                    return Self.unavailableStatus(for: ProviderCatalog.kimi)
                 }
                 return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Unavailable", lastUpdated: Date())
             }
@@ -463,7 +576,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     private func checkCodex() async -> ProviderStatus {
         guard let credentials = readCodexCredentials() else {
-            return ProviderStatus(id: "codex", name: "Codex", state: .noKey, detail: "Sign in to Codex", lastUpdated: nil)
+            return Self.unavailableStatus(for: ProviderCatalog.codex)
         }
 
         let url = URL(string: "https://chatgpt.com/backend-api/wham/usage")!
@@ -478,7 +591,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 if let http = response as? HTTPURLResponse, http.statusCode == 401 {
-                    return ProviderStatus(id: "codex", name: "Codex", state: .noKey, detail: "Codex sign in expired", lastUpdated: Date())
+                    return Self.unavailableStatus(for: ProviderCatalog.codex)
                 }
                 return ProviderStatus(id: "codex", name: "Codex", state: .offline, detail: "Unavailable", lastUpdated: Date())
             }

@@ -66,6 +66,11 @@ struct ProviderStatus: Identifiable, Equatable {
         case limited
         case offline
         case noKey
+        case notInstalled
+    }
+
+    var isInstalled: Bool {
+        state != .notInstalled
     }
 }
 
