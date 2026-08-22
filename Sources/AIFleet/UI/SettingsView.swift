@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
+    @ObservedObject var service = StatusService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -29,12 +30,29 @@ struct SettingsView: View {
                     Text("Weekly quota alerts, per provider.")
                         .font(.system(size: 10.5))
                         .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Text(service.notificationStatusText)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundColor(service.notificationsEnabled ? .secondary : .red)
+                        Button("Test") {
+                            service.refreshNotificationSettings()
+                            service.sendTestNotification()
+                        }
+                        .font(.system(size: 10.5, weight: .semibold))
+                        Button("System") {
+                            openNotificationSettings()
+                        }
+                        .font(.system(size: 10.5, weight: .semibold))
+                    }
                 }
             }
         }
         .padding(20)
         .frame(width: 340)
         .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            service.refreshNotificationSettings()
+        }
     }
 
     private func settingsRow<Content: View>(
@@ -58,6 +76,13 @@ struct SettingsView: View {
                 StatusService.shared.refresh()
             }
         )
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 }
 

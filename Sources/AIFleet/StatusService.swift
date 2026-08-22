@@ -1,6 +1,6 @@
 import Foundation
 import Combine
-import UserNotifications
+@preconcurrency import UserNotifications
 
 @MainActor
 final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
@@ -10,6 +10,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var kimi: ProviderStatus = ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "—", lastUpdated: nil)
     @Published var codex: ProviderStatus = ProviderStatus(id: "codex", name: "Codex", state: .offline, detail: "—", lastUpdated: nil)
     @Published var lastError: String?
+    @Published var notificationStatusText = "Checking"
+    @Published var notificationsEnabled = false
 
     private var timer: Timer?
     private var task: Task<Void, Never>?
@@ -49,9 +51,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     func start() {
         if notificationsAvailable {
-            let notificationCenter = UNUserNotificationCenter.current()
-            notificationCenter.delegate = self
-            notificationCenter.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            configureNotifications()
         }
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
@@ -59,6 +59,27 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 self?.refresh()
             }
         }
+    }
+
+    func refreshNotificationSettings() {
+        guard notificationsAvailable else {
+            notificationStatusText = "Unavailable"
+            notificationsEnabled = false
+            return
+        }
+
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            Task { @MainActor in
+                self?.applyNotificationSettings(settings)
+            }
+        }
+    }
+
+    func sendTestNotification() {
+        sendNotification(
+            identifier: "aifleet-test-\(UUID().uuidString)",
+            body: "Notifications are working."
+        )
     }
 
     func stop() {
@@ -96,6 +117,39 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     // MARK: - Drain notifications
 
+    private func configureNotifications() {
+        let notificationCenter = UNUserNotificationCenter.current()
+        notificationCenter.delegate = self
+        notificationCenter.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
+            Task { @MainActor in
+                if error != nil {
+                    self?.lastError = "Notification permission failed"
+                }
+                self?.refreshNotificationSettings()
+            }
+        }
+    }
+
+    private func applyNotificationSettings(_ settings: UNNotificationSettings) {
+        switch settings.authorizationStatus {
+        case .authorized:
+            notificationsEnabled = true
+            notificationStatusText = "Allowed"
+        case .provisional:
+            notificationsEnabled = true
+            notificationStatusText = "Allowed quietly"
+        case .denied:
+            notificationsEnabled = false
+            notificationStatusText = "Denied in macOS"
+        case .notDetermined:
+            notificationsEnabled = false
+            notificationStatusText = "Not asked"
+        @unknown default:
+            notificationsEnabled = false
+            notificationStatusText = "Unknown"
+        }
+    }
+
     private func processDrainNotifications() {
         let settings = AppSettings.shared
         let step = max(1, settings.notifyStepPercent)
@@ -114,6 +168,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             let observedKey = "notify.weeklyDrainedObserved.\(provider.id)"
             let notifiedKey = "notify.weeklyDrainedNotified.\(provider.id)"
             let initializedKey = "notify.weeklyDrainedInitialized.\(provider.id)"
+            let deliveryVersionKey = "notify.deliveryVersion.\(provider.id)"
             let bucket = (drained / step) * step
 
             guard defaults.bool(forKey: initializedKey) else {
@@ -121,6 +176,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 defaults.set(bucket, forKey: legacyKey)
                 defaults.set(bucket, forKey: observedKey)
                 defaults.set(bucket, forKey: notifiedKey)
+                defaults.set(2, forKey: deliveryVersionKey)
                 defaults.set(true, forKey: initializedKey)
                 continue
             }
@@ -131,6 +187,11 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             var notifiedBucket = defaults.object(forKey: notifiedKey) == nil
                 ? 0
                 : defaults.integer(forKey: notifiedKey)
+            if defaults.integer(forKey: deliveryVersionKey) < 2 {
+                notifiedBucket = max(0, min(notifiedBucket, bucket - step))
+                defaults.set(notifiedBucket, forKey: notifiedKey)
+                defaults.set(2, forKey: deliveryVersionKey)
+            }
 
             if drained < observedBucket {
                 // Quota refilled: re-arm from the current level.
@@ -148,26 +209,64 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             }
 
             if bucket > notifiedBucket {
-                defaults.set(bucket, forKey: notifiedKey)
-                sendDrainNotification(providerName: provider.name, remaining: weekly.remainingPercent)
+                sendDrainNotification(
+                    providerName: provider.name,
+                    remaining: weekly.remainingPercent,
+                    notifiedKey: notifiedKey,
+                    bucket: bucket
+                )
             }
         }
     }
 
-    private func sendDrainNotification(providerName: String, remaining: Int) {
-        guard notificationsAvailable else { return }
-        let content = UNMutableNotificationContent()
-        content.title = "AI Fleet"
-        content.body = "\(providerName) weekly quota down to \(remaining)%"
-        let request = UNNotificationRequest(
+    private func sendDrainNotification(providerName: String, remaining: Int, notifiedKey: String, bucket: Int) {
+        sendNotification(
             identifier: "aifleet-drain-\(UUID().uuidString)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request) { [weak self] error in
-            guard error != nil else { return }
+            body: "\(providerName) weekly quota down to \(remaining)%"
+        ) {
+            UserDefaults.standard.set(bucket, forKey: notifiedKey)
+        }
+    }
+
+    private func sendNotification(identifier: String, body: String, onAccepted: (() -> Void)? = nil) {
+        guard notificationsAvailable else {
+            lastError = "Notifications unavailable"
+            return
+        }
+
+        let notificationCenter = UNUserNotificationCenter.current()
+        notificationCenter.getNotificationSettings { [weak self] settings in
+            guard settings.authorizationStatus == .authorized ||
+                    settings.authorizationStatus == .provisional else {
+                Task { @MainActor in
+                    self?.applyNotificationSettings(settings)
+                    self?.lastError = "Notifications disabled in macOS"
+                }
+                return
+            }
+
             Task { @MainActor in
-                self?.lastError = "Notification failed"
+                self?.applyNotificationSettings(settings)
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = "AI Fleet"
+            content.body = body
+            content.sound = .default
+            let request = UNNotificationRequest(
+                identifier: identifier,
+                content: content,
+                trigger: nil
+            )
+            notificationCenter.add(request) { [weak self] error in
+                Task { @MainActor in
+                    if error != nil {
+                        self?.lastError = "Notification failed"
+                    } else {
+                        self?.lastError = nil
+                        onAccepted?()
+                    }
+                }
             }
         }
     }
@@ -177,7 +276,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound])
+        completionHandler([.banner, .list, .sound])
     }
 
     // MARK: - Kimi
