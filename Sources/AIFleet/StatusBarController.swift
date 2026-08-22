@@ -7,11 +7,17 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: 18)
     private let popover = NSPopover()
     private let openSettings: (NSRect?) -> Void
+    private let openStatistics: (NSRect?) -> Void
     private var globalClickMonitor: Any?
     private var localEventMonitor: Any?
 
-    init(service: StatusService, openSettings: @escaping (NSRect?) -> Void) {
+    init(
+        service: StatusService,
+        openSettings: @escaping (NSRect?) -> Void,
+        openStatistics: @escaping (NSRect?) -> Void
+    ) {
         self.openSettings = openSettings
+        self.openStatistics = openStatistics
         super.init()
 
         if let button = statusItem.button {
@@ -23,10 +29,16 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
             button.action = #selector(statusItemClicked)
         }
 
-        let content = AIFleetMenuView { [weak self] in
-            guard let self else { return }
-            self.openSettings(self.popoverScreenFrame)
-        }
+        let content = AIFleetMenuView(
+            openSettings: { [weak self] in
+                guard let self else { return }
+                self.openSettings(self.popoverScreenFrame)
+            },
+            openStatistics: { [weak self] in
+                guard let self else { return }
+                self.openStatistics(self.popoverScreenFrame)
+            }
+        )
             .environmentObject(service)
             .environmentObject(AppSettings.shared)
             .fixedSize(horizontal: false, vertical: true)
@@ -108,7 +120,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
             if event.type.isMouseDown,
                !self.isEventInsidePopover(event),
                !self.isEventInsideStatusButton(event),
-               !self.isEventInsideSettingsWindow(event) {
+               !self.isEventInsideCompanionWindow(event) {
                 self.closePopover()
             }
 
@@ -145,8 +157,11 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         return button.bounds.contains(location)
     }
 
-    private func isEventInsideSettingsWindow(_ event: NSEvent) -> Bool {
-        event.window?.identifier?.rawValue == "ai-fleet-settings"
+    private func isEventInsideCompanionWindow(_ event: NSEvent) -> Bool {
+        guard let identifier = event.window?.identifier?.rawValue else {
+            return false
+        }
+        return identifier == "ai-fleet-settings" || identifier == "ai-fleet-statistics"
     }
 
     private var popoverScreenFrame: NSRect? {

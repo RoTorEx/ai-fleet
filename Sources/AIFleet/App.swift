@@ -18,6 +18,7 @@ struct AIFleetApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var settingsWindowController: SettingsWindowController?
+    private var statisticsWindowController: StatisticsWindowController?
     private var toggleHotKey: GlobalHotKey?
     private var hotkeyObserver: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
@@ -30,6 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             service: StatusService.shared,
             openSettings: { [weak self] anchorFrame in
                 self?.openSettings(anchorFrame: anchorFrame)
+            },
+            openStatistics: { [weak self] anchorFrame in
+                self?.openStatistics(anchorFrame: anchorFrame)
             }
         )
         self.statusBarController = statusBarController
@@ -70,6 +74,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindowController?.showSettings(relativeTo: anchorFrame)
     }
 
+    func openStatistics(anchorFrame: NSRect? = nil) {
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
+        if statisticsWindowController == nil {
+            statisticsWindowController = StatisticsWindowController()
+        }
+
+        statisticsWindowController?.showStatistics(relativeTo: anchorFrame)
+    }
+
     private func registerToggleHotKey() {
         toggleHotKey?.unregister()
         let hotkey = AppSettings.shared.hotkey
@@ -81,6 +95,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.statusBarController?.togglePopover()
             }
         }
+    }
+}
+
+@MainActor
+private final class StatisticsWindowController: NSWindowController {
+    private var didPlaceWindow = false
+
+    init() {
+        let hostingController = NSHostingController(rootView: StatisticsView())
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 340),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "AI Fleet Statistics"
+        window.identifier = NSUserInterfaceItemIdentifier("ai-fleet-statistics")
+        window.contentViewController = hostingController
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func showStatistics(relativeTo anchorFrame: NSRect?) {
+        guard let window else { return }
+
+        sizeWindowToContent(window)
+
+        if let anchorFrame {
+            placeWindow(window, relativeTo: anchorFrame)
+        } else if !didPlaceWindow {
+            window.center()
+            didPlaceWindow = true
+        }
+
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
+    private func sizeWindowToContent(_ window: NSWindow) {
+        guard let contentView = window.contentView else { return }
+        contentView.layoutSubtreeIfNeeded()
+        let fittingSize = contentView.fittingSize
+        if fittingSize.width > 0, fittingSize.height > 0 {
+            window.setContentSize(fittingSize)
+        }
+    }
+
+    private func placeWindow(_ window: NSWindow, relativeTo anchorFrame: NSRect) {
+        let gap: CGFloat = 36
+        let visibleFrame = NSScreen.screens.first(where: { $0.frame.intersects(anchorFrame) })?.visibleFrame
+            ?? window.screen?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+
+        var frame = window.frame
+        frame.origin.x = anchorFrame.minX - frame.width - gap
+        frame.origin.y = anchorFrame.maxY - frame.height
+
+        if let visibleFrame {
+            frame.origin.x = max(visibleFrame.minX + gap, min(frame.origin.x, visibleFrame.maxX - frame.width - gap))
+            frame.origin.y = max(visibleFrame.minY + gap, min(frame.origin.y, visibleFrame.maxY - frame.height - gap))
+        }
+
+        window.setFrame(frame, display: true)
+        didPlaceWindow = true
     }
 }
 

@@ -6,6 +6,8 @@ struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var service = StatusService.shared
     @State private var newThreshold = 10
+    @State private var newThresholdText = "10"
+    @State private var isAddingThreshold = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -27,26 +29,21 @@ struct SettingsView: View {
                             HStack(spacing: 8) {
                                 Text("\(threshold)% remaining")
                                     .font(.system(size: 11.5, weight: .medium))
-                                Button("Remove") {
+                                    .frame(width: 96, alignment: .leading)
+                                Button {
                                     settings.removeNotificationThreshold(threshold)
                                     service.resetNotificationThresholdState()
+                                } label: {
+                                    Image(systemName: "minus.circle")
                                 }
-                                .font(.system(size: 10.5, weight: .semibold))
+                                .buttonStyle(PlainButtonStyle())
+                                .help("Remove threshold")
                                 .disabled(settings.notificationThresholds.count <= 1)
                             }
                         }
                     }
 
-                    HStack(spacing: 8) {
-                        Stepper("\(newThreshold)%", value: $newThreshold, in: 0...100, step: 5)
-                            .frame(width: 96, alignment: .leading)
-                        Button("Add") {
-                            settings.addNotificationThreshold(newThreshold)
-                            service.resetNotificationThresholdState()
-                        }
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .disabled(settings.notificationThresholds.contains(newThreshold))
-                    }
+                    addThresholdControl
 
                     Text("Alerts fire when remaining quota crosses a threshold.")
                         .font(.system(size: 10.5))
@@ -105,6 +102,68 @@ struct SettingsView: View {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+
+    private var addThresholdControl: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                newThresholdText = "\(newThreshold)"
+                isAddingThreshold.toggle()
+            } label: {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .help("Add threshold")
+
+            if isAddingThreshold {
+                HStack(spacing: 8) {
+                    TextField("Percent", text: $newThresholdText)
+                        .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .frame(width: 72)
+                        .onSubmit(addThresholdFromInput)
+
+                    Text("% remaining")
+                        .font(.system(size: 10.5))
+                        .foregroundColor(.secondary)
+
+                    Button(action: addThresholdFromInput) {
+                        Image(systemName: "checkmark.circle")
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("Save threshold")
+                    .disabled(parsedNewThreshold == nil)
+
+                    Button {
+                        isAddingThreshold = false
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("Cancel")
+                }
+            }
+        }
+    }
+
+    private var parsedNewThreshold: Int? {
+        let trimmed = newThresholdText
+            .replacingOccurrences(of: "%", with: "")
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        guard let value = Int(trimmed) else { return nil }
+        let clamped = max(0, min(100, value))
+        guard !settings.notificationThresholds.contains(clamped) else { return nil }
+        return clamped
+    }
+
+    private func addThresholdFromInput() {
+        guard let threshold = parsedNewThreshold else { return }
+        newThreshold = threshold
+        settings.addNotificationThreshold(threshold)
+        service.resetNotificationThresholdState()
+        newThresholdText = "\(threshold)"
+        isAddingThreshold = false
     }
 }
 
