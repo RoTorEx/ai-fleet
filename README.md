@@ -53,6 +53,7 @@ cat > ~/Library/Application\ Support/AI\ Fleet/config.json << 'EOF'
   "kimiApiKey": "sk-..."
 }
 EOF
+chmod 600 ~/Library/Application\ Support/AI\ Fleet/config.json
 ```
 
 You can also set the `KIMI_API_KEY` environment variable when running from a terminal.
@@ -72,3 +73,14 @@ Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 ## Quit
 
 Choose **Quit** from the menu.
+
+## Security and privacy
+
+AI Fleet reads credentials only from the local paths documented above and sends
+them only over HTTPS to the corresponding Kimi, Moonshot, or ChatGPT endpoint.
+It does not log tokens or include them in status messages. The Kimi fallback
+configuration is restricted to the current macOS user when the app loads it.
+
+Before publishing or contributing, run `make public-audit`. See
+[`SECURITY.md`](SECURITY.md) for the credential boundary and vulnerability
+reporting guidance.

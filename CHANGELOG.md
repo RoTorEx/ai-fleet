@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Hardened local Kimi API key permissions and added a repository-history secret
+  audit for public-source safety.
 - Added the working kernel-sync Make targets and removed the fake lint target;
   release commands remain omitted until a real delivery process exists.
 - Tiny macOS menu-bar app with a paper-ship icon.

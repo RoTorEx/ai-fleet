@@ -1,4 +1,4 @@
-.PHONY: dist-dir build bundle-app run check clean stop-app reinstall vibe-kernel-path vibe-kernel-set vibe-pull
+.PHONY: dist-dir build bundle-app run check public-audit clean stop-app reinstall vibe-kernel-path vibe-kernel-set vibe-pull
 
 APP_NAME := AIFleet
 APP_BUNDLE_ID := dev.ai-fleet
@@ -31,8 +31,11 @@ bundle-app: dist-dir build
 run:
 	swift run
 
-check:
+check: public-audit
 	swift build --target AIFleet
+
+public-audit:
+	@./scripts/public-audit.sh
 
 clean:
 	rm -rf .build "$(DIST_DIR)"
