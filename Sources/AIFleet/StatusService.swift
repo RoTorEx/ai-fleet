@@ -34,9 +34,20 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let label: String
         let remaining: Int
         let resetAt: Date?
+        let usedCount: Int?
+        let limitCount: Int?
+        let unit: String?
 
         var providerWindow: ProviderLimitWindow {
-            ProviderLimitWindow(id: id, label: label, remainingPercent: remaining, resetAt: resetAt)
+            ProviderLimitWindow(
+                id: id,
+                label: label,
+                remainingPercent: remaining,
+                resetAt: resetAt,
+                usedCount: usedCount,
+                limitCount: limitCount,
+                unit: unit
+            )
         }
     }
 
@@ -80,6 +91,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             identifier: "aifleet-test-\(UUID().uuidString)",
             body: "Notifications are working."
         )
+    }
+
+    func resetNotificationThresholdState() {
+        let defaults = UserDefaults.standard
+        for providerID in ["kimi", "codex"] {
+            defaults.removeObject(forKey: "notify.remainingLast.\(providerID)")
+            defaults.removeObject(forKey: "notify.remainingNotifiedThresholds.\(providerID)")
+        }
     }
 
     func stop() {
@@ -152,7 +171,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     private func processDrainNotifications() {
         let settings = AppSettings.shared
-        let step = max(1, settings.notifyStepPercent)
+        let thresholds = settings.notificationThresholds
         let defaults = UserDefaults.standard
 
         for provider in [kimi, codex] where settings.isEnabled(provider.id) {
@@ -163,68 +182,52 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 continue
             }
 
-            let drained = max(0, min(100, 100 - weekly.remainingPercent))
-            let legacyKey = "notify.weeklyDrained.\(provider.id)"
-            let observedKey = "notify.weeklyDrainedObserved.\(provider.id)"
-            let notifiedKey = "notify.weeklyDrainedNotified.\(provider.id)"
-            let initializedKey = "notify.weeklyDrainedInitialized.\(provider.id)"
-            let deliveryVersionKey = "notify.deliveryVersion.\(provider.id)"
-            let bucket = (drained / step) * step
+            let remaining = max(0, min(100, weekly.remainingPercent))
+            let lastRemainingKey = "notify.remainingLast.\(provider.id)"
+            let notifiedThresholdsKey = "notify.remainingNotifiedThresholds.\(provider.id)"
+            let previousRemaining = defaults.object(forKey: lastRemainingKey) as? Int ?? 101
+            var notifiedThresholds = Set(defaults.array(forKey: notifiedThresholdsKey) as? [Int] ?? [])
 
-            guard defaults.bool(forKey: initializedKey) else {
-                // First observation: record the current bucket without notifying.
-                defaults.set(bucket, forKey: legacyKey)
-                defaults.set(bucket, forKey: observedKey)
-                defaults.set(bucket, forKey: notifiedKey)
-                defaults.set(2, forKey: deliveryVersionKey)
-                defaults.set(true, forKey: initializedKey)
-                continue
+            if remaining > previousRemaining {
+                // Quota recovered. Keep thresholds above the current remaining armed as already crossed,
+                // and re-arm thresholds that recovery moved back above.
+                notifiedThresholds = Set(thresholds.filter { remaining <= $0 })
+                defaults.set(Array(notifiedThresholds).sorted(by: >), forKey: notifiedThresholdsKey)
             }
 
-            var observedBucket = defaults.object(forKey: observedKey) == nil
-                ? defaults.integer(forKey: legacyKey)
-                : defaults.integer(forKey: observedKey)
-            var notifiedBucket = defaults.object(forKey: notifiedKey) == nil
-                ? 0
-                : defaults.integer(forKey: notifiedKey)
-            if defaults.integer(forKey: deliveryVersionKey) < 2 {
-                notifiedBucket = max(0, min(notifiedBucket, bucket - step))
-                defaults.set(notifiedBucket, forKey: notifiedKey)
-                defaults.set(2, forKey: deliveryVersionKey)
+            let crossedThresholds = thresholds.filter { threshold in
+                remaining <= threshold &&
+                    !notifiedThresholds.contains(threshold) &&
+                    (previousRemaining > threshold || remaining <= threshold)
             }
 
-            if drained < observedBucket {
-                // Quota refilled: re-arm from the current level.
-                observedBucket = bucket
-                notifiedBucket = bucket
-                defaults.set(bucket, forKey: legacyKey)
-                defaults.set(bucket, forKey: observedKey)
-                defaults.set(bucket, forKey: notifiedKey)
-                continue
-            }
-
-            if bucket > observedBucket {
-                defaults.set(bucket, forKey: legacyKey)
-                defaults.set(bucket, forKey: observedKey)
-            }
-
-            if bucket > notifiedBucket {
-                sendDrainNotification(
+            if let threshold = crossedThresholds.min() {
+                let acceptedThresholds = Array(notifiedThresholds.union(crossedThresholds)).sorted(by: >)
+                sendLimitNotification(
                     providerName: provider.name,
-                    remaining: weekly.remainingPercent,
-                    notifiedKey: notifiedKey,
-                    bucket: bucket
+                    remaining: remaining,
+                    threshold: threshold,
+                    notifiedThresholdsKey: notifiedThresholdsKey,
+                    acceptedThresholds: acceptedThresholds
                 )
             }
+
+            defaults.set(remaining, forKey: lastRemainingKey)
         }
     }
 
-    private func sendDrainNotification(providerName: String, remaining: Int, notifiedKey: String, bucket: Int) {
+    private func sendLimitNotification(
+        providerName: String,
+        remaining: Int,
+        threshold: Int,
+        notifiedThresholdsKey: String,
+        acceptedThresholds: [Int]
+    ) {
         sendNotification(
             identifier: "aifleet-drain-\(UUID().uuidString)",
-            body: "\(providerName) weekly quota down to \(remaining)%"
+            body: "\(providerName) reached \(threshold)% threshold: \(remaining)% remaining"
         ) {
-            UserDefaults.standard.set(bucket, forKey: notifiedKey)
+            UserDefaults.standard.set(acceptedThresholds, forKey: notifiedThresholdsKey)
         }
     }
 
@@ -590,12 +593,20 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         label: String
     ) -> LimitCandidate? {
         let remaining: Int
+        let usedCount: Int?
+        let limitCount: Int?
         if let limit = window.limit, let used = window.used, limit > 0 {
             remaining = remainingPercent(limit: limit, used: used)
+            usedCount = used
+            limitCount = limit
         } else if let limit = window.limit, let remainingCount = window.remaining, limit > 0 {
             remaining = max(0, min(100, Int((Double(remainingCount) / Double(limit)) * 100)))
+            usedCount = max(0, limit - remainingCount)
+            limitCount = limit
         } else if let remainingCount = window.remaining {
             remaining = max(0, min(100, remainingCount))
+            usedCount = nil
+            limitCount = nil
         } else {
             return nil
         }
@@ -604,7 +615,10 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             id: id,
             label: label,
             remaining: remaining,
-            resetAt: parseISO8601(window.resetTime)
+            resetAt: parseISO8601(window.resetTime),
+            usedCount: usedCount,
+            limitCount: limitCount,
+            unit: usedCount == nil ? nil : "tokens"
         )
     }
 
@@ -615,7 +629,10 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             id: id,
             label: label,
             remaining: remainingPercent(usedPercent: used),
-            resetAt: window.resetAt.map { Date(timeIntervalSince1970: $0) }
+            resetAt: window.resetAt.map { Date(timeIntervalSince1970: $0) },
+            usedCount: nil,
+            limitCount: nil,
+            unit: nil
         )
     }
 

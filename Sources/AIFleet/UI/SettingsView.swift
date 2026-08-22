@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var service = StatusService.shared
+    @State private var newThreshold = 10
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -20,16 +21,37 @@ struct SettingsView: View {
             }
 
             settingsRow("Notifications") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Stepper(
-                        "Every \(settings.notifyStepPercent)%",
-                        value: $settings.notifyStepPercent,
-                        in: 5...50,
-                        step: 5
-                    )
-                    Text("Weekly quota alerts, per provider.")
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(settings.notificationThresholds, id: \.self) { threshold in
+                            HStack(spacing: 8) {
+                                Text("\(threshold)% remaining")
+                                    .font(.system(size: 11.5, weight: .medium))
+                                Button("Remove") {
+                                    settings.removeNotificationThreshold(threshold)
+                                    service.resetNotificationThresholdState()
+                                }
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .disabled(settings.notificationThresholds.count <= 1)
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Stepper("\(newThreshold)%", value: $newThreshold, in: 0...100, step: 5)
+                            .frame(width: 96, alignment: .leading)
+                        Button("Add") {
+                            settings.addNotificationThreshold(newThreshold)
+                            service.resetNotificationThresholdState()
+                        }
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .disabled(settings.notificationThresholds.contains(newThreshold))
+                    }
+
+                    Text("Alerts fire when remaining quota crosses a threshold.")
                         .font(.system(size: 10.5))
                         .foregroundColor(.secondary)
+
                     HStack(spacing: 8) {
                         Text(service.notificationStatusText)
                             .font(.system(size: 10.5, weight: .medium))

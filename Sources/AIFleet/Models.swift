@@ -5,6 +5,27 @@ struct ProviderLimitWindow: Identifiable, Equatable {
     let label: String
     let remainingPercent: Int
     let resetAt: Date?
+    let usedCount: Int?
+    let limitCount: Int?
+    let unit: String?
+
+    init(
+        id: String,
+        label: String,
+        remainingPercent: Int,
+        resetAt: Date?,
+        usedCount: Int? = nil,
+        limitCount: Int? = nil,
+        unit: String? = nil
+    ) {
+        self.id = id
+        self.label = label
+        self.remainingPercent = remainingPercent
+        self.resetAt = resetAt
+        self.usedCount = usedCount
+        self.limitCount = limitCount
+        self.unit = unit
+    }
 }
 
 struct ProviderStatus: Identifiable, Equatable {

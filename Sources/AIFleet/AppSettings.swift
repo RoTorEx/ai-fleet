@@ -48,6 +48,12 @@ final class AppSettings: ObservableObject {
     @Published var notifyStepPercent: Int {
         didSet { defaults.set(notifyStepPercent, forKey: "notify.stepPercent") }
     }
+    @Published var notificationThresholds: [Int] {
+        didSet {
+            notificationThresholds = Self.normalizedThresholds(notificationThresholds)
+            defaults.set(notificationThresholds, forKey: "notify.remainingThresholds")
+        }
+    }
     @Published var isRecordingHotkey = false
     @Published var hotkey: HotkeyCombo {
         didSet {
@@ -63,6 +69,8 @@ final class AppSettings: ObservableObject {
 
         let storedStep = defaults.integer(forKey: "notify.stepPercent")
         notifyStepPercent = storedStep > 0 ? storedStep : 10
+        let storedThresholds = defaults.array(forKey: "notify.remainingThresholds") as? [Int] ?? []
+        notificationThresholds = Self.normalizedThresholds(storedThresholds.isEmpty ? [50, 25, 10, 5, 0] : storedThresholds)
 
         if defaults.object(forKey: "hotkey.keyCode") != nil {
             hotkey = HotkeyCombo(
@@ -84,5 +92,20 @@ final class AppSettings: ObservableObject {
         default:
             return true
         }
+    }
+
+    func addNotificationThreshold(_ threshold: Int) {
+        notificationThresholds.append(threshold)
+    }
+
+    func removeNotificationThreshold(_ threshold: Int) {
+        notificationThresholds.removeAll { $0 == threshold }
+        if notificationThresholds.isEmpty {
+            notificationThresholds = [0]
+        }
+    }
+
+    private static func normalizedThresholds(_ thresholds: [Int]) -> [Int] {
+        Array(Set(thresholds.map { max(0, min(100, $0)) })).sorted(by: >)
     }
 }
