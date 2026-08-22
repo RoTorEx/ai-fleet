@@ -27,15 +27,17 @@ subscription charges.
   vertically without horizontal overflow. The day table omits zero-activity
   dates. Dataset & accounting always stays at its intrinsic compact height and
   never consumes spare vertical window space.
-- Token help cycles on each hover through `14` explicitly approximate
+- Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
   The Lord of the Rings and Harry Potter cycles, plus ten well-known fantasy or
-  science-fiction novels: Dune, Nineteen Eighty-Four, A Game of Thrones, The
+  science-fiction novels: Dune, 1984, Brave New World, A Game of Thrones, The
   Name of the Wind, American Gods, The Hitchhiker's Guide to the Galaxy,
   Ender's Game, Neuromancer, The Martian, and Fahrenheit 451. The comparison
-  uses `0.75 English words per token`, states each title's rounded word-count
-  basis, and warns that cached context repeats make this processed volume
-  rather than unique reading.
+  internally uses `0.75 English words per token`, but the user-facing copy starts
+  directly with the natural book equivalence instead of defining a token as a
+  fraction of a word. It states each title's rounded word-count basis and warns
+  that cached context repeats make this processed volume rather than unique
+  reading.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover

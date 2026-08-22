@@ -145,16 +145,20 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertEqual(centered.size, visible.size)
     }
 
-    func testTokenVolumeHelpCyclesThroughRequiredBooksAndTenMore() {
+    func testTokenVolumeHelpCyclesThroughRequiredBooksAndElevenMore() {
         let examples = tokenVolumeHelpExamples(1_000_000)
         let combined = examples.joined(separator: "\n")
 
-        XCTAssertEqual(examples.count, 14)
+        XCTAssertEqual(examples.count, 15)
         XCTAssertTrue(combined.contains("The Little Prince"))
         XCTAssertTrue(combined.contains("The Hobbit"))
         XCTAssertTrue(combined.contains("complete The Lord of the Rings trilogy"))
         XCTAssertTrue(combined.contains("complete seven-book Harry Potter series"))
+        XCTAssertTrue(combined.contains("1984"))
+        XCTAssertTrue(combined.contains("Brave New World"))
         XCTAssertTrue(combined.lowercased().contains("repeated cached context"))
+        XCTAssertTrue(examples.allSatisfy { $0.hasPrefix("Your selected usage is roughly equivalent to") })
+        XCTAssertFalse(combined.contains("0.75"))
         XCTAssertFalse(combined.contains("Russian"))
     }
 

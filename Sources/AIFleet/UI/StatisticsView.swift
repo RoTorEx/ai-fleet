@@ -607,7 +607,8 @@ let bookTokenComparisons: [BookTokenComparison] = [
     BookTokenComparison(title: "the complete The Lord of the Rings trilogy", approximateWords: 481_000),
     BookTokenComparison(title: "the complete seven-book Harry Potter series", approximateWords: 1_084_000),
     BookTokenComparison(title: "Dune", approximateWords: 188_000),
-    BookTokenComparison(title: "Nineteen Eighty-Four", approximateWords: 89_000),
+    BookTokenComparison(title: "1984", approximateWords: 89_000),
+    BookTokenComparison(title: "Brave New World", approximateWords: 64_000),
     BookTokenComparison(title: "A Game of Thrones", approximateWords: 298_000),
     BookTokenComparison(title: "The Name of the Wind", approximateWords: 259_000),
     BookTokenComparison(title: "American Gods", approximateWords: 183_000),
@@ -626,7 +627,7 @@ func tokenVolumeHelpExamples(_ tokens: Int) -> [String] {
             .number.grouping(.automatic).precision(.fractionLength(copies < 10 ? 1 : 0))
         )
         let formattedWords = book.approximateWords.formatted(.number.grouping(.automatic))
-        return "A token is a chunk of text, not a word. At a rough 0.75 English words per token, this selection is about \(formattedCopies) × \(book.title) (~\(formattedWords) words). Repeated cached context is counted again, so this is processed volume, not unique reading. Hover again for another book."
+        return "Your selected usage is roughly equivalent to \(formattedCopies) × \(book.title) (~\(formattedWords) words). Book lengths and the token-to-text conversion are approximate. Repeated cached context is counted again, so this is processed volume, not unique reading. Hover again for another book."
     }
 }
 
