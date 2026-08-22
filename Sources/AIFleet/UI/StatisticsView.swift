@@ -3,865 +3,528 @@ import SwiftUI
 struct StatisticsView: View {
     @ObservedObject private var analytics = UsageAnalyticsService.shared
     @ObservedObject private var service = StatusService.shared
-    @State private var tab: AnalyticsTab = .overview
-    @State private var modelPage = 0
-    @State private var dayPage = 0
+    @State private var tab: AnalyticsTab = .codex
+    @State private var period: AnalyticsPeriod = .allTime
+    @State private var customStart = Calendar.autoupdatingCurrent.date(
+        byAdding: .day,
+        value: -29,
+        to: Calendar.autoupdatingCurrent.startOfDay(for: Date())
+    ) ?? Calendar.autoupdatingCurrent.startOfDay(for: Date())
+    @State private var customEnd = Calendar.autoupdatingCurrent.startOfDay(for: Date())
 
-    private let rowsPerPage = 5
+    private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
 
-    private var snapshot: UsageAnalyticsSnapshot {
-        analytics.snapshot
+    private var selection: CodexUsageSelection {
+        let bounds = period.bounds(customStart: customStart, customEnd: customEnd)
+        return codexUsageSelection(from: snapshot.codex, start: bounds.start, end: bounds.end)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             header
-            loadProgressView
-            content
+            switch tab {
+            case .codex: codexContent
+            case .kimi: kimiContent
+            }
         }
         .padding(18)
-        .frame(width: 780, height: 560, alignment: .topLeading)
-        .onAppear {
-            analytics.refreshIfNeeded(kimi: service.kimi)
-        }
+        .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear { analytics.updateKimi(kimi: service.kimi) }
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 16) {
             AnalyticsTabControl(selection: $tab)
-
-            Spacer()
-
-            Text(refreshText)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(.secondary)
-
-            Button {
-                analytics.refresh(kimi: service.kimi)
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.borderless)
-            .disabled(analytics.isRefreshing)
-            .help("Refresh usage")
+            Spacer(minLength: 20)
+            RefreshStatus(
+                progress: analytics.progress,
+                refreshedAt: snapshot.refreshedAt,
+                isRefreshing: analytics.isRefreshing,
+                refresh: { analytics.refresh(kimi: service.kimi) }
+            )
         }
     }
 
-    @ViewBuilder
-    private var content: some View {
-        switch tab {
-        case .overview:
-            overview
-        case .codex:
-            codexDetail
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        case .kimi:
-            kimiDetail
-        }
-    }
-
-    private var loadProgressView: some View {
-        TimelineView(.periodic(from: Date(), by: 0.25)) { timeline in
-            VStack(alignment: .leading, spacing: 4) {
-                if analytics.progress.isLoading {
-                    if let fraction = analytics.progress.fractionCompleted {
-                        ProgressView(value: fraction)
-                            .progressViewStyle(.linear)
-                    } else {
-                        ProgressView()
-                            .progressViewStyle(.linear)
-                    }
-
-                    HStack(spacing: 10) {
-                        Text(loadStatusText(now: timeline.date))
-                        Spacer(minLength: 0)
-                    }
-                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                    .foregroundColor(.secondary)
-                } else if snapshot.refreshedAt == nil {
-                    Text("No usage snapshot yet")
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .frame(height: analytics.progress.isLoading || snapshot.refreshedAt == nil ? 28 : 0)
-    }
-
-    private var overview: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                SimpleMetricCard(
-                    title: "Today",
-                    value: compactCount(snapshot.codex.today.totalTokens),
-                    detail: money(snapshot.codex.today.estimatedCostUSD),
-                    help: "Input plus output tokens recorded in local Codex session logs since midnight. Cost is an API-equivalent estimate, not a subscription charge."
-                )
-                SimpleMetricCard(
-                    title: "7 days",
-                    value: compactCount(snapshot.codex.sevenDays.totalTokens),
-                    detail: money(snapshot.codex.sevenDays.estimatedCostUSD),
-                    help: "Input plus output tokens from today and the previous 6 calendar days. Cost uses model-specific API-equivalent rates."
-                )
-                SimpleMetricCard(
-                    title: "30 days",
-                    value: compactCount(snapshot.codex.thirtyDays.totalTokens),
-                    detail: money(snapshot.codex.thirtyDays.estimatedCostUSD),
-                    help: "Input plus output tokens from today and the previous 29 calendar days. Cost uses model-specific API-equivalent rates."
-                )
-                SimpleMetricCard(
-                    title: "Kimi left",
-                    value: kimiRemainingText,
-                    detail: kimiResetText,
-                    help: "The lowest remaining percentage among active Kimi quota windows, with its next provider-reported reset time."
-                )
-            }
-
-            HeatmapSection(daily: snapshot.codex.daily)
-        }
-    }
-
-    private var codexDetail: some View {
-        let models = snapshot.codex.models
-        let days = Array(snapshot.codex.daily.reversed())
-        let modelPages = pageCount(itemCount: models.count, pageSize: rowsPerPage)
-        let dayPages = pageCount(itemCount: days.count, pageSize: rowsPerPage)
-        let visibleModelPage = min(modelPage, max(0, modelPages - 1))
-        let visibleDayPage = min(dayPage, max(0, dayPages - 1))
-
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                UsageMetricCard(
-                    title: "All time",
-                    totals: snapshot.codex.total,
-                    subtitle: "local session logs",
-                    help: "All input plus output tokens found in ~/.codex/sessions. Cached input is included in the token total."
-                )
-                UsageMetricCard(
-                    title: "Input",
-                    totals: snapshot.codex.total,
-                    subtitle: "uncached \(compactCount(snapshot.codex.total.billableInputTokens))",
-                    help: "All reported input tokens. Uncached input equals input minus cached-input reads and cache writes.",
-                    mode: .input
-                )
-                UsageMetricCard(
-                    title: "Output",
-                    totals: snapshot.codex.total,
-                    subtitle: "reasoning \(compactCount(snapshot.codex.total.reasoningOutputTokens))",
-                    help: "All reported output tokens. The subtitle shows the reasoning-token subset reported by Codex.",
-                    mode: .output
-                )
-            }
-
-            breakdownGrid
-
-            HStack(alignment: .top, spacing: 14) {
-                StatisticsSection(
-                    title: "Top models",
-                    help: "Models ranked by estimated API-equivalent cost, then by token count.",
-                    page: visibleModelPage,
-                    pageCount: modelPages,
-                    previousPage: { modelPage = max(0, visibleModelPage - 1) },
-                    nextPage: { modelPage = min(modelPages - 1, visibleModelPage + 1) }
-                ) {
-                    ModelUsageHeader()
-                    ForEach(pageItems(models, page: visibleModelPage, pageSize: rowsPerPage)) { model in
-                        ModelUsageRow(model: model)
-                    }
-                    if models.isEmpty {
-                        emptyText("No Codex token usage found")
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                StatisticsSection(
-                    title: "Recent days",
-                    help: "Calendar-day totals from the rolling 30-day local Codex history, newest first.",
-                    page: visibleDayPage,
-                    pageCount: dayPages,
-                    previousPage: { dayPage = max(0, visibleDayPage - 1) },
-                    nextPage: { dayPage = min(dayPages - 1, visibleDayPage + 1) }
-                ) {
-                    DailyUsageHeader()
-                    ForEach(pageItems(days, page: visibleDayPage, pageSize: rowsPerPage)) { day in
-                        DailyUsageRow(day: day)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-        }
-    }
-
-    private var kimiDetail: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                ProviderSummaryPanel(
-                    title: "Kimi",
-                    primary: kimiPrimaryText,
-                    secondary: "quota only",
-                    footnote: snapshot.kimi.source,
-                    help: "The Kimi quota window with the lowest remaining percentage, read from the provider quota API."
-                )
-
-                ProviderSummaryPanel(
-                    title: "Windows",
-                    primary: "\(snapshot.kimi.windows.count)",
-                    secondary: "active quota windows",
-                    footnote: "usage counts are provider quota units",
-                    help: "The number of quota windows returned by Kimi. Each window has its own duration, usage and reset time."
-                )
-            }
-
-            InfoLabel(
-                title: "Quota windows",
-                help: "Provider-reported Kimi limits. Used/limit values are quota units; remaining is calculated by the provider."
+    private var codexContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PeriodToolbar(
+                period: $period,
+                customStart: $customStart,
+                customEnd: $customEnd
             )
 
-            if snapshot.kimi.windows.isEmpty {
-                emptyText("No Kimi quota windows loaded")
-            } else {
-                VStack(alignment: .leading, spacing: 7) {
-                    KimiQuotaHeader()
-                    ForEach(snapshot.kimi.windows) { window in
-                        KimiQuotaRow(window: window)
-                    }
-                }
-                .padding(12)
-                .statisticsPanel()
+            HStack(spacing: 10) {
+                MetricCard(title: "Total tokens", value: compactCount(selection.totals.totalTokens), detail: period.label)
+                MetricCard(title: "Input", value: compactCount(selection.totals.inputTokens), detail: "uncached \(compactCount(selection.totals.billableInputTokens))")
+                MetricCard(title: "Output", value: compactCount(selection.totals.outputTokens), detail: "reasoning \(compactCount(selection.totals.reasoningOutputTokens))")
+                MetricCard(title: "Estimate", value: money(selection.totals.estimatedCostUSD), detail: "API-equivalent")
+            }
+
+            HeatmapSection(daily: selection.daily)
+            DatasetPanel(codex: snapshot.codex, selection: selection)
+
+            HStack(alignment: .top, spacing: 10) {
+                ModelTablePanel(models: selection.models)
+                    .frame(minWidth: 430, maxWidth: .infinity)
+                DailyTablePanel(daily: selection.daily)
+                    .frame(minWidth: 330, maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var breakdownGrid: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            InfoLabel(
-                title: "Dataset & accounting",
-                help: "Where the Codex statistics come from and how token categories contribute to the estimate."
-            )
-
-            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 6) {
-                GridRow {
-                    statLabel("Source", help: "Local directory scanned for Codex session JSONL logs.")
-                    statValue(snapshot.codex.source)
-                    statLabel("Events", help: "Number of token-usage events parsed from all session logs.")
-                    statValue("\(snapshot.codex.eventCount)")
-                }
-                GridRow {
-                    statLabel("Uncached input", help: "Input tokens minus cached-input reads and cache-write tokens.")
-                    statValue(compactCount(snapshot.codex.total.billableInputTokens))
-                    statLabel("Cached input", help: "Input tokens served from a prompt cache, as reported in session logs.")
-                    statValue(compactCount(snapshot.codex.total.cachedInputTokens))
-                }
-                GridRow {
-                    statLabel("Cache writes", help: "Input tokens written into a prompt cache, as reported in session logs.")
-                    statValue(compactCount(snapshot.codex.total.cacheWriteInputTokens))
-                    statLabel("Output", help: "All generated output tokens, including the reported reasoning-token subset.")
-                    statValue(compactCount(snapshot.codex.total.outputTokens))
-                }
-                GridRow {
-                    statLabel("Cost basis", help: "Model-specific public API token rates applied to local usage; this is not your subscription bill.")
-                    statValue("API-equivalent estimate")
-                    statLabel("Estimate", help: "Uncached input, cached input, cache writes and output multiplied by their model-specific rates.")
-                    statValue(money(snapshot.codex.total.estimatedCostUSD))
-                }
+    private var kimiContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 240), spacing: 10)],
+                alignment: .leading,
+                spacing: 10
+            ) {
+                MetricCard(title: "Lowest remaining", value: kimiRemainingText, detail: kimiResetText)
+                MetricCard(title: "Quota windows", value: "\(snapshot.kimi.windows.count)", detail: snapshot.kimi.source)
             }
+            KimiTablePanel(windows: snapshot.kimi.windows)
         }
-        .font(.system(size: 11.5, weight: .medium))
-        .padding(12)
-        .statisticsPanel()
-    }
-
-    private var refreshText: String {
-        guard let refreshedAt = snapshot.refreshedAt else {
-            return analytics.isRefreshing ? "loading" : "not loaded"
-        }
-        let duration = (snapshot.lastLoadDuration ?? analytics.progress.lastDuration)
-            .map { " · \(durationText($0))" } ?? ""
-        return "Updated \(dateTimeText(refreshedAt))" + duration
-    }
-
-    private func loadStatusText(now: Date) -> String {
-        let progress = analytics.progress
-        if progress.isLoading {
-            let elapsed = progress.startedAt.map { now.timeIntervalSince($0) } ?? 0
-            if progress.totalFiles > 0 {
-                return "Updating Codex \(progress.processedFiles)/\(progress.totalFiles) · \(durationText(elapsed))"
-            }
-            return "Finding Codex logs · \(durationText(elapsed))"
-        }
-
-        guard let lastDuration = progress.lastDuration else {
-            return "Usage analytics not loaded"
-        }
-        return "Last load \(durationText(lastDuration))"
-    }
-
-    private var kimiPrimaryText: String {
-        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
-            return "no quota data"
-        }
-        if let used = lowest.used, let limit = lowest.limit {
-            return "\(lowest.label) \(used)/\(limit)"
-        }
-        return "\(lowest.label) \(lowest.remainingPercent)% left"
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var kimiRemainingText: String {
-        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
-            return "--"
-        }
+        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else { return "--" }
         return "\(lowest.remainingPercent)%"
     }
 
     private var kimiResetText: String {
-        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
-            return "no quota data"
-        }
-        return lowest.resetAt.map { "resets \(shortDateTime($0))" } ?? lowest.label
-    }
-
-    private func statLabel(_ text: String, help: String) -> some View {
-        InfoLabel(title: "\(text):", help: help, fontSize: 11.5)
-    }
-
-    private func statValue(_ text: String) -> some View {
-        Text(text)
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-    }
-
-    private func emptyText(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.secondary)
+        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else { return "no quota data" }
+        return lowest.resetAt.map { "resets \(dateTimeText($0))" } ?? lowest.label
     }
 }
 
 private enum AnalyticsTab: String, CaseIterable, Identifiable {
-    case overview = "Overview"
     case codex = "Codex"
     case kimi = "Kimi"
+    var id: String { rawValue }
+}
+
+private enum AnalyticsPeriod: String, CaseIterable, Identifiable {
+    case sevenDays = "7d"
+    case thirtyDays = "30d"
+    case ninetyDays = "90d"
+    case allTime = "All"
+    case custom = "Custom"
 
     var id: String { rawValue }
+    var label: String { self == .allTime ? "all recorded days" : rawValue }
+
+    func bounds(customStart: Date, customEnd: Date, calendar: Calendar = .autoupdatingCurrent) -> (start: Date?, end: Date?) {
+        let today = calendar.startOfDay(for: Date())
+        switch self {
+        case .sevenDays: return (calendar.date(byAdding: .day, value: -6, to: today), today)
+        case .thirtyDays: return (calendar.date(byAdding: .day, value: -29, to: today), today)
+        case .ninetyDays: return (calendar.date(byAdding: .day, value: -89, to: today), today)
+        case .allTime: return (nil, nil)
+        case .custom:
+            return (
+                calendar.startOfDay(for: min(customStart, customEnd)),
+                calendar.startOfDay(for: max(customStart, customEnd))
+            )
+        }
+    }
 }
 
 private struct AnalyticsTabControl: View {
     @Binding var selection: AnalyticsTab
 
     var body: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: 6) {
             ForEach(AnalyticsTab.allCases) { tab in
-                Button {
-                    selection = tab
-                } label: {
+                Button { selection = tab } label: {
                     Text(tab.rawValue)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(selection == tab ? .white : .primary)
-                        .frame(width: 88, height: 28)
+                        .padding(.horizontal, 17)
+                        .padding(.vertical, 7)
                         .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selection == tab ? Color.accentColor : Color.clear)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(selection == tab ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
     }
 }
 
-private struct SimpleMetricCard: View {
+private struct RefreshStatus: View {
+    let progress: UsageAnalyticsLoadProgress
+    let refreshedAt: Date?
+    let isRefreshing: Bool
+    let refresh: () -> Void
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            HStack(spacing: 9) {
+                if isRefreshing {
+                    ProgressView(value: progress.fractionCompleted ?? 0)
+                        .progressViewStyle(.linear)
+                        .frame(width: 90)
+                    Text(progress.totalFiles > 0 ? "\(progress.processedFiles)/\(progress.totalFiles)" : "preparing")
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                } else if let duration = progress.lastDuration {
+                    Label(durationText(duration), systemImage: "stopwatch")
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+
+                Button(action: refresh) {
+                    Image(systemName: "arrow.clockwise").frame(width: 18, height: 18)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isRefreshing)
+                .help("Refresh Codex statistics now")
+            }
+
+            Text(refreshedAt.map { "Last updated \(dateTimeText($0))" } ?? "Not updated yet")
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+private struct PeriodToolbar: View {
+    @Binding var period: AnalyticsPeriod
+    @Binding var customStart: Date
+    @Binding var customEnd: Date
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Period").font(.system(size: 12, weight: .semibold)).foregroundColor(.secondary)
+            Picker("Period", selection: $period) {
+                ForEach(AnalyticsPeriod.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: period == .custom ? 330 : 420)
+            if period == .custom {
+                DatePicker("From", selection: $customStart, displayedComponents: .date)
+                DatePicker("To", selection: $customEnd, displayedComponents: .date)
+                .font(.system(size: 11, weight: .medium))
+            }
+            Spacer()
+        }
+        .padding(8)
+        .panelStyle()
+    }
+}
+
+private struct MetricCard: View {
     let title: String
     let value: String
     let detail: String
-    let help: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            InfoLabel(title: title, help: help, fontSize: 11.5)
-
+            Text(title).font(.system(size: 11.5, weight: .semibold)).foregroundColor(.secondary)
             Text(value)
-                .font(.system(size: 17, weight: .semibold, design: .monospaced))
+                .font(.system(size: 18, weight: .semibold, design: .monospaced))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
-
             Text(detail)
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundColor(.secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.76)
+                .minimumScaleFactor(0.75)
         }
-        .padding(11)
-        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
-        .statisticsPanel()
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+        .panelStyle()
     }
 }
 
-private enum UsageMetricMode {
-    case total
-    case input
-    case output
-}
-
-private struct UsageMetricCard: View {
-    let title: String
-    let totals: UsageTotals
-    let subtitle: String
-    let help: String
-    var mode: UsageMetricMode = .total
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            InfoLabel(title: title, help: help, fontSize: 11.5)
-
-            Text(primaryText)
-                .font(.system(size: 18, weight: .semibold, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-
-            Text(secondaryText)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 86, alignment: .leading)
-        .statisticsPanel()
-    }
-
-    private var primaryText: String {
-        switch mode {
-        case .total:
-            return compactCount(totals.totalTokens)
-        case .input:
-            return compactCount(totals.inputTokens)
-        case .output:
-            return compactCount(totals.outputTokens)
-        }
-    }
-
-    private var secondaryText: String {
-        switch mode {
-        case .total:
-            return "\(money(totals.estimatedCostUSD)) · \(subtitle)"
-        case .input, .output:
-            return subtitle
-        }
-    }
-}
-
-private struct ProviderSummaryPanel: View {
-    let title: String
-    let primary: String
-    let secondary: String
-    let footnote: String
-    let help: String
+private struct DatasetPanel: View {
+    let codex: CodexUsageAnalytics
+    let selection: CodexUsageSelection
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            InfoLabel(title: title, help: help, fontSize: 13)
-            Text(primary)
-                .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(secondary)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(footnote)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            Text("Dataset & accounting").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 180), spacing: 12)],
+                alignment: .leading,
+                spacing: 6
+            ) {
+                DatasetItem(label: "Source", value: codex.source)
+                DatasetItem(label: "Files", value: "\(codex.fileCount)")
+                DatasetItem(label: "Events", value: "\(selection.eventCount)")
+                DatasetItem(label: "Uncached input", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached-input reads and cache-write tokens.")
+                DatasetItem(label: "Cached input", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache.")
+                DatasetItem(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
+                DatasetItem(label: "Reasoning output", value: compactCount(selection.totals.reasoningOutputTokens), help: "The reasoning-token subset reported inside output usage.")
+                DatasetItem(label: "Cost estimate", value: money(selection.totals.estimatedCostUSD), help: "API-equivalent estimate from model-specific input, cache and output rates; not a subscription bill.")
+            }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 98, alignment: .leading)
-        .statisticsPanel()
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .panelStyle()
     }
+}
+
+private struct DatasetItem: View {
+    let label: String
+    let value: String
+    var help: String?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("\(label):").font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
+            if let help { HoverInfoTip(text: help) }
+            Spacer(minLength: 6)
+            Text(value)
+                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+    }
+}
+
+private struct HoverInfoTip: View {
+    let text: String
+    @State private var isPresented = false
+
+    var body: some View {
+        Image(systemName: "info.circle")
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(.secondary)
+            .onHover { isPresented = $0 }
+            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+                Text(text).font(.system(size: 11, weight: .medium)).padding(10).frame(width: 260, alignment: .leading)
+            }
+            .accessibilityLabel(text)
+    }
+}
+
+private struct HeatmapCell: Identifiable {
+    let id: String
+    let usage: DailyUsage?
 }
 
 private struct HeatmapSection: View {
     let daily: [DailyUsage]
+    private var maxTokens: Int { max(1, daily.map(\.totals.totalTokens).max() ?? 1) }
 
-    private var maxTokens: Int {
-        max(1, daily.map(\.totals.totalTokens).max() ?? 1)
+    private var cells: [HeatmapCell] {
+        guard let first = daily.first else { return [] }
+        let calendar = Calendar.autoupdatingCurrent
+        let leading = (calendar.component(.weekday, from: first.day) - calendar.firstWeekday + 7) % 7
+        let blanks = (0..<leading).map { HeatmapCell(id: "blank-\($0)", usage: nil) }
+        return blanks + daily.map { HeatmapCell(id: "day-\($0.day.timeIntervalSince1970)", usage: $0) }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                InfoLabel(
-                    title: "Codex 30-day heatmap",
-                    help: "Each cell is one calendar day. Opacity is relative to the busiest day in this 30-day window; hover a cell for tokens and estimated cost."
-                )
+                Text("Activity").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
                 Spacer()
-                Text("tokens · API-equivalent estimate")
-                    .font(.system(size: 10.5, weight: .medium))
+                HeatmapLegend()
+            }
+            if cells.isEmpty {
+                Text("No Codex usage in this period")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
-            }
-
-            HStack(alignment: .bottom, spacing: 5) {
-                ForEach(daily) { day in
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.accentColor.opacity(opacity(for: day)))
-                        .frame(width: 17, height: 36)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
-                        .help("\(shortDate(day.day)): \(compactCount(day.totals.totalTokens)) tokens · \(money(day.totals.estimatedCostUSD))")
+                    .frame(maxWidth: .infinity, minHeight: 74, alignment: .center)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal) {
+                        LazyHGrid(rows: Array(repeating: GridItem(.fixed(10), spacing: 2), count: 7), spacing: 2) {
+                            ForEach(cells) { cell in heatmapSquare(cell).id(cell.id) }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .onAppear { scrollToLatest(proxy) }
+                    .onChange(of: cells.last?.id) { _ in scrollToLatest(proxy) }
                 }
+                .frame(height: 82)
             }
         }
-        .padding(12)
-        .statisticsPanel()
+        .padding(10)
+        .panelStyle()
     }
 
-    private func opacity(for day: DailyUsage) -> Double {
-        guard day.totals.totalTokens > 0 else { return 0.12 }
-        let ratio = Double(day.totals.totalTokens) / Double(maxTokens)
-        return min(0.95, max(0.24, 0.18 + ratio * 0.77))
+    @ViewBuilder
+    private func heatmapSquare(_ cell: HeatmapCell) -> some View {
+        if let usage = cell.usage {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(heatmapColor(tokens: usage.totals.totalTokens))
+                .frame(width: 10, height: 10)
+                .overlay(RoundedRectangle(cornerRadius: 2).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+                .help("\(shortDate(usage.day)): \(compactCount(usage.totals.totalTokens)) tokens · \(money(usage.totals.estimatedCostUSD))")
+        } else {
+            Color.clear.frame(width: 10, height: 10)
+        }
+    }
+
+    private func heatmapColor(tokens: Int) -> Color {
+        guard tokens > 0 else { return Color(nsColor: .quaternaryLabelColor).opacity(0.22) }
+        let level = min(4, max(1, Int(ceil(Double(tokens) / Double(maxTokens) * 4))))
+        return Color.accentColor.opacity([0, 0.28, 0.46, 0.68, 0.92][level])
+    }
+
+    private func scrollToLatest(_ proxy: ScrollViewProxy) {
+        guard let last = cells.last else { return }
+        DispatchQueue.main.async { proxy.scrollTo(last.id, anchor: .trailing) }
     }
 }
 
-private struct ModelUsageRow: View {
-    let model: ModelUsage
-
+private struct HeatmapLegend: View {
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(model.model)
-                .font(rowFont)
-                .frame(width: 116, alignment: .leading)
-            Text(compactCount(model.totals.totalTokens))
-                .font(rowFont)
-                .frame(width: 76, alignment: .trailing)
-            Text(money(model.totals.estimatedCostUSD))
-                .font(rowFont)
-                .foregroundColor(.secondary)
-                .frame(width: 70, alignment: .trailing)
-            Text("\(model.events)x")
-                .font(rowFont)
-                .foregroundColor(.secondary)
-                .frame(width: 44, alignment: .trailing)
+        HStack(spacing: 4) {
+            Text("Less")
+            ForEach(0..<5, id: \.self) { level in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(level == 0 ? Color(nsColor: .quaternaryLabelColor).opacity(0.22) : Color.accentColor.opacity(Double(level) * 0.2 + 0.12))
+                    .frame(width: 10, height: 10)
+            }
+            Text("More")
         }
-    }
-}
-
-private struct ModelUsageHeader: View {
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            ColumnInfoLabel(
-                title: "Model",
-                help: "Model name recorded in Codex session usage events.",
-                width: 116,
-                alignment: .leading
-            )
-            ColumnInfoLabel(
-                title: "Tokens",
-                help: "Input plus output tokens attributed to this model.",
-                width: 76,
-                alignment: .trailing
-            )
-            ColumnInfoLabel(
-                title: "Estimate",
-                help: "API-equivalent cost using this model's input, cache and output rates.",
-                width: 70,
-                alignment: .trailing
-            )
-            ColumnInfoLabel(
-                title: "Events",
-                help: "Number of token-usage events attributed to this model.",
-                width: 44,
-                alignment: .trailing
-            )
-        }
-    }
-}
-
-private struct DailyUsageRow: View {
-    let day: DailyUsage
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(shortDate(day.day))
-                .font(rowFont)
-                .frame(width: 54, alignment: .leading)
-            Text(compactCount(day.totals.totalTokens))
-                .font(rowFont)
-                .frame(width: 82, alignment: .trailing)
-            Text(money(day.totals.estimatedCostUSD))
-                .font(rowFont)
-                .foregroundColor(.secondary)
-                .frame(width: 74, alignment: .trailing)
-        }
-    }
-}
-
-private struct DailyUsageHeader: View {
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            ColumnInfoLabel(
-                title: "Date",
-                help: "Local calendar day for the usage events.",
-                width: 54,
-                alignment: .leading
-            )
-            ColumnInfoLabel(
-                title: "Tokens",
-                help: "Input plus output tokens recorded on this day.",
-                width: 82,
-                alignment: .trailing
-            )
-            ColumnInfoLabel(
-                title: "Estimate",
-                help: "API-equivalent cost of this day's token usage.",
-                width: 74,
-                alignment: .trailing
-            )
-        }
-    }
-}
-
-private struct KimiQuotaRow: View {
-    let window: KimiQuotaWindow
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(window.label)
-                .font(rowFont)
-                .frame(width: 42, alignment: .leading)
-            Text(usageText)
-                .font(rowFont)
-                .frame(width: 120, alignment: .leading)
-            Text("\(window.remainingPercent)% left")
-                .font(rowFont)
-                .foregroundColor(color)
-                .frame(width: 86, alignment: .leading)
-            Text(window.resetAt.map(formatResetDate) ?? "unknown reset")
-                .font(rowFont)
-                .foregroundColor(.secondary)
-        }
-    }
-
-    private var usageText: String {
-        guard let used = window.used, let limit = window.limit else {
-            return "quota unknown"
-        }
-        return "\(used)/\(limit) quota"
-    }
-
-    private var color: Color {
-        if window.remainingPercent <= 10 { return .red }
-        if window.remainingPercent < 20 { return .orange }
-        return .primary
-    }
-}
-
-private struct KimiQuotaHeader: View {
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            ColumnInfoLabel(
-                title: "Window",
-                help: "Provider-defined quota duration, such as 5 hours or 7 days.",
-                width: 42,
-                alignment: .leading
-            )
-            ColumnInfoLabel(
-                title: "Usage",
-                help: "Used quota units divided by the provider-reported limit.",
-                width: 120,
-                alignment: .leading
-            )
-            ColumnInfoLabel(
-                title: "Remaining",
-                help: "Percentage of quota still available in this window.",
-                width: 86,
-                alignment: .leading
-            )
-            ColumnInfoLabel(
-                title: "Reset",
-                help: "Provider-reported date and time when this quota window resets.",
-                width: 150,
-                alignment: .leading
-            )
-        }
-    }
-}
-
-private struct InfoLabel: View {
-    let title: String
-    let help: String
-    var fontSize: CGFloat = 12
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(title)
-                .font(.system(size: fontSize, weight: .semibold))
-            Image(systemName: "info.circle")
-                .font(.system(size: max(9, fontSize - 1), weight: .medium))
-                .help(help)
-                .accessibilityLabel("About \(title)")
-                .accessibilityHint(help)
-        }
+        .font(.system(size: 9.5, weight: .medium))
         .foregroundColor(.secondary)
     }
 }
 
-private struct ColumnInfoLabel: View {
-    let title: String
-    let help: String
-    let width: CGFloat
-    let alignment: Alignment
-
-    var body: some View {
-        InfoLabel(title: title, help: help, fontSize: 9.5)
-            .lineLimit(1)
-            .frame(width: width, alignment: alignment)
-    }
-}
-
-private struct StatisticsSection<Content: View>: View {
-    let title: String
-    let help: String
-    let page: Int
-    let pageCount: Int
-    let previousPage: () -> Void
-    let nextPage: () -> Void
-    let content: Content
-
-    init(
-        title: String,
-        help: String,
-        page: Int,
-        pageCount: Int,
-        previousPage: @escaping () -> Void,
-        nextPage: @escaping () -> Void,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.help = help
-        self.page = page
-        self.pageCount = pageCount
-        self.previousPage = previousPage
-        self.nextPage = nextPage
-        self.content = content()
-    }
-
+private struct ModelTablePanel: View {
+    let models: [ModelUsage]
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                InfoLabel(title: title, help: help)
-                Spacer(minLength: 8)
-                PaginationControl(
-                    page: page,
-                    pageCount: pageCount,
-                    previousPage: previousPage,
-                    nextPage: nextPage
-                )
+            Text("Models").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
+            Table(models) {
+                TableColumn("Model", value: \.model)
+                TableColumn("Tokens") { Text(compactCount($0.totals.totalTokens)).monospacedDigit() }
+                TableColumn("Reasoning") { Text(compactCount($0.totals.reasoningOutputTokens)).monospacedDigit() }
+                TableColumn("Estimate") { Text(money($0.totals.estimatedCostUSD)).monospacedDigit() }
+                TableColumn("Events") { Text("\($0.events)").monospacedDigit() }
             }
+            .frame(height: 150)
+        }
+        .padding(10)
+        .panelStyle()
+    }
+}
 
-            VStack(alignment: .leading, spacing: 7) {
-                content
+private struct DailyTablePanel: View {
+    let daily: [DailyUsage]
+    private var newestFirst: [DailyUsage] { Array(daily.reversed()) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Days").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
+            Table(newestFirst) {
+                TableColumn("Date") { Text(shortDate($0.day)) }
+                TableColumn("Tokens") { Text(compactCount($0.totals.totalTokens)).monospacedDigit() }
+                TableColumn("Reasoning") { Text(compactCount($0.totals.reasoningOutputTokens)).monospacedDigit() }
+                TableColumn("Estimate") { Text(money($0.totals.estimatedCostUSD)).monospacedDigit() }
             }
-            .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+            .frame(height: 150)
+        }
+        .padding(10)
+        .panelStyle()
+    }
+}
+
+private struct KimiTablePanel: View {
+    let windows: [KimiQuotaWindow]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Quota windows").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
+            Table(windows) {
+                TableColumn("Window", value: \.label)
+                TableColumn("Usage") { Text(usageText($0)).monospacedDigit() }
+                TableColumn("Remaining") { Text("\($0.remainingPercent)%").monospacedDigit() }
+                TableColumn("Reset") { Text($0.resetAt.map(dateTimeText) ?? "unknown") }
+            }
+            .frame(minHeight: 190)
         }
         .padding(12)
-        .statisticsPanel()
+        .panelStyle()
+    }
+
+    private func usageText(_ window: KimiQuotaWindow) -> String {
+        guard let used = window.used, let limit = window.limit else { return "unknown" }
+        return "\(used)/\(limit)"
     }
 }
 
-private struct PaginationControl: View {
-    let page: Int
-    let pageCount: Int
-    let previousPage: () -> Void
-    let nextPage: () -> Void
+struct CodexUsageSelection: Equatable {
+    let totals: UsageTotals
+    let daily: [DailyUsage]
+    let models: [ModelUsage]
+    let eventCount: Int
+}
 
-    var body: some View {
-        HStack(spacing: 5) {
-            Button(action: previousPage) {
-                Image(systemName: "chevron.left")
-            }
-            .disabled(page <= 0)
-            .help("Previous page")
+func codexUsageSelection(
+    from codex: CodexUsageAnalytics,
+    start: Date?,
+    end: Date?,
+    calendar: Calendar = .autoupdatingCurrent
+) -> CodexUsageSelection {
+    let startDay = start.map { calendar.startOfDay(for: $0) }
+    let endDay = end.map { calendar.startOfDay(for: $0) }
+    let includes: (Date) -> Bool = { date in
+        let day = calendar.startOfDay(for: date)
+        return (startDay == nil || day >= startDay!) && (endDay == nil || day <= endDay!)
+    }
 
-            Text("\(page + 1) / \(pageCount)")
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundColor(.secondary)
-                .frame(minWidth: 34)
-
-            Button(action: nextPage) {
-                Image(systemName: "chevron.right")
-            }
-            .disabled(page >= pageCount - 1)
-            .help("Next page")
+    let daily = codex.daily.filter { includes($0.day) }
+    let selectedDailyModels = codex.dailyModels.filter { includes($0.day) }
+    let totals = daily.reduce(into: UsageTotals.zero) { $0.add($1.totals) }
+    var modelBuckets: [String: ModelUsage] = [:]
+    for usage in selectedDailyModels {
+        if modelBuckets[usage.model] == nil {
+            modelBuckets[usage.model] = ModelUsage(model: usage.model, totals: .zero, events: 0)
         }
-        .buttonStyle(.borderless)
+        modelBuckets[usage.model]?.totals.add(usage.totals)
+        modelBuckets[usage.model]?.events += usage.events
     }
-}
-
-private var rowFont: Font {
-    .system(size: 11.5, weight: .medium, design: .monospaced)
+    let models = modelBuckets.values.sorted {
+        if $0.totals.estimatedCostUSD != $1.totals.estimatedCostUSD { return $0.totals.estimatedCostUSD > $1.totals.estimatedCostUSD }
+        return $0.totals.totalTokens > $1.totals.totalTokens
+    }
+    let isAllTime = startDay == nil && endDay == nil
+    return CodexUsageSelection(
+        totals: isAllTime && daily.isEmpty ? codex.total : totals,
+        daily: daily,
+        models: selectedDailyModels.isEmpty && isAllTime ? codex.models : models,
+        eventCount: selectedDailyModels.isEmpty && isAllTime ? codex.eventCount : selectedDailyModels.reduce(0) { $0 + $1.events }
+    )
 }
 
 private extension View {
-    func statisticsPanel() -> some View {
-        background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
+    func panelStyle() -> some View {
+        background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
     }
-}
-
-private func pageCount(itemCount: Int, pageSize: Int) -> Int {
-    guard pageSize > 0 else { return 1 }
-    return max(1, (itemCount + pageSize - 1) / pageSize)
-}
-
-private func pageItems<Element>(_ items: [Element], page: Int, pageSize: Int) -> [Element] {
-    guard pageSize > 0, !items.isEmpty else { return [] }
-    let lowerBound = min(max(0, page) * pageSize, items.count)
-    let upperBound = min(lowerBound + pageSize, items.count)
-    return Array(items[lowerBound..<upperBound])
 }
 
 private func compactCount(_ value: Int) -> String {
     let absolute = abs(value)
-    if absolute >= 1_000_000 {
-        return String(format: "%.2fM", Double(value) / 1_000_000)
-    }
-    if absolute >= 1_000 {
-        return String(format: "%.1fK", Double(value) / 1_000)
-    }
+    if absolute >= 1_000_000 { return String(format: "%.2fM", Double(value) / 1_000_000) }
+    if absolute >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
     return "\(value)"
 }
 
 private func money(_ value: Double) -> String {
-    if value >= 100 {
-        return String(format: "$%.0f", value)
-    }
-    if value >= 10 {
-        return String(format: "$%.1f", value)
-    }
+    if value >= 100 { return String(format: "$%.0f", value) }
+    if value >= 10 { return String(format: "$%.1f", value) }
     return String(format: "$%.2f", value)
 }
 
 private func durationText(_ value: TimeInterval) -> String {
-    if value < 1 {
-        return String(format: "%.0fms", value * 1_000)
-    }
-    if value < 10 {
-        return String(format: "%.2fs", value)
-    }
+    if value < 1 { return String(format: "%.0fms", value * 1_000) }
+    if value < 10 { return String(format: "%.2fs", value) }
     return String(format: "%.1fs", value)
 }
 
@@ -870,13 +533,5 @@ private func shortDate(_ date: Date) -> String {
 }
 
 private func dateTimeText(_ date: Date) -> String {
-    date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-}
-
-private func shortDateTime(_ date: Date) -> String {
-    date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-}
-
-private func formatResetDate(_ date: Date) -> String {
     date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
 }

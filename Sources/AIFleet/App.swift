@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
         StatusService.shared.start()
+        UsageAnalyticsService.shared.startDailyRefreshSchedule()
 
         let statusBarController = StatusBarController(
             service: StatusService.shared,
@@ -57,6 +58,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             .store(in: &cancellables)
+        Publishers.CombineLatest(
+            AppSettings.shared.$analyticsAutoRefreshEnabled,
+            AppSettings.shared.$analyticsRefreshMinutes
+        )
+        .dropFirst()
+        .sink { _ in
+            UsageAnalyticsService.shared.rescheduleDailyRefresh()
+        }
+        .store(in: &cancellables)
         registerToggleHotKey()
     }
 
@@ -105,14 +115,15 @@ private final class StatisticsWindowController: NSWindowController {
     init() {
         let hostingController = NSHostingController(rootView: StatisticsView())
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 780, height: 560),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 650),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "AI Fleet Statistics"
         window.identifier = NSUserInterfaceItemIdentifier("ai-fleet-statistics")
         window.contentViewController = hostingController
+        window.minSize = NSSize(width: 820, height: 600)
         window.isReleasedWhenClosed = false
         super.init(window: window)
     }
@@ -124,8 +135,6 @@ private final class StatisticsWindowController: NSWindowController {
 
     func showStatistics(relativeTo anchorFrame: NSRect?) {
         guard let window else { return }
-
-        sizeWindowToContent(window)
 
         if let anchorFrame {
             placeWindow(window, relativeTo: anchorFrame)
@@ -174,7 +183,7 @@ private final class SettingsWindowController: NSWindowController {
     init() {
         let hostingController = NSHostingController(rootView: SettingsView())
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 210),
+            contentRect: NSRect(x: 0, y: 0, width: 430, height: 300),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false

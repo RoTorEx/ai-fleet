@@ -54,6 +54,10 @@ final class AppSettings: ObservableObject {
     @Published var notifyStepPercent: Int {
         didSet { defaults.set(notifyStepPercent, forKey: "notify.stepPercent") }
     }
+    @Published var analyticsAutoRefreshEnabled: Bool {
+        didSet { defaults.set(analyticsAutoRefreshEnabled, forKey: "analytics.autoRefresh.enabled") }
+    }
+    @Published private(set) var analyticsRefreshMinutes: Int
     @Published private(set) var notificationThresholds: [Int]
     @Published var isRecordingHotkey = false
     @Published var hotkey: HotkeyCombo {
@@ -72,6 +76,14 @@ final class AppSettings: ObservableObject {
 
         let storedStep = defaults.integer(forKey: "notify.stepPercent")
         notifyStepPercent = storedStep > 0 ? storedStep : 10
+        analyticsAutoRefreshEnabled = defaults.object(forKey: "analytics.autoRefresh.enabled") as? Bool ?? true
+        if defaults.object(forKey: "analytics.autoRefresh.minutes") != nil {
+            analyticsRefreshMinutes = Self.normalizedRefreshMinutes(
+                defaults.integer(forKey: "analytics.autoRefresh.minutes")
+            )
+        } else {
+            analyticsRefreshMinutes = 12 * 60
+        }
         let storedThresholds = defaults.array(forKey: "notify.remainingThresholds") as? [Int] ?? []
         notificationThresholds = Self.normalizedThresholds(storedThresholds.isEmpty ? [50, 25, 10, 5, 0] : storedThresholds)
 
@@ -125,6 +137,22 @@ final class AppSettings: ObservableObject {
         setNotificationThresholds(next.isEmpty ? [0] : next)
     }
 
+    func setAnalyticsRefreshTime(_ date: Date, calendar: Calendar = .autoupdatingCurrent) {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let minutes = (components.hour ?? 12) * 60 + (components.minute ?? 0)
+        analyticsRefreshMinutes = Self.normalizedRefreshMinutes(minutes)
+        defaults.set(analyticsRefreshMinutes, forKey: "analytics.autoRefresh.minutes")
+    }
+
+    func analyticsRefreshTime(on date: Date = Date(), calendar: Calendar = .autoupdatingCurrent) -> Date {
+        calendar.date(
+            bySettingHour: analyticsRefreshMinutes / 60,
+            minute: analyticsRefreshMinutes % 60,
+            second: 0,
+            of: date
+        ) ?? date
+    }
+
     private func setNotificationThresholds(_ thresholds: [Int]) {
         let normalized = Self.normalizedThresholds(thresholds)
         notificationThresholds = normalized
@@ -133,5 +161,9 @@ final class AppSettings: ObservableObject {
 
     private static func normalizedThresholds(_ thresholds: [Int]) -> [Int] {
         Array(Set(thresholds.map { max(0, min(100, $0)) })).sorted(by: >)
+    }
+
+    private static func normalizedRefreshMinutes(_ minutes: Int) -> Int {
+        max(0, min((24 * 60) - 1, minutes))
     }
 }

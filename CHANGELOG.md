@@ -6,8 +6,17 @@ Tracks real product and release progress.
 
 ### Changed
 
-- Reworked Statistics into clearly labeled panels with stable table layouts,
-  five-row pagination, and hover explanations for metrics and calculations.
+- Rebuilt Statistics as a resizable Codex/Kimi view with all-time and custom
+  ranges, a no-outer-scroll compact layout, native table scrolling, per-model
+  reasoning totals, adaptive panels, and a square GitHub-style activity heatmap
+  that opens on the full history.
+- Made Codex analytics refresh low-priority and incremental, stopped rescanning
+  session logs when Statistics opens, and added a configurable daily local-time
+  refresh enabled at 12:00 by default.
+- Simplified quota notifications to sentences such as
+  `Codex reached 5% threshold (7d).` and tracked thresholds per quota window.
+- Made menu, Settings, and Statistics colors follow the macOS light/dark theme.
+- Added fleet artwork with multiple ships to the GitHub README.
 - Removed redundant used-quota values from the compact menu.
 - Routed Swift build output to the disposable
   `~/construction_side/ai-fleet.noindex/swift-build` tree.

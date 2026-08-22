@@ -95,7 +95,6 @@ struct AIFleetMenuView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(FleetPalette.border, lineWidth: 1)
         )
-        .preferredColorScheme(.dark)
     }
 
     private var summarySection: some View {
@@ -434,7 +433,7 @@ struct ActionButton: View {
         .buttonStyle(PlainButtonStyle())
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(isHovered ? 0.10 : 0))
+                .fill(Color.primary.opacity(isHovered ? 0.10 : 0))
         )
         .padding(.horizontal, -8)
         .animation(.easeOut(duration: 0.15), value: isHovered)
@@ -445,18 +444,18 @@ struct ActionButton: View {
 }
 
 private enum FleetPalette {
-    static let background = Color(red: 0.055, green: 0.062, blue: 0.064)
-    static let border = Color.white.opacity(0.13)
-    static let divider = Color.white.opacity(0.12)
-    static let label = Color(red: 0.55, green: 0.57, blue: 0.59)
-    static let value = Color(red: 0.78, green: 0.80, blue: 0.82)
-    static let command = Color(red: 0.84, green: 0.86, blue: 0.88)
-    static let hoverCommand = Color.white
-    static let muted = Color(red: 0.48, green: 0.50, blue: 0.52)
-    static let faint = Color(red: 0.35, green: 0.37, blue: 0.39)
-    static let ready = Color(red: 0.48, green: 0.79, blue: 0.60)
-    static let warning = Color(red: 0.91, green: 0.58, blue: 0.28)
-    static let danger = Color(red: 0.93, green: 0.33, blue: 0.38)
+    static let background = Color(nsColor: .windowBackgroundColor)
+    static let border = Color(nsColor: .separatorColor)
+    static let divider = Color(nsColor: .separatorColor)
+    static let label = Color.secondary
+    static let value = Color.primary
+    static let command = Color.primary
+    static let hoverCommand = Color.primary
+    static let muted = Color.secondary
+    static let faint = Color(nsColor: .tertiaryLabelColor)
+    static let ready = Color(nsColor: .systemGreen)
+    static let warning = Color(nsColor: .systemOrange)
+    static let danger = Color(nsColor: .systemRed)
 }
 
 private func limitText(for status: ProviderStatus) -> String {

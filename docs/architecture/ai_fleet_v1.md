@@ -40,10 +40,11 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 5. Each provider returns a `ProviderStatus` with `ok`, `limited`, `offline`, `noKey`, or `notInstalled` state.
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
 7. `UsageAnalyticsService` reads local Codex JSONL usage metadata for token
-   totals, 30-day heatmap data, model breakdowns, and API-equivalent cost
-   estimates. It keeps the last successful snapshot on disk and refreshes in
-   the background so closing the Statistics window does not cancel an active
-   load. Kimi statistics use quota windows from `StatusService`.
+   totals, all-day heatmap data, model/day breakdowns, reasoning usage, and
+   API-equivalent cost estimates. Opening Statistics reads only the aggregate
+   snapshot. Manual or scheduled background refreshes reuse unchanged files
+   from a per-file aggregate cache and parse changed files at background
+   priority. Kimi statistics use quota windows from `StatusService`.
 8. `UpdateService` resolves the latest GitHub Release for the current CPU,
    verifies the published checksum and application bundle, atomically replaces
    the installed app, and relaunches it.
@@ -61,9 +62,9 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 ## UI
 
 - `AIFleetMenuView` — minimal popover with Kimi and Codex rows, last update time, and Refresh / Quit buttons.
-- `StatisticsView` — fixed-size provider analytics window with explanatory
-  hover labels, bordered metric sections, and five-row pagination for model and
-  daily breakdowns.
+- `StatisticsView` — resizable provider analytics window with date-range
+  filtering, native scrolling tables, adaptive panels, and a square activity
+  heatmap. Only accounting-specific terms carry hover explanations.
 
 ## Configuration
 
@@ -72,6 +73,10 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Codex token: read automatically from `~/.codex/auth.json`.
 - Codex local usage analytics: numeric token-usage metadata from `~/.codex/sessions/**/*.jsonl`.
 - Statistics cache: `~/Library/Application Support/AI Fleet/usage-analytics-cache.json`.
+- Incremental per-file statistics cache:
+  `~/Library/Application Support/AI Fleet/usage-analytics-files-cache.json`.
+- Statistics refresh: optional once-daily local schedule, enabled by default at
+  12:00; manual refresh is always available.
 - Claude login detection: local Claude credential files such as `~/.claude.json`.
 - Qwen login detection: local Qwen credential files such as `~/.qwen/oauth_creds.json`.
 

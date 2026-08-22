@@ -1,5 +1,9 @@
 # AI Fleet
 
+<p align="center">
+  <img src="docs/assets/ai-fleet-github.png" width="220" alt="AI Fleet — a formation of ships">
+</p>
+
 A tiny macOS menu-bar app that checks Kimi and Codex status once per minute.
 
 It sits in the menu bar as a ship icon and shows a simple dropdown:
@@ -7,7 +11,7 @@ It sits in the menu bar as a ship icon and shows a simple dropdown:
 - **Kimi** — Kimi Code usage from `~/.kimi-code`, falling back to Moonshot API balance.
 - **Codex** — remaining usage percent from the ChatGPT backend.
 
-No dock icon, no separate windows, no CLI wrapper.
+No dock icon and no CLI wrapper.
 
 ## Requirements
 
@@ -61,6 +65,8 @@ Status is refreshed automatically every 60 seconds. Click **Refresh now** in the
 Settings lets you manage remaining-quota thresholds such as `50`, `25`, `10`,
 `5`, and `0` percent. Thresholds are sorted automatically, can be added or
 removed, and fire when a provider crosses that remaining percentage from above.
+Notifications identify the affected quota window, for example
+`Codex reached 5% threshold (7d).`
 
 The menu shows the remaining quota and reset time for each limit window.
 Detailed usage data remains available in **Statistics…**.
@@ -69,9 +75,16 @@ Detailed usage data remains available in **Statistics…**.
 
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
-**Statistics…** groups provider metrics into labeled panels. Hover the small
-info icons for calculation details; longer model and daily tables use five-row
-pages to keep the window layout stable.
+**Statistics…** provides `7d`, `30d`, `90d`, all-time, and custom date ranges.
+The selected range recalculates totals, model and daily tables, reasoning usage,
+cost estimates, and the GitHub-style activity heatmap from cached aggregates.
+There is no outer page scroll: the compact dashboard stays in one view while
+only the two long native tables scroll their rows. The window can be resized.
+
+Opening Statistics never starts a session-log scan. Manual refresh remains
+available, and Settings can enable a low-priority daily refresh at a chosen
+local time (12:00 by default). Unchanged Codex session files are reused from an
+incremental local cache.
 
 ## Quit
 

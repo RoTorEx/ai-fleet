@@ -71,9 +71,34 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            settingsRow("Statistics") {
+                VStack(alignment: .leading, spacing: 7) {
+                    Toggle("Refresh daily", isOn: $settings.analyticsAutoRefreshEnabled)
+                        .font(.system(size: 11.5, weight: .medium))
+
+                    HStack(spacing: 8) {
+                        Text("Local time")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.secondary)
+                        DatePicker(
+                            "",
+                            selection: analyticsRefreshTimeBinding,
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                        .disabled(!settings.analyticsAutoRefreshEnabled)
+                    }
+
+                    Text("Runs quietly in the background and reuses unchanged session files.")
+                        .font(.system(size: 10.5))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .padding(20)
-        .frame(width: 380)
+        .frame(width: 430)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear {
             service.refreshNotificationSettings()
@@ -100,6 +125,13 @@ struct SettingsView: View {
                 settings.setEnabled(newValue, for: providerID)
                 StatusService.shared.refresh()
             }
+        )
+    }
+
+    private var analyticsRefreshTimeBinding: Binding<Date> {
+        Binding(
+            get: { settings.analyticsRefreshTime() },
+            set: { settings.setAnalyticsRefreshTime($0) }
         )
     }
 
@@ -222,7 +254,7 @@ struct HotkeyRecorder: View {
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(recording ? 0.16 : 0.08))
+                        .fill(Color.primary.opacity(recording ? 0.16 : 0.08))
                 )
         }
         .buttonStyle(PlainButtonStyle())

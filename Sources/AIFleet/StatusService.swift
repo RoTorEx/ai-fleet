@@ -288,57 +288,60 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let defaults = UserDefaults.standard
 
         for provider in providerStatuses where settings.isEnabled(provider.id) {
-            guard provider.state == .ok || provider.state == .limited,
-                  let weekly = provider.limitWindows.max(by: {
-                      (durationSeconds(for: $0.label) ?? 0) < (durationSeconds(for: $1.label) ?? 0)
-                  }) else {
+            guard provider.state == .ok || provider.state == .limited else {
                 continue
             }
 
-            let remaining = max(0, min(100, weekly.remainingPercent))
-            let lastRemainingKey = "notify.remainingLast.\(provider.id)"
-            let notifiedThresholdsKey = "notify.remainingNotifiedThresholds.\(provider.id)"
-            let previousRemaining = defaults.object(forKey: lastRemainingKey) as? Int ?? 101
-            var notifiedThresholds = Set(defaults.array(forKey: notifiedThresholdsKey) as? [Int] ?? [])
+            for window in provider.limitWindows {
+                let remaining = max(0, min(100, window.remainingPercent))
+                let keySuffix = "\(provider.id).\(window.id)"
+                let lastRemainingKey = "notify.remainingLast.\(keySuffix)"
+                let notifiedThresholdsKey = "notify.remainingNotifiedThresholds.\(keySuffix)"
+                let previousRemaining = defaults.object(forKey: lastRemainingKey) as? Int ?? 101
+                var notifiedThresholds = Set(defaults.array(forKey: notifiedThresholdsKey) as? [Int] ?? [])
 
-            if remaining > previousRemaining {
-                // Quota recovered. Keep thresholds above the current remaining armed as already crossed,
-                // and re-arm thresholds that recovery moved back above.
-                notifiedThresholds = Set(thresholds.filter { remaining <= $0 })
-                defaults.set(Array(notifiedThresholds).sorted(by: >), forKey: notifiedThresholdsKey)
+                if remaining > previousRemaining {
+                    // Re-arm thresholds that this quota-window reset moved back above.
+                    notifiedThresholds = Set(thresholds.filter { remaining <= $0 })
+                    defaults.set(Array(notifiedThresholds).sorted(by: >), forKey: notifiedThresholdsKey)
+                }
+
+                let crossedThresholds = thresholds.filter { threshold in
+                    remaining <= threshold &&
+                        !notifiedThresholds.contains(threshold) &&
+                        (previousRemaining > threshold || remaining <= threshold)
+                }
+
+                if let threshold = crossedThresholds.min() {
+                    let acceptedThresholds = Array(notifiedThresholds.union(crossedThresholds)).sorted(by: >)
+                    sendLimitNotification(
+                        providerName: provider.name,
+                        windowLabel: window.label,
+                        threshold: threshold,
+                        notifiedThresholdsKey: notifiedThresholdsKey,
+                        acceptedThresholds: acceptedThresholds
+                    )
+                }
+
+                defaults.set(remaining, forKey: lastRemainingKey)
             }
-
-            let crossedThresholds = thresholds.filter { threshold in
-                remaining <= threshold &&
-                    !notifiedThresholds.contains(threshold) &&
-                    (previousRemaining > threshold || remaining <= threshold)
-            }
-
-            if let threshold = crossedThresholds.min() {
-                let acceptedThresholds = Array(notifiedThresholds.union(crossedThresholds)).sorted(by: >)
-                sendLimitNotification(
-                    providerName: provider.name,
-                    remaining: remaining,
-                    threshold: threshold,
-                    notifiedThresholdsKey: notifiedThresholdsKey,
-                    acceptedThresholds: acceptedThresholds
-                )
-            }
-
-            defaults.set(remaining, forKey: lastRemainingKey)
         }
     }
 
     private func sendLimitNotification(
         providerName: String,
-        remaining: Int,
+        windowLabel: String,
         threshold: Int,
         notifiedThresholdsKey: String,
         acceptedThresholds: [Int]
     ) {
         sendNotification(
             identifier: "aifleet-drain-\(UUID().uuidString)",
-            body: "\(providerName) reached \(threshold)% threshold: \(remaining)% remaining"
+            body: limitNotificationBody(
+                providerName: providerName,
+                threshold: threshold,
+                windowLabel: windowLabel
+            )
         ) {
             UserDefaults.standard.set(acceptedThresholds, forKey: notifiedThresholdsKey)
         }
@@ -791,4 +794,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         guard let value else { return nil }
         return iso8601Fractional.date(from: value) ?? iso8601.date(from: value)
     }
+}
+
+func limitNotificationBody(providerName: String, threshold: Int, windowLabel: String) -> String {
+    "\(providerName) reached \(threshold)% threshold (\(windowLabel))."
 }
