@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-08-23
+
 ### Changed
 
 - Rearranged the aligned Statistics summary grid to place Estimate above
