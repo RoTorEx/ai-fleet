@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-23
+
 ### Changed
 
 - Reset and centered the Statistics window within the visible screen on every
