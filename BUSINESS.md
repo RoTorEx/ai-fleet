@@ -56,7 +56,8 @@ subscription charges.
   concepts. Reasoning is a subset reported with output usage.
 - Statistics groups each headline with its own accounting details. Total and
   Dataset share the first row; Input, Output, and Estimate form the second row,
-  with cache, reasoning, and rate-basis details inside their owning cards.
+  with cache, reasoning, and rate-basis details inside their owning cards. All
+  second-row content aligns to the top so cards scan as one coherent row.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.

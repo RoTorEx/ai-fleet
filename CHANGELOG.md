@@ -22,6 +22,8 @@ Tracks real product and release progress.
   Output help popovers and tightened their native explanatory copy.
 - Reorganized the summary into semantic cards: Total and Dataset share the first
   row, while Input, Output, and Estimate own their details on the second row.
+- Top-aligned the second-row summary content so cards with fewer detail rows no
+  longer appear vertically displaced.
 - Moved the app version from the menu footer into the final `Version` row of the
   top status summary.
 - Flattened and tightened the Statistics layout so period controls and complete

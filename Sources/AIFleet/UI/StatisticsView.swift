@@ -308,7 +308,7 @@ private struct MetricCard: View {
             }
         }
         .padding(9)
-        .frame(maxWidth: .infinity, minHeight: rows.isEmpty ? 66 : 118, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: rows.isEmpty ? 66 : 118, alignment: .topLeading)
         .panelStyle()
     }
 }
