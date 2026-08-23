@@ -146,7 +146,7 @@ struct StatisticsView: View {
                 spacing: 10
             ) {
                 MetricCard(title: "Lowest remaining", value: kimiRemainingText, detail: kimiResetText)
-                MetricCard(title: "Quota windows", value: "\(snapshot.kimi.windows.count)", detail: snapshot.kimi.source)
+                MetricCard(title: "Quota windows", value: groupedInteger(snapshot.kimi.windows.count), detail: snapshot.kimi.source)
             }
             KimiTablePanel(windows: snapshot.kimi.windows)
         }
@@ -231,7 +231,7 @@ private struct RefreshStatus: View {
                     ProgressView(value: progress.fractionCompleted ?? 0)
                         .progressViewStyle(.linear)
                         .frame(width: 90)
-                    Text(progress.totalFiles > 0 ? "files \(progress.processedFiles)/\(progress.totalFiles)" : "preparing")
+                    Text(progress.totalFiles > 0 ? "files \(groupedInteger(progress.processedFiles))/\(groupedInteger(progress.totalFiles))" : "preparing")
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
                 } else if let duration = progress.lastDuration {
@@ -364,9 +364,9 @@ private struct DatasetCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                DatasetValue(label: "Files", value: "\(codex.fileCount)")
+                DatasetValue(label: "Files", value: groupedInteger(codex.fileCount))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                DatasetValue(label: "Events", value: "\(eventCount)", help: "Token-usage samples found in Codex session logs.")
+                DatasetValue(label: "Events", value: groupedInteger(eventCount), help: "Token-usage samples found in Codex session logs.")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -665,13 +665,13 @@ private struct HeatmapCell: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(rangeDate(day.day))
                         .font(.system(size: 11, weight: .semibold))
-                    Text("\(day.tokens.formatted(.number.grouping(.automatic))) tokens")
+                    Text("\(groupedInteger(day.tokens)) tokens")
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
                 .padding(9)
             }
-            .accessibilityLabel("\(rangeDate(day.day)), \(day.tokens) tokens")
+            .accessibilityLabel("\(rangeDate(day.day)), \(groupedInteger(day.tokens)) tokens")
     }
 }
 
@@ -762,7 +762,7 @@ private struct KimiTablePanel: View {
 
     private func usageText(_ window: KimiQuotaWindow) -> String {
         guard let used = window.used, let limit = window.limit else { return "unknown" }
-        return "\(used)/\(limit)"
+        return "\(groupedInteger(used))/\(groupedInteger(limit))"
     }
 }
 
@@ -854,23 +854,24 @@ private extension View {
     }
 }
 
-private func compactCount(_ value: Int) -> String {
+func compactCount(_ value: Int) -> String {
     let absolute = abs(value)
-    if absolute >= 1_000_000 { return String(format: "%.2fM", Double(value) / 1_000_000) }
-    if absolute >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
-    return "\(value)"
+    if absolute >= 1_000_000 { return "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M" }
+    if absolute >= 1_000 { return "\(formattedNumber(Double(value) / 1_000, fractionDigits: 1))K" }
+    return groupedInteger(value)
 }
 
-private func money(_ value: Double) -> String {
-    if value >= 100 { return String(format: "$%.0f", value) }
-    if value >= 10 { return String(format: "$%.1f", value) }
-    return String(format: "$%.2f", value)
+func money(_ value: Double) -> String {
+    let absolute = abs(value)
+    if absolute >= 100 { return "$\(formattedNumber(value, fractionDigits: 0))" }
+    if absolute >= 10 { return "$\(formattedNumber(value, fractionDigits: 1))" }
+    return "$\(formattedNumber(value, fractionDigits: 2))"
 }
 
 private func durationText(_ value: TimeInterval) -> String {
-    if value < 1 { return String(format: "%.0fms", value * 1_000) }
-    if value < 10 { return String(format: "%.2fs", value) }
-    return String(format: "%.1fs", value)
+    if value < 1 { return "\(formattedNumber(value * 1_000, fractionDigits: 0))ms" }
+    if value < 10 { return "\(formattedNumber(value, fractionDigits: 2))s" }
+    return "\(formattedNumber(value, fractionDigits: 1))s"
 }
 
 private func shortDate(_ date: Date) -> String {
@@ -950,7 +951,11 @@ func bookCopyComparison(_ copies: Double, title: String) -> String {
     return "roughly \(groupedInteger(roundedCopies)) copies of \(title)"
 }
 
-private func groupedInteger(_ value: Int) -> String {
+func groupedInteger(_ value: Int) -> String {
+    formattedNumber(Double(value), fractionDigits: 0)
+}
+
+private func formattedNumber(_ value: Double, fractionDigits: Int) -> String {
     let formatter = NumberFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.numberStyle = .decimal
@@ -958,7 +963,9 @@ private func groupedInteger(_ value: Int) -> String {
     formatter.groupingSeparator = " "
     formatter.groupingSize = 3
     formatter.secondaryGroupingSize = 3
-    formatter.maximumFractionDigits = 0
+    formatter.decimalSeparator = "."
+    formatter.minimumFractionDigits = fractionDigits
+    formatter.maximumFractionDigits = fractionDigits
     return formatter.string(from: NSNumber(value: value)) ?? String(value)
 }
 

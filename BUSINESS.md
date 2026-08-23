@@ -49,9 +49,10 @@ subscription charges.
   reading. Total, Input, and Output each receive their own rotating comparison,
   calculated from that metric's value and separated from its definition by a
   paragraph break. Book-copy counts are rounded to whole copies; values below
-  half a copy read as `less than one copy` instead of showing a decimal. Whole
-  book counts and word-count bases group thousands with spaces, never with a
-  locale-dependent decimal-looking dot.
+  half a copy read as `less than one copy` instead of showing a decimal.
+- Statistics number formatting is locale-stable across tokens, estimates,
+  source counts, progress, heatmap details, and book comparisons: spaces group
+  thousands and a dot separates the integer part from fractional digits.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover

@@ -265,6 +265,15 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertFalse(bookCopyComparison(12.6, title: "Dune").contains("."))
     }
 
+    func testStatisticsNumbersUseSpacesForGroupingAndDotsForDecimals() {
+        XCTAssertEqual(groupedInteger(73_938), "73 938")
+        XCTAssertEqual(compactCount(11_803_040_000), "11 803.04M")
+        XCTAssertEqual(compactCount(37_910_000), "37.91M")
+        XCTAssertEqual(money(6_982), "$6 982")
+        XCTAssertEqual(money(2_695.4), "$2 695")
+        XCTAssertEqual(money(97.7), "$97.7")
+    }
+
     private func totals(input: Int, output: Int, reasoning: Int) -> UsageTotals {
         UsageTotals(
             inputTokens: input,
