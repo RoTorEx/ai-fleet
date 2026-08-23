@@ -39,7 +39,8 @@ subscription charges.
   that cached context repeats make this processed volume rather than unique
   reading. Total, Input, and Output each receive their own rotating comparison,
   calculated from that metric's value and separated from its definition by a
-  paragraph break.
+  paragraph break. Book-copy counts are rounded to whole copies; values below
+  half a copy read as `less than one copy` instead of showing a decimal.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover

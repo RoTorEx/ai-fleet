@@ -20,6 +20,7 @@ Tracks real product and release progress.
   including cached context and reported internal reasoning—not only user text.
 - Added separately calculated book-scale paragraphs to the Total, Input, and
   Output help popovers and tightened their native explanatory copy.
+- Rounded book comparisons to natural whole-copy counts with no decimal tail.
 - Reorganized the summary into semantic cards: Total and Dataset share the first
   row, while Input, Output, and Estimate own their details on the second row.
 - Top-aligned the second-row summary content so cards with fewer detail rows no

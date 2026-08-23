@@ -170,6 +170,13 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertFalse(combined.contains("Russian"))
     }
 
+    func testBookComparisonsUseWholeNaturalCopyCounts() {
+        XCTAssertEqual(bookCopyComparison(0.4, title: "Dune"), "less than one copy of Dune")
+        XCTAssertEqual(bookCopyComparison(1.2, title: "Dune"), "roughly one copy of Dune")
+        XCTAssertEqual(bookCopyComparison(12.6, title: "Dune"), "roughly 13 copies of Dune")
+        XCTAssertFalse(bookCopyComparison(12.6, title: "Dune").contains("."))
+    }
+
     private func totals(input: Int, output: Int, reasoning: Int) -> UsageTotals {
         UsageTotals(
             inputTokens: input,

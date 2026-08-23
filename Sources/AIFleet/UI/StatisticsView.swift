@@ -665,12 +665,17 @@ func tokenVolumeHelpExamples(_ tokens: Int, metric: TokenHelpMetric = .total) ->
     let words = Double(max(0, tokens)) * 0.75
     return bookTokenComparisons.map { book in
         let copies = words / Double(book.approximateWords)
-        let formattedCopies = copies.formatted(
-            .number.grouping(.automatic).precision(.fractionLength(copies < 10 ? 1 : 0))
-        )
         let formattedWords = book.approximateWords.formatted(.number.grouping(.automatic))
-        return "\(metric.explanation)\n\nFor a sense of scale, that is roughly \(formattedCopies) times the length of \(book.title) (~\(formattedWords) words). Book lengths and the token-to-text conversion are approximate.\(metric.cacheNote) Hover again for another book."
+        let comparison = bookCopyComparison(copies, title: book.title)
+        return "\(metric.explanation)\n\nFor a sense of scale, that is \(comparison) (~\(formattedWords) words each). Book lengths and the token-to-text conversion are approximate.\(metric.cacheNote) Hover again for another book."
     }
+}
+
+func bookCopyComparison(_ copies: Double, title: String) -> String {
+    guard copies >= 0.5 else { return "less than one copy of \(title)" }
+    let roundedCopies = Int(copies.rounded())
+    if roundedCopies == 1 { return "roughly one copy of \(title)" }
+    return "roughly \(roundedCopies.formatted(.number.grouping(.automatic))) copies of \(title)"
 }
 
 private func dateTimeText(_ date: Date) -> String {
