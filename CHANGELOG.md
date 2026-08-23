@@ -13,6 +13,9 @@ Tracks real product and release progress.
 - Removed the Custom period control, centered month labels over their heatmap
   cells, and replaced unreliable native cell tooltips with explicit hover
   popovers showing the exact date and token count.
+- Moved the period selector beneath refresh status and replaced SwiftUI's
+  uneven spanning-grid sizing with explicit three-column widths and equal card
+  heights across both summary rows.
 
 ## [1.2.2] - 2026-08-23
 

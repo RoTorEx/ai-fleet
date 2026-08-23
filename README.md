@@ -96,7 +96,9 @@ reported internal reasoning—not only text typed by the user. Total, Input, and
 Output each show their own comparison in a separate paragraph. The window
 resets to its compact size and opens centered on the visible screen.
 The summary uses one three-column grid: Estimate sits above Sources in the first
-column, while Total spans the two columns above Input and Output.
+column, while Total spans the two columns above Input and Output. Both rows use
+equal card heights. The period selector sits under the refresh information at
+the upper right.
 
 Opening Statistics performs only a lightweight account-usage sync and never
 starts a session-log scan. Manual refresh remains

@@ -41,69 +41,25 @@ struct StatisticsView: View {
         HStack(alignment: .top, spacing: 16) {
             AnalyticsTabControl(selection: $tab)
             Spacer(minLength: 20)
-            RefreshStatus(
-                progress: analytics.progress,
-                refreshedAt: snapshot.refreshedAt,
-                accountRefreshedAt: snapshot.codex.accountUsage?.fetchedAt,
-                isRefreshing: analytics.isRefreshing,
-                refresh: { analytics.refresh(kimi: service.kimi) }
-            )
+            VStack(alignment: .trailing, spacing: 6) {
+                RefreshStatus(
+                    progress: analytics.progress,
+                    refreshedAt: snapshot.refreshedAt,
+                    accountRefreshedAt: snapshot.codex.accountUsage?.fetchedAt,
+                    isRefreshing: analytics.isRefreshing,
+                    refresh: { analytics.refresh(kimi: service.kimi) }
+                )
+                if tab == .codex {
+                    PeriodToolbar(period: $period)
+                }
+            }
         }
     }
 
     private var codexContent: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 8) {
-                PeriodToolbar(
-                    period: $period
-                )
-
-                Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                    GridRow(alignment: .top) {
-                        MetricCard(
-                            title: "Estimate",
-                            sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                            value: money(selection.estimatedCostUSD),
-                            help: selection.usesAccountUsage
-                                ? "Estimated from Codex account tokens for the selected period, multiplied by the average API-equivalent cost per token observed in local sessions. The 7d, 30d, and 90d ranges use the matching Codex daily totals. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
-                                : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
-                            rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account total × local rate" : "model rates")]
-                        )
-                        MetricCard(
-                            title: "Total tokens",
-                            sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                            value: compactCount(selection.totalTokens),
-                            detail: periodDetail,
-                            helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total)
-                        )
-                            .gridCellColumns(2)
-                    }
-
-                    GridRow(alignment: .top) {
-                        DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
-                        MetricCard(
-                            title: "Input",
-                            sourceLabel: "Local",
-                            value: compactCount(selection.totals.inputTokens),
-                            helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
-                            rows: [
-                                AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
-                                AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
-                                AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
-                            ]
-                        )
-                        MetricCard(
-                            title: "Output",
-                            sourceLabel: "Local",
-                            value: compactCount(selection.totals.outputTokens),
-                            helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
-                            rows: [
-                                AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
-                            ]
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                summaryGrid
 
                 HStack(alignment: .top, spacing: 10) {
                     ModelTablePanel(models: selection.models)
@@ -117,6 +73,66 @@ struct StatisticsView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var summaryGrid: some View {
+        GeometryReader { geometry in
+            let spacing: CGFloat = 8
+            let columnWidth = max(0, (geometry.size.width - spacing * 2) / 3)
+            VStack(spacing: spacing) {
+                HStack(spacing: spacing) {
+                    MetricCard(
+                        title: "Estimate",
+                        sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
+                        value: money(selection.estimatedCostUSD),
+                        help: selection.usesAccountUsage
+                            ? "Estimated from Codex account tokens for the selected period, multiplied by the average API-equivalent cost per token observed in local sessions. The 7d, 30d, and 90d ranges use the matching Codex daily totals. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
+                            : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
+                        rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account total × local rate" : "model rates")],
+                        fixedHeight: 118
+                    )
+                    .frame(width: columnWidth)
+                    MetricCard(
+                        title: "Total tokens",
+                        sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
+                        value: compactCount(selection.totalTokens),
+                        detail: periodDetail,
+                        helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total),
+                        fixedHeight: 118
+                    )
+                    .frame(width: columnWidth * 2 + spacing)
+                }
+                HStack(spacing: spacing) {
+                    DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
+                        .frame(width: columnWidth)
+                    MetricCard(
+                        title: "Input",
+                        sourceLabel: "Local",
+                        value: compactCount(selection.totals.inputTokens),
+                        helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
+                        rows: [
+                            AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
+                            AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
+                            AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
+                        ],
+                        fixedHeight: 118
+                    )
+                    .frame(width: columnWidth)
+                    MetricCard(
+                        title: "Output",
+                        sourceLabel: "Local",
+                        value: compactCount(selection.totals.outputTokens),
+                        helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
+                        rows: [
+                            AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
+                        ],
+                        fixedHeight: 118
+                    )
+                    .frame(width: columnWidth)
+                }
+            }
+        }
+        .frame(height: 244)
     }
 
     private var kimiContent: some View {
@@ -251,8 +267,7 @@ private struct PeriodToolbar: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 360)
-            Spacer()
+            .frame(width: 260)
         }
         .frame(height: 30)
     }
@@ -263,23 +278,26 @@ private struct MetricCard: View {
     let sourceLabel: String?
     let value: String
     let detail: String?
+    let fixedHeight: CGFloat?
     var helpExamples = ["Current provider value for this metric."]
     var rows: [AccountingRow] = []
 
-    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, help: String = "Current provider value for this metric.", rows: [AccountingRow] = []) {
+    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, help: String = "Current provider value for this metric.", rows: [AccountingRow] = [], fixedHeight: CGFloat? = nil) {
         self.title = title
         self.sourceLabel = sourceLabel
         self.value = value
         self.detail = detail
+        self.fixedHeight = fixedHeight
         helpExamples = [help]
         self.rows = rows
     }
 
-    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, helpExamples: [String], rows: [AccountingRow] = []) {
+    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, helpExamples: [String], rows: [AccountingRow] = [], fixedHeight: CGFloat? = nil) {
         self.title = title
         self.sourceLabel = sourceLabel
         self.value = value
         self.detail = detail
+        self.fixedHeight = fixedHeight
         self.helpExamples = helpExamples
         self.rows = rows
     }
@@ -312,7 +330,13 @@ private struct MetricCard: View {
             }
         }
         .padding(9)
-        .frame(maxWidth: .infinity, minHeight: rows.isEmpty ? 66 : 118, alignment: .topLeading)
+        .frame(
+            minWidth: 0,
+            maxWidth: .infinity,
+            minHeight: fixedHeight ?? (rows.isEmpty ? 66 : 118),
+            maxHeight: fixedHeight,
+            alignment: .topLeading
+        )
         .panelStyle()
     }
 }
@@ -329,17 +353,21 @@ private struct DatasetCard: View {
             }
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundColor(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 24) {
-                DatasetValue(label: "Total & days", value: codex.accountUsage == nil ? "Local sessions" : "Codex account")
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                DatasetValue(label: "Total & days", value: codex.accountUsage == nil ? "Local" : "Codex account")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 DatasetValue(label: "Details", value: "Local sessions", help: "Input, output, cache, reasoning, models, events, and the blended cost rate are calculated from local session logs.")
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 DatasetValue(label: "Files", value: "\(codex.fileCount)")
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 DatasetValue(label: "Events", value: "\(eventCount)", help: "Token-usage samples found in Codex session logs.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(9)
-        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 118, maxHeight: 118, alignment: .topLeading)
         .panelStyle()
     }
 }

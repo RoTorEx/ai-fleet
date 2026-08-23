@@ -76,7 +76,9 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
   Output, cache, returned-content, and reasoning boundaries. Total, Input, and
   Output calculate their comparisons independently and place them in a separate
   paragraph. Estimate sits above Sources in the first summary column while Total
-  spans the two columns above Input and Output. Each open
+  spans the two columns above Input and Output. Explicit three-column geometry
+  keeps both rows equal in height; period controls live beneath refresh status.
+  Each open
   resets the window to its compact size before centering
   it on the visible screen.
 

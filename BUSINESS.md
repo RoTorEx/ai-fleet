@@ -73,7 +73,10 @@ subscription charges.
 - Statistics groups each headline with its own accounting details in one aligned
   three-column grid. Estimate occupies the first column and Total spans the two
   columns above Input and Output; Sources sits beneath Estimate. All second-row
-  content aligns to the top.
+  content aligns to the top, both rows use equal card heights, and column widths
+  are calculated explicitly instead of relying on SwiftUI spanning-cell layout.
+- The compact period selector sits at the upper right directly below account
+  and local refresh timestamps, leaving the content grid unobstructed.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.
