@@ -20,8 +20,8 @@ Tracks real product and release progress.
   including cached context and reported internal reasoning—not only user text.
 - Added separately calculated book-scale paragraphs to the Total, Input, and
   Output help popovers and tightened their native explanatory copy.
-- Removed repeated Input, Output, and Estimate details between the headline
-  cards and Dataset & accounting; each area now has a distinct role.
+- Reorganized the summary into semantic cards: Total and Dataset share the first
+  row, while Input, Output, and Estimate own their details on the second row.
 - Moved the app version from the menu footer into the final `Version` row of the
   top status summary.
 - Flattened and tightened the Statistics layout so period controls and complete

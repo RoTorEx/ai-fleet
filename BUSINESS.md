@@ -54,9 +54,9 @@ subscription charges.
   boundary in a short first paragraph before a separate book-scale paragraph.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
-- Summary cards contain headline values only (plus the all-time date range).
-  Dataset & accounting contains the unique source and accounting breakdown and
-  does not repeat headline Output or Estimate totals.
+- Statistics groups each headline with its own accounting details. Total and
+  Dataset share the first row; Input, Output, and Estimate form the second row,
+  with cache, reasoning, and rate-basis details inside their owning cards.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.

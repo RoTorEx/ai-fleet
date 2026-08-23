@@ -88,8 +88,8 @@ all model-read Input plus generated Output, including repeated cache context and
 reported internal reasoning—not only text typed by the user. Total, Input, and
 Output each show their own comparison in a separate paragraph. The window
 resets to its compact size and opens centered on the visible screen.
-Headline cards stay concise; Dataset & accounting shows only the source and
-additional accounting breakdown instead of repeating the same totals.
+Total and Dataset share the first summary row. Input, Output, and Estimate sit
+on the second row with their related accounting details inside the same card.
 
 Opening Statistics never starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen

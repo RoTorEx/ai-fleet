@@ -61,31 +61,43 @@ struct StatisticsView: View {
                 customEnd: $customEnd
             )
 
-            HStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 MetricCard(
                     title: "Total tokens",
                     value: compactCount(selection.totals.totalTokens),
                     detail: periodDetail,
                     helpExamples: tokenVolumeHelpExamples(selection.totals.totalTokens, metric: .total)
                 )
+                .frame(minWidth: 210, idealWidth: 250, maxWidth: 300)
+                DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
                 MetricCard(
                     title: "Input",
                     value: compactCount(selection.totals.inputTokens),
-                    helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input)
+                    helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
+                    rows: [
+                        AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
+                        AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
+                        AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
+                    ]
                 )
                 MetricCard(
                     title: "Output",
                     value: compactCount(selection.totals.outputTokens),
-                    helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output)
+                    helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
+                    rows: [
+                        AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
+                    ]
                 )
                 MetricCard(
                     title: "Estimate",
                     value: money(selection.totals.estimatedCostUSD),
-                    help: "Sum of the per-model estimates below. For each model: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. Rounded table rows can differ slightly from this total. This is not a subscription charge."
+                    help: "Sum of the per-model estimates below. For each model: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. Rounded table rows can differ slightly from this total. This is not a subscription charge.",
+                    rows: [AccountingRow(label: "Basis", value: "model rates")]
                 )
             }
-
-            DatasetPanel(codex: snapshot.codex, selection: selection)
 
             HStack(alignment: .top, spacing: 10) {
                 ModelTablePanel(models: selection.models)
@@ -251,19 +263,22 @@ private struct MetricCard: View {
     let value: String
     let detail: String?
     var helpExamples = ["Current provider value for this metric."]
+    var rows: [AccountingRow] = []
 
-    init(title: String, value: String, detail: String? = nil, help: String = "Current provider value for this metric.") {
+    init(title: String, value: String, detail: String? = nil, help: String = "Current provider value for this metric.", rows: [AccountingRow] = []) {
         self.title = title
         self.value = value
         self.detail = detail
         helpExamples = [help]
+        self.rows = rows
     }
 
-    init(title: String, value: String, detail: String? = nil, helpExamples: [String]) {
+    init(title: String, value: String, detail: String? = nil, helpExamples: [String], rows: [AccountingRow] = []) {
         self.title = title
         self.value = value
         self.detail = detail
         self.helpExamples = helpExamples
+        self.rows = rows
     }
 
     var body: some View {
@@ -285,6 +300,34 @@ private struct MetricCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
+            if !rows.isEmpty {
+                Divider().padding(.vertical, 1)
+                ForEach(rows) { row in
+                    AccountingRowView(row: row)
+                }
+            }
+        }
+        .padding(9)
+        .frame(maxWidth: .infinity, minHeight: rows.isEmpty ? 66 : 118, alignment: .leading)
+        .panelStyle()
+    }
+}
+
+private struct DatasetCard: View {
+    let codex: CodexUsageAnalytics
+    let eventCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Dataset")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 24) {
+                DatasetValue(label: "Source", value: codex.source)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                DatasetValue(label: "Files", value: "\(codex.fileCount)")
+                DatasetValue(label: "Events", value: "\(eventCount)", help: "Token-usage samples found in Codex session logs.")
+            }
         }
         .padding(9)
         .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
@@ -292,39 +335,24 @@ private struct MetricCard: View {
     }
 }
 
-private struct DatasetPanel: View {
-    let codex: CodexUsageAnalytics
-    let selection: CodexUsageSelection
+private struct DatasetValue: View {
+    let label: String
+    let value: String
+    var help: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("Dataset & accounting").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
-            HStack(alignment: .top, spacing: 10) {
-                AccountingGroup(title: "Data", rows: [
-                    AccountingRow(label: "Source", value: codex.source),
-                    AccountingRow(label: "Files", value: "\(codex.fileCount)"),
-                    AccountingRow(label: "Events", value: "\(selection.eventCount)", help: "Token-usage samples found in Codex session logs.")
-                ])
-                Divider()
-                AccountingGroup(title: "Input", rows: [
-                    AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
-                    AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
-                    AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
-                ])
-                Divider()
-                AccountingGroup(title: "Output", rows: [
-                    AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
-                ])
-                Divider()
-                AccountingGroup(title: "Estimate", rows: [
-                    AccountingRow(label: "Basis", value: "model rates")
-                ])
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 4) {
+                Text(label)
+                if let help { HoverInfoTip(text: help) }
             }
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundColor(.secondary)
+            Text(value)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
-        .padding(9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
-        .panelStyle()
     }
 }
 
@@ -335,30 +363,20 @@ private struct AccountingRow: Identifiable {
     var id: String { label }
 }
 
-private struct AccountingGroup: View {
-    let title: String
-    let rows: [AccountingRow]
-
+private struct AccountingRowView: View {
+    let row: AccountingRow
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(.system(size: 9.5, weight: .bold))
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-            ForEach(rows) { row in
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(row.label)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(.secondary)
-                    if let help = row.help { HoverInfoTip(text: help) }
-                    Spacer(minLength: 4)
-                    Text(row.value)
-                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(row.label)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(.secondary)
+            if let help = row.help { HoverInfoTip(text: help) }
+            Spacer(minLength: 4)
+            Text(row.value)
+                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
