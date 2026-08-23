@@ -50,6 +50,7 @@ struct CodexUsageAnalytics: Codable, Equatable {
     var eventCount: Int
     var fileCount: Int
     var source: String
+    var accountUsage: CodexAccountUsage?
 
     static let empty = CodexUsageAnalytics(
         total: .zero,
@@ -61,7 +62,8 @@ struct CodexUsageAnalytics: Codable, Equatable {
         dailyModels: [],
         eventCount: 0,
         fileCount: 0,
-        source: "~/.codex sessions + archive"
+        source: "~/.codex sessions + archive",
+        accountUsage: nil
     )
 
     init(
@@ -74,7 +76,8 @@ struct CodexUsageAnalytics: Codable, Equatable {
         dailyModels: [DailyModelUsage],
         eventCount: Int,
         fileCount: Int,
-        source: String
+        source: String,
+        accountUsage: CodexAccountUsage? = nil
     ) {
         self.total = total
         self.today = today
@@ -86,11 +89,12 @@ struct CodexUsageAnalytics: Codable, Equatable {
         self.eventCount = eventCount
         self.fileCount = fileCount
         self.source = source
+        self.accountUsage = accountUsage
     }
 
     private enum CodingKeys: String, CodingKey {
         case total, today, sevenDays, thirtyDays, daily, models, dailyModels
-        case eventCount, fileCount, source
+        case eventCount, fileCount, source, accountUsage
     }
 
     init(from decoder: Decoder) throws {
@@ -105,6 +109,7 @@ struct CodexUsageAnalytics: Codable, Equatable {
         eventCount = try container.decode(Int.self, forKey: .eventCount)
         fileCount = try container.decode(Int.self, forKey: .fileCount)
         source = try container.decode(String.self, forKey: .source)
+        accountUsage = try container.decodeIfPresent(CodexAccountUsage.self, forKey: .accountUsage)
     }
 }
 
@@ -213,6 +218,7 @@ final class UsageAnalyticsService: ObservableObject {
     @Published private(set) var progress = UsageAnalyticsLoadProgress.idle
 
     private var task: Task<Void, Never>?
+    private var accountTask: Task<Void, Never>?
     private var scheduleTimer: Timer?
     private var fileCache: [String: CodexFileUsageRecord]
 
@@ -238,6 +244,27 @@ final class UsageAnalyticsService: ObservableObject {
     func updateKimi(kimi: ProviderStatus) {
         let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
         snapshot = snapshot.withKimi(kimiAnalytics)
+    }
+
+    func refreshAccountUsageIfNeeded() {
+        guard snapshot.codex.accountUsage == nil, accountTask == nil else { return }
+        refreshAccountUsage()
+    }
+
+    func refreshAccountUsage() {
+        accountTask?.cancel()
+        accountTask = Task { [weak self] in
+            let usage = await Task.detached(priority: .utility) {
+                try? CodexAccountUsageReader().read()
+            }.value
+            guard let self, !Task.isCancelled else { return }
+            if let usage {
+                let nextSnapshot = self.snapshot.withAccountUsage(usage)
+                self.snapshot = nextSnapshot
+                Self.saveCachedSnapshot(nextSnapshot)
+            }
+            self.accountTask = nil
+        }
     }
 
     func startDailyRefreshSchedule() {
@@ -285,9 +312,13 @@ final class UsageAnalyticsService: ObservableObject {
 
         let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
         let existingFileCache = fileCache
+        let existingAccountUsage = snapshot.codex.accountUsage
         snapshot = snapshot.withKimi(kimiAnalytics)
 
-        task = Task { [self, startedAt, kimiAnalytics] in
+        task = Task { [self, startedAt, kimiAnalytics, existingAccountUsage] in
+            async let accountUsageResult: CodexAccountUsage? = Task.detached(priority: .utility) {
+                try? CodexAccountUsageReader().read()
+            }.value
             let files = await Task.detached(priority: .background) {
                 CodexUsageLogReader().codexLogFileMetadata()
             }.value
@@ -313,9 +344,10 @@ final class UsageAnalyticsService: ObservableObject {
             }
 
             let records = Array(nextFileCache.values)
-            let codex = await Task.detached(priority: .background) {
+            var codex = await Task.detached(priority: .background) {
                 CodexUsageLogReader().analytics(from: records, fileCount: files.count)
             }.value
+            codex.accountUsage = await accountUsageResult ?? existingAccountUsage
 
             guard !Task.isCancelled else { return }
             let duration = Date().timeIntervalSince(startedAt)
@@ -467,6 +499,17 @@ private extension UsageAnalyticsSnapshot {
     func withKimi(_ kimi: KimiQuotaAnalytics) -> UsageAnalyticsSnapshot {
         UsageAnalyticsSnapshot(
             codex: codex,
+            kimi: kimi,
+            refreshedAt: refreshedAt,
+            lastLoadDuration: lastLoadDuration
+        )
+    }
+
+    func withAccountUsage(_ accountUsage: CodexAccountUsage) -> UsageAnalyticsSnapshot {
+        var nextCodex = codex
+        nextCodex.accountUsage = accountUsage
+        return UsageAnalyticsSnapshot(
+            codex: nextCodex,
             kimi: kimi,
             refreshedAt: refreshedAt,
             lastLoadDuration: lastLoadDuration

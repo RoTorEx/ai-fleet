@@ -20,13 +20,17 @@ subscription charges.
   no redundant remaining value follows the threshold.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
-- Statistics opens on the all-time range and includes both active and archived
-  local Codex sessions; shorter ranges are explicit user filters.
-- Statistics has no outer content scroll. Period controls remain unboxed,
-  accounting values are grouped by meaning, and model/day tables scroll only
-  vertically without horizontal overflow. The day table omits zero-activity
-  dates. Dataset & accounting always stays at its intrinsic compact height and
-  never consumes spare vertical window space.
+- Statistics opens on the all-time range. Account-wide Total, Days, and Activity
+  come from Codex account usage so they survive deleting local sessions or
+  moving to another Mac. Input, Output, cache, reasoning, Models, Events, Files,
+  and API-equivalent Estimate remain local because the account endpoint does not
+  expose those breakdowns. Native `Account` and `Local` labels make the boundary
+  visible wherever the two scopes meet.
+- Period controls remain unboxed, accounting values are grouped by meaning, and
+  model/day tables scroll only vertically without horizontal overflow. The day
+  table omits zero-activity dates. The page may scroll vertically to reach the
+  final Activity block; its GitHub-style day squares may scroll horizontally for
+  long histories and expose exact date/token activity on hover.
 - Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
   The Lord of the Rings and Harry Potter cycles, plus ten well-known fantasy or
@@ -47,7 +51,9 @@ subscription charges.
   so it cannot cover the analytics window.
 - API-equivalent cost is derived from model token rates and is always labeled as
   an estimate, never as a subscription bill.
-- Total tokens means `Input + Output`, not merely user-typed text. Input covers
+- Local Total tokens means `Input + Output`, not merely user-typed text. The
+  account-wide Total follows the aggregate activity definition reported by
+  Codex and is not presented as the sum of the narrower local cards. Input covers
   everything the model reads, including user messages, instructions, prior
   conversation, files, tool results, and cached context. Output covers returned
   replies/actions plus reported internal reasoning; reasoning is a subset of
@@ -56,7 +62,7 @@ subscription charges.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
 - Statistics groups each headline with its own accounting details. Total and
-  Dataset share the first row; Input, Output, and Estimate form the second row,
+  Sources share the first row; Input, Output, and Estimate form the second row,
   with cache, reasoning, and rate-basis details inside their owning cards. All
   second-row content aligns to the top so cards scan as one coherent row.
 - All windows follow the current macOS light or dark appearance.

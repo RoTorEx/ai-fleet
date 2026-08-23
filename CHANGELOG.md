@@ -4,6 +4,16 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Made Codex Total, Days, and period filtering use account-wide usage reported
+  by Codex, while clearly labeling the local-only input/output/model/cost detail
+  scope and retaining local data as an offline fallback.
+- Added a final GitHub-style activity heatmap with exact hover values and
+  horizontal history scrolling.
+- Forced the menu-bar popover closed before Statistics opens and when the user
+  clicks an already-open Statistics window.
+
 ## [1.2.1] - 2026-08-23
 
 ### Changed

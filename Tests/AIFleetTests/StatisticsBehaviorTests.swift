@@ -109,6 +109,74 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertEqual(selection.eventCount, 45)
     }
 
+    func testAccountUsageDrivesTotalAndDaysWhileLocalLogsDriveDetails() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let firstDay = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 20)))
+        let secondDay = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 21)))
+        let localTotals = UsageTotals(
+            inputTokens: 90,
+            cachedInputTokens: 50,
+            cacheWriteInputTokens: 0,
+            outputTokens: 10,
+            reasoningOutputTokens: 2,
+            estimatedCostUSD: 1.25
+        )
+        let account = CodexAccountUsage(
+            lifetimeTokens: 9_000,
+            peakDailyTokens: 8_000,
+            longestRunningTurnSeconds: nil,
+            currentStreakDays: nil,
+            longestStreakDays: nil,
+            daily: [
+                CodexAccountDailyUsage(day: firstDay, tokens: 3_000),
+                CodexAccountDailyUsage(day: secondDay, tokens: 6_000)
+            ],
+            fetchedAt: Date()
+        )
+        let codex = CodexUsageAnalytics(
+            total: localTotals,
+            today: .zero,
+            sevenDays: .zero,
+            thirtyDays: .zero,
+            daily: [DailyUsage(day: secondDay, totals: localTotals)],
+            models: [],
+            dailyModels: [DailyModelUsage(day: secondDay, model: "gpt-test", totals: localTotals, events: 1)],
+            eventCount: 1,
+            fileCount: 1,
+            source: "test",
+            accountUsage: account
+        )
+
+        let all = codexUsageSelection(from: codex, start: nil, end: nil, calendar: calendar)
+        let firstOnly = codexUsageSelection(from: codex, start: firstDay, end: firstDay, calendar: calendar)
+
+        XCTAssertEqual(all.totalTokens, 9_000)
+        XCTAssertEqual(all.totals.totalTokens, 100)
+        XCTAssertEqual(all.daily.map(\.tokens), [3_000, 6_000])
+        XCTAssertNil(all.daily[0].localEstimateUSD)
+        XCTAssertEqual(all.daily[1].localEstimateUSD, 1.25)
+        XCTAssertTrue(all.usesAccountUsage)
+        XCTAssertEqual(firstOnly.totalTokens, 3_000)
+    }
+
+    func testHeatmapBuildsCalendarWeeksAndLevels() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let monday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 3)))
+        let nextMonday = try XCTUnwrap(calendar.date(byAdding: .day, value: 7, to: monday))
+        let weeks = heatmapWeeks(from: [
+            CodexSelectedDay(day: monday, tokens: 10, localEstimateUSD: nil),
+            CodexSelectedDay(day: nextMonday, tokens: 40, localEstimateUSD: nil)
+        ], calendar: calendar)
+
+        XCTAssertEqual(weeks.count, 2)
+        XCTAssertEqual(weeks.flatMap(\.days).compactMap { $0 }.count, 8)
+        XCTAssertEqual(heatmapLevel(tokens: 0, maximum: 40), 0)
+        XCTAssertEqual(heatmapLevel(tokens: 10, maximum: 40), 1)
+        XCTAssertEqual(heatmapLevel(tokens: 40, maximum: 40), 4)
+    }
+
     func testLogDiscoveryIncludesArchiveAndDeduplicatesMovedSessions() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let active = root.appendingPathComponent("sessions")

@@ -39,12 +39,13 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 4. `GlobalHotKey` registers `⌘⇧I` to toggle the same popover as clicking the menu-bar icon.
 5. Each provider returns a `ProviderStatus` with `ok`, `limited`, `offline`, `noKey`, or `notInstalled` state.
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
-7. `UsageAnalyticsService` reads local Codex JSONL usage metadata for token
-   totals, model/day breakdowns, reasoning usage, and
-   API-equivalent cost estimates. Opening Statistics reads only the aggregate
-   snapshot. Manual or scheduled background refreshes reuse unchanged files
-   from a per-file aggregate cache and parse changed files at background
-   priority. Kimi statistics use quota windows from `StatusService`.
+7. `UsageAnalyticsService` asks `codex app-server` for account-wide lifetime and
+   daily usage, and reads local Codex JSONL metadata for input/output/cache,
+   model, reasoning, event, file, and API-equivalent cost details. Opening
+   Statistics may perform the lightweight account request but does not scan
+   session logs. Manual or scheduled refreshes reuse unchanged files from a
+   per-file aggregate cache and parse changed files at background priority.
+   Kimi statistics use quota windows from `StatusService`.
 8. `UpdateService` resolves the latest GitHub Release for the current CPU,
    verifies the published checksum and application bundle, atomically replaces
    the installed app, and relaunches it.
@@ -57,19 +58,21 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `CodexUsageResponse` — ChatGPT WHAM usage payload.
 - `CodexAuth` — minimal `~/.codex/auth.json` shape.
 - `ProviderCatalog` — supported provider list, executable names, and local credential paths used for install/login detection.
-- `UsageAnalyticsSnapshot` — cached Codex token analytics, Kimi quota analytics, last refresh time, and last load duration for the Statistics window.
+- `UsageAnalyticsSnapshot` — cached Codex account usage, local token analytics,
+  Kimi quota analytics, refresh times, and local scan duration.
 
 ## UI
 
 - `AIFleetMenuView` — minimal popover with Kimi and Codex rows, last update time, and Refresh / Quit buttons.
 - `StatisticsView` — centered, resizable provider analytics window with
-  date-range filtering, vertically scrolling fixed-column tables, and adaptive
-  panels. Zero-activity dates are omitted from the day table. Only
+  date-range filtering, account/local source labels, vertically scrolling
+  fixed-column tables, adaptive panels, and a final horizontally scrolling
+  GitHub-style daily heatmap. Zero-activity dates are omitted from the day table. Only
   accounting-specific terms carry hover explanations; token volume cycles
   through 15 approximate real-book comparisons after explaining the Input,
   Output, cache, returned-content, and reasoning boundaries. Total, Input, and
   Output calculate their comparisons independently and place them in a separate
-  paragraph. Total and Dataset occupy the first summary row; Input, Output, and
+  paragraph. Total and Sources occupy the first summary row; Input, Output, and
   Estimate occupy the second and keep their own accounting details inside the
   owning card. Each open resets the window to its compact size before centering
   it on the visible screen.
@@ -81,6 +84,8 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Codex token: read automatically from `~/.codex/auth.json`.
 - Codex local usage analytics: numeric token-usage metadata from active
   `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl` files.
+- Codex account usage: lifetime and daily token activity from the official
+  `account/usage/read` Codex app-server method for the signed-in ChatGPT account.
 - Statistics cache: `~/Library/Application Support/AI Fleet/usage-analytics-cache.json`.
 - Incremental per-file statistics cache:
   `~/Library/Application Support/AI Fleet/usage-analytics-files-cache.json`.

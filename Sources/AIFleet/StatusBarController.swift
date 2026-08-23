@@ -37,8 +37,10 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
             openStatistics: { [weak self] in
                 guard let self else { return }
                 let anchorFrame = self.popoverScreenFrame
-                self.closePopover()
-                self.openStatistics(anchorFrame)
+                self.closePopover(immediately: true)
+                DispatchQueue.main.async { [weak self] in
+                    self?.openStatistics(anchorFrame)
+                }
             }
         )
             .environmentObject(service)
@@ -91,8 +93,11 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         }
     }
 
-    private func closePopover() {
-        popover.close()
+    private func closePopover(immediately: Bool = false) {
+        let wasAnimated = popover.animates
+        if immediately { popover.animates = false }
+        popover.performClose(nil)
+        if immediately { popover.animates = wasAnimated }
         statusItem.button?.highlight(false)
         stopClickMonitor()
     }
@@ -163,7 +168,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         guard let identifier = event.window?.identifier?.rawValue else {
             return false
         }
-        return identifier == "ai-fleet-settings" || identifier == "ai-fleet-statistics"
+        return identifier == "ai-fleet-settings"
     }
 
     private var popoverScreenFrame: NSRect? {

@@ -85,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func openStatistics(anchorFrame: NSRect? = nil) {
+        statusBarController?.closePopoverIfNeeded()
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         if statisticsWindowController == nil {

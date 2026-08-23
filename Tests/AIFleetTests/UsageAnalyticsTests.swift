@@ -2,6 +2,24 @@ import XCTest
 @testable import AIFleet
 
 final class UsageAnalyticsTests: XCTestCase {
+    func testAccountUsageReaderDecodesSummaryAndDailyBuckets() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let fetchedAt = Date(timeIntervalSince1970: 123)
+        let response = Data(#"{"id":1,"result":{"summary":{"lifetimeTokens":11803044372,"peakDailyTokens":848260974,"longestRunningTurnSec":900,"currentStreakDays":11,"longestStreakDays":31},"dailyUsageBuckets":[{"startDate":"2026-08-22","tokens":42000}]}}"#.utf8)
+
+        let usage = try CodexAccountUsageReader(executableURL: nil).decode(
+            response: response,
+            fetchedAt: fetchedAt,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(usage.lifetimeTokens, 11_803_044_372)
+        XCTAssertEqual(usage.currentStreakDays, 11)
+        XCTAssertEqual(usage.daily.map(\.tokens), [42_000])
+        XCTAssertEqual(usage.fetchedAt, fetchedAt)
+    }
+
     func testCodexUsageReaderReadsNestedTokenUsage() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

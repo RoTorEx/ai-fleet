@@ -37,7 +37,10 @@ struct StatisticsView: View {
         .padding(16)
         .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear { analytics.updateKimi(kimi: service.kimi) }
+        .onAppear {
+            analytics.updateKimi(kimi: service.kimi)
+            analytics.refreshAccountUsageIfNeeded()
+        }
     }
 
     private var header: some View {
@@ -47,6 +50,7 @@ struct StatisticsView: View {
             RefreshStatus(
                 progress: analytics.progress,
                 refreshedAt: snapshot.refreshedAt,
+                accountRefreshedAt: snapshot.codex.accountUsage?.fetchedAt,
                 isRefreshing: analytics.isRefreshing,
                 refresh: { analytics.refresh(kimi: service.kimi) }
             )
@@ -54,58 +58,66 @@ struct StatisticsView: View {
     }
 
     private var codexContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            PeriodToolbar(
-                period: $period,
-                customStart: $customStart,
-                customEnd: $customEnd
-            )
-
-            HStack(alignment: .top, spacing: 8) {
-                MetricCard(
-                    title: "Total tokens",
-                    value: compactCount(selection.totals.totalTokens),
-                    detail: periodDetail,
-                    helpExamples: tokenVolumeHelpExamples(selection.totals.totalTokens, metric: .total)
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 8) {
+                PeriodToolbar(
+                    period: $period,
+                    customStart: $customStart,
+                    customEnd: $customEnd
                 )
-                .frame(minWidth: 210, idealWidth: 250, maxWidth: 300)
-                DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
+
+                HStack(alignment: .top, spacing: 8) {
+                    MetricCard(
+                        title: "Total tokens",
+                        sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
+                        value: compactCount(selection.totalTokens),
+                        detail: periodDetail,
+                        helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total)
+                    )
+                    .frame(minWidth: 210, idealWidth: 250, maxWidth: 300)
+                    DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
+                }
+
+                HStack(alignment: .top, spacing: 8) {
+                    MetricCard(
+                        title: "Input",
+                        sourceLabel: "Local",
+                        value: compactCount(selection.totals.inputTokens),
+                        helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
+                        rows: [
+                            AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
+                            AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
+                            AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
+                        ]
+                    )
+                    MetricCard(
+                        title: "Output",
+                        sourceLabel: "Local",
+                        value: compactCount(selection.totals.outputTokens),
+                        helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
+                        rows: [
+                            AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
+                        ]
+                    )
+                    MetricCard(
+                        title: "Estimate",
+                        sourceLabel: "Local",
+                        value: money(selection.totals.estimatedCostUSD),
+                        help: "Calculated only from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. It may cover less activity than the account total and is not a subscription charge.",
+                        rows: [AccountingRow(label: "Basis", value: "model rates")]
+                    )
+                }
+
+                HStack(alignment: .top, spacing: 10) {
+                    ModelTablePanel(models: selection.models)
+                        .frame(minWidth: 430, maxWidth: .infinity)
+                    DailyTablePanel(daily: selection.daily, usesAccountUsage: selection.usesAccountUsage)
+                        .frame(minWidth: 330, maxWidth: .infinity)
+                }
+
+                ActivityHeatmap(days: selection.daily, sourceLabel: selection.usesAccountUsage ? "Account" : "Local")
             }
-
-            HStack(alignment: .top, spacing: 8) {
-                MetricCard(
-                    title: "Input",
-                    value: compactCount(selection.totals.inputTokens),
-                    helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
-                    rows: [
-                        AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
-                        AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
-                        AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
-                    ]
-                )
-                MetricCard(
-                    title: "Output",
-                    value: compactCount(selection.totals.outputTokens),
-                    helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
-                    rows: [
-                        AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
-                    ]
-                )
-                MetricCard(
-                    title: "Estimate",
-                    value: money(selection.totals.estimatedCostUSD),
-                    help: "Sum of the per-model estimates below. For each model: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. Rounded table rows can differ slightly from this total. This is not a subscription charge.",
-                    rows: [AccountingRow(label: "Basis", value: "model rates")]
-                )
-            }
-
-            HStack(alignment: .top, spacing: 10) {
-                ModelTablePanel(models: selection.models)
-                    .frame(minWidth: 430, maxWidth: .infinity)
-                DailyTablePanel(daily: selection.daily)
-                    .frame(minWidth: 330, maxWidth: .infinity)
-            }
-
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -198,6 +210,7 @@ private struct AnalyticsTabControl: View {
 private struct RefreshStatus: View {
     let progress: UsageAnalyticsLoadProgress
     let refreshedAt: Date?
+    let accountRefreshedAt: Date?
     let isRefreshing: Bool
     let refresh: () -> Void
 
@@ -226,9 +239,12 @@ private struct RefreshStatus: View {
                 .help("Refresh Codex statistics now")
             }
 
-            Text(refreshedAt.map { "Last updated \(dateTimeText($0))" } ?? "Not updated yet")
-                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                .foregroundColor(.secondary)
+            HStack(spacing: 8) {
+                Text(accountRefreshedAt.map { "Account \(dateTimeText($0))" } ?? "Account not synced")
+                Text(refreshedAt.map { "Local \(dateTimeText($0))" } ?? "Local not scanned")
+            }
+            .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+            .foregroundColor(.secondary)
         }
     }
 }
@@ -260,21 +276,24 @@ private struct PeriodToolbar: View {
 
 private struct MetricCard: View {
     let title: String
+    let sourceLabel: String?
     let value: String
     let detail: String?
     var helpExamples = ["Current provider value for this metric."]
     var rows: [AccountingRow] = []
 
-    init(title: String, value: String, detail: String? = nil, help: String = "Current provider value for this metric.", rows: [AccountingRow] = []) {
+    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, help: String = "Current provider value for this metric.", rows: [AccountingRow] = []) {
         self.title = title
+        self.sourceLabel = sourceLabel
         self.value = value
         self.detail = detail
         helpExamples = [help]
         self.rows = rows
     }
 
-    init(title: String, value: String, detail: String? = nil, helpExamples: [String], rows: [AccountingRow] = []) {
+    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, helpExamples: [String], rows: [AccountingRow] = []) {
         self.title = title
+        self.sourceLabel = sourceLabel
         self.value = value
         self.detail = detail
         self.helpExamples = helpExamples
@@ -285,6 +304,7 @@ private struct MetricCard: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 Text(title)
+                if let sourceLabel { SourceBadge(text: sourceLabel) }
                 HoverInfoTip(texts: helpExamples)
             }
             .font(.system(size: 11.5, weight: .semibold))
@@ -319,11 +339,16 @@ private struct DatasetCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("Dataset")
+            HStack(spacing: 5) {
+                Text("Sources")
+                HoverInfoTip(text: "Account totals and daily activity come from Codex through your ChatGPT account. Detailed token categories, models, events, files, and cost estimates come from session logs stored on this Mac.")
+            }
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundColor(.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 24) {
-                DatasetValue(label: "Source", value: codex.source)
+                DatasetValue(label: "Total & days", value: codex.accountUsage == nil ? "Local sessions" : "Codex account")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                DatasetValue(label: "Details", value: "Local sessions", help: "Input, output, cache, reasoning, models, events, and estimates are calculated from local session logs.")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 DatasetValue(label: "Files", value: "\(codex.fileCount)")
                 DatasetValue(label: "Events", value: "\(eventCount)", help: "Token-usage samples found in Codex session logs.")
@@ -332,6 +357,20 @@ private struct DatasetCard: View {
         .padding(9)
         .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
         .panelStyle()
+    }
+}
+
+private struct SourceBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 8.5, weight: .semibold))
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.18)))
+            .accessibilityLabel("Source: \(text)")
     }
 }
 
@@ -423,6 +462,7 @@ private struct ModelTablePanel: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Text("Models")
+                SourceBadge(text: "Local")
                 HoverInfoTip(text: "Reasoning is the internally processed subset of output. Showing it by model reveals which models consume those less-visible tokens.")
             }
             .font(.system(size: 12.5, weight: .semibold))
@@ -470,22 +510,28 @@ private struct ModelTablePanel: View {
 }
 
 private struct DailyTablePanel: View {
-    let daily: [DailyUsage]
-    private var newestFirst: [DailyUsage] {
-        Array(daily.filter { $0.totals.totalTokens > 0 }.reversed())
+    let daily: [CodexSelectedDay]
+    let usesAccountUsage: Bool
+    private var newestFirst: [CodexSelectedDay] {
+        Array(daily.filter { $0.tokens > 0 }.reversed())
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Days").font(.system(size: 12.5, weight: .semibold)).foregroundColor(.secondary)
-            compactDayRow(date: "Date", tokens: "Tokens", estimate: "Estimate", isHeader: true)
+            HStack(spacing: 5) {
+                Text("Days")
+                SourceBadge(text: usesAccountUsage ? "Account" : "Local")
+            }
+            .font(.system(size: 12.5, weight: .semibold))
+            .foregroundColor(.secondary)
+            compactDayRow(date: "Date", tokens: "Tokens", estimate: usesAccountUsage ? "Local est." : "Estimate", isHeader: true)
             Divider()
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach(newestFirst) { day in
                         compactDayRow(
                             date: shortDate(day.day),
-                            tokens: compactCount(day.totals.totalTokens),
-                            estimate: money(day.totals.estimatedCostUSD),
+                            tokens: compactCount(day.tokens),
+                            estimate: day.localEstimateUSD.map(money) ?? "—",
                             isHeader: false
                         )
                         Divider()
@@ -508,6 +554,140 @@ private struct DailyTablePanel: View {
         .foregroundColor(isHeader ? .secondary : .primary)
         .padding(.horizontal, 4)
         .padding(.vertical, isHeader ? 3 : 5)
+    }
+}
+
+private struct ActivityHeatmap: View {
+    let days: [CodexSelectedDay]
+    let sourceLabel: String
+
+    private var weeks: [HeatmapWeek] { heatmapWeeks(from: days) }
+    private var maximumTokens: Int { max(1, days.map(\.tokens).max() ?? 1) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 5) {
+                Text("Activity")
+                SourceBadge(text: sourceLabel)
+                Spacer()
+                Text("Less")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(.secondary)
+                ForEach(0..<5, id: \.self) { level in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(heatmapColor(level: level))
+                        .frame(width: 11, height: 11)
+                }
+                Text("More")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .font(.system(size: 12.5, weight: .semibold))
+            .foregroundColor(.secondary)
+
+            if weeks.isEmpty {
+                Text("No activity in this period")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 90, alignment: .center)
+            } else {
+                ScrollView(.horizontal) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 3) {
+                            ForEach(weeks) { week in
+                                Text(week.monthLabel ?? "")
+                                    .font(.system(size: 9.5, weight: .medium))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 11, alignment: .leading)
+                            }
+                        }
+                        HStack(alignment: .top, spacing: 3) {
+                            ForEach(weeks) { week in
+                                VStack(spacing: 3) {
+                                    ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
+                                        heatmapCell(day)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.bottom, 2)
+                }
+            }
+        }
+        .padding(9)
+        .panelStyle()
+    }
+
+    @ViewBuilder
+    private func heatmapCell(_ day: HeatmapDay?) -> some View {
+        if let day {
+            let level = heatmapLevel(tokens: day.tokens, maximum: maximumTokens)
+            RoundedRectangle(cornerRadius: 2)
+                .fill(heatmapColor(level: level))
+                .frame(width: 11, height: 11)
+                .help("\(rangeDate(day.day)) · \(day.tokens.formatted(.number.grouping(.automatic))) tokens")
+        } else {
+            Color.clear.frame(width: 11, height: 11)
+        }
+    }
+}
+
+struct HeatmapDay: Equatable {
+    let day: Date
+    let tokens: Int
+}
+
+struct HeatmapWeek: Identifiable, Equatable {
+    let start: Date
+    let monthLabel: String?
+    let days: [HeatmapDay?]
+    var id: Date { start }
+}
+
+func heatmapWeeks(from selectedDays: [CodexSelectedDay], calendar suppliedCalendar: Calendar = .autoupdatingCurrent) -> [HeatmapWeek] {
+    guard let first = selectedDays.map(\.day).min(), let last = selectedDays.map(\.day).max() else { return [] }
+    var calendar = suppliedCalendar
+    calendar.firstWeekday = 1
+    let firstDay = calendar.startOfDay(for: first)
+    let lastDay = calendar.startOfDay(for: last)
+    guard let firstWeek = calendar.dateInterval(of: .weekOfYear, for: firstDay)?.start,
+          let lastWeek = calendar.dateInterval(of: .weekOfYear, for: lastDay)?.start else { return [] }
+    let tokenByDay = Dictionary(uniqueKeysWithValues: selectedDays.map {
+        (calendar.startOfDay(for: $0.day), $0.tokens)
+    })
+    var result: [HeatmapWeek] = []
+    var weekStart = firstWeek
+    var previousMonth: Int?
+    while weekStart <= lastWeek {
+        let weekDays: [HeatmapDay?] = (0..<7).map { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: weekStart),
+                  day >= firstDay, day <= lastDay else { return nil }
+            return HeatmapDay(day: day, tokens: tokenByDay[day] ?? 0)
+        }
+        let labelDay = weekDays.compactMap { $0 }.first
+        let month = labelDay.map { calendar.component(.month, from: $0.day) }
+        let monthLabel = month != previousMonth ? labelDay?.day.formatted(.dateTime.month(.abbreviated)) : nil
+        result.append(HeatmapWeek(start: weekStart, monthLabel: monthLabel, days: weekDays))
+        previousMonth = month ?? previousMonth
+        guard let next = calendar.date(byAdding: .day, value: 7, to: weekStart) else { break }
+        weekStart = next
+    }
+    return result
+}
+
+func heatmapLevel(tokens: Int, maximum: Int) -> Int {
+    guard tokens > 0, maximum > 0 else { return 0 }
+    return min(4, max(1, Int(ceil(Double(tokens) / Double(maximum) * 4))))
+}
+
+private func heatmapColor(level: Int) -> Color {
+    switch level {
+    case 1: return Color.accentColor.opacity(0.25)
+    case 2: return Color.accentColor.opacity(0.45)
+    case 3: return Color.accentColor.opacity(0.70)
+    case 4: return Color.accentColor
+    default: return Color(nsColor: .separatorColor).opacity(0.35)
     }
 }
 
@@ -536,9 +716,19 @@ private struct KimiTablePanel: View {
 
 struct CodexUsageSelection: Equatable {
     let totals: UsageTotals
-    let daily: [DailyUsage]
+    let totalTokens: Int
+    let daily: [CodexSelectedDay]
     let models: [ModelUsage]
     let eventCount: Int
+    let usesAccountUsage: Bool
+}
+
+struct CodexSelectedDay: Identifiable, Equatable {
+    let day: Date
+    let tokens: Int
+    let localEstimateUSD: Double?
+
+    var id: Date { day }
 }
 
 func codexUsageSelection(
@@ -554,9 +744,9 @@ func codexUsageSelection(
         return (startDay == nil || day >= startDay!) && (endDay == nil || day <= endDay!)
     }
 
-    let daily = codex.daily.filter { includes($0.day) }
+    let localDaily = codex.daily.filter { includes($0.day) }
     let selectedDailyModels = codex.dailyModels.filter { includes($0.day) }
-    let totals = daily.reduce(into: UsageTotals.zero) { $0.add($1.totals) }
+    let totals = localDaily.reduce(into: UsageTotals.zero) { $0.add($1.totals) }
     var modelBuckets: [String: ModelUsage] = [:]
     for usage in selectedDailyModels {
         if modelBuckets[usage.model] == nil {
@@ -570,11 +760,36 @@ func codexUsageSelection(
         return $0.totals.totalTokens > $1.totals.totalTokens
     }
     let isAllTime = startDay == nil && endDay == nil
+    let selectedTotals = isAllTime && localDaily.isEmpty ? codex.total : totals
+    let localByDay = Dictionary(uniqueKeysWithValues: localDaily.map {
+        (calendar.startOfDay(for: $0.day), $0.totals)
+    })
+    let accountDaily = codex.accountUsage?.daily.filter { includes($0.day) }
+    let displayDaily: [CodexSelectedDay]
+    if let accountDaily {
+        displayDaily = accountDaily.map { usage in
+            let local = localByDay[calendar.startOfDay(for: usage.day)]
+            return CodexSelectedDay(
+                day: usage.day,
+                tokens: usage.tokens,
+                localEstimateUSD: local?.estimatedCostUSD
+            )
+        }
+    } else {
+        displayDaily = localDaily.map {
+            CodexSelectedDay(day: $0.day, tokens: $0.totals.totalTokens, localEstimateUSD: $0.totals.estimatedCostUSD)
+        }
+    }
+    let accountTotal = isAllTime
+        ? codex.accountUsage?.lifetimeTokens
+        : accountDaily?.reduce(0) { $0 + $1.tokens }
     return CodexUsageSelection(
-        totals: isAllTime && daily.isEmpty ? codex.total : totals,
-        daily: daily,
+        totals: selectedTotals,
+        totalTokens: accountTotal ?? selectedTotals.totalTokens,
+        daily: displayDaily,
         models: selectedDailyModels.isEmpty && isAllTime ? codex.models : models,
-        eventCount: selectedDailyModels.isEmpty && isAllTime ? codex.eventCount : selectedDailyModels.reduce(0) { $0 + $1.events }
+        eventCount: selectedDailyModels.isEmpty && isAllTime ? codex.eventCount : selectedDailyModels.reduce(0) { $0 + $1.events },
+        usesAccountUsage: codex.accountUsage != nil
     )
 }
 
@@ -636,12 +851,15 @@ let bookTokenComparisons: [BookTokenComparison] = [
 ]
 
 enum TokenHelpMetric {
+    case accountTotal
     case total
     case input
     case output
 
     var explanation: String {
         switch self {
+        case .accountTotal:
+            return "Account-wide Codex token activity reported by OpenAI. It follows your ChatGPT account and can include work whose session files are no longer stored on this Mac. OpenAI does not split this account total into input, output, or models here."
         case .total:
             return "Total tokens cover everything the model processed—not only what you typed. Total is Input + Output."
         case .input:
@@ -653,7 +871,7 @@ enum TokenHelpMetric {
 
     var cacheNote: String {
         switch self {
-        case .total, .input:
+        case .accountTotal, .total, .input:
             return " Cached context can be counted repeatedly, so this is processed text rather than unique reading."
         case .output:
             return ""
