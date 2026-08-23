@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-23
+
 ### Changed
 
 - Made Codex Total, Days, and period filtering use account-wide usage reported
