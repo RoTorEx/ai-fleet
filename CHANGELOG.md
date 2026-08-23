@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Grouped book-comparison thousands with spaces, realigned the compact period
+  control, and reduced dashboard height enough to expose Activity as a scroll cue.
+
 ## [1.2.3] - 2026-08-23
 
 ### Changed

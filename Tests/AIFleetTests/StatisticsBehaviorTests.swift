@@ -260,6 +260,8 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertEqual(bookCopyComparison(0.4, title: "Dune"), "less than one copy of Dune")
         XCTAssertEqual(bookCopyComparison(1.2, title: "Dune"), "roughly one copy of Dune")
         XCTAssertEqual(bookCopyComparison(12.6, title: "Dune"), "roughly 13 copies of Dune")
+        XCTAssertEqual(bookCopyComparison(12_345.6, title: "Dune"), "roughly 12 346 copies of Dune")
+        XCTAssertTrue(tokenVolumeHelpExamples(1_000_000).contains { $0.contains("~1 084 000 words each") })
         XCTAssertFalse(bookCopyComparison(12.6, title: "Dune").contains("."))
     }
 

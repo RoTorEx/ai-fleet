@@ -49,7 +49,9 @@ subscription charges.
   reading. Total, Input, and Output each receive their own rotating comparison,
   calculated from that metric's value and separated from its definition by a
   paragraph break. Book-copy counts are rounded to whole copies; values below
-  half a copy read as `less than one copy` instead of showing a decimal.
+  half a copy read as `less than one copy` instead of showing a decimal. Whole
+  book counts and word-count bases group thousands with spaces, never with a
+  locale-dependent decimal-looking dot.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover
@@ -76,7 +78,10 @@ subscription charges.
   content aligns to the top, both rows use equal card heights, and column widths
   are calculated explicitly instead of relying on SwiftUI spanning-cell layout.
 - The compact period selector sits at the upper right directly below account
-  and local refresh timestamps, leaving the content grid unobstructed.
+  and local refresh timestamps in its own trailing row, leaving the content grid
+  unobstructed and keeping its label and segments aligned as one compact unit.
+  Summary and table panels remain compact enough for the top edge of Activity to
+  be visible at the default window size as a natural vertical-scroll cue.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.

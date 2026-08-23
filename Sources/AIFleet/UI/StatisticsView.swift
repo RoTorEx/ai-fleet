@@ -38,10 +38,10 @@ struct StatisticsView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            AnalyticsTabControl(selection: $tab)
-            Spacer(minLength: 20)
-            VStack(alignment: .trailing, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 16) {
+                AnalyticsTabControl(selection: $tab)
+                Spacer(minLength: 20)
                 RefreshStatus(
                     progress: analytics.progress,
                     refreshedAt: snapshot.refreshedAt,
@@ -49,7 +49,10 @@ struct StatisticsView: View {
                     isRefreshing: analytics.isRefreshing,
                     refresh: { analytics.refresh(kimi: service.kimi) }
                 )
-                if tab == .codex {
+            }
+            if tab == .codex {
+                HStack {
+                    Spacer(minLength: 0)
                     PeriodToolbar(period: $period)
                 }
             }
@@ -89,7 +92,7 @@ struct StatisticsView: View {
                             ? "Estimated from Codex account tokens for the selected period, multiplied by the average API-equivalent cost per token observed in local sessions. The 7d, 30d, and 90d ranges use the matching Codex daily totals. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
                             : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
                         rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account total × local rate" : "model rates")],
-                        fixedHeight: 118
+                        fixedHeight: 98
                     )
                     .frame(width: columnWidth)
                     MetricCard(
@@ -98,7 +101,7 @@ struct StatisticsView: View {
                         value: compactCount(selection.totalTokens),
                         detail: periodDetail,
                         helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total),
-                        fixedHeight: 118
+                        fixedHeight: 98
                     )
                     .frame(width: columnWidth * 2 + spacing)
                 }
@@ -115,7 +118,7 @@ struct StatisticsView: View {
                             AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
                             AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
                         ],
-                        fixedHeight: 118
+                        fixedHeight: 112
                     )
                     .frame(width: columnWidth)
                     MetricCard(
@@ -126,13 +129,13 @@ struct StatisticsView: View {
                         rows: [
                             AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
                         ],
-                        fixedHeight: 118
+                        fixedHeight: 112
                     )
                     .frame(width: columnWidth)
                 }
             }
         }
-        .frame(height: 244)
+        .frame(height: 218)
     }
 
     private var kimiContent: some View {
@@ -260,7 +263,7 @@ private struct PeriodToolbar: View {
     @Binding var period: AnalyticsPeriod
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Text("Period").font(.system(size: 12, weight: .semibold)).foregroundColor(.secondary)
             Picker("Period", selection: $period) {
                 ForEach(AnalyticsPeriod.allCases) { Text($0.rawValue).tag($0) }
@@ -270,6 +273,7 @@ private struct PeriodToolbar: View {
             .frame(width: 260)
         }
         .frame(height: 30)
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -346,7 +350,7 @@ private struct DatasetCard: View {
     let eventCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Text("Sources")
                 HoverInfoTip(text: "Account totals and daily activity come from Codex through your ChatGPT account. Input/output categories, models, events, files, and the blended rate used for cost estimates come from session logs stored on this Mac.")
@@ -367,7 +371,7 @@ private struct DatasetCard: View {
             }
         }
         .padding(9)
-        .frame(maxWidth: .infinity, minHeight: 118, maxHeight: 118, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
         .panelStyle()
     }
 }
@@ -495,7 +499,7 @@ private struct ModelTablePanel: View {
                     }
                 }
             }
-            .frame(height: 184)
+            .frame(height: 160)
         }
         .padding(9)
         .panelStyle()
@@ -550,7 +554,7 @@ private struct DailyTablePanel: View {
                     }
                 }
             }
-            .frame(height: 184)
+            .frame(height: 160)
         }
         .padding(9)
         .panelStyle()
@@ -933,7 +937,7 @@ func tokenVolumeHelpExamples(_ tokens: Int, metric: TokenHelpMetric = .total) ->
     let words = Double(max(0, tokens)) * 0.75
     return bookTokenComparisons.map { book in
         let copies = words / Double(book.approximateWords)
-        let formattedWords = book.approximateWords.formatted(.number.grouping(.automatic))
+        let formattedWords = groupedInteger(book.approximateWords)
         let comparison = bookCopyComparison(copies, title: book.title)
         return "\(metric.explanation)\n\nFor a sense of scale, that is \(comparison) (~\(formattedWords) words each). Book lengths and the token-to-text conversion are approximate.\(metric.cacheNote) Hover again for another book."
     }
@@ -943,7 +947,19 @@ func bookCopyComparison(_ copies: Double, title: String) -> String {
     guard copies >= 0.5 else { return "less than one copy of \(title)" }
     let roundedCopies = Int(copies.rounded())
     if roundedCopies == 1 { return "roughly one copy of \(title)" }
-    return "roughly \(roundedCopies.formatted(.number.grouping(.automatic))) copies of \(title)"
+    return "roughly \(groupedInteger(roundedCopies)) copies of \(title)"
+}
+
+private func groupedInteger(_ value: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.numberStyle = .decimal
+    formatter.usesGroupingSeparator = true
+    formatter.groupingSeparator = " "
+    formatter.groupingSize = 3
+    formatter.secondaryGroupingSize = 3
+    formatter.maximumFractionDigits = 0
+    return formatter.string(from: NSNumber(value: value)) ?? String(value)
 }
 
 private func dateTimeText(_ date: Date) -> String {
