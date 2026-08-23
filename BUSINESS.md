@@ -33,8 +33,9 @@ subscription charges.
   table omits zero-activity dates. The page may scroll vertically to reach the
   final Activity block; its GitHub-style day squares may scroll horizontally for
   long histories and expose exact date/token activity on hover. Each month is a
-  distinct mini-grid with a standard abbreviated label and visible inter-month
-  spacing, so labels never wrap into vertical letters.
+  distinct mini-grid with a standard abbreviated label centered over that
+  month's cells and visible inter-month spacing, so labels never wrap into
+  vertical letters. Hovering a day square opens an explicit date/token popover.
 - Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
   The Lord of the Rings and Harry Potter cycles, plus ten well-known fantasy or
@@ -70,9 +71,9 @@ subscription charges.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
 - Statistics groups each headline with its own accounting details in one aligned
-  three-column grid. Total occupies column one and Sources spans columns two and
-  three; Input, Output, and Estimate form the second row on the same column
-  boundaries. All second-row content aligns to the top.
+  three-column grid. Estimate occupies the first column and Total spans the two
+  columns above Input and Output; Sources sits beneath Estimate. All second-row
+  content aligns to the top.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.

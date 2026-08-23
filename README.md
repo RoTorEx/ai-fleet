@@ -75,7 +75,7 @@ Detailed usage data remains available in **Statistics…**.
 
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
-**Statistics…** provides `7d`, `30d`, `90d`, all-time, and custom date ranges.
+**Statistics…** provides `7d`, `30d`, `90d`, and all-time ranges.
 Account-wide Total, Days, and the bottom GitHub-style Activity heatmap are read
 from Codex through the signed-in ChatGPT account, so this history is not tied to
 session files retained on one Mac. Input, Output, cache, reasoning, Models,
@@ -85,8 +85,8 @@ uses the selected account token total multiplied by the blended cost per token
 observed in those local logs. `Account` and `Local` badges identify the source.
 
 The dashboard scrolls vertically to the final Activity block. The heatmap uses
-separate month grids with abbreviated labels and spacing, an exact date/token
-hover tooltip, and horizontal scrolling for long histories. The two tables scroll their rows only
+separate month grids with centered abbreviated labels and spacing, an exact
+date/token hover popover, and horizontal scrolling for long histories. The two tables scroll their rows only
 vertically without horizontal scrolling. Days omits dates with no activity. On
 each hover, the total-token help
 cycles through 15 approximate comparisons with well-known English fantasy and
@@ -95,8 +95,8 @@ all model-read Input plus generated Output, including repeated cache context and
 reported internal reasoning—not only text typed by the user. Total, Input, and
 Output each show their own comparison in a separate paragraph. The window
 resets to its compact size and opens centered on the visible screen.
-The summary uses one three-column grid: Total occupies the first column, Sources
-spans the next two, and Input, Output, and Estimate align beneath them.
+The summary uses one three-column grid: Estimate sits above Sources in the first
+column, while Total spans the two columns above Input and Output.
 
 Opening Statistics performs only a lightweight account-usage sync and never
 starts a session-log scan. Manual refresh remains

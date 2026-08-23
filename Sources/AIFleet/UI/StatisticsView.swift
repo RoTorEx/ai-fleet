@@ -5,17 +5,11 @@ struct StatisticsView: View {
     @ObservedObject private var service = StatusService.shared
     @State private var tab: AnalyticsTab = .codex
     @State private var period: AnalyticsPeriod = .allTime
-    @State private var customStart = Calendar.autoupdatingCurrent.date(
-        byAdding: .day,
-        value: -29,
-        to: Calendar.autoupdatingCurrent.startOfDay(for: Date())
-    ) ?? Calendar.autoupdatingCurrent.startOfDay(for: Date())
-    @State private var customEnd = Calendar.autoupdatingCurrent.startOfDay(for: Date())
 
     private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
 
     private var selection: CodexUsageSelection {
-        let bounds = period.bounds(customStart: customStart, customEnd: customEnd)
+        let bounds = period.bounds()
         return codexUsageSelection(from: snapshot.codex, start: bounds.start, end: bounds.end)
     }
 
@@ -61,13 +55,20 @@ struct StatisticsView: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 8) {
                 PeriodToolbar(
-                    period: $period,
-                    customStart: $customStart,
-                    customEnd: $customEnd
+                    period: $period
                 )
 
                 Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                     GridRow(alignment: .top) {
+                        MetricCard(
+                            title: "Estimate",
+                            sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
+                            value: money(selection.estimatedCostUSD),
+                            help: selection.usesAccountUsage
+                                ? "Estimated from Codex account tokens for the selected period, multiplied by the average API-equivalent cost per token observed in local sessions. The 7d, 30d, and 90d ranges use the matching Codex daily totals. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
+                                : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
+                            rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account total × local rate" : "model rates")]
+                        )
                         MetricCard(
                             title: "Total tokens",
                             sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
@@ -75,11 +76,11 @@ struct StatisticsView: View {
                             detail: periodDetail,
                             helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total)
                         )
-                        DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
                             .gridCellColumns(2)
                     }
 
                     GridRow(alignment: .top) {
+                        DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
                         MetricCard(
                             title: "Input",
                             sourceLabel: "Local",
@@ -99,15 +100,6 @@ struct StatisticsView: View {
                             rows: [
                                 AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
                             ]
-                        )
-                        MetricCard(
-                            title: "Estimate",
-                            sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                            value: money(selection.estimatedCostUSD),
-                            help: selection.usesAccountUsage
-                                ? "Estimated from Codex account tokens for the selected period, multiplied by the average API-equivalent cost per token observed in local sessions. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
-                                : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
-                            rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account × local rate" : "model rates")]
                         )
                     }
                 }
@@ -164,23 +156,17 @@ private enum AnalyticsPeriod: String, CaseIterable, Identifiable {
     case thirtyDays = "30d"
     case ninetyDays = "90d"
     case allTime = "All"
-    case custom = "Custom"
 
     var id: String { rawValue }
     var label: String { self == .allTime ? "all recorded days" : rawValue }
 
-    func bounds(customStart: Date, customEnd: Date, calendar: Calendar = .autoupdatingCurrent) -> (start: Date?, end: Date?) {
+    func bounds(calendar: Calendar = .autoupdatingCurrent) -> (start: Date?, end: Date?) {
         let today = calendar.startOfDay(for: Date())
         switch self {
         case .sevenDays: return (calendar.date(byAdding: .day, value: -6, to: today), today)
         case .thirtyDays: return (calendar.date(byAdding: .day, value: -29, to: today), today)
         case .ninetyDays: return (calendar.date(byAdding: .day, value: -89, to: today), today)
         case .allTime: return (nil, nil)
-        case .custom:
-            return (
-                calendar.startOfDay(for: min(customStart, customEnd)),
-                calendar.startOfDay(for: max(customStart, customEnd))
-            )
         }
     }
 }
@@ -256,8 +242,6 @@ private struct RefreshStatus: View {
 
 private struct PeriodToolbar: View {
     @Binding var period: AnalyticsPeriod
-    @Binding var customStart: Date
-    @Binding var customEnd: Date
 
     var body: some View {
         HStack(spacing: 12) {
@@ -267,12 +251,7 @@ private struct PeriodToolbar: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: period == .custom ? 330 : 420)
-            if period == .custom {
-                DatePicker("From", selection: $customStart, displayedComponents: .date)
-                DatePicker("To", selection: $customEnd, displayedComponents: .date)
-                .font(.system(size: 11, weight: .medium))
-            }
+            .frame(maxWidth: 360)
             Spacer()
         }
         .frame(height: 30)
@@ -603,7 +582,7 @@ private struct ActivityHeatmap: View {
                                 Text(month.label)
                                     .font(.system(size: 9.5, weight: .medium))
                                     .foregroundColor(.secondary)
-                                    .fixedSize()
+                                    .frame(width: monthWidth(month), alignment: .center)
                                 HStack(alignment: .top, spacing: 3) {
                                     ForEach(Array(month.weeks.enumerated()), id: \.offset) { _, week in
                                         VStack(spacing: 3) {
@@ -628,13 +607,39 @@ private struct ActivityHeatmap: View {
     private func heatmapCell(_ day: HeatmapDay?) -> some View {
         if let day {
             let level = heatmapLevel(tokens: day.tokens, maximum: maximumTokens)
-            RoundedRectangle(cornerRadius: 2)
-                .fill(heatmapColor(level: level))
-                .frame(width: 11, height: 11)
-                .help("\(rangeDate(day.day)) · \(day.tokens.formatted(.number.grouping(.automatic))) tokens")
+            HeatmapCell(day: day, level: level)
         } else {
             Color.clear.frame(width: 11, height: 11)
         }
+    }
+
+    private func monthWidth(_ month: HeatmapMonth) -> CGFloat {
+        CGFloat(month.weeks.count * 11 + max(0, month.weeks.count - 1) * 3)
+    }
+}
+
+private struct HeatmapCell: View {
+    let day: HeatmapDay
+    let level: Int
+    @State private var isPresented = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(heatmapColor(level: level))
+            .frame(width: 11, height: 11)
+            .contentShape(Rectangle())
+            .onHover { isPresented = $0 }
+            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(rangeDate(day.day))
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("\(day.tokens.formatted(.number.grouping(.automatic))) tokens")
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                .padding(9)
+            }
+            .accessibilityLabel("\(rangeDate(day.day)), \(day.tokens) tokens")
     }
 }
 

@@ -4,6 +4,16 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Rearranged the aligned Statistics summary grid to place Estimate above
+  Sources and let Total span the two columns above Input and Output.
+- Clarified in Estimate help that preset ranges use Codex account daily totals
+  before applying the locally observed blended rate.
+- Removed the Custom period control, centered month labels over their heatmap
+  cells, and replaced unreliable native cell tooltips with explicit hover
+  popovers showing the exact date and token count.
+
 ## [1.2.2] - 2026-08-23
 
 ### Changed

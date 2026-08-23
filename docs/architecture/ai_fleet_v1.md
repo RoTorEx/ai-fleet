@@ -69,13 +69,14 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
   date-range filtering, account/local source labels, vertically scrolling
   fixed-column tables, an aligned three-column summary grid, and a final
   horizontally scrolling GitHub-style daily heatmap grouped into spaced month
-  grids. Zero-activity dates are omitted from the day table. Only
+  grids with centered labels and explicit hover popovers. Zero-activity dates
+  are omitted from the day table. Only
   accounting-specific terms carry hover explanations; token volume cycles
   through 15 approximate real-book comparisons after explaining the Input,
   Output, cache, returned-content, and reasoning boundaries. Total, Input, and
   Output calculate their comparisons independently and place them in a separate
-  paragraph. Total occupies one summary column while Sources spans two; Input,
-  Output, and Estimate use the same three column boundaries below. Each open
+  paragraph. Estimate sits above Sources in the first summary column while Total
+  spans the two columns above Input and Output. Each open
   resets the window to its compact size before centering
   it on the visible screen.
 
