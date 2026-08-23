@@ -79,13 +79,14 @@ Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 Account-wide Total, Days, and the bottom GitHub-style Activity heatmap are read
 from Codex through the signed-in ChatGPT account, so this history is not tied to
 session files retained on one Mac. Input, Output, cache, reasoning, Models,
-Events, Files, and API-equivalent Estimate still come from active and archived
-local session logs because Codex does not provide those account-wide breakdowns.
-`Account` and `Local` badges identify the source in the UI.
+Events, and Files still come from active and archived local session logs because
+Codex does not provide those account-wide breakdowns. API-equivalent Estimate
+uses the selected account token total multiplied by the blended cost per token
+observed in those local logs. `Account` and `Local` badges identify the source.
 
 The dashboard scrolls vertically to the final Activity block. The heatmap uses
-day squares, abbreviated month labels, an exact date/token hover tooltip, and
-horizontal scrolling for long histories. The two tables scroll their rows only
+separate month grids with abbreviated labels and spacing, an exact date/token
+hover tooltip, and horizontal scrolling for long histories. The two tables scroll their rows only
 vertically without horizontal scrolling. Days omits dates with no activity. On
 each hover, the total-token help
 cycles through 15 approximate comparisons with well-known English fantasy and
@@ -94,8 +95,8 @@ all model-read Input plus generated Output, including repeated cache context and
 reported internal reasoning—not only text typed by the user. Total, Input, and
 Output each show their own comparison in a separate paragraph. The window
 resets to its compact size and opens centered on the visible screen.
-Total and Sources share the first summary row. Input, Output, and Estimate sit
-on the second row with their related accounting details inside the same card.
+The summary uses one three-column grid: Total occupies the first column, Sources
+spans the next two, and Input, Output, and Estimate align beneath them.
 
 Opening Statistics performs only a lightweight account-usage sync and never
 starts a session-log scan. Manual refresh remains

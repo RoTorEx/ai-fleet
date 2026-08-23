@@ -154,10 +154,12 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertEqual(all.totalTokens, 9_000)
         XCTAssertEqual(all.totals.totalTokens, 100)
         XCTAssertEqual(all.daily.map(\.tokens), [3_000, 6_000])
-        XCTAssertNil(all.daily[0].localEstimateUSD)
-        XCTAssertEqual(all.daily[1].localEstimateUSD, 1.25)
+        XCTAssertEqual(all.estimatedCostUSD, 112.5, accuracy: 0.001)
+        XCTAssertEqual(all.daily[0].estimatedCostUSD, 37.5)
+        XCTAssertEqual(all.daily[1].estimatedCostUSD, 75)
         XCTAssertTrue(all.usesAccountUsage)
         XCTAssertEqual(firstOnly.totalTokens, 3_000)
+        XCTAssertEqual(firstOnly.estimatedCostUSD, 37.5, accuracy: 0.001)
     }
 
     func testHeatmapBuildsCalendarWeeksAndLevels() throws {
@@ -165,16 +167,32 @@ final class StatisticsBehaviorTests: XCTestCase {
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let monday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 3)))
         let nextMonday = try XCTUnwrap(calendar.date(byAdding: .day, value: 7, to: monday))
-        let weeks = heatmapWeeks(from: [
-            CodexSelectedDay(day: monday, tokens: 10, localEstimateUSD: nil),
-            CodexSelectedDay(day: nextMonday, tokens: 40, localEstimateUSD: nil)
+        let months = heatmapMonths(from: [
+            CodexSelectedDay(day: monday, tokens: 10, estimatedCostUSD: nil),
+            CodexSelectedDay(day: nextMonday, tokens: 40, estimatedCostUSD: nil)
         ], calendar: calendar)
 
-        XCTAssertEqual(weeks.count, 2)
-        XCTAssertEqual(weeks.flatMap(\.days).compactMap { $0 }.count, 8)
+        XCTAssertEqual(months.count, 1)
+        XCTAssertEqual(months[0].label, "Aug")
+        XCTAssertEqual(months.flatMap(\.weeks).flatMap { $0 }.compactMap { $0 }.count, 8)
         XCTAssertEqual(heatmapLevel(tokens: 0, maximum: 40), 0)
         XCTAssertEqual(heatmapLevel(tokens: 10, maximum: 40), 1)
         XCTAssertEqual(heatmapLevel(tokens: 40, maximum: 40), 4)
+    }
+
+    func testHeatmapKeepsMonthLabelsInSeparateGroups() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let july = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 31)))
+        let august = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 1)))
+
+        let months = heatmapMonths(from: [
+            CodexSelectedDay(day: july, tokens: 10, estimatedCostUSD: nil),
+            CodexSelectedDay(day: august, tokens: 20, estimatedCostUSD: nil)
+        ], calendar: calendar)
+
+        XCTAssertEqual(months.map(\.label), ["Jul", "Aug"])
+        XCTAssertEqual(months.flatMap(\.weeks).flatMap { $0 }.compactMap { $0 }.map(\.tokens), [10, 20])
     }
 
     func testLogDiscoveryIncludesArchiveAndDeduplicatesMovedSessions() throws {

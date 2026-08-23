@@ -41,7 +41,8 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
 7. `UsageAnalyticsService` asks `codex app-server` for account-wide lifetime and
    daily usage, and reads local Codex JSONL metadata for input/output/cache,
-   model, reasoning, event, file, and API-equivalent cost details. Opening
+   model, reasoning, event, file, and API-equivalent rate details. Account cost
+   estimates extrapolate that blended local rate across account tokens. Opening
    Statistics may perform the lightweight account request but does not scan
    session logs. Manual or scheduled refreshes reuse unchanged files from a
    per-file aggregate cache and parse changed files at background priority.
@@ -66,15 +67,16 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `AIFleetMenuView` — minimal popover with Kimi and Codex rows, last update time, and Refresh / Quit buttons.
 - `StatisticsView` — centered, resizable provider analytics window with
   date-range filtering, account/local source labels, vertically scrolling
-  fixed-column tables, adaptive panels, and a final horizontally scrolling
-  GitHub-style daily heatmap. Zero-activity dates are omitted from the day table. Only
+  fixed-column tables, an aligned three-column summary grid, and a final
+  horizontally scrolling GitHub-style daily heatmap grouped into spaced month
+  grids. Zero-activity dates are omitted from the day table. Only
   accounting-specific terms carry hover explanations; token volume cycles
   through 15 approximate real-book comparisons after explaining the Input,
   Output, cache, returned-content, and reasoning boundaries. Total, Input, and
   Output calculate their comparisons independently and place them in a separate
-  paragraph. Total and Sources occupy the first summary row; Input, Output, and
-  Estimate occupy the second and keep their own accounting details inside the
-  owning card. Each open resets the window to its compact size before centering
+  paragraph. Total occupies one summary column while Sources spans two; Input,
+  Output, and Estimate use the same three column boundaries below. Each open
+  resets the window to its compact size before centering
   it on the visible screen.
 
 ## Configuration

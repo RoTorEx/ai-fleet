@@ -7,10 +7,16 @@ Tracks real product and release progress.
 ### Changed
 
 - Made Codex Total, Days, and period filtering use account-wide usage reported
-  by Codex, while clearly labeling the local-only input/output/model/cost detail
-  scope and retaining local data as an offline fallback.
+  by Codex, while clearly labeling the local input/output/model detail scope and
+  retaining local data as an offline fallback.
 - Added a final GitHub-style activity heatmap with exact hover values and
-  horizontal history scrolling.
+  horizontal history scrolling; grouped cells into spaced months so labels stay
+  horizontal and readable.
+- Based headline and daily cost estimates on account tokens using the blended
+  API-equivalent rate observed in local sessions, with the extrapolation stated
+  directly in help text.
+- Aligned both summary rows to one three-column grid so card boundaries no
+  longer drift between rows.
 - Forced the menu-bar popover closed before Statistics opens and when the user
   clicks an already-open Statistics window.
 

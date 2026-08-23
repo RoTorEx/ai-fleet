@@ -22,15 +22,19 @@ subscription charges.
   not reread session logs.
 - Statistics opens on the all-time range. Account-wide Total, Days, and Activity
   come from Codex account usage so they survive deleting local sessions or
-  moving to another Mac. Input, Output, cache, reasoning, Models, Events, Files,
-  and API-equivalent Estimate remain local because the account endpoint does not
-  expose those breakdowns. Native `Account` and `Local` labels make the boundary
-  visible wherever the two scopes meet.
+  moving to another Mac. Input, Output, cache, reasoning, Models, Events, and
+  Files remain local because the account endpoint does not expose those
+  breakdowns. API-equivalent Estimate applies the blended cost per token found
+  in local sessions to the account token total for the selected period. Native
+  `Account` and `Local` labels make the boundary visible wherever the two scopes
+  meet.
 - Period controls remain unboxed, accounting values are grouped by meaning, and
   model/day tables scroll only vertically without horizontal overflow. The day
   table omits zero-activity dates. The page may scroll vertically to reach the
   final Activity block; its GitHub-style day squares may scroll horizontally for
-  long histories and expose exact date/token activity on hover.
+  long histories and expose exact date/token activity on hover. Each month is a
+  distinct mini-grid with a standard abbreviated label and visible inter-month
+  spacing, so labels never wrap into vertical letters.
 - Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
   The Lord of the Rings and Harry Potter cycles, plus ten well-known fantasy or
@@ -49,8 +53,12 @@ subscription charges.
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover
   so it cannot cover the analytics window.
-- API-equivalent cost is derived from model token rates and is always labeled as
-  an estimate, never as a subscription bill.
+- API-equivalent cost is always an estimate, never a subscription bill. With
+  account usage available, it equals account tokens for the selected period ×
+  the blended API-equivalent cost per token observed in local session logs.
+  This extrapolation is necessary because Codex exposes the account token total
+  but not its model/input/output mix. Offline fallback cost remains the direct
+  sum derived from local per-model token rates.
 - Local Total tokens means `Input + Output`, not merely user-typed text. The
   account-wide Total follows the aggregate activity definition reported by
   Codex and is not presented as the sum of the narrower local cards. Input covers
@@ -61,10 +69,10 @@ subscription charges.
   boundary in a short first paragraph before a separate book-scale paragraph.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
-- Statistics groups each headline with its own accounting details. Total and
-  Sources share the first row; Input, Output, and Estimate form the second row,
-  with cache, reasoning, and rate-basis details inside their owning cards. All
-  second-row content aligns to the top so cards scan as one coherent row.
+- Statistics groups each headline with its own accounting details in one aligned
+  three-column grid. Total occupies column one and Sources spans columns two and
+  three; Input, Output, and Estimate form the second row on the same column
+  boundaries. All second-row content aligns to the top.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.
