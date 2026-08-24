@@ -126,7 +126,7 @@ struct StatisticsView: View {
                             AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
                             AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
                         ],
-                        fixedHeight: 112
+                        fixedHeight: 122
                     )
                     .frame(width: columnWidth)
                     MetricCard(
@@ -137,13 +137,13 @@ struct StatisticsView: View {
                         rows: [
                             AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
                         ],
-                        fixedHeight: 112
+                        fixedHeight: 122
                     )
                     .frame(width: columnWidth)
                 }
             }
         }
-        .frame(height: 218)
+        .frame(height: 228)
     }
 
     private var kimiContent: some View {
@@ -430,7 +430,7 @@ private struct DatasetCard: View {
             }
         }
         .padding(9)
-        .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 122, maxHeight: 122, alignment: .topLeading)
         .panelStyle()
     }
 }

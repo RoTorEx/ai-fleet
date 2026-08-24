@@ -88,6 +88,8 @@ subscription charges.
   columns above Input and Output; Sources sits beneath Estimate. All second-row
   content aligns to the top, both rows use equal card heights, and column widths
   are calculated explicitly instead of relying on SwiftUI spanning-cell layout.
+  The second row reserves enough bottom space for Input's three accounting rows,
+  so its final Cache writes line never touches or crosses the card boundary.
 - The compact period selector sits at the upper right directly below account
   and local refresh timestamps in its own trailing row, leaving the content grid
   unobstructed and keeping its label and segments aligned as one compact unit.

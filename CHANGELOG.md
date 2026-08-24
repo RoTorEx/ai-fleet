@@ -17,6 +17,8 @@ Tracks real product and release progress.
 - Extended Activity through the first vibecoding anniversary and thereafter
   through the current month, sized a full year to the window, opened long
   histories at the newest month, and removed unused heatmap panel height.
+- Increased the aligned second summary row so Input accounting details no longer
+  collide with the card boundary.
 
 ## [1.2.3] - 2026-08-23
 
