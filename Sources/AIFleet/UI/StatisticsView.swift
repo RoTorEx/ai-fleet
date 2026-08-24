@@ -6,6 +6,7 @@ struct StatisticsView: View {
     @ObservedObject private var service = StatusService.shared
     @State private var tab: AnalyticsTab = .codex
     @State private var period: AnalyticsPeriod = .allTime
+    @State private var detailPage: StatisticsDetailPage = .tables
 
     private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
 
@@ -61,20 +62,20 @@ struct StatisticsView: View {
     }
 
     private var codexContent: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 8) {
-                summaryGrid
-
+        VStack(alignment: .leading, spacing: 8) {
+            summaryGrid
+            DetailPageControl(page: $detailPage)
+            switch detailPage {
+            case .tables:
                 HStack(alignment: .top, spacing: 10) {
                     ModelTablePanel(models: selection.models)
                         .frame(minWidth: 430, maxWidth: .infinity)
                     DailyTablePanel(daily: selection.daily, usesAccountUsage: selection.usesAccountUsage)
                         .frame(minWidth: 330, maxWidth: .infinity)
                 }
-
+            case .activity:
                 ActivityHeatmap(days: selection.daily, sourceLabel: selection.usesAccountUsage ? "Account" : "Local")
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -191,6 +192,18 @@ private enum AnalyticsPeriod: String, CaseIterable, Identifiable {
     }
 }
 
+private enum StatisticsDetailPage: Int, CaseIterable {
+    case tables
+    case activity
+
+    var label: String {
+        switch self {
+        case .tables: return "Models + Days"
+        case .activity: return "Activity"
+        }
+    }
+}
+
 private struct AnalyticsTabControl: View {
     @Binding var selection: AnalyticsTab
 
@@ -275,6 +288,44 @@ private struct PeriodToolbar: View {
         }
         .frame(height: 30)
         .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+private struct DetailPageControl: View {
+    @Binding var page: StatisticsDetailPage
+
+    private var index: Int { page.rawValue }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(page.label)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.secondary)
+            Spacer()
+            Button {
+                if let previous = StatisticsDetailPage(rawValue: index - 1) { page = previous }
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.plain)
+            .disabled(index == 0)
+            .accessibilityLabel("Previous statistics page")
+
+            Text("\(index + 1) / \(StatisticsDetailPage.allCases.count)")
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 36)
+
+            Button {
+                if let next = StatisticsDetailPage(rawValue: index + 1) { page = next }
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.plain)
+            .disabled(index == StatisticsDetailPage.allCases.count - 1)
+            .accessibilityLabel("Next statistics page")
+        }
+        .frame(height: 20)
     }
 }
 
@@ -500,11 +551,11 @@ private struct ModelTablePanel: View {
                         Divider()
                     }
                 }
-                .background(ScrollWheelIsolationView())
             }
             .frame(height: 160)
         }
         .padding(9)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .panelStyle()
     }
 
@@ -556,11 +607,11 @@ private struct DailyTablePanel: View {
                         Divider()
                     }
                 }
-                .background(ScrollWheelIsolationView())
             }
             .frame(height: 160)
         }
         .padding(9)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .panelStyle()
     }
 
@@ -636,6 +687,7 @@ private struct ActivityHeatmap: View {
             }
         }
         .padding(9)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .panelStyle()
     }
 
@@ -672,16 +724,23 @@ private struct HeatmapCell: View {
                     Text("\(millionsCount(day.tokens)) tokens")
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
+                    Text(day.estimatedCostUSD.map { "\(money($0)) estimated cost" } ?? "Cost estimate unavailable")
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
                 }
                 .padding(9)
             }
-            .accessibilityLabel("\(rangeDate(day.day)), \(millionsCount(day.tokens)) tokens")
+            .accessibilityLabel(
+                "\(rangeDate(day.day)), \(millionsCount(day.tokens)) tokens, "
+                    + (day.estimatedCostUSD.map { "\(money($0)) estimated cost" } ?? "cost estimate unavailable")
+            )
     }
 }
 
 struct HeatmapDay: Equatable {
     let day: Date
     let tokens: Int
+    let estimatedCostUSD: Double?
 }
 
 struct HeatmapMonth: Identifiable, Equatable {
@@ -699,8 +758,8 @@ func heatmapMonths(from selectedDays: [CodexSelectedDay], calendar suppliedCalen
     let lastDay = calendar.startOfDay(for: last)
     guard var monthStart = calendar.dateInterval(of: .month, for: firstDay)?.start,
           let finalMonthStart = calendar.dateInterval(of: .month, for: lastDay)?.start else { return [] }
-    let tokenByDay = Dictionary(uniqueKeysWithValues: selectedDays.map {
-        (calendar.startOfDay(for: $0.day), $0.tokens)
+    let usageByDay = Dictionary(uniqueKeysWithValues: selectedDays.map {
+        (calendar.startOfDay(for: $0.day), ($0.tokens, $0.estimatedCostUSD))
     })
     var result: [HeatmapMonth] = []
     while monthStart <= finalMonthStart {
@@ -716,7 +775,8 @@ func heatmapMonths(from selectedDays: [CodexSelectedDay], calendar suppliedCalen
                       day >= firstDay,
                       day <= lastDay,
                       calendar.isDate(day, equalTo: monthStart, toGranularity: .month) else { return nil }
-                return HeatmapDay(day: day, tokens: tokenByDay[day] ?? 0)
+                let usage = usageByDay[day]
+                return HeatmapDay(day: day, tokens: usage?.0 ?? 0, estimatedCostUSD: usage?.1)
             }
             weeks.append(weekDays)
             guard let nextWeek = calendar.date(byAdding: .day, value: 7, to: weekStart) else { break }
@@ -855,88 +915,6 @@ private extension View {
     func panelStyle() -> some View {
         background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
-    }
-}
-
-private struct ScrollWheelIsolationView: NSViewRepresentable {
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> ScrollWheelIsolationMarker {
-        let view = ScrollWheelIsolationMarker()
-        context.coordinator.attach(to: view)
-        return view
-    }
-
-    func updateNSView(_ nsView: ScrollWheelIsolationMarker, context: Context) {
-        context.coordinator.attach(to: nsView)
-    }
-
-    static func dismantleNSView(_ nsView: ScrollWheelIsolationMarker, coordinator: Coordinator) {
-        coordinator.detach()
-    }
-
-    final class Coordinator {
-        private weak var marker: ScrollWheelIsolationMarker?
-        private var eventMonitor: Any?
-
-        func attach(to marker: ScrollWheelIsolationMarker) {
-            self.marker = marker
-            guard eventMonitor == nil else { return }
-            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                self?.filtered(event) ?? event
-            }
-            DispatchQueue.main.async { [weak marker] in
-                marker?.enclosingScrollView?.verticalScrollElasticity = .none
-            }
-        }
-
-        func detach() {
-            if let eventMonitor {
-                NSEvent.removeMonitor(eventMonitor)
-                self.eventMonitor = nil
-            }
-            marker = nil
-        }
-
-        deinit {
-            detach()
-        }
-
-        private func filtered(_ event: NSEvent) -> NSEvent? {
-            guard let marker,
-                  marker.window === event.window,
-                  marker.bounds.contains(marker.convert(event.locationInWindow, from: nil)),
-                  abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX),
-                  abs(event.scrollingDeltaY) > 0,
-                  let scrollView = marker.enclosingScrollView,
-                  let documentView = scrollView.documentView
-            else { return event }
-
-            let visible = scrollView.contentView.bounds
-            let document = documentView.bounds
-            guard document.height > visible.height + 0.5 else { return event }
-
-            let movingTowardTop = event.scrollingDeltaY > 0
-            let atTop: Bool
-            let atBottom: Bool
-            if documentView.isFlipped {
-                atTop = visible.minY <= document.minY + 0.5
-                atBottom = visible.maxY >= document.maxY - 0.5
-            } else {
-                atTop = visible.maxY >= document.maxY - 0.5
-                atBottom = visible.minY <= document.minY + 0.5
-            }
-
-            return (movingTowardTop && atTop) || (!movingTowardTop && atBottom) ? nil : event
-        }
-    }
-}
-
-private final class ScrollWheelIsolationMarker: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
     }
 }
 

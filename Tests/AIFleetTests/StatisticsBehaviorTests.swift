@@ -168,13 +168,17 @@ final class StatisticsBehaviorTests: XCTestCase {
         let monday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 3)))
         let nextMonday = try XCTUnwrap(calendar.date(byAdding: .day, value: 7, to: monday))
         let months = heatmapMonths(from: [
-            CodexSelectedDay(day: monday, tokens: 10, estimatedCostUSD: nil),
+            CodexSelectedDay(day: monday, tokens: 10, estimatedCostUSD: 1.25),
             CodexSelectedDay(day: nextMonday, tokens: 40, estimatedCostUSD: nil)
         ], calendar: calendar)
 
         XCTAssertEqual(months.count, 1)
         XCTAssertEqual(months[0].label, "Aug")
         XCTAssertEqual(months.flatMap(\.weeks).flatMap { $0 }.compactMap { $0 }.count, 8)
+        XCTAssertEqual(
+            months.flatMap(\.weeks).flatMap { $0 }.compactMap { $0 }.first { $0.day == monday }?.estimatedCostUSD,
+            1.25
+        )
         XCTAssertEqual(heatmapLevel(tokens: 0, maximum: 40), 0)
         XCTAssertEqual(heatmapLevel(tokens: 10, maximum: 40), 1)
         XCTAssertEqual(heatmapLevel(tokens: 40, maximum: 40), 4)

@@ -10,8 +10,10 @@ Tracks real product and release progress.
   fractional digits, realigned the compact period control, and reduced dashboard
   height enough to expose Activity as a scroll cue.
 - Displayed Total in billions while keeping Input and Output in millions, used
-  two-decimal millions in heatmap hover values, aligned metric-card typography,
-  and stopped table-edge scroll momentum from chaining into the full page.
+  two-decimal millions in heatmap hover values, and aligned metric-card typography.
+- Replaced the vertically scrolling Statistics page with arrow-controlled
+  `Models + Days` and `Activity` pages, eliminating table-to-page scroll chaining;
+  heatmap hover now also shows the day's API-equivalent cost estimate.
 
 ## [1.2.3] - 2026-08-23
 

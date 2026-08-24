@@ -28,14 +28,15 @@ subscription charges.
   in local sessions to the account token total for the selected period. Native
   `Account` and `Local` labels make the boundary visible wherever the two scopes
   meet.
-- Period controls remain unboxed, accounting values are grouped by meaning, and
-  model/day tables scroll only vertically without horizontal overflow. The day
-  table omits zero-activity dates. The page may scroll vertically to reach the
-  final Activity block; its GitHub-style day squares may scroll horizontally for
-  long histories and expose exact date/token activity on hover. Each month is a
-  distinct mini-grid with a standard abbreviated label centered over that
-  month's cells and visible inter-month spacing, so labels never wrap into
-  vertical letters. Hovering a day square opens an explicit date/token popover.
+- Period controls remain unboxed and accounting values are grouped by meaning.
+  The lower Statistics region has two arrow-controlled pages: `Models + Days`
+  and `Activity`. There is no surrounding vertical scroll view, so the compact
+  model/day lists scroll only themselves and cannot chain into the page. The day
+  table omits zero-activity dates. Activity's GitHub-style day squares may scroll
+  horizontally for long histories and expose exact date, token activity, and
+  the API-equivalent daily estimate when available. Each month is a distinct
+  mini-grid with a standard abbreviated label centered over that month's cells
+  and visible inter-month spacing, so labels never wrap into vertical letters.
 - Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
   The Lord of the Rings and Harry Potter cycles, plus ten well-known fantasy or
@@ -84,11 +85,7 @@ subscription charges.
 - The compact period selector sits at the upper right directly below account
   and local refresh timestamps in its own trailing row, leaving the content grid
   unobstructed and keeping its label and segments aligned as one compact unit.
-  Summary and table panels remain compact enough for the top edge of Activity to
-  be visible at the default window size as a natural vertical-scroll cue.
-- Models and Days retain their compact vertical lists, but reaching an inner
-  list boundary consumes the remaining wheel or trackpad momentum instead of
-  unexpectedly scrolling the surrounding Statistics page.
+  Summary and detail panels remain within the default window size.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.
