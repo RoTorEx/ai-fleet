@@ -9,6 +9,9 @@ Tracks real product and release progress.
 - Standardized all Statistics numbers to use spaces for thousands and a dot for
   fractional digits, realigned the compact period control, and reduced dashboard
   height enough to expose Activity as a scroll cue.
+- Displayed Total, Input, and Output consistently in billions, changed heatmap
+  hover values to one-decimal millions, aligned metric-card typography, and
+  stopped table-edge scroll momentum from chaining into the full page.
 
 ## [1.2.3] - 2026-08-23
 

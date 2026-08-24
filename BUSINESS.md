@@ -52,7 +52,10 @@ subscription charges.
   half a copy read as `less than one copy` instead of showing a decimal.
 - Statistics number formatting is locale-stable across tokens, estimates,
   source counts, progress, heatmap details, and book comparisons: spaces group
-  thousands and a dot separates the integer part from fractional digits.
+  thousands and a dot separates the integer part from fractional digits. The
+  Total, Input, and Output headline cards always use billions with two decimal
+  places so their scale and typography match. Heatmap hover values use millions
+  with one decimal place.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover
@@ -83,6 +86,9 @@ subscription charges.
   unobstructed and keeping its label and segments aligned as one compact unit.
   Summary and table panels remain compact enough for the top edge of Activity to
   be visible at the default window size as a natural vertical-scroll cue.
+- Models and Days retain their compact vertical lists, but reaching an inner
+  list boundary consumes the remaining wheel or trackpad momentum instead of
+  unexpectedly scrolling the surrounding Statistics page.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct StatisticsView: View {
@@ -98,7 +99,7 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Total tokens",
                         sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                        value: compactCount(selection.totalTokens),
+                        value: billionsCount(selection.totalTokens),
                         detail: periodDetail,
                         helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total),
                         fixedHeight: 98
@@ -111,7 +112,7 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Input",
                         sourceLabel: "Local",
-                        value: compactCount(selection.totals.inputTokens),
+                        value: billionsCount(selection.totals.inputTokens),
                         helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
                         rows: [
                             AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
@@ -124,7 +125,7 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Output",
                         sourceLabel: "Local",
-                        value: compactCount(selection.totals.outputTokens),
+                        value: billionsCount(selection.totals.outputTokens),
                         helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
                         rows: [
                             AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
@@ -315,10 +316,11 @@ private struct MetricCard: View {
             }
             .font(.system(size: 11.5, weight: .semibold))
             .foregroundColor(.secondary)
+            .frame(height: 15, alignment: .leading)
             Text(value)
                 .font(.system(size: 18, weight: .semibold, design: .monospaced))
                 .lineLimit(1)
-                .minimumScaleFactor(0.72)
+                .frame(height: 22, alignment: .leading)
             if let detail {
                 Text(detail)
                     .font(.system(size: 10.5, weight: .medium))
@@ -498,6 +500,7 @@ private struct ModelTablePanel: View {
                         Divider()
                     }
                 }
+                .background(ScrollWheelIsolationView())
             }
             .frame(height: 160)
         }
@@ -553,6 +556,7 @@ private struct DailyTablePanel: View {
                         Divider()
                     }
                 }
+                .background(ScrollWheelIsolationView())
             }
             .frame(height: 160)
         }
@@ -665,13 +669,13 @@ private struct HeatmapCell: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(rangeDate(day.day))
                         .font(.system(size: 11, weight: .semibold))
-                    Text("\(groupedInteger(day.tokens)) tokens")
+                    Text("\(millionsCount(day.tokens)) tokens")
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
                 .padding(9)
             }
-            .accessibilityLabel("\(rangeDate(day.day)), \(groupedInteger(day.tokens)) tokens")
+            .accessibilityLabel("\(rangeDate(day.day)), \(millionsCount(day.tokens)) tokens")
     }
 }
 
@@ -854,11 +858,101 @@ private extension View {
     }
 }
 
+private struct ScrollWheelIsolationView: NSViewRepresentable {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> ScrollWheelIsolationMarker {
+        let view = ScrollWheelIsolationMarker()
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: ScrollWheelIsolationMarker, context: Context) {
+        context.coordinator.attach(to: nsView)
+    }
+
+    static func dismantleNSView(_ nsView: ScrollWheelIsolationMarker, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        private weak var marker: ScrollWheelIsolationMarker?
+        private var eventMonitor: Any?
+
+        func attach(to marker: ScrollWheelIsolationMarker) {
+            self.marker = marker
+            guard eventMonitor == nil else { return }
+            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                self?.filtered(event) ?? event
+            }
+            DispatchQueue.main.async { [weak marker] in
+                marker?.enclosingScrollView?.verticalScrollElasticity = .none
+            }
+        }
+
+        func detach() {
+            if let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+                self.eventMonitor = nil
+            }
+            marker = nil
+        }
+
+        deinit {
+            detach()
+        }
+
+        private func filtered(_ event: NSEvent) -> NSEvent? {
+            guard let marker,
+                  marker.window === event.window,
+                  marker.bounds.contains(marker.convert(event.locationInWindow, from: nil)),
+                  abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX),
+                  abs(event.scrollingDeltaY) > 0,
+                  let scrollView = marker.enclosingScrollView,
+                  let documentView = scrollView.documentView
+            else { return event }
+
+            let visible = scrollView.contentView.bounds
+            let document = documentView.bounds
+            guard document.height > visible.height + 0.5 else { return event }
+
+            let movingTowardTop = event.scrollingDeltaY > 0
+            let atTop: Bool
+            let atBottom: Bool
+            if documentView.isFlipped {
+                atTop = visible.minY <= document.minY + 0.5
+                atBottom = visible.maxY >= document.maxY - 0.5
+            } else {
+                atTop = visible.maxY >= document.maxY - 0.5
+                atBottom = visible.minY <= document.minY + 0.5
+            }
+
+            return (movingTowardTop && atTop) || (!movingTowardTop && atBottom) ? nil : event
+        }
+    }
+}
+
+private final class ScrollWheelIsolationMarker: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
 func compactCount(_ value: Int) -> String {
     let absolute = abs(value)
     if absolute >= 1_000_000 { return "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M" }
     if absolute >= 1_000 { return "\(formattedNumber(Double(value) / 1_000, fractionDigits: 1))K" }
     return groupedInteger(value)
+}
+
+func billionsCount(_ value: Int) -> String {
+    "\(formattedNumber(Double(value) / 1_000_000_000, fractionDigits: 2))B"
+}
+
+func millionsCount(_ value: Int) -> String {
+    "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 1))M"
 }
 
 func money(_ value: Double) -> String {
