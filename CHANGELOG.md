@@ -6,6 +6,9 @@ Tracks real product and release progress.
 
 ### Fixed
 
+- Reset notification threshold history for every provider quota window, so
+  editing alert thresholds reliably rearms notifications after window-scoped
+  tracking was introduced.
 - Standardized all Statistics numbers to use spaces for thousands and a dot for
   fractional digits, realigned the compact period control, and reduced dashboard
   height enough to expose Activity as a scroll cue.

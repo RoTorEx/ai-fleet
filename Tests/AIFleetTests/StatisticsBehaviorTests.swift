@@ -10,6 +10,25 @@ final class StatisticsBehaviorTests: XCTestCase {
         )
     }
 
+    func testNotificationResetIncludesWindowScopedState() {
+        let keys = [
+            "notify.remainingLast.codex.primary",
+            "notify.remainingNotifiedThresholds.kimi.weekly",
+            "notify.remainingLast.codex",
+            "notify.remainingThresholds",
+            "provider.codex.enabled"
+        ]
+
+        XCTAssertEqual(
+            Set(notificationStateKeysToReset(keys)),
+            Set([
+                "notify.remainingLast.codex.primary",
+                "notify.remainingNotifiedThresholds.kimi.weekly",
+                "notify.remainingLast.codex"
+            ])
+        )
+    }
+
     func testNextDailyRefreshUsesNextLocalOccurrence() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

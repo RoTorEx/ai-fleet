@@ -165,9 +165,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     func resetNotificationThresholdState() {
         let defaults = UserDefaults.standard
-        for providerID in ProviderCatalog.allIDs {
-            defaults.removeObject(forKey: "notify.remainingLast.\(providerID)")
-            defaults.removeObject(forKey: "notify.remainingNotifiedThresholds.\(providerID)")
+        for key in notificationStateKeysToReset(defaults.dictionaryRepresentation().keys) {
+            defaults.removeObject(forKey: key)
         }
     }
 
@@ -798,4 +797,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
 func limitNotificationBody(providerName: String, threshold: Int, windowLabel: String) -> String {
     "\(providerName) reached \(threshold)% threshold (\(windowLabel))."
+}
+
+func notificationStateKeysToReset<S: Sequence>(_ keys: S) -> [String] where S.Element == String {
+    let prefixes = [
+        "notify.remainingLast.",
+        "notify.remainingNotifiedThresholds."
+    ]
+    return keys.filter { key in
+        prefixes.contains { key.hasPrefix($0) }
+    }
 }
