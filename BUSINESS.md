@@ -37,6 +37,12 @@ subscription charges.
   the API-equivalent daily estimate when available. Each month is a distinct
   mini-grid with a standard abbreviated label centered over that month's cells
   and visible inter-month spacing, so labels never wrap into vertical letters.
+  Before the first anniversary, the grid extends with empty future days through
+  the end of the first year measured from the first recorded vibecoding day.
+  After that anniversary it extends through the end of the current month, opens
+  with that month at the right, and keeps older history available by scrolling
+  left. Cell sizing fits one vibecoding year in the default window, while the
+  Activity panel uses only its content height instead of filling empty space.
 - Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
   The Lord of the Rings and Harry Potter cycles, plus ten well-known fantasy or

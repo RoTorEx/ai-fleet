@@ -14,6 +14,9 @@ Tracks real product and release progress.
 - Replaced the vertically scrolling Statistics page with arrow-controlled
   `Models + Days` and `Activity` pages, eliminating table-to-page scroll chaining;
   heatmap hover now also shows the day's API-equivalent cost estimate.
+- Extended Activity through the first vibecoding anniversary and thereafter
+  through the current month, sized a full year to the window, opened long
+  histories at the newest month, and removed unused heatmap panel height.
 
 ## [1.2.3] - 2026-08-23
 

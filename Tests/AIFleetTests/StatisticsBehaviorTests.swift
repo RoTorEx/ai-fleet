@@ -199,6 +199,23 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertEqual(months.flatMap(\.weeks).flatMap { $0 }.compactMap { $0 }.map(\.tokens), [10, 20])
     }
 
+    func testHeatmapHorizonCompletesFirstVibecodingYearThenEndsAtCurrentMonth() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 15)))
+        let duringFirstYear = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 24)))
+        let afterFirstYear = try XCTUnwrap(calendar.date(from: DateComponents(year: 2027, month: 2, day: 20)))
+
+        XCTAssertEqual(
+            heatmapHorizon(startingAt: start, now: duringFirstYear, calendar: calendar),
+            calendar.date(from: DateComponents(year: 2027, month: 2, day: 14))
+        )
+        XCTAssertEqual(
+            heatmapHorizon(startingAt: start, now: afterFirstYear, calendar: calendar),
+            calendar.date(from: DateComponents(year: 2027, month: 2, day: 28))
+        )
+    }
+
     func testLogDiscoveryIncludesArchiveAndDeduplicatesMovedSessions() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let active = root.appendingPathComponent("sessions")

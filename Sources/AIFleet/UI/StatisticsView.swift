@@ -74,7 +74,13 @@ struct StatisticsView: View {
                         .frame(minWidth: 330, maxWidth: .infinity)
                 }
             case .activity:
-                ActivityHeatmap(days: selection.daily, sourceLabel: selection.usesAccountUsage ? "Account" : "Local")
+                ActivityHeatmap(
+                    days: selection.daily,
+                    sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
+                    displayThrough: period == .allTime
+                        ? selection.daily.first.map { heatmapHorizon(startingAt: $0.day) }
+                        : nil
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -631,8 +637,13 @@ private struct DailyTablePanel: View {
 private struct ActivityHeatmap: View {
     let days: [CodexSelectedDay]
     let sourceLabel: String
+    let displayThrough: Date?
 
-    private var months: [HeatmapMonth] { heatmapMonths(from: days) }
+    private let cellSize: CGFloat = 9
+    private let cellSpacing: CGFloat = 2
+    private let monthSpacing: CGFloat = 8
+
+    private var months: [HeatmapMonth] { heatmapMonths(from: days, displayThrough: displayThrough) }
     private var maximumTokens: Int { max(1, days.map(\.tokens).max() ?? 1) }
 
     var body: some View {
@@ -662,32 +673,36 @@ private struct ActivityHeatmap: View {
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 90, alignment: .center)
             } else {
-                ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: 12) {
-                        ForEach(months) { month in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(month.label)
-                                    .font(.system(size: 9.5, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: monthWidth(month), alignment: .center)
-                                HStack(alignment: .top, spacing: 3) {
-                                    ForEach(Array(month.weeks.enumerated()), id: \.offset) { _, week in
-                                        VStack(spacing: 3) {
-                                            ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                                                heatmapCell(day)
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal) {
+                        HStack(alignment: .top, spacing: monthSpacing) {
+                            ForEach(months) { month in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(month.label)
+                                        .font(.system(size: 9.5, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: monthWidth(month), alignment: .center)
+                                    HStack(alignment: .top, spacing: cellSpacing) {
+                                        ForEach(Array(month.weeks.enumerated()), id: \.offset) { _, week in
+                                            VStack(spacing: cellSpacing) {
+                                                ForEach(Array(week.enumerated()), id: \.offset) { _, day in
+                                                    heatmapCell(day)
+                                                }
                                             }
                                         }
                                     }
                                 }
+                                .id(month.id)
                             }
                         }
+                        .padding(.bottom, 2)
                     }
-                    .padding(.bottom, 2)
+                    .onAppear { scrollToLatestMonth(proxy) }
+                    .onChange(of: months.last?.id) { _ in scrollToLatestMonth(proxy) }
                 }
             }
         }
         .padding(9)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .panelStyle()
     }
 
@@ -697,12 +712,19 @@ private struct ActivityHeatmap: View {
             let level = heatmapLevel(tokens: day.tokens, maximum: maximumTokens)
             HeatmapCell(day: day, level: level)
         } else {
-            Color.clear.frame(width: 11, height: 11)
+            Color.clear.frame(width: cellSize, height: cellSize)
         }
     }
 
     private func monthWidth(_ month: HeatmapMonth) -> CGFloat {
-        CGFloat(month.weeks.count * 11 + max(0, month.weeks.count - 1) * 3)
+        CGFloat(month.weeks.count) * cellSize + CGFloat(max(0, month.weeks.count - 1)) * cellSpacing
+    }
+
+    private func scrollToLatestMonth(_ proxy: ScrollViewProxy) {
+        guard let latest = months.last else { return }
+        DispatchQueue.main.async {
+            proxy.scrollTo(latest.id, anchor: .trailing)
+        }
     }
 }
 
@@ -714,7 +736,7 @@ private struct HeatmapCell: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(heatmapColor(level: level))
-            .frame(width: 11, height: 11)
+            .frame(width: 9, height: 9)
             .contentShape(Rectangle())
             .onHover { isPresented = $0 }
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
@@ -750,12 +772,33 @@ struct HeatmapMonth: Identifiable, Equatable {
     var id: Date { start }
 }
 
-func heatmapMonths(from selectedDays: [CodexSelectedDay], calendar suppliedCalendar: Calendar = .autoupdatingCurrent) -> [HeatmapMonth] {
+func heatmapHorizon(
+    startingAt firstActivity: Date,
+    now: Date = Date(),
+    calendar suppliedCalendar: Calendar = .autoupdatingCurrent
+) -> Date {
+    let calendar = suppliedCalendar
+    let start = calendar.startOfDay(for: firstActivity)
+    let firstAnniversary = calendar.date(byAdding: .year, value: 1, to: start) ?? start
+    let firstYearEnd = calendar.date(byAdding: .day, value: -1, to: firstAnniversary) ?? firstAnniversary
+    let today = calendar.startOfDay(for: now)
+    guard today > firstYearEnd,
+          let currentMonth = calendar.dateInterval(of: .month, for: today),
+          let currentMonthEnd = calendar.date(byAdding: .day, value: -1, to: currentMonth.end)
+    else { return firstYearEnd }
+    return currentMonthEnd
+}
+
+func heatmapMonths(
+    from selectedDays: [CodexSelectedDay],
+    displayThrough: Date? = nil,
+    calendar suppliedCalendar: Calendar = .autoupdatingCurrent
+) -> [HeatmapMonth] {
     guard let first = selectedDays.map(\.day).min(), let last = selectedDays.map(\.day).max() else { return [] }
     var calendar = suppliedCalendar
     calendar.firstWeekday = 1
     let firstDay = calendar.startOfDay(for: first)
-    let lastDay = calendar.startOfDay(for: last)
+    let lastDay = calendar.startOfDay(for: max(last, displayThrough ?? last))
     guard var monthStart = calendar.dateInterval(of: .month, for: firstDay)?.start,
           let finalMonthStart = calendar.dateInterval(of: .month, for: lastDay)?.start else { return [] }
     let usageByDay = Dictionary(uniqueKeysWithValues: selectedDays.map {
