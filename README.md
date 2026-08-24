@@ -67,7 +67,8 @@ Settings lets you manage remaining-quota thresholds such as `50`, `25`, `10`,
 removed, and fire when a provider crosses that remaining percentage from above.
 Notifications identify the affected quota window, for example
 `Codex reached 5% threshold (7d).` Each threshold fires once per quota window and
-becomes eligible again after that window resets above it.
+becomes eligible again after that window resets above it. When reset data is
+available, the next line includes both forms: `Resets in 2h 14m · Aug 24 at 06:00.`
 
 The menu shows the remaining quota and reset time for each limit window.
 Detailed usage data remains available in **Statistics…**.

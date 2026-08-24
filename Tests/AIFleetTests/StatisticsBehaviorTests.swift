@@ -3,10 +3,33 @@ import XCTest
 @testable import AIFleet
 
 final class StatisticsBehaviorTests: XCTestCase {
-    func testLimitNotificationNamesWindowAndEndsAtPeriod() {
+    func testLimitNotificationNamesWindowAndShowsRelativeAndExactReset() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 24, hour: 3, minute: 30
+        )))
+        let resetAt = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 29, hour: 21, minute: 18
+        )))
+
         XCTAssertEqual(
-            limitNotificationBody(providerName: "Codex", threshold: 5, windowLabel: "7d"),
-            "Codex reached 5% threshold (7d)."
+            limitNotificationBody(
+                providerName: "Codex",
+                threshold: 5,
+                windowLabel: "7d",
+                resetAt: resetAt,
+                now: now,
+                calendar: calendar
+            ),
+            "Codex reached 5% threshold (7d).\nResets in 5d 17h · Aug 29 at 21:18."
+        )
+    }
+
+    func testLimitNotificationFallsBackWhenResetIsUnavailable() {
+        XCTAssertEqual(
+            limitNotificationBody(providerName: "Kimi", threshold: 25, windowLabel: "5h"),
+            "Kimi reached 25% threshold (5h)."
         )
     }
 

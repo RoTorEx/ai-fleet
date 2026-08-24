@@ -17,9 +17,11 @@ subscription charges.
 ## Invariants
 
 - Quota notifications name the provider, crossed threshold, and exact window;
-  no redundant remaining value follows the threshold. Each threshold fires once
-  per quota window, rearms when that window resets above it, and threshold-setting
-  changes clear every provider/window notification marker.
+  no redundant remaining value follows the threshold. When the provider supplies
+  a reset timestamp, a second line shows both the compact time remaining and the
+  exact local reset time, so the alert is glanceable without losing precision.
+  Each threshold fires once per quota window, rearms when that window resets above
+  it, and threshold-setting changes clear every provider/window notification marker.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
 - Statistics opens on the all-time range. Account-wide Total, Days, and Activity

@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Added a second quota-notification line with both the relative wait and exact
+  local reset time when the provider supplies a reset timestamp.
+
 ### Fixed
 
 - Reset notification threshold history for every provider quota window, so

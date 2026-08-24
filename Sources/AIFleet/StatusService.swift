@@ -317,6 +317,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                         providerName: provider.name,
                         windowLabel: window.label,
                         threshold: threshold,
+                        resetAt: window.resetAt,
                         notifiedThresholdsKey: notifiedThresholdsKey,
                         acceptedThresholds: acceptedThresholds
                     )
@@ -331,6 +332,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         providerName: String,
         windowLabel: String,
         threshold: Int,
+        resetAt: Date?,
         notifiedThresholdsKey: String,
         acceptedThresholds: [Int]
     ) {
@@ -339,7 +341,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             body: limitNotificationBody(
                 providerName: providerName,
                 threshold: threshold,
-                windowLabel: windowLabel
+                windowLabel: windowLabel,
+                resetAt: resetAt
             )
         ) {
             UserDefaults.standard.set(acceptedThresholds, forKey: notifiedThresholdsKey)
@@ -795,8 +798,39 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 }
 
-func limitNotificationBody(providerName: String, threshold: Int, windowLabel: String) -> String {
-    "\(providerName) reached \(threshold)% threshold (\(windowLabel))."
+func limitNotificationBody(
+    providerName: String,
+    threshold: Int,
+    windowLabel: String,
+    resetAt: Date? = nil,
+    now: Date = Date(),
+    calendar: Calendar = .current
+) -> String {
+    let headline = "\(providerName) reached \(threshold)% threshold (\(windowLabel))."
+    guard let resetAt else { return headline }
+
+    let seconds = resetAt.timeIntervalSince(now)
+    guard seconds > 0 else { return "\(headline)\nResets now." }
+
+    let totalMinutes = max(1, Int(ceil(seconds / 60)))
+    let days = totalMinutes / (24 * 60)
+    let hours = (totalMinutes % (24 * 60)) / 60
+    let minutes = totalMinutes % 60
+    let relative: String
+    if days > 0 {
+        relative = hours > 0 ? "\(days)d \(hours)h" : "\(days)d"
+    } else if hours > 0 {
+        relative = minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+    } else {
+        relative = "\(minutes)m"
+    }
+
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.calendar = calendar
+    formatter.timeZone = calendar.timeZone
+    formatter.dateFormat = "MMM d 'at' HH:mm"
+    return "\(headline)\nResets in \(relative) · \(formatter.string(from: resetAt))."
 }
 
 func notificationStateKeysToReset<S: Sequence>(_ keys: S) -> [String] where S.Element == String {
