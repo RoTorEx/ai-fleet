@@ -53,9 +53,9 @@ subscription charges.
 - Statistics number formatting is locale-stable across tokens, estimates,
   source counts, progress, heatmap details, and book comparisons: spaces group
   thousands and a dot separates the integer part from fractional digits. The
-  Total, Input, and Output headline cards always use billions with two decimal
-  places so their scale and typography match. Heatmap hover values use millions
-  with one decimal place.
+  Total uses billions with two decimal places; Input and Output use millions
+  with two decimal places. Heatmap hover values also use millions with two
+  decimal places.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover

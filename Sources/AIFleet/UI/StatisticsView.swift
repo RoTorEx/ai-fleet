@@ -112,7 +112,7 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Input",
                         sourceLabel: "Local",
-                        value: billionsCount(selection.totals.inputTokens),
+                        value: compactCount(selection.totals.inputTokens),
                         helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
                         rows: [
                             AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
@@ -125,7 +125,7 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Output",
                         sourceLabel: "Local",
-                        value: billionsCount(selection.totals.outputTokens),
+                        value: compactCount(selection.totals.outputTokens),
                         helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
                         rows: [
                             AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
@@ -952,7 +952,7 @@ func billionsCount(_ value: Int) -> String {
 }
 
 func millionsCount(_ value: Int) -> String {
-    "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 1))M"
+    "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M"
 }
 
 func money(_ value: Double) -> String {
