@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-08-25
+
 ### Added
 
 - Added a second quota-notification line with both the relative wait and exact
