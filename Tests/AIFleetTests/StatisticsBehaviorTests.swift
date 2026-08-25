@@ -52,6 +52,36 @@ final class StatisticsBehaviorTests: XCTestCase {
         )
     }
 
+    func testCodexAdditionalRateLimitsIncludeNamedFiveHourWindow() throws {
+        let json = Data(#"""
+        {
+          "rate_limit": {
+            "primary_window": {"used_percent": 2, "limit_window_seconds": 604800, "reset_at": 1788272141},
+            "secondary_window": null
+          },
+          "additional_rate_limits": [{
+            "limit_name": "GPT-5.3-Codex-Spark",
+            "metered_feature": "codex_bengalfox",
+            "rate_limit": {
+              "primary_window": {"used_percent": 0, "limit_window_seconds": 18000, "reset_at": 1787688158},
+              "secondary_window": {"used_percent": 0, "limit_window_seconds": 604800, "reset_at": 1788274958}
+            }
+          }]
+        }
+        """#.utf8)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        let response = try decoder.decode(CodexUsageResponse.self, from: json)
+        let descriptors = codexLimitDescriptors(from: response)
+
+        XCTAssertEqual(descriptors.count, 3)
+        XCTAssertEqual(descriptors.map(\.context), [nil, "Spark", "Spark"])
+        XCTAssertEqual(descriptors.map { $0.window.limitWindowSeconds }, [604_800, 18_000, 604_800])
+        XCTAssertEqual(descriptors[1].id, "additional.codex_bengalfox.primary")
+        XCTAssertEqual(descriptors[1].groupID, descriptors[2].groupID)
+    }
+
     func testNextDailyRefreshUsesNextLocalOccurrence() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

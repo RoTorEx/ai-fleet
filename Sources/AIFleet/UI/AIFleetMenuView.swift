@@ -240,10 +240,12 @@ struct LimitWindowLine: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text(window.label)
+            Text(window.displayLabel)
                 .font(limitWindowFont)
                 .foregroundColor(windowColor)
-                .frame(width: 26, alignment: .leading)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(width: 76, alignment: .leading)
 
             Text(windowValueText)
                 .font(limitWindowFont)
@@ -272,6 +274,7 @@ struct LimitWindowLine: View {
         return status.limitWindows
             .filter { candidate in
                 guard candidate.id != window.id,
+                      candidate.groupID == window.groupID,
                       candidate.remainingPercent <= 0,
                       let candidateDuration = durationSeconds(for: candidate.label) else {
                     return false

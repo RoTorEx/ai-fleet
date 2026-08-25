@@ -34,6 +34,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     private struct LimitCandidate {
         let id: String
         let label: String
+        let context: String?
+        let groupID: String
         let remaining: Int
         let resetAt: Date?
         let usedCount: Int?
@@ -44,6 +46,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             ProviderLimitWindow(
                 id: id,
                 label: label,
+                context: context,
+                groupID: groupID,
                 remainingPercent: remaining,
                 resetAt: resetAt,
                 usedCount: usedCount,
@@ -315,7 +319,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                     let acceptedThresholds = Array(notifiedThresholds.union(crossedThresholds)).sorted(by: >)
                     sendLimitNotification(
                         providerName: provider.name,
-                        windowLabel: window.label,
+                        windowLabel: window.displayLabel,
                         threshold: threshold,
                         resetAt: window.resetAt,
                         notifiedThresholdsKey: notifiedThresholdsKey,
@@ -601,13 +605,9 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 return ProviderStatus(id: "codex", name: "Codex", state: .offline, detail: "Unavailable", lastUpdated: Date())
             }
             let decoded = try decoder.decode(CodexUsageResponse.self, from: data)
-            let candidates = [
-                ("primary", decoded.rateLimit?.primaryWindow),
-                ("secondary", decoded.rateLimit?.secondaryWindow)
-            ]
-                .compactMap { id, window in
-                    window.flatMap { codexLimitCandidate(from: $0, id: id) }
-                }
+            let candidates = codexLimitDescriptors(from: decoded).compactMap { descriptor in
+                codexLimitCandidate(from: descriptor)
+            }
             guard let selected = candidates.min(by: { $0.remaining < $1.remaining }) else {
                 return ProviderStatus(id: "codex", name: "Codex", state: .ok, detail: "No limit data", lastUpdated: Date())
             }
@@ -732,6 +732,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         return LimitCandidate(
             id: id,
             label: label,
+            context: nil,
+            groupID: "default",
             remaining: remaining,
             resetAt: parseISO8601(window.resetTime),
             usedCount: usedCount,
@@ -740,12 +742,15 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         )
     }
 
-    private func codexLimitCandidate(from window: CodexUsageResponse.Window, id: String) -> LimitCandidate? {
+    private func codexLimitCandidate(from descriptor: CodexLimitDescriptor) -> LimitCandidate? {
+        let window = descriptor.window
         guard let used = window.usedPercent else { return nil }
         let label = compactDurationLabel(seconds: window.limitWindowSeconds) ?? "window"
         return LimitCandidate(
-            id: id,
+            id: descriptor.id,
             label: label,
+            context: descriptor.context,
+            groupID: descriptor.groupID,
             remaining: remainingPercent(usedPercent: used),
             resetAt: window.resetAt.map { Date(timeIntervalSince1970: $0) },
             usedCount: nil,
