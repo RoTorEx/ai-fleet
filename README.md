@@ -71,8 +71,8 @@ becomes eligible again after that window resets above it. When reset data is
 available, the next line includes both forms: `Resets in 2h 14m · Aug 24 at 06:00.`
 
 The menu shows the remaining quota and reset time for each limit window.
-Model-specific Codex quotas returned separately by the service are labeled with
-their context, for example `Spark · 5h`.
+For Codex it intentionally shows only the main account limits; separate
+model-specific limits such as Spark are omitted.
 Detailed usage data remains available in **Statistics…**.
 
 ## Menu View

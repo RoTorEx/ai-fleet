@@ -22,10 +22,11 @@ subscription charges.
   exact local reset time, so the alert is glanceable without losing precision.
   Each threshold fires once per quota window, rearms when that window resets above
   it, and threshold-setting changes clear every provider/window notification marker.
-- Codex quota status includes both the base `rate_limit` windows and every window
-  returned in `additional_rate_limits`. Additional windows retain a compact model
-  context such as `Spark · 5h`; independent limit groups never block or mask one
-  another merely because their durations overlap.
+- Codex quota status shows only the account's main `rate_limit` primary and
+  secondary windows. Model-specific `additional_rate_limits`, including Spark,
+  are intentionally ignored; they must never stand in for a missing main 5h
+  window. If Codex returns the main 5h window again, the existing primary/secondary
+  parsing displays it automatically.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
 - Statistics opens on the all-time range. Account-wide Total, Days, and Activity

@@ -11,8 +11,8 @@ Tracks real product and release progress.
 
 ### Fixed
 
-- Restored Codex 5-hour and other model-specific quota windows by reading the
-  service's `additional_rate_limits` alongside the base quota response.
+- Kept Codex quota status limited to the main account windows and excluded
+  model-specific `additional_rate_limits` such as Spark.
 - Reset notification threshold history for every provider quota window, so
   editing alert thresholds reliably rearms notifications after window-scoped
   tracking was introduced.

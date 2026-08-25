@@ -3,8 +3,6 @@ import Foundation
 struct ProviderLimitWindow: Identifiable, Equatable {
     let id: String
     let label: String
-    let context: String?
-    let groupID: String
     let remainingPercent: Int
     let resetAt: Date?
     let usedCount: Int?
@@ -14,8 +12,6 @@ struct ProviderLimitWindow: Identifiable, Equatable {
     init(
         id: String,
         label: String,
-        context: String? = nil,
-        groupID: String = "default",
         remainingPercent: Int,
         resetAt: Date?,
         usedCount: Int? = nil,
@@ -24,17 +20,11 @@ struct ProviderLimitWindow: Identifiable, Equatable {
     ) {
         self.id = id
         self.label = label
-        self.context = context
-        self.groupID = groupID
         self.remainingPercent = remainingPercent
         self.resetAt = resetAt
         self.usedCount = usedCount
         self.limitCount = limitCount
         self.unit = unit
-    }
-
-    var displayLabel: String {
-        context.map { "\($0) · \(label)" } ?? label
     }
 }
 
@@ -179,17 +169,10 @@ struct KimiOAuthRefreshResponse: Codable {
 
 struct CodexUsageResponse: Codable {
     let rateLimit: RateLimit?
-    let additionalRateLimits: [AdditionalRateLimit]?
 
     struct RateLimit: Codable {
         let primaryWindow: Window?
         let secondaryWindow: Window?
-    }
-
-    struct AdditionalRateLimit: Codable {
-        let limitName: String?
-        let meteredFeature: String?
-        let rateLimit: RateLimit?
     }
 
     struct Window: Codable {
@@ -210,54 +193,6 @@ struct CodexUsageResponse: Codable {
             resetAt = container.decodeLossyDouble(forKey: .resetAt)
         }
     }
-}
-
-struct CodexLimitDescriptor {
-    let id: String
-    let context: String?
-    let groupID: String
-    let window: CodexUsageResponse.Window
-}
-
-func codexLimitDescriptors(from response: CodexUsageResponse) -> [CodexLimitDescriptor] {
-    var result: [CodexLimitDescriptor] = []
-
-    if let window = response.rateLimit?.primaryWindow {
-        result.append(CodexLimitDescriptor(id: "primary", context: nil, groupID: "base", window: window))
-    }
-    if let window = response.rateLimit?.secondaryWindow {
-        result.append(CodexLimitDescriptor(id: "secondary", context: nil, groupID: "base", window: window))
-    }
-
-    for (index, additional) in (response.additionalRateLimits ?? []).enumerated() {
-        let stableName = additional.meteredFeature ?? additional.limitName ?? "limit-\(index)"
-        let groupID = "additional.\(stableName)"
-        let context = compactCodexLimitName(additional.limitName ?? stableName)
-        if let window = additional.rateLimit?.primaryWindow {
-            result.append(CodexLimitDescriptor(
-                id: "\(groupID).primary",
-                context: context,
-                groupID: groupID,
-                window: window
-            ))
-        }
-        if let window = additional.rateLimit?.secondaryWindow {
-            result.append(CodexLimitDescriptor(
-                id: "\(groupID).secondary",
-                context: context,
-                groupID: groupID,
-                window: window
-            ))
-        }
-    }
-
-    return result
-}
-
-private func compactCodexLimitName(_ name: String) -> String {
-    guard let marker = name.range(of: "-Codex-") else { return name }
-    let suffix = String(name[marker.upperBound...])
-    return suffix.isEmpty ? name : suffix
 }
 
 struct CodexAuth: Codable {
