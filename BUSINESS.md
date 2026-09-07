@@ -106,6 +106,11 @@ subscription charges.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.
+- Remaining-quota color states in the compact menu are red at `10%` or below,
+  orange from `11%` through `25%` inclusive, and normal at `26%` or above.
+  The boundaries make the warning band more visible before an account becomes
+  critically low; they apply consistently to both provider rows and individual
+  quota windows.
 
 ## Decision-bearing defaults
 

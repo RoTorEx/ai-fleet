@@ -4,6 +4,10 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Extended the compact menu's orange remaining-quota warning range through 25%.
+
 ## [1.2.4] - 2026-08-25
 
 ### Added

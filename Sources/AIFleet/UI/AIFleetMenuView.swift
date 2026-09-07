@@ -310,7 +310,7 @@ struct LimitWindowLine: View {
         if window.remainingPercent <= 10 {
             return FleetPalette.danger
         }
-        if window.remainingPercent < 20 {
+        if window.remainingPercent <= 25 {
             return FleetPalette.warning
         }
         return FleetPalette.value
@@ -324,11 +324,11 @@ struct LegendSection: View {
                 Text("Color:")
                     .foregroundColor(FleetPalette.label)
                 HStack(spacing: 4) {
-                    Text("normal ≥20%")
+                    Text("normal ≥26%")
                         .foregroundColor(FleetPalette.value)
                     Text("·")
                         .foregroundColor(FleetPalette.muted)
-                    Text("orange 11-19%")
+                    Text("orange 11-25%")
                         .foregroundColor(FleetPalette.warning)
                     Text("·")
                         .foregroundColor(FleetPalette.muted)
@@ -469,7 +469,7 @@ private func limitText(for status: ProviderStatus) -> String {
 private func rowColor(for status: ProviderStatus) -> Color {
     switch status.state {
     case .ok:
-        if let remaining = status.remainingPercent, remaining < 20 {
+        if let remaining = status.remainingPercent, (11...25).contains(remaining) {
             return FleetPalette.warning
         }
         return FleetPalette.value
