@@ -28,6 +28,7 @@ enum LocalProviderAuth: Equatable {
 struct ClaudeAuthReader {
     let executableURL: URL?
     var timeout: TimeInterval = 10
+    var environment: [String: String]? = nil
 
     func read() -> LocalProviderAuth {
         readSnapshot().auth
@@ -36,7 +37,8 @@ struct ClaudeAuthReader {
     func readSnapshot() -> ClaudeAuthSnapshot {
         guard let executableURL,
               let result = LocalCommandReader.read(executableURL: executableURL,
-                                                   arguments: ["auth", "status"], timeout: timeout) else {
+                                                   arguments: ["auth", "status"], timeout: timeout,
+                                                   environment: environment) else {
             return ClaudeAuthSnapshot(auth: .unknown)
         }
         return Self.decodeSnapshot(result.data, exitCode: result.exitCode)
@@ -51,6 +53,10 @@ struct ClaudeAuthReader {
             let loggedIn: Bool
             let authMethod: String?
             let configDirectory: String?
+            let email: String?
+            let orgId: String?
+            let orgName: String?
+            let subscriptionType: String?
         }
         guard let response = try? JSONDecoder().decode(Response.self, from: data) else {
             return ClaudeAuthSnapshot(auth: .unknown)
@@ -62,7 +68,10 @@ struct ClaudeAuthReader {
         default: auth = .unknown
         }
         return ClaudeAuthSnapshot(auth: auth, authMethod: response.authMethod,
-                                  configDirectory: response.configDirectory)
+                                  configDirectory: response.configDirectory,
+                                  account: auth == .signedIn ? ProviderAccountIdentity(
+                                    email: response.email, organizationID: response.orgId,
+                                    organizationName: response.orgName, subscriptionType: response.subscriptionType) : nil)
     }
 }
 
@@ -70,16 +79,19 @@ struct ClaudeAuthSnapshot {
     let auth: LocalProviderAuth
     var authMethod: String? = nil
     var configDirectory: String? = nil
+    var account: ProviderAccountIdentity? = nil
 }
 
 enum LocalCommandReader {
-    static func read(executableURL: URL, arguments: [String], timeout: TimeInterval = 10)
+    static func read(executableURL: URL, arguments: [String], timeout: TimeInterval = 10,
+                     environment: [String: String]? = nil)
         -> (data: Data, exitCode: Int32)? {
         let process = Process()
         let output = Pipe()
         let finished = DispatchSemaphore(value: 0)
         process.executableURL = executableURL
         process.arguments = arguments
+        process.environment = environment
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = output

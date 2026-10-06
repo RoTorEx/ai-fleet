@@ -5,11 +5,31 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var service = StatusService.shared
+    @State private var tab = "general"
     @State private var newThreshold = 10
     @State private var newThresholdText = "10"
     @State private var isAddingThreshold = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Picker("Settings", selection: $tab) {
+                Text("General").tag("general")
+                Text("Accounts").tag("accounts")
+            }.pickerStyle(.segmented)
+            ScrollView {
+                if tab == "accounts" { AccountsSettingsView() }
+                else { generalSettings }
+            }
+        }
+        .padding(20)
+        .frame(width: 500, height: 640)
+        .onAppear {
+            service.refreshNotificationSettings()
+            service.refresh()
+        }
+    }
+
+    private var generalSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
             settingsRow("Menu shortcut") {
                 HotkeyRecorder(settings: settings)
@@ -96,13 +116,6 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        }
-        .padding(20)
-        .frame(width: 430)
-        .fixedSize(horizontal: false, vertical: true)
-        .onAppear {
-            service.refreshNotificationSettings()
-            service.refresh()
         }
     }
 
@@ -218,7 +231,6 @@ private struct ProviderSettingsRow: View {
                 Text(provider.name)
                     .font(.system(size: 12, weight: .medium))
                     .frame(width: 56, alignment: .leading)
-
                 Text(detailText)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundColor(.secondary)

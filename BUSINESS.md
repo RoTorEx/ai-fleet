@@ -25,8 +25,8 @@ subscription charges.
   or unrecognized local checks read `Auth status unknown`. Qwen quota retrieval
   is not implemented and reads `Signed in · quota unsupported` when login is
   configured. Claude subscription quotas reuse that CLI profile's OAuth token
-  from its credentials file or, for the default profile only, the Claude Code
-  Keychain item. Tokens stay in memory, are never logged or rewritten, and
+  from its credentials file or its profile-specific Claude Code Keychain item.
+  Tokens stay in memory, are never logged or rewritten by AI Fleet, and
   requests go only to Anthropic's usage endpoint without following redirects.
   The main `five_hour` and `seven_day` windows display remaining percentages
   and reset times using the existing quota and notification rules. Missing or
@@ -36,6 +36,15 @@ subscription charges.
   outside this integration.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
+- Accounts are provider-independent identities with stable α, β, γ badges.
+  Each can link any supported provider; one provider appears once in the menu
+  with its linked account badges. Selecting a badge changes the displayed quota
+  and future AI Fleet launches for that provider. Email, organization, and plan
+  are hover details, not permanent rows. Management lives inside the existing
+  Settings window; account management creates no separate app window. Existing
+  sessions and ordinary CLI commands retain their login. See
+  [Accounts](business/accounts.md) for selection, isolation, and storage rules.
+
 - Quota notifications name the provider, crossed threshold, and exact window;
   no redundant remaining value follows the threshold. When the provider supplies
   a reset timestamp, a second line shows both the compact time remaining and the
@@ -152,6 +161,9 @@ subscription charges.
 - Quota and notifications: `Sources/AIFleet/StatusService.swift`
 - Claude subscription usage: `Sources/AIFleet/ClaudeQuota.swift`
 - Local login detection: `Sources/AIFleet/LocalProviderAuth.swift`
+- Shared accounts, provider connections, and launch: `Sources/AIFleet/Accounts.swift`
+- Claude configuration/Keychain selectors: `Sources/AIFleet/ClaudeProfiles.swift`
+- Account management inside Settings: `Sources/AIFleet/UI/AccountsSettingsView.swift`
 - Refresh preferences: `Sources/AIFleet/AppSettings.swift`
 - Analytics and caches: `Sources/AIFleet/UsageAnalytics.swift`
 - User interfaces: `Sources/AIFleet/UI/*`

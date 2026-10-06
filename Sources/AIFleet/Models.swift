@@ -30,6 +30,7 @@ struct ProviderLimitWindow: Identifiable, Equatable {
 
 struct ProviderStatus: Identifiable, Equatable {
     let id: String
+    let providerID: String
     let name: String
     let state: State
     let detail: String
@@ -38,6 +39,8 @@ struct ProviderStatus: Identifiable, Equatable {
     let windowLabel: String?
     let resetAt: Date?
     let limitWindows: [ProviderLimitWindow]
+    let account: ProviderAccountIdentity?
+    let notificationScope: String
 
     init(
         id: String,
@@ -48,9 +51,13 @@ struct ProviderStatus: Identifiable, Equatable {
         remainingPercent: Int? = nil,
         windowLabel: String? = nil,
         resetAt: Date? = nil,
-        limitWindows: [ProviderLimitWindow] = []
+        limitWindows: [ProviderLimitWindow] = [],
+        providerID: String? = nil,
+        account: ProviderAccountIdentity? = nil,
+        notificationScope: String? = nil
     ) {
         self.id = id
+        self.providerID = providerID ?? id
         self.name = name
         self.state = state
         self.detail = detail
@@ -59,6 +66,8 @@ struct ProviderStatus: Identifiable, Equatable {
         self.windowLabel = windowLabel
         self.resetAt = resetAt
         self.limitWindows = limitWindows
+        self.account = account
+        self.notificationScope = notificationScope ?? id
     }
 
     enum State: Equatable {
@@ -71,6 +80,13 @@ struct ProviderStatus: Identifiable, Equatable {
 
     var isInstalled: Bool {
         state != .notInstalled
+    }
+
+    func withAccount(_ identity: ProviderAccountIdentity?) -> ProviderStatus {
+        ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
+                       remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
+                       limitWindows: limitWindows, providerID: providerID, account: identity,
+                       notificationScope: notificationScope)
     }
 }
 

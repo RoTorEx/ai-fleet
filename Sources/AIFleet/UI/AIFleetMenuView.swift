@@ -8,10 +8,14 @@ struct AIFleetMenuView: View {
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
     @ObservedObject private var updater = UpdateService.shared
+    @ObservedObject private var accounts = AccountStore.shared
 
     private var providers: [ProviderStatus] {
-        service.providerStatuses.filter { provider in
-            settings.isEnabled(provider.id) && provider.isInstalled
+        ProviderCatalog.all.compactMap { provider in
+            guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider),
+                  let connection = accounts.selected(for: provider.id)?.connection(for: provider.id) else { return nil }
+            return service.status(for: connection) ?? ProviderStatus(id: connection.statusID, name: provider.name,
+                state: .offline, detail: "Checking…", lastUpdated: nil, providerID: provider.id)
         }
     }
 
@@ -29,15 +33,14 @@ struct AIFleetMenuView: View {
                 .padding(.top, 11)
                 .padding(.bottom, 8)
 
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(providers) { provider in
-                    ProviderLimitRow(
-                        status: provider,
-                        isLowest: provider.id == lowestProvider?.id
-                    )
+            if providers.count > 3 {
+                ScrollView {
+                    providerRows
                 }
+                .frame(height: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 350)))
+            } else {
+                providerRows
             }
-            .padding(.horizontal, 16)
 
             LegendSection()
                 .padding(.horizontal, 16)
@@ -89,6 +92,15 @@ struct AIFleetMenuView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(FleetPalette.border, lineWidth: 1)
         )
+    }
+
+    private var providerRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(providers) { provider in
+                ProviderLimitRow(status: provider, isLowest: provider.id == lowestProvider?.id)
+            }
+        }
+        .padding(.horizontal, 16)
     }
 
     private var summarySection: some View {
@@ -194,6 +206,8 @@ struct AIFleetMenuView: View {
 struct ProviderLimitRow: View {
     let status: ProviderStatus
     let isLowest: Bool
+    @ObservedObject private var accounts = AccountStore.shared
+    @ObservedObject private var service = StatusService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -212,7 +226,33 @@ struct ProviderLimitRow: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(rowColor(for: status))
 
-                Spacer(minLength: 0)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(accounts.linkedAccounts(for: status.providerID)) { account in
+                            if let connection = account.connection(for: status.providerID) {
+                                Button {
+                                    accounts.select(account.id, for: status.providerID)
+                                    service.refresh()
+                                } label: {
+                                    Text(account.badge)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .frame(minWidth: 22, minHeight: 20)
+                                        .background(Color.accentColor.opacity(accounts.selections[status.providerID] == account.id ? 0.2 : 0.04),
+                                                    in: RoundedRectangle(cornerRadius: 4))
+                                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                                            accounts.selections[status.providerID] == account.id ? Color.accentColor : Color.clear))
+                                }
+                                .buttonStyle(.plain)
+                                .help(account.tooltip(for: connection, status: service.status(for: connection)))
+                                .accessibilityLabel("\(status.name) account \(account.badge)")
+                                .contextMenu {
+                                    Button("Sign in…") { accounts.open(connection, account: account, login: true) }
+                                    Button("Open \(status.name)…") { accounts.open(connection, account: account) }
+                                }
+                            }
+                        }
+                    }
+                }.frame(height: 22)
             }
 
             if !status.limitWindows.isEmpty {

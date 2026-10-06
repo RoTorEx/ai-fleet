@@ -54,7 +54,11 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 
 ## Models
 
-- `ProviderStatus` — identity, display name, state, detail string, and last-update time.
+- `ProviderStatus` — subscription row ID, provider ID, display name, state,
+  quota windows, optional account metadata, and an account notification scope.
+- `AccountStore` — provider-independent accounts with stable badges, provider
+  connections, and per-provider selections. `ProviderConnection` owns its
+  configuration selector; credentials remain with the native provider CLI.
 - `KimiCodeUsageResponse` — Kimi Code subscription usage payload.
 - `KimiBalanceResponse` — Moonshot balance fallback payload.
 - `CodexUsageResponse` — ChatGPT WHAM usage payload.
@@ -65,7 +69,14 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 
 ## UI
 
-- `AIFleetMenuView` — minimal popover with Kimi and Codex rows, last update time, and Refresh / Quit buttons.
+- `AIFleetMenuView` — one row per provider, with horizontally scrollable account
+  badges. Click selects quota and future launches; hover shows account metadata,
+  and the badge context menu launches/signs in to the selected connection.
+- `AccountsSettingsView` — account editor in the existing Settings window's
+  Accounts tab. It adds identities, attaches/moves/imports provider connections,
+  renames labels, removes metadata, and opens native CLI sign-in. There is no
+  account-management window. Settings has a bounded 500 × 640 point layout with
+  scrolling so SwiftUI fitting-size changes cannot collapse it to a narrow strip.
 - `StatisticsView` — centered, resizable provider analytics window with
   date-range filtering, account/local source labels, vertically scrolling
   fixed-column tables, an aligned three-column summary grid, and a final
@@ -106,12 +117,14 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Claude quota retrieval: `GET https://api.anthropic.com/api/oauth/usage` with the
   existing CLI profile's OAuth token and `anthropic-beta: oauth-2025-04-20`.
   `ClaudeQuota.swift` reads the active profile's `.credentials.json`, falling
-  back to `Claude Code-credentials` through `/usr/bin/security` only for the
-  default profile. It never refreshes or writes Claude credentials. Only the
+  back to the selected profile's scoped Keychain service through
+  `/usr/bin/security`. It never refreshes or writes Claude credentials. Only the
   main 5h/7d subscription windows are displayed; redirects are rejected.
   Source reference: https://github.com/steipete/CodexBar/blob/main/docs/claude.md.
 - Qwen quota retrieval is unsupported. Login and quota errors remain separate
   in both the menu and Settings; opening either surface requests a fresh check.
+- Claude profile and launch boundaries:
+  [business/accounts.md](../../business/accounts.md).
 
 ## Delivery and updates
 

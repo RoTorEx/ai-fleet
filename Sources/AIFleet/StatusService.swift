@@ -10,6 +10,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var kimi: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.kimi)
     @Published var codex: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.codex)
     @Published var claude: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.claude)
+    @Published var subscriptions: [ProviderStatus] = []
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var lastError: String?
     @Published var notificationStatusText = "Checking"
@@ -17,7 +18,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     private var timer: Timer?
     private var task: Task<Void, Never>?
-    private let session = URLSession(configuration: .ephemeral)
+    private let session: URLSession
     private let config = AppConfig.load()
     private let iso8601 = ISO8601DateFormatter()
     private let iso8601Fractional: ISO8601DateFormatter = {
@@ -54,6 +55,12 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     private override init() {
+        session = URLSession(configuration: .ephemeral)
+        super.init()
+    }
+
+    init(session: URLSession) {
+        self.session = session
         super.init()
     }
 
@@ -101,7 +108,12 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     var providerStatuses: [ProviderStatus] {
-        [codex, kimi, claude, qwen]
+        let configured = Set(AccountStore.shared.accounts.flatMap { $0.connections.map(\.statusID) })
+        return subscriptions.filter { configured.contains($0.id) }
+    }
+
+    func status(for connection: ProviderConnection) -> ProviderStatus? {
+        providerStatuses.first { $0.id == connection.statusID }
     }
 
     func status(for providerID: String) -> ProviderStatus {
@@ -181,66 +193,70 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         task?.cancel()
         task = Task { @MainActor in
             lastError = nil
-            async let kimiResult = checkKimiIfEnabled()
-            async let codexResult = checkCodexIfEnabled()
-            async let claudeResult = checkClaudeIfEnabled()
-            async let qwenResult = checkQwenIfEnabled()
-            let statuses = await (kimiResult, codexResult, claudeResult, qwenResult)
+            let connections = AccountStore.shared.accounts.flatMap(\.connections)
+            var results: [ProviderStatus] = []
+            await withTaskGroup(of: ProviderStatus.self) { group in
+                for connection in connections {
+                    group.addTask { await self.checkConnection(connection) }
+                }
+                for await result in group { results.append(result) }
+            }
             guard !Task.isCancelled else { return }
-            self.kimi = statuses.0
-            self.codex = statuses.1
-            self.claude = statuses.2
-            self.qwen = statuses.3
+            self.subscriptions = connections.compactMap { connection in results.first { $0.id == connection.statusID } }
+            self.codex = selectedStatus(for: ProviderCatalog.codex)
+            self.kimi = selectedStatus(for: ProviderCatalog.kimi)
+            self.claude = selectedStatus(for: ProviderCatalog.claude)
+            self.qwen = selectedStatus(for: ProviderCatalog.qwen)
             processDrainNotifications()
         }
     }
 
-    private func checkKimiIfEnabled() async -> ProviderStatus {
-        guard ProviderCatalog.isInstalled(ProviderCatalog.kimi) else {
-            return Self.notInstalledStatus(for: ProviderCatalog.kimi)
-        }
-        guard AppSettings.shared.kimiEnabled else {
-            return Self.disabledStatus(for: ProviderCatalog.kimi)
-        }
-        return await checkKimi()
+    private func selectedStatus(for provider: ProviderDefinition) -> ProviderStatus {
+        guard let connection = AccountStore.shared.selected(for: provider.id)?.connection(for: provider.id),
+              let result = status(for: connection) else { return Self.initialStatus(for: provider) }
+        return result
     }
 
-    private func checkCodexIfEnabled() async -> ProviderStatus {
-        guard ProviderCatalog.isInstalled(ProviderCatalog.codex) else {
-            return Self.notInstalledStatus(for: ProviderCatalog.codex)
+    private func checkConnection(_ connection: ProviderConnection) async -> ProviderStatus {
+        guard let provider = ProviderCatalog.definition(for: connection.providerID) else {
+            return connection.status(from: LocalProviderAuth.unknown.status(for: ProviderCatalog.claude))
         }
-        guard AppSettings.shared.codexEnabled else {
-            return Self.disabledStatus(for: ProviderCatalog.codex)
+        guard ProviderCatalog.isInstalled(provider) else { return connection.status(from: Self.notInstalledStatus(for: provider)) }
+        guard AppSettings.shared.isEnabled(provider.id) else { return connection.status(from: Self.disabledStatus(for: provider)) }
+        let result: ProviderStatus
+        switch provider.id {
+        case "claude":
+            result = await Self.checkClaudeProfile(connection.claudeProfile, executableURL: ProviderCatalog.executableURL(for: provider))
+        case "codex": result = await checkCodex(connection: connection)
+        case "kimi": result = await checkKimi(connection: connection)
+        case "qwen":
+            let urls = connection.configDirectory == nil ? ProviderCatalog.credentialURLs(for: provider)
+                : [connection.credentialURL()!, URL(fileURLWithPath: connection.configDirectory!).appendingPathComponent("credentials.json")]
+            result = QwenAuthReader.read(urls: urls).status(for: provider)
+        default: result = LocalProviderAuth.unknown.status(for: provider)
         }
-        return await checkCodex()
+        return connection.status(from: result)
     }
 
-    private func checkClaudeIfEnabled() async -> ProviderStatus {
-        guard ProviderCatalog.isInstalled(ProviderCatalog.claude) else {
-            return Self.notInstalledStatus(for: ProviderCatalog.claude)
-        }
-        guard AppSettings.shared.claudeEnabled else {
-            return Self.disabledStatus(for: ProviderCatalog.claude)
-        }
-        let executableURL = ProviderCatalog.executableURL(for: ProviderCatalog.claude)
+    static func checkClaudeProfile(_ profile: ClaudeProfile, executableURL: URL?,
+                                   quotaSession: URLSession? = nil) async -> ProviderStatus {
         let (snapshot, credential) = await Task.detached(priority: .utility) {
-            let snapshot = ClaudeAuthReader(executableURL: executableURL).readSnapshot()
-            return (snapshot, ClaudeQuotaCredential.read(snapshot: snapshot))
+            let snapshot = ClaudeAuthReader(executableURL: executableURL, environment: profile.environment()).readSnapshot()
+            return (snapshot, ClaudeQuotaCredential.read(snapshot: snapshot, profile: profile))
         }.value
-        guard snapshot.auth == .signedIn else { return snapshot.auth.status(for: ProviderCatalog.claude) }
-        guard let credential else { return ClaudeQuota.unavailable("Signed in · quota unavailable") }
-        return await ClaudeQuota.fetch(credential: credential)
-    }
-
-    private func checkQwenIfEnabled() async -> ProviderStatus {
-        guard ProviderCatalog.isInstalled(ProviderCatalog.qwen) else {
-            return Self.notInstalledStatus(for: ProviderCatalog.qwen)
+        let status: ProviderStatus
+        if snapshot.auth != .signedIn {
+            status = snapshot.auth.status(for: ProviderCatalog.claude)
+        } else if let credential {
+            if let quotaSession {
+                status = await ClaudeQuota.fetch(credential: credential, session: quotaSession)
+            } else {
+                status = await ClaudeQuota.fetch(credential: credential)
+            }
+        } else {
+            status = ClaudeQuota.unavailable("Signed in · quota unavailable")
         }
-        guard AppSettings.shared.qwenEnabled else {
-            return Self.disabledStatus(for: ProviderCatalog.qwen)
-        }
-        return QwenAuthReader.read(urls: ProviderCatalog.credentialURLs(for: ProviderCatalog.qwen))
-            .status(for: ProviderCatalog.qwen)
+        return profile.status(from: status, account: snapshot.account)
     }
 
     // MARK: - Drain notifications
@@ -283,14 +299,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let thresholds = settings.notificationThresholds
         let defaults = UserDefaults.standard
 
-        for provider in providerStatuses where settings.isEnabled(provider.id) {
+        for provider in providerStatuses where settings.isEnabled(provider.providerID) {
             guard provider.state == .ok || provider.state == .limited else {
                 continue
             }
 
             for window in provider.limitWindows {
                 let remaining = max(0, min(100, window.remainingPercent))
-                let keySuffix = "\(provider.id).\(window.id)"
+                let keySuffix = "\(provider.notificationScope).\(window.id)"
                 let lastRemainingKey = "notify.remainingLast.\(keySuffix)"
                 let notifiedThresholdsKey = "notify.remainingNotifiedThresholds.\(keySuffix)"
                 let previousRemaining = defaults.object(forKey: lastRemainingKey) as? Int ?? 101
@@ -311,7 +327,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 if let threshold = crossedThresholds.min() {
                     let acceptedThresholds = Array(notifiedThresholds.union(crossedThresholds)).sorted(by: >)
                     sendLimitNotification(
-                        providerName: provider.name,
+                        providerName: notificationName(for: provider),
                         windowLabel: window.label,
                         threshold: threshold,
                         resetAt: window.resetAt,
@@ -323,6 +339,11 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 defaults.set(remaining, forKey: lastRemainingKey)
             }
         }
+    }
+
+    private func notificationName(for status: ProviderStatus) -> String {
+        guard let account = AccountStore.shared.accounts.first(where: { $0.connections.contains { $0.statusID == status.id } }) else { return status.name }
+        return "\(status.name) \(account.badge)"
     }
 
     private func sendLimitNotification(
@@ -399,17 +420,17 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     // MARK: - Kimi
 
-    private func checkKimi() async -> ProviderStatus {
+    func checkKimi(connection: ProviderConnection) async -> ProviderStatus {
         // 1. Prefer Kimi Code subscription credentials.
-        if let auth = readKimiCodeAuth() {
-            let result = await checkKimiCode(auth: auth)
+        if let auth = readKimiCodeAuth(connection: connection) {
+            let result = await checkKimiCode(auth: auth, connection: connection)
             if result.state != .noKey {
                 return result
             }
         }
 
         // 2. Fall back to Open Platform API key balance.
-        guard let key = config.resolvedKimiKey, !key.isEmpty else {
+        guard connection.configDirectory == nil, let key = config.resolvedKimiKey, !key.isEmpty else {
             return Self.unavailableStatus(for: ProviderCatalog.kimi)
         }
 
@@ -434,10 +455,10 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
 
-    private func checkKimiCode(auth: KimiCodeAuth) async -> ProviderStatus {
+    private func checkKimiCode(auth: KimiCodeAuth, connection: ProviderConnection) async -> ProviderStatus {
         var activeAuth = auth
         if auth.needsRefresh {
-            switch await refreshKimiCodeAuth(auth: auth) {
+            switch await refreshKimiCodeAuth(auth: auth, connection: connection) {
             case .refreshed(let refreshed):
                 activeAuth = refreshed
             case .unauthorized:
@@ -456,7 +477,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return status
         }
 
-        switch await refreshKimiCodeAuth(auth: activeAuth) {
+        switch await refreshKimiCodeAuth(auth: activeAuth, connection: connection) {
         case .refreshed(let refreshed):
             guard let token = refreshed.accessToken else { return status }
             return await fetchKimiCodeStatus(accessToken: token)
@@ -527,7 +548,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         case failed
     }
 
-    private func refreshKimiCodeAuth(auth: KimiCodeAuth) async -> KimiRefreshResult {
+    private func refreshKimiCodeAuth(auth: KimiCodeAuth, connection: ProviderConnection) async -> KimiRefreshResult {
         guard let refreshToken = auth.refreshToken, !refreshToken.isEmpty else {
             return .unauthorized
         }
@@ -537,7 +558,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        for (field, value) in kimiDeviceHeaders() {
+        for (field, value) in kimiDeviceHeaders(connection: connection) {
             request.setValue(value, forHTTPHeaderField: field)
         }
         request.timeoutInterval = 15
@@ -567,7 +588,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 scope: refresh.scope ?? auth.scope,
                 tokenType: refresh.tokenType ?? auth.tokenType
             )
-            saveKimiCodeAuth(nextAuth)
+            saveKimiCodeAuth(nextAuth, connection: connection)
             return .refreshed(nextAuth)
         } catch {
             return .failed
@@ -576,11 +597,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     // MARK: - Codex
 
-    private func checkCodex() async -> ProviderStatus {
-        guard let credentials = readCodexCredentials() else {
+    func checkCodex(connection: ProviderConnection) async -> ProviderStatus {
+        guard let credentials = readCodexCredentials(connection: connection) else {
             return Self.unavailableStatus(for: ProviderCatalog.codex)
         }
+        return await fetchCodexStatus(credentials: credentials).withAccount(credentials.identity)
+    }
 
+    private func fetchCodexStatus(credentials: (accessToken: String, accountID: String?, identity: ProviderAccountIdentity?)) async -> ProviderStatus {
         let url = URL(string: "https://chatgpt.com/backend-api/wham/usage")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
@@ -628,9 +652,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     // MARK: - Auth readers
 
-    private func readCodexCredentials() -> (accessToken: String, accountID: String?)? {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/auth.json")
+    private func readCodexCredentials(connection: ProviderConnection) -> (accessToken: String, accountID: String?, identity: ProviderAccountIdentity?)? {
+        guard let url = connection.credentialURL() else { return nil }
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let object = try? JSONSerialization.jsonObject(with: data),
               let auth = object as? [String: Any] else {
@@ -645,18 +668,18 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
               !accessToken.isEmpty else {
             return nil
         }
-        return (accessToken, accountID)
+        return (accessToken, accountID, CodexProfileIdentity.read(auth: auth, accountID: accountID))
     }
 
-    private func readKimiCodeAuth() -> KimiCodeAuth? {
-        let url = kimiCodeCredentialsURL()
+    private func readKimiCodeAuth(connection: ProviderConnection) -> KimiCodeAuth? {
+        let url = connection.credentialURL()!
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? decoder.decode(KimiCodeAuth.self, from: data)
     }
 
-    private func saveKimiCodeAuth(_ auth: KimiCodeAuth) {
+    private func saveKimiCodeAuth(_ auth: KimiCodeAuth, connection: ProviderConnection) {
         do {
-            let url = kimiCodeCredentialsURL()
+            let url = connection.credentialURL()!
             let encoder = JSONEncoder()
             encoder.keyEncodingStrategy = .convertToSnakeCase
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -668,14 +691,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
 
-    private func kimiCodeCredentialsURL() -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".kimi-code/credentials/kimi-code.json")
-    }
-
-    private func kimiDeviceHeaders() -> [String: String] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".kimi-code", isDirectory: true)
+    private func kimiDeviceHeaders(connection: ProviderConnection) -> [String: String] {
+        let home = connection.credentialURL()!.deletingLastPathComponent().deletingLastPathComponent()
         let deviceIDURL = home.appendingPathComponent("device_id")
         let rawDeviceID = (try? String(contentsOf: deviceIDURL))?
             .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)

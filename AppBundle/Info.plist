@@ -24,5 +24,7 @@
 	<string>13.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>AI Fleet opens provider CLIs in Terminal with the account you select.</string>
 </dict>
 </plist>

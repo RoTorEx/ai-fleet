@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Shared accounts with stable α/β/γ badges and independent provider connections,
+  native sign-in, configuration-folder import, and per-provider selection.
+- One menu row per provider with selectable account badges and email/plan hover
+  details; account management is embedded in the existing Settings window.
+- Separate quota and notification scopes for Claude, Codex, and Kimi profiles;
+  Qwen retains its explicit unsupported-quota state.
+
 ## [1.2.6] - 2026-10-06
 
 ### Fixed

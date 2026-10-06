@@ -10,8 +10,10 @@ It sits in the menu bar as a ship icon and shows a simple dropdown:
 
 - **Kimi** — Kimi Code usage from `~/.kimi-code`, falling back to Moonshot API balance.
 - **Codex** — remaining usage percent from the ChatGPT backend.
+- **Claude** — remaining 5h/7d subscription quota and native sign-in.
+- **Accounts** — shared α/β/γ badges across providers; email and plan on hover.
 
-No dock icon and no CLI wrapper.
+No dock icon. Provider sessions launched from AI Fleet use the chosen account.
 
 ## Requirements
 
@@ -55,6 +57,22 @@ You can also set the `KIMI_API_KEY` environment variable when running from a ter
 ### Codex
 
 The app reads your ChatGPT OAuth token from `~/.codex/auth.json` (created automatically when you sign in with the Codex CLI). No extra setup is required.
+
+### Accounts
+
+Open **Settings → Accounts** in the existing Settings window. **+** adds a
+shared account with a stable badge (α, β, γ…). Give it a name/email label and
+check the providers you want to connect. **Link existing** moves an existing
+provider connection to this badge; **Import folder…** links an existing CLI
+configuration directory. **Sign in…** opens that provider's native login in
+Terminal; Qwen uses its interactive login flow.
+
+The menu shows one row per provider with account badges next to its name.
+Click a badge to select that account's quota. Hover for email/organization/plan
+when available; the plan is never guessed. Right-click the badge to sign in or
+open a new session in a project folder. Selection is per provider and persists
+across restart. Existing sessions and ordinary CLI commands retain their login.
+Removing an account keeps its provider credentials and session files.
 
 ## Refresh
 

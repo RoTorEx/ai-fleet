@@ -19,18 +19,22 @@ struct ClaudeQuotaCredential {
         return ClaudeQuotaCredential(accessToken: oauth.accessToken, expiresAt: expiry)
     }
 
-    static func read(snapshot: ClaudeAuthSnapshot) -> ClaudeQuotaCredential? {
+    static func read(snapshot: ClaudeAuthSnapshot, profile: ClaudeProfile? = nil) -> ClaudeQuotaCredential? {
         guard snapshot.auth == .signedIn, snapshot.authMethod == "claude.ai" else { return nil }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let defaultDirectory = home.appendingPathComponent(".claude")
         let directory = snapshot.configDirectory.map { URL(fileURLWithPath: $0) } ?? defaultDirectory
+        if let profile, let reported = snapshot.configDirectory {
+            let requested = profile.configDirectory.map { URL(fileURLWithPath: $0) } ?? defaultDirectory
+            guard URL(fileURLWithPath: reported).standardizedFileURL == requested.standardizedFileURL else { return nil }
+        }
         if let data = try? Data(contentsOf: directory.appendingPathComponent(".credentials.json")),
            let credential = decode(data) { return credential }
-        // A custom profile must never borrow the default account's Keychain token.
-        guard directory.standardizedFileURL == defaultDirectory.standardizedFileURL,
+        // Named profiles use only their own scoped Keychain item.
+        guard profile != nil || directory.standardizedFileURL == defaultDirectory.standardizedFileURL,
               let result = LocalCommandReader.read(
                 executableURL: URL(fileURLWithPath: "/usr/bin/security"),
-                arguments: ["find-generic-password", "-s", "Claude Code-credentials", "-w"]),
+                arguments: ["find-generic-password", "-s", profile?.keychainService ?? "Claude Code-credentials", "-w"]),
               result.exitCode == 0 else { return nil }
         return decode(result.data)
     }
