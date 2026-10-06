@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-10-06
+
 ### Fixed
 
 - Distinguish missing login, unknown auth status, and unsupported quota retrieval
