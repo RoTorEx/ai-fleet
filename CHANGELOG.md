@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-10-06
+
 ### Fixed
 
 - Read Claude subscription quota windows from the signed-in CLI account and
