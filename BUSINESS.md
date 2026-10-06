@@ -16,6 +16,15 @@ subscription charges.
 
 ## Invariants
 
+- Provider installation, login, and quota support are separate states. Claude
+  login comes from the CLI's structured `auth status` result, never from
+  `.claude.json` settings. Qwen requires OAuth token fields, not merely a
+  nonempty file; expired access without a refresh token requires sign-in.
+  Qwen's local check does not validate credentials with the server. Confirmed
+  missing login reads `Sign in required` in both Settings and the menu; failed
+  or unrecognized local checks read `Auth status unknown`. Claude and Qwen
+  quota retrieval is not implemented and reads `Quota unsupported` when login
+  is configured. Neither state implies an exhausted quota.
 - Quota notifications name the provider, crossed threshold, and exact window;
   no redundant remaining value follows the threshold. When the provider supplies
   a reset timestamp, a second line shows both the compact time remaining and the
@@ -115,6 +124,10 @@ subscription charges.
 ## Decision-bearing defaults
 
 - Provider status polling remains every `60 seconds` for timely quota state.
+- Claude's local auth check runs off the UI thread and times out after
+  `10 seconds`, terminating the owned CLI process so a hung check cannot stall
+  subsequent provider refreshes. This bound is shorter than the polling period;
+  timeout is an unknown auth state, not proof that sign-in is missing.
 - Automatic Codex analytics refresh is enabled by default once per local day at
   `12:00`. The user can disable it or choose any minute of the day in Settings.
   A daily cadence limits disk and CPU use while keeping historical reporting

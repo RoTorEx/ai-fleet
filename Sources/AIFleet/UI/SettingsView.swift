@@ -234,9 +234,6 @@ private struct ProviderSettingsRow: View {
         if !isInstalled {
             return "Not installed"
         }
-        if status.state == .noKey {
-            return "Unavailable"
-        }
         return status.detail
     }
 }

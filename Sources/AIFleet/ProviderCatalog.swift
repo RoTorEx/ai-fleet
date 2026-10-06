@@ -26,12 +26,7 @@ enum ProviderCatalog {
         id: "claude",
         name: "Claude",
         executableNames: ["claude"],
-        credentialPaths: [
-            ".claude.json",
-            ".claude/credentials.json",
-            ".claude/.credentials.json",
-            ".config/claude/credentials.json"
-        ]
+        credentialPaths: [] // Claude's CLI checks its active auth source, including Keychain.
     )
 
     static let qwen = ProviderDefinition(
@@ -72,19 +67,6 @@ enum ProviderCatalog {
 
     static func executableURL(for provider: ProviderDefinition) -> URL? {
         ProviderInstallDetector.executableURL(named: provider.executableNames)
-    }
-
-    static func hasCredentialFile(for provider: ProviderDefinition) -> Bool {
-        credentialURLs(for: provider).contains { url in
-            var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-                  !isDirectory.boolValue,
-                  let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-                  let size = attributes[.size] as? NSNumber else {
-                return false
-            }
-            return size.intValue > 0
-        }
     }
 
     static func credentialURLs(for provider: ProviderDefinition) -> [URL] {

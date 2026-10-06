@@ -96,8 +96,14 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
   `~/Library/Application Support/AI Fleet/usage-analytics-files-cache.json`.
 - Statistics refresh: optional once-daily local schedule, enabled by default at
   12:00; manual refresh is always available.
-- Claude login detection: local Claude credential files such as `~/.claude.json`.
-- Qwen login detection: local Qwen credential files such as `~/.qwen/oauth_creds.json`.
+- Claude login detection: `claude auth status` JSON plus its exit code, executed
+  off the UI thread with a 10-second timeout. The CLI resolves the active auth
+  source (including macOS Keychain); `.claude.json` is not login evidence.
+- Qwen login detection: parsed OAuth token fields in local credential files
+  such as `~/.qwen/oauth_creds.json`. Expired access needs a refresh token;
+  these credentials are not validated with the server.
+- Claude/Qwen quota retrieval is unsupported. Missing login and failed auth
+  checks are displayed separately in both the menu and Settings.
 
 ## Delivery and updates
 

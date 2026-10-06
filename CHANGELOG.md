@@ -4,6 +4,12 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Distinguish missing login, unknown auth status, and unsupported quota retrieval
+  for Claude and Qwen; stop treating settings files as proof of login and keep
+  sign-in guidance visible in Settings.
+
 ### Changed
 
 - Extended the compact menu's orange remaining-quota warning range through 25%.

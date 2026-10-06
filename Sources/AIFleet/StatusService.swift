@@ -95,7 +95,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             id: provider.id,
             name: provider.name,
             state: .noKey,
-            detail: "Unavailable · sign in",
+            detail: "Sign in required",
             lastUpdated: Date()
         )
     }
@@ -220,7 +220,11 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         guard AppSettings.shared.claudeEnabled else {
             return Self.disabledStatus(for: ProviderCatalog.claude)
         }
-        return checkLocalProvider(ProviderCatalog.claude)
+        let executableURL = ProviderCatalog.executableURL(for: ProviderCatalog.claude)
+        let auth = await Task.detached(priority: .utility) {
+            ClaudeAuthReader(executableURL: executableURL).read()
+        }.value
+        return auth.status(for: ProviderCatalog.claude)
     }
 
     private func checkQwenIfEnabled() async -> ProviderStatus {
@@ -230,20 +234,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         guard AppSettings.shared.qwenEnabled else {
             return Self.disabledStatus(for: ProviderCatalog.qwen)
         }
-        return checkLocalProvider(ProviderCatalog.qwen)
-    }
-
-    private func checkLocalProvider(_ provider: ProviderDefinition) -> ProviderStatus {
-        guard ProviderCatalog.hasCredentialFile(for: provider) else {
-            return Self.unavailableStatus(for: provider)
-        }
-        return ProviderStatus(
-            id: provider.id,
-            name: provider.name,
-            state: .ok,
-            detail: "No quota data",
-            lastUpdated: Date()
-        )
+        return QwenAuthReader.read(urls: ProviderCatalog.credentialURLs(for: ProviderCatalog.qwen))
+            .status(for: ProviderCatalog.qwen)
     }
 
     // MARK: - Drain notifications
