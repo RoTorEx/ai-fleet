@@ -144,6 +144,20 @@ subscription charges.
 ## Decision-bearing defaults
 
 - Provider status polling remains every `60 seconds` for timely quota state.
+  Claude quota requests within a running app are spaced at least
+  `300 seconds` (five minutes),
+  including manual refresh/opening views. This app-defined interval bounds
+  request volume for long 5h/7d windows; it is not a claimed Anthropic limit.
+  A HTTP 429 response pauses quota updates without changing confirmed login.
+  Retries double from `300 seconds` up to `3600 seconds` (one hour), and a later
+  server `Retry-After` deadline takes precedence. A missing/zero/invalid header
+  never causes immediate repeated requests. Cooldown survives app restart;
+  simultaneous refreshes join one request. Last successful quota stays visible
+  with its measurement time and retry time, but stale quota cannot generate
+  threshold alerts or become the Lowest recommendation. With no measurement,
+  the app shows signed-in/waiting instead of inventing remaining quota.
+  Successful updates clear the retry state. Tests in `ClaudeQuotaPollerTests`
+  protect request counts, cancellation, restart, recovery, and account isolation.
 - Claude's local auth check runs off the UI thread and times out after
   `10 seconds`, terminating the owned CLI process so a hung check cannot stall
   subsequent provider refreshes. This bound is shorter than the polling period;

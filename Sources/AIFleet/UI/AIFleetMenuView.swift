@@ -21,6 +21,7 @@ struct AIFleetMenuView: View {
 
     private var lowestProvider: ProviderStatus? {
         providers
+            .filter { $0.quotaNotice == nil }
             .filter { ($0.remainingPercent ?? 0) > 0 }
             .min { ($0.remainingPercent ?? 101) < ($1.remainingPercent ?? 101) }
     }
@@ -268,6 +269,13 @@ struct ProviderLimitRow: View {
                     .foregroundColor(rowColor(for: status))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                    .padding(.leading, 40)
+            }
+            if let notice = status.quotaNotice {
+                Text(notice)
+                    .font(.system(size: 10.5))
+                    .foregroundColor(FleetPalette.warning)
+                    .lineLimit(2)
                     .padding(.leading, 40)
             }
         }

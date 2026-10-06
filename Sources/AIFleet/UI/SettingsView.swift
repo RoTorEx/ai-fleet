@@ -240,12 +240,15 @@ private struct ProviderSettingsRow: View {
         }
         .disabled(!isInstalled)
         .opacity(isInstalled ? 1 : 0.45)
-        .help(detailText)
+        .help(status.quotaNotice ?? detailText)
     }
 
     private var detailText: String {
         if !isInstalled {
             return "Not installed"
+        }
+        if status.quotaNotice != nil, let remaining = status.remainingPercent {
+            return "Last known: \(remaining)% left"
         }
         return status.detail
     }

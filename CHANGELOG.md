@@ -13,6 +13,14 @@ Tracks real product and release progress.
 - Separate quota and notification scopes for Claude, Codex, and Kimi profiles;
   Qwen retains its explicit unsupported-quota state.
 
+### Fixed
+
+- Stop retrying Claude usage requests on every menu open or one-minute poll;
+  coalesce requests, cache successful measurements, respect Retry-After, and
+  persist increasing cooldowns after HTTP 429 across app restarts.
+- Keep authenticated Claude accounts visible during rate limits, explicitly
+  label last-known quota, and suppress alerts based on stale measurements.
+
 ## [1.2.6] - 2026-10-06
 
 ### Fixed

@@ -76,7 +76,11 @@ Removing an account keeps its provider credentials and session files.
 
 ## Refresh
 
-Status is refreshed automatically every 60 seconds. Click **Refresh now** in the menu to poll immediately.
+Provider status is refreshed every 60 seconds. **Refresh now** also checks local
+login immediately. Claude quota requests reuse measurements for five minutes;
+opening views or refreshing does not bypass that interval or a server cooldown.
+If Claude limits quota updates, the app keeps the login visible, shows any last
+measurement with its time, and displays the next retry time.
 
 ## Notifications
 

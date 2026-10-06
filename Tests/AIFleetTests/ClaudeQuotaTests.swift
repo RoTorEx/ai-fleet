@@ -73,7 +73,7 @@ final class ClaudeQuotaTests: XCTestCase {
         let success = await ClaudeQuota.fetch(credential: credential, session: session)
         XCTAssertEqual(success.remainingPercent, 85)
         XCTAssertEqual(success.state, .ok)
-        for (code, expected) in [(401, ProviderStatus.State.noKey), (403, .offline), (429, .offline), (500, .offline)] {
+        for (code, expected) in [(401, ProviderStatus.State.noKey), (403, .offline), (429, .ok), (500, .offline)] {
             ClaudeQuotaURLProtocol.handler = { _ in (code, Data()) }
             let status = await ClaudeQuota.fetch(credential: credential, session: session)
             XCTAssertEqual(status.state, expected)
@@ -83,6 +83,14 @@ final class ClaudeQuotaTests: XCTestCase {
         let offline = await ClaudeQuota.fetch(credential: credential, session: session)
         XCTAssertEqual(offline.state, .offline)
         XCTAssertNil(offline.remainingPercent)
+    }
+
+    func testRetryAfterAcceptsDelayOrHTTPDateAndRejectsInvalidValues() throws {
+        let now = Date(timeIntervalSince1970: 100)
+        XCTAssertEqual(ClaudeQuota.retryDate("600", now: now), now.addingTimeInterval(600))
+        XCTAssertEqual(ClaudeQuota.retryDate("0", now: now), now)
+        XCTAssertEqual(ClaudeQuota.retryDate("Tue, 06 Oct 2026 16:00:00 GMT", now: now), Date(timeIntervalSince1970: 1791302400))
+        for value in ["bad", "-1", "nan", "inf"] { XCTAssertNil(ClaudeQuota.retryDate(value, now: now)) }
     }
 }
 

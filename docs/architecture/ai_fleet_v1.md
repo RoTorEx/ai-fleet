@@ -59,6 +59,11 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `AccountStore` — provider-independent accounts with stable badges, provider
   connections, and per-provider selections. `ProviderConnection` owns its
   configuration selector; credentials remain with the native provider CLI.
+- `ClaudeQuotaPoller` — actor that coalesces in-flight usage requests, caches
+  successful quota measurements, and persists per-identity retry cooldowns.
+  `ProviderStatus.quotaNotice` distinguishes last-known/paused quota from login
+  or connectivity failures; stale measurements are excluded from notifications
+  and the compact menu's Lowest selection.
 - `KimiCodeUsageResponse` — Kimi Code subscription usage payload.
 - `KimiBalanceResponse` — Moonshot balance fallback payload.
 - `CodexUsageResponse` — ChatGPT WHAM usage payload.

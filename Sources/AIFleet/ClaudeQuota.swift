@@ -75,7 +75,29 @@ enum ClaudeQuota {
                               resetAt: selected.resetAt, limitWindows: windows)
     }
 
+    struct Result {
+        let status: ProviderStatus
+        var rateLimited = false
+        var retryAt: Date? = nil
+    }
+
     static func fetch(credential: ClaudeQuotaCredential, session: URLSession = liveSession) async -> ProviderStatus {
+        await request(credential: credential, session: session).status
+    }
+
+    static func retryDate(_ value: String?, now: Date) -> Date? {
+        guard let value else { return nil }
+        if let seconds = TimeInterval(value.trimmingCharacters(in: .whitespaces)), seconds.isFinite, seconds >= 0 {
+            return now.addingTimeInterval(seconds)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return formatter.date(from: value)
+    }
+
+    static func request(credential: ClaudeQuotaCredential, session: URLSession = liveSession) async -> Result {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.timeoutInterval = 15
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -84,16 +106,18 @@ enum ClaudeQuota {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         do {
             let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return unavailable("Quota unavailable") }
+            guard let http = response as? HTTPURLResponse else { return Result(status: unavailable("Quota unavailable")) }
             switch http.statusCode {
-            case 200: return try decode(data)
-            case 401: return unavailable("Sign in required", state: .noKey)
-            case 403: return unavailable("Signed in · quota access denied")
-            case 429: return unavailable("Quota refresh rate limited")
-            default: return unavailable("Quota unavailable")
+            case 200: return Result(status: try decode(data))
+            case 401: return Result(status: unavailable("Sign in required", state: .noKey))
+            case 403: return Result(status: unavailable("Signed in · quota access denied"))
+            case 429:
+                return Result(status: unavailable("Signed in · quota update paused", state: .ok), rateLimited: true,
+                              retryAt: retryDate(http.value(forHTTPHeaderField: "Retry-After"), now: Date()))
+            default: return Result(status: unavailable("Quota unavailable"))
             }
         } catch {
-            return unavailable("Quota unavailable")
+            return Result(status: unavailable("Quota unavailable"))
         }
     }
 }

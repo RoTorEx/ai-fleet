@@ -251,7 +251,10 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             if let quotaSession {
                 status = await ClaudeQuota.fetch(credential: credential, session: quotaSession)
             } else {
-                status = await ClaudeQuota.fetch(credential: credential)
+                let key = ClaudeQuotaPoller.key(profile: profile, identity: snapshot.account, credential: credential)
+                status = await ClaudeQuotaPoller.shared.status(key: key) {
+                    await ClaudeQuota.request(credential: credential)
+                }
             }
         } else {
             status = ClaudeQuota.unavailable("Signed in · quota unavailable")
@@ -300,7 +303,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let defaults = UserDefaults.standard
 
         for provider in providerStatuses where settings.isEnabled(provider.providerID) {
-            guard provider.state == .ok || provider.state == .limited else {
+            guard provider.quotaNotice == nil, provider.state == .ok || provider.state == .limited else {
                 continue
             }
 

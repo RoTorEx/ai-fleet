@@ -41,6 +41,7 @@ struct ProviderStatus: Identifiable, Equatable {
     let limitWindows: [ProviderLimitWindow]
     let account: ProviderAccountIdentity?
     let notificationScope: String
+    let quotaNotice: String?
 
     init(
         id: String,
@@ -54,7 +55,8 @@ struct ProviderStatus: Identifiable, Equatable {
         limitWindows: [ProviderLimitWindow] = [],
         providerID: String? = nil,
         account: ProviderAccountIdentity? = nil,
-        notificationScope: String? = nil
+        notificationScope: String? = nil,
+        quotaNotice: String? = nil
     ) {
         self.id = id
         self.providerID = providerID ?? id
@@ -68,6 +70,7 @@ struct ProviderStatus: Identifiable, Equatable {
         self.limitWindows = limitWindows
         self.account = account
         self.notificationScope = notificationScope ?? id
+        self.quotaNotice = quotaNotice
     }
 
     enum State: Equatable {
@@ -86,7 +89,14 @@ struct ProviderStatus: Identifiable, Equatable {
         ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
                        remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
                        limitWindows: limitWindows, providerID: providerID, account: identity,
-                       notificationScope: notificationScope)
+                       notificationScope: notificationScope, quotaNotice: quotaNotice)
+    }
+
+    func withQuotaNotice(_ notice: String) -> ProviderStatus {
+        ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
+                       remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
+                       limitWindows: limitWindows, providerID: providerID, account: account,
+                       notificationScope: notificationScope, quotaNotice: notice)
     }
 }
 

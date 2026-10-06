@@ -83,6 +83,9 @@ private struct AccountEditor: View {
                     }
                     if let connection = account.connection(for: provider.id) {
                         connectionActions(connection, provider: provider)
+                        if let notice = service.status(for: connection)?.quotaNotice {
+                            Text(notice).font(.caption).foregroundColor(.orange)
+                        }
                     } else {
                         HStack {
                             Menu("Link existing") {

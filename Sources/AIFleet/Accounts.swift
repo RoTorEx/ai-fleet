@@ -80,7 +80,8 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
                        remainingPercent: source.remainingPercent, windowLabel: source.windowLabel,
                        resetAt: source.resetAt, limitWindows: source.limitWindows, providerID: providerID,
                        account: source.account,
-                       notificationScope: "\(statusID).\(source.account?.scope ?? "unidentified")")
+                       notificationScope: "\(statusID).\(source.account?.scope ?? "unidentified")",
+                       quotaNotice: source.quotaNotice)
     }
 }
 
@@ -104,7 +105,8 @@ struct FleetAccount: Codable, Identifiable, Equatable {
     func tooltip(for connection: ProviderConnection, status: ProviderStatus?) -> String {
         let identity = status?.account?.caption ?? ""
         let metadata = identity.isEmpty ? email : identity
-        return ["\(badge) · \(name)", metadata, status?.detail ?? "Checking…"].filter { !$0.isEmpty }.joined(separator: "\n")
+        return ["\(badge) · \(name)", metadata, status?.detail ?? "Checking…", status?.quotaNotice ?? ""]
+            .filter { !$0.isEmpty }.joined(separator: "\n")
     }
 }
 

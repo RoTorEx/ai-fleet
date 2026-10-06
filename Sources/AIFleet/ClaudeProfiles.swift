@@ -39,7 +39,8 @@ struct ClaudeProfile: Codable, Identifiable, Equatable {
                        lastUpdated: status.lastUpdated, remainingPercent: status.remainingPercent,
                        windowLabel: status.windowLabel, resetAt: status.resetAt, limitWindows: status.limitWindows,
                        providerID: "claude", account: account,
-                       notificationScope: "claude.\(id).\(account?.scope ?? "unidentified")")
+                       notificationScope: "claude.\(id).\(account?.scope ?? "unidentified")",
+                       quotaNotice: status.quotaNotice)
     }
 }
 

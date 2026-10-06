@@ -57,6 +57,13 @@ is independent for each provider and persists through restart.
   The CLI-reported config directory must match the requested profile before
   reading credentials. Tokens stay in memory and are never logged or rewritten
   by AI Fleet. Usage requests do not follow redirects.
+- Claude quota checks use a shared per-profile/account/credential request gate.
+  Successful responses are reused for five minutes. HTTP 429 retains confirmed
+  login and any last measurement, marks it as last known, and waits with
+  exponential backoff plus `Retry-After`. Only hashed keys and retry deadlines
+  persist; tokens and quota measurements do not. Changing login/organization
+  cannot reuse another subscription's cache. Normal login checks continue when
+  views open. Polling numbers and rationale are owned by BUSINESS.md.
 - Codex email and plan are local JWT display hints, not verified authorization.
   Native Keychain-only/ephemeral Codex storage is outside the current file reader.
   Kimi preserves its established refresh behavior, writing renewed credentials
