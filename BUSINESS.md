@@ -22,9 +22,20 @@ subscription charges.
   nonempty file; expired access without a refresh token requires sign-in.
   Qwen's local check does not validate credentials with the server. Confirmed
   missing login reads `Sign in required` in both Settings and the menu; failed
-  or unrecognized local checks read `Auth status unknown`. Claude and Qwen
-  quota retrieval is not implemented and reads `Quota unsupported` when login
-  is configured. Neither state implies an exhausted quota.
+  or unrecognized local checks read `Auth status unknown`. Qwen quota retrieval
+  is not implemented and reads `Signed in · quota unsupported` when login is
+  configured. Claude subscription quotas reuse that CLI profile's OAuth token
+  from its credentials file or, for the default profile only, the Claude Code
+  Keychain item. Tokens stay in memory, are never logged or rewritten, and
+  requests go only to Anthropic's usage endpoint without following redirects.
+  The main `five_hour` and `seven_day` windows display remaining percentages
+  and reset times using the existing quota and notification rules. Missing or
+  invalid measurements never become 100% remaining. API-key login or unavailable
+  OAuth credentials reads `Signed in · quota unavailable`; quota/network errors
+  stay distinct from missing login. Model-specific and paid extra usage are
+  outside this integration.
+- Opening the menu or Settings refreshes provider status so a login completed
+  outside AI Fleet is picked up without waiting for the next periodic poll.
 - Quota notifications name the provider, crossed threshold, and exact window;
   no redundant remaining value follows the threshold. When the provider supplies
   a reset timestamp, a second line shows both the compact time remaining and the
@@ -139,6 +150,8 @@ subscription charges.
 ## Code map
 
 - Quota and notifications: `Sources/AIFleet/StatusService.swift`
+- Claude subscription usage: `Sources/AIFleet/ClaudeQuota.swift`
+- Local login detection: `Sources/AIFleet/LocalProviderAuth.swift`
 - Refresh preferences: `Sources/AIFleet/AppSettings.swift`
 - Analytics and caches: `Sources/AIFleet/UsageAnalytics.swift`
 - User interfaces: `Sources/AIFleet/UI/*`

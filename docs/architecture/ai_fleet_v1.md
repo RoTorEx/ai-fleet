@@ -26,8 +26,9 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 │  Codex: chatgpt.com/backend-api/wham/   │
 │         /usage                          │
 │  Codex stats: ~/.codex/sessions JSONL   │
-│  Claude/Qwen: local install + auth      │
-│               detection                 │
+│  Claude: api.anthropic.com/api/oauth/   │
+│          usage                          │
+│  Qwen: local install + auth detection   │
 └─────────────────────────────────────────┘
 ```
 
@@ -102,8 +103,15 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - Qwen login detection: parsed OAuth token fields in local credential files
   such as `~/.qwen/oauth_creds.json`. Expired access needs a refresh token;
   these credentials are not validated with the server.
-- Claude/Qwen quota retrieval is unsupported. Missing login and failed auth
-  checks are displayed separately in both the menu and Settings.
+- Claude quota retrieval: `GET https://api.anthropic.com/api/oauth/usage` with the
+  existing CLI profile's OAuth token and `anthropic-beta: oauth-2025-04-20`.
+  `ClaudeQuota.swift` reads the active profile's `.credentials.json`, falling
+  back to `Claude Code-credentials` through `/usr/bin/security` only for the
+  default profile. It never refreshes or writes Claude credentials. Only the
+  main 5h/7d subscription windows are displayed; redirects are rejected.
+  Source reference: https://github.com/steipete/CodexBar/blob/main/docs/claude.md.
+- Qwen quota retrieval is unsupported. Login and quota errors remain separate
+  in both the menu and Settings; opening either surface requests a fresh check.
 
 ## Delivery and updates
 

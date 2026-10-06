@@ -4,6 +4,12 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Read Claude subscription quota windows from the signed-in CLI account and
+  refresh provider status when opening the menu or Settings; preserve a visible
+  signed-in state when quota credentials cannot be read.
+
 ## [1.2.5] - 2026-10-06
 
 ### Fixed

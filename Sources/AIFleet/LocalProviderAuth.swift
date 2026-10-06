@@ -12,7 +12,7 @@ enum LocalProviderAuth: Equatable {
         switch self {
         case .signedIn:
             state = .ok
-            detail = "Quota unsupported"
+            detail = "Signed in · quota unsupported"
         case .signedOut:
             state = .noKey
             detail = "Sign in required"
@@ -30,12 +30,56 @@ struct ClaudeAuthReader {
     var timeout: TimeInterval = 10
 
     func read() -> LocalProviderAuth {
-        guard let executableURL else { return .unknown }
+        readSnapshot().auth
+    }
+
+    func readSnapshot() -> ClaudeAuthSnapshot {
+        guard let executableURL,
+              let result = LocalCommandReader.read(executableURL: executableURL,
+                                                   arguments: ["auth", "status"], timeout: timeout) else {
+            return ClaudeAuthSnapshot(auth: .unknown)
+        }
+        return Self.decodeSnapshot(result.data, exitCode: result.exitCode)
+    }
+
+    static func decode(_ data: Data, exitCode: Int32) -> LocalProviderAuth {
+        decodeSnapshot(data, exitCode: exitCode).auth
+    }
+
+    static func decodeSnapshot(_ data: Data, exitCode: Int32) -> ClaudeAuthSnapshot {
+        struct Response: Decodable {
+            let loggedIn: Bool
+            let authMethod: String?
+            let configDirectory: String?
+        }
+        guard let response = try? JSONDecoder().decode(Response.self, from: data) else {
+            return ClaudeAuthSnapshot(auth: .unknown)
+        }
+        let auth: LocalProviderAuth
+        switch (response.loggedIn, exitCode) {
+        case (true, 0): auth = .signedIn
+        case (false, 1): auth = .signedOut
+        default: auth = .unknown
+        }
+        return ClaudeAuthSnapshot(auth: auth, authMethod: response.authMethod,
+                                  configDirectory: response.configDirectory)
+    }
+}
+
+struct ClaudeAuthSnapshot {
+    let auth: LocalProviderAuth
+    var authMethod: String? = nil
+    var configDirectory: String? = nil
+}
+
+enum LocalCommandReader {
+    static func read(executableURL: URL, arguments: [String], timeout: TimeInterval = 10)
+        -> (data: Data, exitCode: Int32)? {
         let process = Process()
         let output = Pipe()
         let finished = DispatchSemaphore(value: 0)
         process.executableURL = executableURL
-        process.arguments = ["auth", "status"]
+        process.arguments = arguments
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = output
@@ -44,7 +88,7 @@ struct ClaudeAuthReader {
         do {
             try process.run()
         } catch {
-            return .unknown
+            return nil
         }
         guard finished.wait(timeout: .now() + timeout) == .success else {
             process.terminate()
@@ -52,22 +96,9 @@ struct ClaudeAuthReader {
                 kill(process.processIdentifier, SIGKILL)
             }
             process.waitUntilExit()
-            return .unknown
+            return nil
         }
-        return Self.decode(output.fileHandleForReading.readDataToEndOfFile(),
-                           exitCode: process.terminationStatus)
-    }
-
-    static func decode(_ data: Data, exitCode: Int32) -> LocalProviderAuth {
-        struct Response: Decodable { let loggedIn: Bool }
-        guard let response = try? JSONDecoder().decode(Response.self, from: data) else {
-            return .unknown
-        }
-        switch (response.loggedIn, exitCode) {
-        case (true, 0): return .signedIn
-        case (false, 1): return .signedOut
-        default: return .unknown
-        }
+        return (output.fileHandleForReading.readDataToEndOfFile(), process.terminationStatus)
     }
 }
 

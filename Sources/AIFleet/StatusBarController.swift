@@ -79,6 +79,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         guard let button = statusItem.button else {
             return
         }
+        StatusService.shared.refresh()
 
         // Activate so the popover becomes key and its buttons receive clicks.
         NSApplication.shared.activate(ignoringOtherApps: true)

@@ -185,10 +185,12 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             async let codexResult = checkCodexIfEnabled()
             async let claudeResult = checkClaudeIfEnabled()
             async let qwenResult = checkQwenIfEnabled()
-            self.kimi = await kimiResult
-            self.codex = await codexResult
-            self.claude = await claudeResult
-            self.qwen = await qwenResult
+            let statuses = await (kimiResult, codexResult, claudeResult, qwenResult)
+            guard !Task.isCancelled else { return }
+            self.kimi = statuses.0
+            self.codex = statuses.1
+            self.claude = statuses.2
+            self.qwen = statuses.3
             processDrainNotifications()
         }
     }
@@ -221,10 +223,13 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return Self.disabledStatus(for: ProviderCatalog.claude)
         }
         let executableURL = ProviderCatalog.executableURL(for: ProviderCatalog.claude)
-        let auth = await Task.detached(priority: .utility) {
-            ClaudeAuthReader(executableURL: executableURL).read()
+        let (snapshot, credential) = await Task.detached(priority: .utility) {
+            let snapshot = ClaudeAuthReader(executableURL: executableURL).readSnapshot()
+            return (snapshot, ClaudeQuotaCredential.read(snapshot: snapshot))
         }.value
-        return auth.status(for: ProviderCatalog.claude)
+        guard snapshot.auth == .signedIn else { return snapshot.auth.status(for: ProviderCatalog.claude) }
+        guard let credential else { return ClaudeQuota.unavailable("Signed in · quota unavailable") }
+        return await ClaudeQuota.fetch(credential: credential)
     }
 
     private func checkQwenIfEnabled() async -> ProviderStatus {

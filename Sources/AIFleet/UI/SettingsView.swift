@@ -102,6 +102,7 @@ struct SettingsView: View {
         .fixedSize(horizontal: false, vertical: true)
         .onAppear {
             service.refreshNotificationSettings()
+            service.refresh()
         }
     }
 

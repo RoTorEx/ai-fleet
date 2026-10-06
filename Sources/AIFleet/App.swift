@@ -76,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func openSettings(anchorFrame: NSRect? = nil) {
         NSApplication.shared.activate(ignoringOtherApps: true)
+        StatusService.shared.refresh()
 
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController()
