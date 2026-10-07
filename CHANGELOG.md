@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-10-07
+
 ### Added
 
 - Gemini CLI provider with global native sign-in, email/plan, model quota and
