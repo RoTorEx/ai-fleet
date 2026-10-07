@@ -21,7 +21,8 @@ Tracks real product and release progress.
 
 - Show every connected account/provider pair compactly as Codex (α), with a
   smaller parenthesized badge and no extra account-name line or circle.
-  Selection, Lowest, and authentication markers are aligned on the left; the
+  Selection, Lowest, and authentication markers are tightly grouped and aligned
+  on the left; the
   right edge contains only the ellipsis action menu. Selected connections show
   →; others are gray,
   with working-account selection in the right-side ellipsis menu. Other ellipsis

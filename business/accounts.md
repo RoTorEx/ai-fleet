@@ -15,7 +15,8 @@ name, such as Codex (α), without a circle or colon. No extra account-name line
 appears below the header; the badge and its email/plan tooltip distinguish
 subscriptions compactly. The selected connection
 uses the normal quota/status colors and a → marker; selection, Lowest, and auth
-markers occupy aligned columns on the left. The provider name and parenthesized
+markers occupy tightly spaced aligned columns on the left, independently of
+spacing around the provider name and actions. The provider name and parenthesized
 badge follow them; quota lines align with that name. Only the ellipsis action
 menu remains on the right. Other connections are
 gray, including their quota windows. The row’s ellipsis menu at the right

@@ -226,16 +226,18 @@ struct ProviderLimitRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(entry.isSelected ? "→" : " ")
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundColor(color).frame(width: 14)
-                    .accessibilityLabel(entry.isSelected ? "\(status.name) account \(entry.account.badge), selected for next launch" : "")
-                Text(isLowest ? "↓" : " ")
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundColor(color).frame(width: 14)
-                Text(status.authentication.marker)
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundColor(color).frame(width: 14)
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(entry.isSelected ? "→" : " ")
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundColor(color).frame(width: 14)
+                        .accessibilityLabel(entry.isSelected ? "\(status.name) account \(entry.account.badge), selected for next launch" : "")
+                    Text(isLowest ? "↓" : " ")
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundColor(color).frame(width: 14)
+                    Text(status.authentication.marker)
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundColor(color).frame(width: 14)
+                }
                 Text(status.name)
                     .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
                 Text("(\(entry.account.badge))")
@@ -270,17 +272,17 @@ struct ProviderLimitRow: View {
                         LimitWindowLine(window: window, status: status, isActive: entry.isSelected)
                     }
                 }
-                .padding(.leading, 60)
+                .padding(.leading, 52)
             } else {
                 Text(status.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(color).lineLimit(1).minimumScaleFactor(0.8)
-                    .padding(.leading, 60)
+                    .padding(.leading, 52)
             }
             if let notice = status.quotaNotice {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
-                    .lineLimit(2).padding(.leading, 60)
+                    .lineLimit(2).padding(.leading, 52)
             }
         }
         .overlay(alignment: .topLeading) {
@@ -296,7 +298,7 @@ struct ProviderLimitRow: View {
                         .background(FleetPalette.background, in: RoundedRectangle(cornerRadius: 6))
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(FleetPalette.border))
                         .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
-                        .offset(x: 60, y: 22)
+                        .offset(x: 52, y: 22)
                         .allowsHitTesting(false)
                 }
             }
