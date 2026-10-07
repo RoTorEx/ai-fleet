@@ -103,7 +103,7 @@ final class AccountsTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let executable = folder.appendingPathComponent("fake ' cli")
-        try "#!/bin/sh\nprintf '%s\\n' \"$CLAUDE_CONFIG_DIR\" \"$CODEX_HOME\" \"$KIMI_CODE_HOME\" \"$QWEN_HOME\" \"$*\"\n"
+        try "#!/bin/sh\nprintf '%s\\n' \"$CLAUDE_CONFIG_DIR\" \"$CODEX_HOME\" \"$KIMI_CODE_HOME\" \"$QWEN_HOME\" \"$GEMINI_CLI_HOME\" \"$*\"\n"
             .write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         for provider in ProviderCatalog.all {

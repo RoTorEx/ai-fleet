@@ -6,6 +6,11 @@ Tracks real product and release progress.
 
 ### Added
 
+- Gemini CLI provider with global native sign-in, email/plan, model quota and
+  reset times. Detect file-backed OAuth, keep login distinct from quota errors,
+  and coalesce/cache quota reads with Retry-After support. Unsupported auth and
+  expired credentials show explicit states without fabricated percentages.
+
 - Shared identities with stable α/β/γ badges, provider associations, and immediate
   email/plan hover inside the existing Settings/menu surfaces.
 

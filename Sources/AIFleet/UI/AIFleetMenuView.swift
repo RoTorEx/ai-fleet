@@ -47,7 +47,7 @@ struct AIFleetMenuView: View {
                 .padding(.top, 11)
                 .padding(.bottom, 8)
 
-            if connections.count > 3 {
+            if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
                 ScrollView {
                     providerRows
                 }
@@ -264,7 +264,15 @@ struct ProviderLimitRow: View {
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(status.limitWindows) { window in
-                        LimitWindowLine(window: window, status: status, isActive: entry.isSelected)
+                        if status.providerID == "gemini" {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(window.label).font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundColor(color).lineLimit(1)
+                                LimitWindowLine(window: window, status: status, isActive: entry.isSelected, showsLabel: false)
+                            }
+                        } else {
+                            LimitWindowLine(window: window, status: status, isActive: entry.isSelected)
+                        }
                     }
                 }
                 .padding(.leading, 52)
@@ -306,13 +314,16 @@ struct LimitWindowLine: View {
     let window: ProviderLimitWindow
     let status: ProviderStatus
     var isActive = true
+    var showsLabel = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text(window.label)
-                .font(limitWindowFont)
-                .foregroundColor(windowColor)
-                .frame(width: 26, alignment: .leading)
+            if showsLabel {
+                Text(window.label)
+                    .font(limitWindowFont)
+                    .foregroundColor(windowColor)
+                    .frame(width: 26, alignment: .leading)
+            }
 
             Text(windowValueText)
                 .font(limitWindowFont)

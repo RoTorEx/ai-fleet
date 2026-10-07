@@ -2,7 +2,7 @@
 
 ## Overview
 
-AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It shows the current status and remaining limit for installed AI coding-provider lanes — Codex, Kimi, Claude, and Qwen — and refreshes once per minute.
+AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It shows the current status and remaining limit for installed AI coding-provider lanes — Codex, Kimi, Claude, Qwen, and Gemini — and refreshes once per minute.
 
 ## Components
 
@@ -15,7 +15,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 ▼
 ┌─────────────────────────────────────────┐
 │           StatusService                 │
-│   (@Published ProviderStatus × 4)       │
+│   (@Published ProviderStatus × 5)       │
 └─────────────────┬───────────────────────┘
 │  URLSession polling
 ▼
@@ -65,6 +65,11 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
   `ProviderStatus.quotaNotice` distinguishes last-known/paused quota from login
   or connectivity failures; stale measurements are excluded from notifications
   and the compact menu's Lowest selection.
+- `GeminiLoginSnapshot` / `GeminiQuota` — native file-backed Google OAuth,
+  verified email, Code Assist project/tier and per-model quota. `GeminiQuotaPoller`
+  coalesces reads and caches by hashed access credential for five minutes. It
+  respects Retry-After in memory. Native CLI owns Google credential renewal;
+  API/Vertex and encrypted storage remain outside the integration.
 - `KimiCodeUsageResponse` — Kimi Code subscription usage payload.
 - `KimiBalanceResponse` — Moonshot balance fallback payload.
 - `CodexUsageResponse` — ChatGPT WHAM usage payload.

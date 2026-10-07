@@ -95,6 +95,13 @@ final class GlobalAccountsTests: XCTestCase {
             XCTAssertTrue(command.contains("-u '\(connection.selector)'"))
             XCTAssertFalse(command.contains("\(connection.selector)="))
             XCTAssertFalse(command.contains("AI Fleet/Accounts"))
+            if provider.id == "gemini" {
+                XCTAssertTrue(command.hasSuffix("'/tool/cli'"))
+                let relogin = AccountLaunch.command(connection: connection, executable: URL(fileURLWithPath: "/tool/cli"),
+                    directory: URL(fileURLWithPath: "/native/home"), login: true, hasGeminiLogin: true)
+                XCTAssertTrue(relogin.hasSuffix(" --prompt-interactive '/auth login'"))
+                continue
+            }
             XCTAssertTrue(command.hasSuffix(provider.id == "claude" ? "' auth login" : provider.id == "qwen" ? "'/tool/cli'" : "' login"))
         }
     }

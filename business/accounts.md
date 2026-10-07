@@ -2,13 +2,14 @@
 
 An AI Fleet account is a labelled identity with a stable α, β, γ badge and
 zero or one association with each supported provider. One badge can represent
-Claude, Codex, Kimi, and Qwen. Labels are app metadata, not credentials.
+Claude, Codex, Kimi, Qwen, and Gemini. Labels are app metadata, not credentials.
 
 ## Login and interface
 
 Each provider has one current standard global CLI login. The row’s **…** menu
 contains only **Sign in…**, which launches the provider’s native login in
-Terminal: Claude `auth login`, Codex/Kimi `login`, and Qwen’s interactive CLI.
+Terminal: Claude `auth login`, Codex/Kimi `login`, Qwen’s interactive CLI, and
+Gemini’s native login or `/auth login` dialog when already configured.
 It unsets inherited provider directory and API/account overrides and uses the
 native default location. No project chooser, isolated session launch, manual
 Use action, or credential swapping is exposed. The account is chosen in the
@@ -65,7 +66,7 @@ notifications, and analytics; Menu visibility in Accounts applies globally.
   Removing metadata does not delete credentials. Internal scoped readers and
   command generation remain covered by compatibility tests for recovery.
 - Native selectors are `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME`, and
-  `QWEN_HOME`; global login removes inherited values without writing shell
+  `QWEN_HOME`, plus Gemini’s `GEMINI_CLI_HOME`; global login removes inherited values without writing shell
   startup files or bypassing native policies. AI Fleet never copies or swaps
   tokens between accounts.
 - Claude’s native Keychain service is `Claude Code-credentials`. Native auth
@@ -81,6 +82,8 @@ notifications, and analytics; Menu visibility in Accounts applies globally.
   reported account/organization scope. Inactive associations have no quota.
 - Statistics keeps the standard global Codex scope. Multi-account historical
   analytics remains a separate queued task.
+
+Gemini login and quota boundaries are owned by [Gemini](gemini.md).
 
 ## Verification
 

@@ -51,6 +51,9 @@ final class AppSettings: ObservableObject {
     @Published var qwenEnabled: Bool {
         didSet { defaults.set(qwenEnabled, forKey: "provider.qwen.enabled") }
     }
+    @Published var geminiEnabled: Bool {
+        didSet { defaults.set(geminiEnabled, forKey: "provider.gemini.enabled") }
+    }
     @Published var notifyStepPercent: Int {
         didSet { defaults.set(notifyStepPercent, forKey: "notify.stepPercent") }
     }
@@ -72,6 +75,7 @@ final class AppSettings: ObservableObject {
         kimiEnabled = defaults.object(forKey: "provider.kimi.enabled") as? Bool ?? true
         codexEnabled = defaults.object(forKey: "provider.codex.enabled") as? Bool ?? true
         claudeEnabled = defaults.object(forKey: "provider.claude.enabled") as? Bool ?? true
+        geminiEnabled = defaults.object(forKey: "provider.gemini.enabled") as? Bool ?? true
         qwenEnabled = defaults.object(forKey: "provider.qwen.enabled") as? Bool ?? true
 
         let storedStep = defaults.integer(forKey: "notify.stepPercent")
@@ -106,6 +110,8 @@ final class AppSettings: ObservableObject {
             return codexEnabled
         case "claude":
             return claudeEnabled
+        case "gemini":
+            return geminiEnabled
         case "qwen":
             return qwenEnabled
         default:
@@ -121,6 +127,8 @@ final class AppSettings: ObservableObject {
             codexEnabled = isEnabled
         case "claude":
             claudeEnabled = isEnabled
+        case "gemini":
+            geminiEnabled = isEnabled
         case "qwen":
             qwenEnabled = isEnabled
         default:

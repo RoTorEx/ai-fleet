@@ -59,6 +59,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
         case "codex": return "CODEX_HOME"
         case "kimi": return "KIMI_CODE_HOME"
         case "qwen": return "QWEN_HOME"
+        case "gemini": return "GEMINI_CLI_HOME"
         default: return ""
         }
     }
@@ -68,6 +69,8 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
         case "codex": return [selector, "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"]
         case "kimi": return [selector, "KIMI_SHARE_DIR", "KIMI_API_KEY", "KIMI_BASE_URL", "KIMI_MODEL_NAME"]
         case "qwen": return [selector, "QWEN_RUNTIME_DIR", "QWEN_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"]
+        case "gemini": return [selector, "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI",
+                               "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_GENAI_USE_GCA", "GEMINI_DEFAULT_AUTH_TYPE"]
         default: return []
         }
     }
@@ -242,8 +245,10 @@ final class AccountStore: ObservableObject {
             return
         }
         launchError = nil
+        let geminiLogin = providerID == "gemini" ? GeminiLoginSnapshot.read(home: home) : nil
         let command = AccountLaunch.command(connection: .global(providerID), executable: executable,
-                                            directory: home, login: true)
+                                            directory: home, login: true,
+                                            hasGeminiLogin: geminiLogin.map { $0.auth == .signedIn || !$0.supported } ?? false)
         let source = "tell application \"Terminal\"\nactivate\ndo script \(ClaudeProfileLaunch.appleScriptString(command))\nend tell"
         var error: NSDictionary?
         guard let script = NSAppleScript(source: source) else { launchError = "Could not prepare Terminal login."; return }
@@ -294,12 +299,15 @@ final class AccountStore: ObservableObject {
 }
 
 enum AccountLaunch {
-    static func command(connection: ProviderConnection, executable: URL, directory: URL, login: Bool) -> String {
+    static func command(connection: ProviderConnection, executable: URL, directory: URL, login: Bool, hasGeminiLogin: Bool = false) -> String {
         let quote = ClaudeProfileLaunch.shellQuote
         let unset = connection.overrideKeys.map { "-u " + quote($0) }.joined(separator: " ")
         let selector = connection.configDirectory.map { " " + quote(connection.selector + "=" + $0) } ?? ""
         let arguments: String
         switch (connection.providerID, login) {
+        case ("gemini", true):
+            // First run already opens native auth. Reopen its dialog only for an existing login.
+            arguments = hasGeminiLogin ? " --prompt-interactive '/auth login'" : ""
         case ("claude", true): arguments = " auth login"
         case ("codex", true), ("kimi", true): arguments = " login"
         default: arguments = "" // Qwen performs login in its own interactive CLI.

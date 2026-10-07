@@ -12,6 +12,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var claude: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.claude)
     @Published var subscriptions: [ProviderStatus] = []
     @Published private(set) var globalAccountIDs: [String: String] = [:]
+    @Published var gemini: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.gemini)
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var lastError: String?
     @Published var notificationStatusText = "Checking"
@@ -126,6 +127,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return kimi
         case ProviderCatalog.claude.id:
             return claude
+        case ProviderCatalog.gemini.id:
+            return gemini
         case ProviderCatalog.qwen.id:
             return qwen
         default:
@@ -232,6 +235,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         codex = results.first { $0.providerID == "codex" } ?? Self.initialStatus(for: ProviderCatalog.codex)
         kimi = results.first { $0.providerID == "kimi" } ?? Self.initialStatus(for: ProviderCatalog.kimi)
         claude = results.first { $0.providerID == "claude" } ?? Self.initialStatus(for: ProviderCatalog.claude)
+        gemini = results.first { $0.providerID == "gemini" } ?? Self.initialStatus(for: ProviderCatalog.gemini)
         qwen = results.first { $0.providerID == "qwen" } ?? Self.initialStatus(for: ProviderCatalog.qwen)
     }
 
@@ -243,6 +247,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         guard AppSettings.shared.isEnabled(provider.id) else { return connection.status(from: Self.disabledStatus(for: provider)) }
         let result: ProviderStatus
         switch provider.id {
+        case "gemini":
+            result = await GeminiQuota.check()
         case "claude":
             result = await Self.checkClaudeProfile(connection.claudeProfile, executableURL: ProviderCatalog.executableURL(for: provider))
         case "codex": result = await checkCodex(connection: connection)

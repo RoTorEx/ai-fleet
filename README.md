@@ -4,13 +4,14 @@
   <img src="docs/assets/ai-fleet-github.png" width="220" alt="AI Fleet — a formation of ships">
 </p>
 
-A tiny macOS menu-bar app that checks Kimi and Codex status once per minute.
+A tiny macOS menu-bar app that checks coding-provider status once per minute.
 
 It sits in the menu bar as a ship icon and shows a simple dropdown:
 
 - **Kimi** — Kimi Code usage from `~/.kimi-code`, falling back to Moonshot API balance.
 - **Codex** — remaining usage percent from the ChatGPT backend.
 - **Claude** — remaining 5h/7d subscription quota and native sign-in.
+- **Gemini** — native Google login, email/plan, and model quota with reset times.
 - **Accounts** — shared α/β/γ badges across providers; email and plan on hover.
 
 No dock icon. AI Fleet monitors and opens native sign-in for each provider’s global login.
@@ -57,6 +58,20 @@ You can also set the `KIMI_API_KEY` environment variable when running from a ter
 ### Codex
 
 The app reads your ChatGPT OAuth token from `~/.codex/auth.json` (created automatically when you sign in with the Codex CLI). No extra setup is required.
+
+### Gemini
+
+Install the official CLI with `brew install gemini-cli`, then choose
+**Gemini → … → Sign in…** in AI Fleet and **Sign in with Google** in Terminal.
+The first run opens native login; subsequent sign-ins reopen its `/auth login`
+dialog. The standard global login is used. Corporate accounts may need the
+provider’s Google Cloud project setup.
+
+AI Fleet reads file-backed OAuth in `~/.gemini`, checks the actual email, and
+retrieves the CLI’s model quota and plan. Quota updates are spaced five minutes
+apart. API-key/Vertex and encrypted OAuth storage are outside this reader.
+Expired access credentials require opening the native CLI to renew them;
+AI Fleet does not rewrite Google tokens. See [Gemini integration](business/gemini.md).
 
 ### Accounts
 

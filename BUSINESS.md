@@ -34,6 +34,11 @@ subscription charges.
   OAuth credentials reads `Signed in · quota unavailable`; quota/network errors
   stay distinct from missing login. Model-specific and paid extra usage are
   outside this integration.
+- Gemini uses native file-backed Google OAuth and the CLI’s Code Assist model
+  quota endpoint. Its email/plan and quota belong to the global login; API/Vertex
+  and encrypted OAuth monitoring are unsupported. Token renewal stays with the
+  native CLI. [Gemini](business/gemini.md) owns its auth, endpoint, model-bucket,
+  request-gating and error rules.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
@@ -182,6 +187,7 @@ subscription charges.
 
 - Quota and notifications: `Sources/AIFleet/StatusService.swift`
 - Claude subscription usage: `Sources/AIFleet/ClaudeQuota.swift`
+- Gemini model quota and native OAuth: `Sources/AIFleet/GeminiQuota.swift`
 - Local login detection: `Sources/AIFleet/LocalProviderAuth.swift`
 - Shared accounts, provider connections, and launch: `Sources/AIFleet/Accounts.swift`
 - Claude configuration/Keychain selectors: `Sources/AIFleet/ClaudeProfiles.swift`

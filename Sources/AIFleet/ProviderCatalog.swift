@@ -46,7 +46,10 @@ enum ProviderCatalog {
         ]
     )
 
-    static let all = [codex, kimi, claude, qwen]
+    static let gemini = ProviderDefinition(id: "gemini", name: "Gemini", executableNames: ["gemini"],
+        credentialPaths: [".gemini/oauth_creds.json"])
+
+    static let all = [codex, kimi, claude, qwen, gemini]
 
     static var allIDs: [String] {
         all.map(\.id)
