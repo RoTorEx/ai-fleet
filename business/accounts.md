@@ -9,21 +9,31 @@ mean matching subscriptions.
 
 ## Interface and selection
 
-The menu contains one row per installed, enabled provider. Account badges sit
-beside its name. Clicking a badge selects that provider's displayed quota and
-future sessions launched through AI Fleet. Its highlight makes selection
-visible. A horizontally scrolling badge strip keeps long lists within the menu.
-Hover reveals the friendly name, provider-reported email/organization/plan and
-quota status. Plan metadata stays hidden until hover; missing plans are omitted.
-The label supplied by the user is a fallback, not proof of the provider login.
+The menu contains one row per installed, enabled provider. A circular badge for
+its selected account is aligned at the right edge of the provider header, which
+has no colon. Clicking it opens an account chooser with a checkmark on the
+current account, plus Open, Sign in, and Add account actions. Choosing an account
+changes that provider's displayed quota and future sessions launched through
+AI Fleet. Hover contains only the provider-reported email and plan; missing
+plans are omitted and the user-supplied email is a fallback. No quota, account
+name, organization, or status text belongs in this tooltip.
 
-Settings uses its existing window, with General and Accounts tabs. No additional
-account-management window exists. The Accounts tab adds identities, edits
-name/email labels, enables provider connections, moves existing connections
-between identities, and imports existing native configuration folders. Moving
-a connection preserves its credential path, quota notification identity, and
-selection. An account can own only one connection to a given provider; an
-already-linked connection cannot be silently overwritten.
+Selection is manual and independent per provider. AI Fleet does not implement
+automatic quota draining, fallback profiles, or traffic routing; the interface
+must not advertise those behaviors. The downward arrow identifies the provider
+with the lowest current remaining quota, not a routing target.
+
+Settings uses its existing window, with General and Accounts tabs. Add account
+from the provider chooser opens an inline form on Accounts with that provider
+preselected. The + button opens the same form. Enter an email, optionally a name,
+and choose a provider; Add & sign in creates an isolated connection and opens
+native login. Cancel creates no identity or connection. Other providers can
+later be attached to the same badge. The Accounts tab edits labels and provider
+connections. Moving existing connections and importing configuration folders
+are under Advanced for unlinked providers. Moving a connection preserves its
+credential path, quota notification identity, and selection. An account can own
+only one connection to a given provider; an already-linked connection cannot
+be silently overwritten. No additional account-management window exists.
 
 Sign in launches the provider's native CLI in Terminal. Claude uses `auth login`,
 Codex and Kimi use `login`, and Qwen enters its interactive CLI login. Open asks

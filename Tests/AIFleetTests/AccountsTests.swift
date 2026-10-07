@@ -33,6 +33,34 @@ final class AccountsTests: XCTestCase {
     }
 
     @MainActor
+    func testThirdCorporateCodexSelectionKeepsClaudeAndOtherLoginsAcrossRestart() throws {
+        let suite = "ai-fleet-third-account-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = AccountStore(defaults: defaults, homeDirectory: home)
+        let corporateClaude = store.add(name: "Company A", email: "person@company-a.test")
+        let nativeClaude = try XCTUnwrap(store.selected(for: "claude")?.connection(for: "claude"))
+        store.move(nativeClaude, to: corporateClaude.id)
+        let corporateCodex = store.add(name: "Company B", email: "person@company-b.test")
+        store.attach("codex", to: corporateCodex.id)
+        let isolated = try XCTUnwrap(store.accounts.first { $0.id == corporateCodex.id }?.connection(for: "codex"))
+        XCTAssertEqual(store.selected(for: "codex")?.id, FleetAccount.defaultID, "Adding a connection does not switch before launch or explicit choice")
+        store.select(corporateCodex.id, for: "codex")
+        let restarted = AccountStore(defaults: defaults, homeDirectory: home)
+        XCTAssertEqual(restarted.selected(for: "codex")?.badge, "γ")
+        XCTAssertEqual(restarted.selected(for: "claude")?.id, corporateClaude.id)
+        XCTAssertEqual(restarted.selected(for: "claude")?.connection(for: "claude"), nativeClaude)
+        XCTAssertNotEqual(isolated.credentialURL(home: home), store.accounts.first?.connection(for: "codex")?.credentialURL(home: home))
+        let command = AccountLaunch.command(connection: isolated, executable: URL(fileURLWithPath: "/bin/codex"), directory: home, login: false)
+        XCTAssertTrue(command.contains(ClaudeProfileLaunch.shellQuote("CODEX_HOME=" + isolated.configDirectory!)))
+        restarted.select(FleetAccount.defaultID, for: "codex")
+        XCTAssertEqual(restarted.selected(for: "codex")?.badge, "α")
+        XCTAssertEqual(restarted.selected(for: "claude")?.id, corporateClaude.id)
+        XCTAssertEqual(restarted.linkedAccounts(for: "codex").count, 2)
+    }
+
+    @MainActor
     func testMoveKeepsConnectionIdentityAndDefaultRecoveryDoesNotMixProviders() throws {
         let suite = "ai-fleet-accounts-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -99,11 +127,8 @@ final class AccountsTests: XCTestCase {
         let account = FleetAccount(id: "work", badgeIndex: 1, name: "Work", email: "label@example.test", connections: [connection])
         let status = ProviderStatus(id: "codex", name: "Codex", state: .ok, detail: "80% left", lastUpdated: nil, account: identity)
         let tooltip = account.tooltip(for: connection, status: status)
-        XCTAssertTrue(tooltip.contains("β"))
-        XCTAssertTrue(tooltip.contains("actual@example.test"))
-        XCTAssertTrue(tooltip.contains("Plus"))
-        XCTAssertFalse(tooltip.contains("label@example.test"))
-        XCTAssertTrue(account.tooltip(for: connection, status: nil).contains("label@example.test"))
+        XCTAssertEqual(tooltip, "actual@example.test\nPlus")
+        XCTAssertEqual(account.tooltip(for: connection, status: nil), "label@example.test")
         XCTAssertNil(CodexProfileIdentity.read(auth: ["tokens": ["id_token": "bad"]], accountID: nil))
     }
 

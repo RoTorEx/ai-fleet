@@ -60,18 +60,20 @@ The app reads your ChatGPT OAuth token from `~/.codex/auth.json` (created automa
 
 ### Accounts
 
-Open **Settings → Accounts** in the existing Settings window. **+** adds a
-shared account with a stable badge (α, β, γ…). Give it a name/email label and
-check the providers you want to connect. **Link existing** moves an existing
-provider connection to this badge; **Import folder…** links an existing CLI
-configuration directory. **Sign in…** opens that provider's native login in
-Terminal; Qwen uses its interactive login flow.
+Click the circular account badge at the right edge of a provider row to choose
+an account, **Open** a new session, **Sign in**, or **Add account…**. Hover shows
+only email and plan when available. The checkmark identifies the selected
+account. Selection is per provider, persists across restart, and affects quota
+and future sessions launched through AI Fleet. Existing sessions and ordinary
+CLI commands retain their login. The ↓ marker means lowest remaining quota;
+AI Fleet does not automatically route requests or choose fallback accounts.
 
-The menu shows one row per provider with account badges next to its name.
-Click a badge to select that account's quota. Hover for email/organization/plan
-when available; the plan is never guessed. Right-click the badge to sign in or
-open a new session in a project folder. Selection is per provider and persists
-across restart. Existing sessions and ordinary CLI commands retain their login.
+**Add account…** opens the existing **Settings → Accounts** tab with that
+provider selected. Enter the email, optionally a name, then **Add & sign in…**.
+Complete the provider's native browser/SSO login in Terminal. **+** in Accounts
+opens the same inline form; Cancel leaves accounts unchanged. Enable another
+provider on the same badge to share that identity. **Advanced** contains
+**Link existing** and **Import folder…** for already configured CLI accounts.
 Removing an account keeps its provider credentials and session files.
 
 ## Refresh

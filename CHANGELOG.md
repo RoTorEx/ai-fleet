@@ -13,6 +13,15 @@ Tracks real product and release progress.
 - Separate quota and notification scopes for Claude, Codex, and Kimi profiles;
   Qwen retains its explicit unsupported-quota state.
 
+### Changed
+
+- Use one right-aligned circular account badge per provider; click opens account
+  selection and native launch/sign-in actions. Hover shows only email and plan.
+- Add accounts through an inline email/provider form in existing Settings,
+  reachable directly from each provider; move/import controls are under Advanced.
+- Remove misleading routing and fallback labels; selection is manual and the
+  downward arrow marks only the lowest remaining quota.
+
 ### Fixed
 
 - Stop retrying Claude usage requests on every menu open or one-minute poll;

@@ -103,9 +103,8 @@ struct FleetAccount: Codable, Identifiable, Equatable {
         connections.first { $0.providerID == providerID }
     }
     func tooltip(for connection: ProviderConnection, status: ProviderStatus?) -> String {
-        let identity = status?.account?.caption ?? ""
-        let metadata = identity.isEmpty ? email : identity
-        return ["\(badge) · \(name)", metadata, status?.detail ?? "Checking…", status?.quotaNotice ?? ""]
+        let providerEmail = status?.account?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [providerEmail.flatMap { $0.isEmpty ? nil : $0 } ?? email, status?.account?.planLabel ?? ""]
             .filter { !$0.isEmpty }.joined(separator: "\n")
     }
 }

@@ -2,22 +2,34 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
+@MainActor
+final class SettingsNavigation: ObservableObject {
+    static let shared = SettingsNavigation()
+    @Published var tab = "general"
+    @Published var addingProviderID: String?
+
+    func addAccount(for providerID: String) {
+        addingProviderID = providerID
+        tab = "accounts"
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var service = StatusService.shared
-    @State private var tab = "general"
+    @ObservedObject private var navigation = SettingsNavigation.shared
     @State private var newThreshold = 10
     @State private var newThresholdText = "10"
     @State private var isAddingThreshold = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Picker("Settings", selection: $tab) {
+            Picker("Settings", selection: $navigation.tab) {
                 Text("General").tag("general")
                 Text("Accounts").tag("accounts")
             }.pickerStyle(.segmented)
             ScrollView {
-                if tab == "accounts" { AccountsSettingsView() }
+                if navigation.tab == "accounts" { AccountsSettingsView() }
                 else { generalSettings }
             }
         }

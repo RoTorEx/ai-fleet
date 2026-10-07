@@ -98,7 +98,7 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(providers) { provider in
-                ProviderLimitRow(status: provider, isLowest: provider.id == lowestProvider?.id)
+                ProviderLimitRow(status: provider, isLowest: provider.id == lowestProvider?.id, openSettings: openSettings)
             }
         }
         .padding(.horizontal, 16)
@@ -115,10 +115,6 @@ struct AIFleetMenuView: View {
                 summaryValue(lastUpdateText)
             }
             GridRow {
-                summaryLabel("Drain")
-                summaryValue("earliest reset first · fence ≤1%")
-            }
-            GridRow {
                 summaryLabel("Lowest")
                 summaryValue(
                     lowestRemainingText,
@@ -126,8 +122,8 @@ struct AIFleetMenuView: View {
                 )
             }
             GridRow {
-                summaryLabel("Bridge")
-                summaryValue(providers.isEmpty ? "no installed lanes" : "\(activeProviderCount)/\(providers.count) lanes")
+                summaryLabel("Providers")
+                summaryValue(providers.isEmpty ? "none installed" : "\(activeProviderCount)/\(providers.count) available")
             }
             GridRow {
                 summaryLabel("Version")
@@ -153,7 +149,7 @@ struct AIFleetMenuView: View {
 
     private var fleetStateLabel: String {
         if providers.isEmpty {
-            return "no lanes"
+            return "no providers"
         }
         if providers.contains(where: { $0.state == .offline }) {
             return "degraded"
@@ -207,6 +203,7 @@ struct AIFleetMenuView: View {
 struct ProviderLimitRow: View {
     let status: ProviderStatus
     let isLowest: Bool
+    let openSettings: () -> Void
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
 
@@ -218,42 +215,47 @@ struct ProviderLimitRow: View {
                     .foregroundColor(rowColor(for: status))
                     .frame(width: 14, alignment: .center)
 
-                Text(profileMarker(for: status))
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundColor(rowColor(for: status))
-                    .frame(width: 14, alignment: .center)
-
-                Text("\(status.name):")
+                Text(status.name)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(rowColor(for: status))
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
+                Spacer(minLength: 8)
+
+                if let selected = accounts.selected(for: status.providerID),
+                   let connection = selected.connection(for: status.providerID) {
+                    Menu {
                         ForEach(accounts.linkedAccounts(for: status.providerID)) { account in
-                            if let connection = account.connection(for: status.providerID) {
-                                Button {
-                                    accounts.select(account.id, for: status.providerID)
-                                    service.refresh()
-                                } label: {
-                                    Text(account.badge)
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .frame(minWidth: 22, minHeight: 20)
-                                        .background(Color.accentColor.opacity(accounts.selections[status.providerID] == account.id ? 0.2 : 0.04),
-                                                    in: RoundedRectangle(cornerRadius: 4))
-                                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(
-                                            accounts.selections[status.providerID] == account.id ? Color.accentColor : Color.clear))
-                                }
-                                .buttonStyle(.plain)
-                                .help(account.tooltip(for: connection, status: service.status(for: connection)))
-                                .accessibilityLabel("\(status.name) account \(account.badge)")
-                                .contextMenu {
-                                    Button("Sign in…") { accounts.open(connection, account: account, login: true) }
-                                    Button("Open \(status.name)…") { accounts.open(connection, account: account) }
+                            Button {
+                                accounts.select(account.id, for: status.providerID)
+                                service.refresh()
+                            } label: {
+                                if account.id == selected.id {
+                                    Label(accountChoiceTitle(account), systemImage: "checkmark")
+                                } else {
+                                    Text(accountChoiceTitle(account))
                                 }
                             }
                         }
+                        Divider()
+                        Button("Open \(status.name)…") { accounts.open(connection, account: selected) }
+                        Button("Sign in…") { accounts.open(connection, account: selected, login: true) }
+                        Divider()
+                        Button("Add account…") {
+                            SettingsNavigation.shared.addAccount(for: status.providerID)
+                            openSettings()
+                        }
+                    } label: {
+                        Text(selected.badge)
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(width: 20, height: 20)
+                            .overlay(Circle().stroke(Color.secondary.opacity(0.7), lineWidth: 1))
                     }
-                }.frame(height: 22)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help(selected.tooltip(for: connection, status: service.status(for: connection)))
+                    .accessibilityLabel("\(status.name) account \(selected.badge), choose account")
+                }
             }
 
             if !status.limitWindows.isEmpty {
@@ -262,24 +264,31 @@ struct ProviderLimitRow: View {
                         LimitWindowLine(window: window, status: status)
                     }
                 }
-                .padding(.leading, 40)
+                .padding(.leading, 20)
             } else {
                 Text(status.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(rowColor(for: status))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                    .padding(.leading, 40)
+                    .padding(.leading, 20)
             }
             if let notice = status.quotaNotice {
                 Text(notice)
                     .font(.system(size: 10.5))
                     .foregroundColor(FleetPalette.warning)
                     .lineLimit(2)
-                    .padding(.leading, 40)
+                    .padding(.leading, 20)
             }
         }
     }
+    private func accountChoiceTitle(_ account: FleetAccount) -> String {
+        let actualEmail = account.connection(for: status.providerID)
+            .flatMap { service.status(for: $0)?.account?.email }
+        let label = actualEmail.flatMap { $0.isEmpty ? nil : $0 } ?? (account.email.isEmpty ? account.name : account.email)
+        return "\(account.badge) · \(label)"
+    }
+
 }
 
 struct LimitWindowLine: View {
@@ -386,33 +395,12 @@ struct LegendSection: View {
             }
 
             GridRow {
-                Text("Profiles:")
-                    .foregroundColor(FleetPalette.label)
-                HStack(spacing: 4) {
-                    Text("○ ordinary")
-                        .foregroundColor(FleetPalette.value)
-                    Text("·")
-                        .foregroundColor(FleetPalette.muted)
-                    Text("△ drain fallback")
-                        .foregroundColor(FleetPalette.value)
-                    Text("·")
-                        .foregroundColor(FleetPalette.muted)
-                    Text("× unavailable")
-                        .foregroundColor(FleetPalette.value)
-                }
+                Text("Account:").foregroundColor(FleetPalette.label)
+                Text("click badge to choose or open").foregroundColor(FleetPalette.value)
             }
-
             GridRow {
-                Text("Routing:")
-                    .foregroundColor(FleetPalette.label)
-                HStack(spacing: 4) {
-                    Text("→ active")
-                        .foregroundColor(FleetPalette.value)
-                    Text("·")
-                        .foregroundColor(FleetPalette.muted)
-                    Text("↓ lowest")
-                        .foregroundColor(FleetPalette.value)
-                }
+                Text("↓").foregroundColor(FleetPalette.label)
+                Text("lowest remaining quota").foregroundColor(FleetPalette.value)
             }
         }
         .font(.system(size: 10.5, weight: .medium))
@@ -525,17 +513,6 @@ private func rowColor(for status: ProviderStatus) -> Color {
         return FleetPalette.danger
     case .offline, .noKey, .notInstalled:
         return FleetPalette.faint
-    }
-}
-
-private func profileMarker(for status: ProviderStatus) -> String {
-    switch status.state {
-    case .offline, .noKey:
-        return "×"
-    case .notInstalled:
-        return "-"
-    default:
-        return "○"
     }
 }
 

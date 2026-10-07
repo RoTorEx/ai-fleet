@@ -4,6 +4,11 @@ import SwiftUI
 struct AccountsSettingsView: View {
     @ObservedObject private var store = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
+    @ObservedObject private var navigation = SettingsNavigation.shared
+    @State private var isAdding = false
+    @State private var draftName = ""
+    @State private var draftEmail = ""
+    @State private var draftProviderID = "codex"
     @State private var selectedID = FleetAccount.defaultID
 
     var body: some View {
@@ -17,12 +22,13 @@ struct AccountsSettingsView: View {
                     }
                 }
                 Button {
-                    selectedID = store.add().id
+                    isAdding = true
                 } label: { Image(systemName: "plus") }
                 .help("Add account")
                 .accessibilityLabel("Add account")
             }
-            if let account = store.accounts.first(where: { $0.id == selectedID }) {
+            if isAdding { addAccountForm }
+            else if let account = store.accounts.first(where: { $0.id == selectedID }) {
                 AccountEditor(account: account).id(account.id)
             }
             if let error = store.launchError {
@@ -35,8 +41,52 @@ struct AccountsSettingsView: View {
         .onChange(of: store.accounts.map(\.id)) { ids in
             if !ids.contains(selectedID) { selectedID = FleetAccount.defaultID }
         }
-        .onAppear { service.refresh() }
+        .onAppear { consumeAddRequest(); service.refresh() }
+        .onChange(of: navigation.addingProviderID) { _ in consumeAddRequest() }
     }
+    private var addAccountForm: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("New account").font(.headline)
+            TextField("Email", text: $draftEmail).textFieldStyle(.roundedBorder)
+            TextField("Account name (optional)", text: $draftName).textFieldStyle(.roundedBorder)
+            Picker("Provider", selection: $draftProviderID) {
+                ForEach(ProviderCatalog.all) { Text($0.name).tag($0.id) }
+            }
+            Text("Sign in with this email in the provider’s browser or SSO flow. You can connect more providers to this badge later.")
+                .font(.caption).foregroundColor(.secondary)
+            HStack {
+                Button("Add & sign in…") {
+                    let email = draftEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let added = store.add(name: name.isEmpty ? email : name, email: email)
+                    store.attach(draftProviderID, to: added.id)
+                    selectedID = added.id
+                    isAdding = false
+                    draftName = ""; draftEmail = ""
+                    if let account = store.accounts.first(where: { $0.id == added.id }),
+                       let connection = account.connection(for: draftProviderID) {
+                        store.open(connection, account: account, login: true)
+                    }
+                    service.refresh()
+                }
+                .disabled(draftEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                          !isDraftProviderInstalled)
+                Button("Cancel") { isAdding = false; draftName = ""; draftEmail = "" }
+            }
+        }
+    }
+
+    private var isDraftProviderInstalled: Bool {
+        ProviderCatalog.definition(for: draftProviderID).map(ProviderCatalog.isInstalled) ?? false
+    }
+
+    private func consumeAddRequest() {
+        guard let providerID = navigation.addingProviderID else { return }
+        draftProviderID = providerID
+        isAdding = true
+        navigation.addingProviderID = nil
+    }
+
 }
 
 private struct AccountEditor: View {
@@ -87,16 +137,18 @@ private struct AccountEditor: View {
                             Text(notice).font(.caption).foregroundColor(.orange)
                         }
                     } else {
-                        HStack {
-                            Menu("Link existing") {
-                                ForEach(store.linkedAccounts(for: provider.id)) { owner in
-                                    Button("\(owner.badge) · \(owner.name)") {
-                                        if let connection = owner.connection(for: provider.id) { store.move(connection, to: account.id) }
-                                        service.refresh()
+                        DisclosureGroup("Advanced") {
+                            HStack {
+                                Menu("Link existing") {
+                                    ForEach(store.linkedAccounts(for: provider.id)) { owner in
+                                        Button("\(owner.badge) · \(owner.name)") {
+                                            if let connection = owner.connection(for: provider.id) { store.move(connection, to: account.id) }
+                                            service.refresh()
+                                        }
                                     }
                                 }
+                                Button("Import folder…") { importFolder(provider) }
                             }
-                            Button("Import folder…") { importFolder(provider) }
                         }.font(.caption)
                     }
                 }

@@ -32,7 +32,11 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         let content = AIFleetMenuView(
             openSettings: { [weak self] in
                 guard let self else { return }
-                self.openSettings(self.popoverScreenFrame)
+                let anchorFrame = self.popoverScreenFrame
+                self.closePopover(immediately: true)
+                DispatchQueue.main.async { [weak self] in
+                    self?.openSettings(anchorFrame)
+                }
             },
             openStatistics: { [weak self] in
                 guard let self else { return }

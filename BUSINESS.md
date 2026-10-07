@@ -38,9 +38,11 @@ subscription charges.
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent identities with stable α, β, γ badges.
   Each can link any supported provider; one provider appears once in the menu
-  with its linked account badges. Selecting a badge changes the displayed quota
-  and future AI Fleet launches for that provider. Email, organization, and plan
-  are hover details, not permanent rows. Management lives inside the existing
+  with the selected account's circular badge aligned right. Clicking the badge
+  opens account selection, launch, and addition actions. Selection changes the
+  displayed quota and future AI Fleet launches for that provider. Only email
+  and plan appear on hover. Selection is manual; no automatic routing or
+  fallback is promised. Management lives inside the existing
   Settings window; account management creates no separate app window. Existing
   sessions and ordinary CLI commands retain their login. See
   [Accounts](business/accounts.md) for selection, isolation, and storage rules.
