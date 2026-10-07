@@ -13,7 +13,7 @@ It sits in the menu bar as a ship icon and shows a simple dropdown:
 - **Claude** — remaining 5h/7d subscription quota and native sign-in.
 - **Accounts** — shared α/β/γ badges across providers; email and plan on hover.
 
-No dock icon. Provider sessions launched from AI Fleet use the chosen account.
+No dock icon. AI Fleet monitors and opens native sign-in for each provider’s global login.
 
 ## Requirements
 
@@ -60,29 +60,27 @@ The app reads your ChatGPT OAuth token from `~/.codex/auth.json` (created automa
 
 ### Accounts
 
-Each connected account/provider pair has a compact row such as **Codex (α)**,
-with a smaller account badge after the provider name and no extra name line.
-The chosen account shows **→**; other accounts are gray. Choose **… → Use this account** on that row to switch that provider.
-Hover the badge to immediately see email and plan. The **…** menu offers **Open**, **Sign in**,
-and **Add account…**. Selection persists across restart and affects quota and
-future AI Fleet sessions; existing sessions and ordinary CLI commands retain
-their login. The legend separates **Auth** (○ signed in, × needs access, ? unknown),
-**Selection** (→ selected, gray unselected), and **Quota** (↓ lowest current
-positive quota among selected signed-in connections). Exhausted quota is red 0%;
-failed quota updates retain confirmed login and show their reason. AI Fleet does
-not automatically route requests or choose fallback accounts.
+Each account/provider association has a compact row such as **Codex (α)**.
+**→** marks the detected global login; other accounts are gray without quota.
+Hover the badge to immediately see only email and plan. The **…** menu contains
+only **Sign in…**. Complete native login in Terminal and the provider’s browser
+or SSO flow to change its standard global login. This affects ordinary CLI
+commands; an already-running process may retain cached credentials until refresh.
+There is no separate session launch or manual account selection.
 
-**Add account…** opens the existing **Settings → Accounts** tab with that
-provider selected. Enter the email, optionally a name, then **Add & sign in…**.
-Complete the provider's native browser/SSO login in Terminal. **+** in Accounts
-opens the same inline form; Cancel leaves accounts unchanged. Enable another
-provider on the same badge to share that identity. **Advanced** contains
-**Link existing** and **Import folder…** for already configured CLI accounts.
-The **Manage account** picker chooses what to edit; working-account selection
-and session launch stay in the main menu. **Menu visibility** controls which
-providers appear, across all accounts. **General** contains only shortcut,
-notification, and analytics refresh settings. Removing an account keeps its
-provider credentials and session files.
+AI Fleet checks one global connection per provider and assigns its status to a
+unique matching email label. New confirmed emails receive a badge automatically;
+duplicate labels remain ambiguous. The legend retains **Auth**, **Selection**,
+**Quota**, and quota colors. Failed quota updates retain confirmed login and show
+their reason; stale quota cannot generate alerts or become Lowest.
+
+Use **Settings → Accounts → +** to register an email/provider and **Add & sign
+in…** to start global login. Cancel leaves metadata unchanged. The **Manage
+account** picker edits labels only. Provider toggles associate more providers
+with the same badge without making isolated directories. **Menu visibility**
+applies across accounts; **General** owns shortcut, notifications, and analytics.
+Existing isolated credential folders remain intact but are not polled/launched.
+Selective per-session login is deferred.
 
 ## Refresh
 

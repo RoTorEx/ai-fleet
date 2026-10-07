@@ -41,8 +41,14 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
     let id: String
     let providerID: String
     var configDirectory: String?
+    // Metadata association only; never an independent credential store.
+    var globalAssociation: Bool? = nil
 
-    var statusID: String { configDirectory == nil ? providerID : "\(providerID):\(id)" }
+    var isNativeDefault: Bool { configDirectory == nil && globalAssociation != true }
+    var statusID: String { isNativeDefault ? providerID : "\(providerID):\(id)" }
+    static func global(_ providerID: String) -> ProviderConnection {
+        ProviderConnection(id: providerID, providerID: providerID, configDirectory: nil)
+    }
     var claudeProfile: ClaudeProfile {
         ClaudeProfile(id: configDirectory == nil ? ClaudeProfile.defaultID : id,
                       name: "Claude", configDirectory: configDirectory)
@@ -148,7 +154,7 @@ final class AccountStore: ObservableObject {
         // Preserve one default connection per provider, even after damaged preferences.
         if !values.contains(where: { $0.id == FleetAccount.defaultID }) { values.insert(FleetAccount(id: "default", badgeIndex: 0, name: "Default", email: "", connections: []), at: 0) }
         let defaultIndex = values.firstIndex { $0.id == FleetAccount.defaultID }!
-        for provider in ProviderCatalog.all where !values.contains(where: { $0.connections.contains { $0.providerID == provider.id && $0.configDirectory == nil } }) {
+        for provider in ProviderCatalog.all where !values.contains(where: { $0.connections.contains { $0.providerID == provider.id && $0.isNativeDefault } }) {
             values[defaultIndex].connections.append(ProviderConnection(id: provider.id, providerID: provider.id, configDirectory: nil))
         }
         accounts = values
@@ -200,9 +206,55 @@ final class AccountStore: ObservableObject {
         accounts[index].connections.append(ProviderConnection(id: id, providerID: providerID, configDirectory: path))
         save()
     }
+    func attachGlobal(_ providerID: String, to accountID: String) {
+        guard ProviderCatalog.definition(for: providerID) != nil,
+              let index = accounts.firstIndex(where: { $0.id == accountID }),
+              accounts[index].connection(for: providerID) == nil else { return }
+        accounts[index].connections.append(ProviderConnection(id: UUID().uuidString, providerID: providerID,
+                                                              configDirectory: nil, globalAssociation: true))
+        save()
+    }
+
+    // Observed native identity, not a requested target or a stored manual selection.
+    // Duplicate email labels are ambiguous; do not attribute quota to either badge.
+    func globalAccount(for status: ProviderStatus) -> String? {
+        let email = status.account?.email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if email.isEmpty {
+            return accounts.first { $0.connection(for: status.providerID)?.isNativeDefault == true }?.id
+        }
+        let matches = accounts.filter { $0.email.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare(email) == .orderedSame }
+        guard matches.count <= 1 else { return nil }
+        if let match = matches.first {
+            attachGlobal(status.providerID, to: match.id)
+            return match.id
+        }
+        guard status.authentication == .signedIn else { return nil }
+        let discovered = add(name: email, email: email)
+        attachGlobal(status.providerID, to: discovered.id)
+        return discovered.id
+    }
+
+    func signInGlobally(_ providerID: String) {
+        guard let provider = ProviderCatalog.definition(for: providerID),
+              let executable = ProviderCatalog.executableURL(for: provider) else {
+            launchError = "Provider CLI is not installed."
+            return
+        }
+        launchError = nil
+        let command = AccountLaunch.command(connection: .global(providerID), executable: executable,
+                                            directory: home, login: true)
+        let source = "tell application \"Terminal\"\nactivate\ndo script \(ClaudeProfileLaunch.appleScriptString(command))\nend tell"
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: source) else { launchError = "Could not prepare Terminal login."; return }
+        script.executeAndReturnError(&error)
+        if error != nil { launchError = "Could not open Terminal. Check macOS Automation permission for AI Fleet." }
+        // Login is asynchronous. Only a subsequent native status check changes the observed account.
+    }
+
     func detach(_ providerID: String, from accountID: String) {
         guard let index = accounts.firstIndex(where: { $0.id == accountID }),
-              accounts[index].connection(for: providerID)?.configDirectory != nil else { return }
+              accounts[index].connection(for: providerID).map({ !$0.isNativeDefault }) == true else { return }
         accounts[index].connections.removeAll { $0.providerID == providerID }
         repairSelection(providerID)
         save()
@@ -218,7 +270,7 @@ final class AccountStore: ObservableObject {
     }
     func remove(_ id: String) {
         guard id != FleetAccount.defaultID, let account = accounts.first(where: { $0.id == id }) else { return }
-        let defaultsToKeep = account.connections.filter { $0.configDirectory == nil }
+        let defaultsToKeep = account.connections.filter { $0.isNativeDefault }
         accounts.removeAll { $0.id == id }
         for connection in defaultsToKeep {
             if let index = accounts.firstIndex(where: { $0.id == FleetAccount.defaultID && $0.connection(for: connection.providerID) == nil }) {
@@ -238,40 +290,6 @@ final class AccountStore: ObservableObject {
         defaults.set(try? JSONEncoder().encode(accounts), forKey: "fleet.accounts")
         defaults.set(selections, forKey: "fleet.selections")
         defaults.set(nextBadge, forKey: "fleet.nextBadge")
-    }
-
-    func open(_ connection: ProviderConnection, account: FleetAccount, login: Bool = false) {
-        guard let provider = ProviderCatalog.definition(for: connection.providerID), let executable = ProviderCatalog.executableURL(for: provider) else {
-            launchError = "Provider CLI is not installed."
-            return
-        }
-        var directory = home
-        if !login {
-            let panel = NSOpenPanel()
-            panel.title = "Open \(provider.name) — \(account.badge)"
-            panel.prompt = "Open"
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            guard panel.runModal() == .OK, let url = panel.url else { return }
-            directory = url
-        }
-        launchError = nil
-        if let path = connection.configDirectory {
-            do {
-                try FileManager.default.createDirectory(at: URL(fileURLWithPath: path), withIntermediateDirectories: true,
-                                                        attributes: [.posixPermissions: 0o700])
-            } catch {
-                launchError = "Could not create the provider configuration folder."
-                return
-            }
-        }
-        let command = AccountLaunch.command(connection: connection, executable: executable, directory: directory, login: login)
-        let source = "tell application \"Terminal\"\nactivate\ndo script \(ClaudeProfileLaunch.appleScriptString(command))\nend tell"
-        var error: NSDictionary?
-        guard let script = NSAppleScript(source: source) else { launchError = "Could not prepare Terminal launch."; return }
-        script.executeAndReturnError(&error)
-        if error != nil { launchError = "Could not open Terminal. Check macOS Automation permission for AI Fleet." }
-        else { select(account.id, for: provider.id) }
     }
 }
 

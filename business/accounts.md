@@ -1,148 +1,92 @@
-# Shared accounts and provider subscriptions
+# Shared accounts and global provider login
 
-An AI Fleet account is a user-defined identity, not an OAuth client. It has a
-stable badge (α, β, γ…), a name, an optional email label, and zero or one
-connection to each supported provider. The same badge can connect Claude,
-Codex, Kimi, and Qwen. Different organizations under the same email can use
-different badges. Grouping is explicit; the app never assumes matching emails
-mean matching subscriptions.
+An AI Fleet account is a labelled identity with a stable α, β, γ badge and
+zero or one association with each supported provider. One badge can represent
+Claude, Codex, Kimi, and Qwen. Labels are app metadata, not credentials.
 
-## Interface and selection
+## Login and interface
 
-The menu contains one row per linked account/provider connection for installed,
-enabled providers. A smaller α/β/γ badge appears in parentheses after the provider
-name, such as Codex (α), without a circle or colon. No extra account-name line
-appears below the header; the badge and its email/plan tooltip distinguish
-subscriptions compactly. The selected connection
-uses the normal quota/status colors and a → marker; selection, Lowest, and auth
-markers occupy tightly spaced aligned columns on the left, independently of
-spacing around the provider name and actions. The provider name and parenthesized
-badge follow them; quota lines align with that name. Only the ellipsis action
-menu remains on the right. Other connections are
-gray, including their quota windows. The row’s ellipsis menu at the right
-contains Use this account for unselected connections; it selects that provider's
-displayed quota and future AI Fleet launches. No separate Use button appears. Other
-providers' selections remain independent. A bounded scroll area handles long
-connection lists. Summary health and Lowest use the selected connections.
-The row's ellipsis menu also offers Open, Sign in, and Add account actions.
-Authentication, quota, and selection are independent. The Auth legend uses ○
-for confirmed sign-in, × for sign-in required or explicitly denied access, and
-? for a failed/unknown auth check. Missing installation is separate and is
-shown in Settings, not as a menu connection. Selection uses → for the next
-AI Fleet launch and gray for unselected connections. A selected connection can
-remain selected while it requires sign-in or its quota is exhausted.
+Each provider has one current standard global CLI login. The row’s **…** menu
+contains only **Sign in…**, which launches the provider’s native login in
+Terminal: Claude `auth login`, Codex/Kimi `login`, and Qwen’s interactive CLI.
+It unsets inherited provider directory and API/account overrides and uses the
+native default location. No project chooser, isolated session launch, manual
+Use action, or credential swapping is exposed. The account is chosen in the
+provider’s browser/SSO flow; the badge does not force that flow’s email.
+Completing login changes the standard provider credentials used by ordinary
+CLI commands. Already-running processes may retain cached credentials until
+they refresh or authenticate again; AI Fleet does not control their lifetime.
+Selective per-session login is deferred until requested.
 
-Quota has current, exhausted, stale, unavailable, unsupported, and unknown
-states. Exhaustion is red 0%, not ×. Usage endpoint failures do not invalidate
-an independently confirmed native login; Claude’s explicit HTTP 401 credential
-rejection does. A usage-endpoint 403 denies quota access, not necessarily login.
-A cooldown retains sign-in with a last-known or waiting notice. Unknown/stale
-quota never drives Lowest or notifications. The ↓ marker describes the lowest
-positive current remaining quota among selected, authenticated connections.
-Badge hover immediately displays an inline overlay with only the
-provider-reported email and plan, without the native tooltip delay or another
-window. Moving away dismisses it; missing plans
-are omitted and the user-supplied email is a fallback. No quota, account name,
-organization, or status text belongs in this tooltip.
+Status checks read only one native default connection per provider, regardless
+of the number of registered identities. A reported email matches a unique label
+case-insensitively. A confirmed login with a new email registers a new badge
+and provider association. Duplicate email labels are ambiguous: no badge is
+marked current and no row is given that quota. The provider summary still shows
+the native status. With no reported email, status belongs to the native-default
+connection’s existing owner as a label fallback, without claiming verified
+identity. Historical manual selections do not determine status or login.
 
-Selection is manual and independent per provider. The legend separates Color,
-Auth, Selection, and Quota; it does not advertise automatic routing or fallback.
-There is no fallback profile type today. A future primary/backup role belongs
-to an implemented routing policy, separately from authentication or selection.
-Changes to the legend require an explicit user request.
+The menu shows one row per association for installed/enabled providers, with a
+small parenthesized badge after the name, such as Codex (α). Status markers stay
+in tightly spaced aligned columns on the left; only … occupies the right.
+**→** marks the detected global login only when authentication is confirmed.
+Other accounts are gray and read `Not signed in globally`, with no borrowed
+quota, plan, or provider identity. Badge hover immediately shows an inline
+overlay containing only email and plan; missing plans are omitted and the label
+email is a fallback. There is no new account-management window.
 
-Settings uses its existing window, with General and Accounts tabs. General owns
-only application-wide shortcut, notifications, and analytics refresh settings.
-Accounts owns identity/connection management and native sign-in. Its Manage
-account picker chooses which identity to edit, never the working login; it has
-no Use/Selected controls or ordinary session-launch button. Working-account
-selection and session launch belong to the main menu. The collapsed Menu
-visibility section in Accounts preserves global Show provider preferences,
-independently of attaching a provider to an identity; those preferences are not
-reset when the controls move out of General. Add account
-from a connection’s action menu opens an inline form on Accounts with that provider
-preselected. The + button opens the same form. Enter an email, optionally a name,
-and choose a provider; Add & sign in creates an isolated connection and opens
-native login. Cancel creates no identity or connection. Other providers can
-later be attached to the same badge. The Accounts tab edits labels and provider
-connections. Moving existing connections and importing configuration folders
-are under Advanced for unlinked providers. Moving a connection preserves its
-credential path, quota notification identity, and selection. An account can own
-only one connection to a given provider; an already-linked connection cannot
-be silently overwritten. No additional account-management window exists.
+Authentication and quota remain independent: ○ signed in, × requires sign-in
+or explicit access denial, ? unknown check. Exhaustion is red 0%, not missing
+login. Quota errors retain independently confirmed auth except explicit HTTP
+401 credential rejection. Stale/unknown quota cannot drive alerts or Lowest.
+The **↓** marker means lowest positive current global quota. The existing
+legend retains Color, Auth, Selection, and Quota; Selection describes global
+login and gray other accounts. No automatic fallback or request routing exists.
 
-Sign in launches the provider's native CLI in Terminal. Claude uses `auth login`,
-Codex and Kimi use `login`, and Qwen enters its interactive CLI login. Open asks
-for a project directory; cancelling leaves selection unchanged. The app never
-changes the login of an existing session or ordinary shell command. Selection
-is independent for each provider and persists through restart.
+Settings → Accounts edits labels and provider associations; its picker only
+chooses the record to edit. **+** opens the inline email/provider form;
+**Add & sign in…** registers metadata and starts global native login. Cancel
+creates nothing. Provider toggles add associations without creating credential
+folders. **Sign in…** has the same global meaning on every badge. Folder import
+and selective launch controls are deferred. General owns only shortcut,
+notifications, and analytics; Menu visibility in Accounts applies globally.
 
-## Storage and isolation
+## Storage and preservation
 
-- `fleet.accounts`, `fleet.selections`, and `fleet.nextBadge` in UserDefaults
-  hold only identity labels, stable IDs/badge indices, paths, and selections.
-  Removed badges are not reassigned to future identities. The default identity
-  initially groups existing default CLI connections and cannot be removed.
-  Users can move those connections to badges that match their email labels.
-- Newly attached providers use independent directories under
-  `~/Library/Application Support/AI Fleet/Accounts/<account UUID>/<provider>/`.
-  The app prepares the directory on launch; the native CLI performs login and
-  owns credentials, settings, policy enforcement, and history. A custom path
-  never falls back to another account's credential or global API balance.
-- The producer and quota reader use the same selector:
+- `fleet.accounts` and `fleet.nextBadge` store labels, stable IDs, and provider
+  associations. A `globalAssociation` connection is metadata with a unique row
+  ID and no custom configuration directory. Removed badges are not reused.
+- Exactly one native-default connection per provider is retained. Removing an
+  account preserves any native-default connection on another identity. Legacy
+  `fleet.selections` is retained for recovery, but is not the active-login source.
+- Existing isolated paths, credential files, session history, and legacy Claude
+  profile metadata remain intact. They are not polled or launched by this UI.
+  Removing metadata does not delete credentials. Internal scoped readers and
+  command generation remain covered by compatibility tests for recovery.
+- Native selectors are `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME`, and
+  `QWEN_HOME`; global login removes inherited values without writing shell
+  startup files or bypassing native policies. AI Fleet never copies or swaps
+  tokens between accounts.
+- Claude’s native Keychain service is `Claude Code-credentials`. Native auth
+  status and OAuth quota checks retain the existing hashed account/credential
+  cache keys, cooldowns, no-redirect requests, and token secrecy. Polling rules
+  are owned by BUSINESS.md. A changed native identity cannot reuse another
+  subscription’s quota cache.
+- Codex reads native `~/.codex/auth.json`; JWT email/plan are display hints, not
+  proof of authorization. Keychain-only/ephemeral storage remains outside this
+  reader. Kimi retains native credential refresh and balance fallback. Qwen
+  retains local OAuth detection and explicitly unsupported quota.
+- Alerts are evaluated only for the current global row, with connection and
+  reported account/organization scope. Inactive associations have no quota.
+- Statistics keeps the standard global Codex scope. Multi-account historical
+  analytics remains a separate queued task.
 
-  | Provider | Selector | Quota credential |
-  | --- | --- | --- |
-  | Claude | `CLAUDE_CONFIG_DIR` | `.credentials.json` or scoped Claude Keychain item |
-  | Codex | `CODEX_HOME` | `auth.json` (file-backed OAuth storage) |
-  | Kimi | `KIMI_CODE_HOME` | `credentials/kimi-code.json` |
-  | Qwen | `QWEN_HOME` | `oauth_creds.json` / `credentials.json`; quota unsupported |
+## Verification
 
-- Claude's default service is `Claude Code-credentials`. A custom profile uses
-  `Claude Code-credentials-<first eight hex digits of SHA256(NFC(exact path))>`.
-  The CLI-reported config directory must match the requested profile before
-  reading credentials. Tokens stay in memory and are never logged or rewritten
-  by AI Fleet. Usage requests do not follow redirects.
-- Claude quota checks use a shared per-profile/account/credential request gate.
-  Successful responses are reused for five minutes. HTTP 429 retains confirmed
-  login and any last measurement, marks it as last known, and waits with
-  exponential backoff plus `Retry-After`. Only hashed keys and retry deadlines
-  persist; tokens and quota measurements do not. Changing login/organization
-  cannot reuse another subscription's cache. Normal login checks continue when
-  views open. Polling numbers and rationale are owned by BUSINESS.md.
-- Codex email and plan are local JWT display hints, not verified authorization.
-  Native Keychain-only/ephemeral Codex storage is outside the current file reader.
-  Kimi preserves its established refresh behavior, writing renewed credentials
-  only to the connection that produced the refresh token, with scoped device
-  headers. Only the default Kimi connection may use the global API balance.
-- Launches remove inherited account/API overrides for the chosen provider.
-  They do not change shell startup files or bypass native managed policies.
-- Notifications are evaluated for all connections, with connection IDs and
-  reported account/organization hashes in their scopes. Alerts name the badge
-  instead of exposing email. Rename/move preserves scope; re-login to another
-  organization uses a different scope.
-- Removal forgets app metadata, keeps provider credentials and session files,
-  and restores a valid selection. Default CLI connections are preserved even
-  when the user removes an identity to which they were moved.
-- Legacy `claude.profiles` metadata migrates to shared identities, preserving
-  IDs, exact configuration selectors, names, and selected login. The original
-  metadata remains available for recovery. Native credentials are never copied.
-- Statistics retains the existing default Codex analytics scope and selected
-  Kimi quota view. Multi-account historical analytics is a separate queued task.
-
-## Sources and verification
-
-Native isolation is documented by
-[Claude](https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts),
-[Codex authentication](https://learn.chatgpt.com/docs/auth),
-[Kimi data locations](https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html),
-and [Qwen configuration](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/).
-Claude scoped service naming is tracked in the
-[quota-axi implementation](https://github.com/kunchenguid/quota-axi).
-
-Tests cover shared badges, independent provider selection, restart, migration,
-connection moves, removal without credential deletion, literal shell quoting,
-and distinct Claude account metadata/quota requests, including same-email
-different-organization logins. Browser/SSO flows for two real corporate accounts
-require the user to complete those companies' authentication and are not
-established by fixture tests.
+GlobalAccountsTests covers observed login overriding legacy manual selection,
+case-insensitive matching, new-email discovery, ambiguous labels, restart and
+association removal, no quota leakage, native login commands, and preservation
+of legacy credential files. Scoped reader/command compatibility tests remain.
+Real corporate browser/SSO login requires the user’s authentication and is not
+established by fixtures; development checks do not change live provider login.

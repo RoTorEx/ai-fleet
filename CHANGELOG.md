@@ -6,36 +6,24 @@ Tracks real product and release progress.
 
 ### Added
 
-- Shared accounts with stable α/β/γ badges and independent provider connections,
-  native sign-in, configuration-folder import, and per-provider selection.
-- Connected account/provider rows with account badges and email/plan hover
-  details; account management is embedded in the existing Settings window.
-- Separate quota and notification scopes for Claude, Codex, and Kimi profiles;
-  Qwen retains its explicit unsupported-quota state.
+- Shared identities with stable α/β/γ badges, provider associations, and immediate
+  email/plan hover inside the existing Settings/menu surfaces.
 
 ### Changed
 
-- Keep working-account selection and session launch in the main menu; Accounts
-  manages identities, connections, sign-in, and global menu visibility. General
-  contains only application-wide settings, with no duplicate provider controls.
-
-- Show every connected account/provider pair compactly as Codex (α), with a
-  smaller parenthesized badge and no extra account-name line or circle.
-  Selection, Lowest, and authentication markers are tightly grouped and aligned
-  on the left; the
-  right edge contains only the ellipsis action menu. Selected connections show
-  →; others are gray,
-  with working-account selection in the right-side ellipsis menu. Other ellipsis
-  actions launch/sign in or add accounts.
-  Badge hover immediately shows only email and plan in an inline overlay.
-- Add accounts through an inline email/provider form in existing Settings,
-  reachable directly from each provider; move/import controls are under Advanced.
-- Separate authentication, quota, and manual selection in the status model and
-  legend: ○ signed in, × needs access, ? unknown; → selected, gray unselected;
-  ↓ lowest current positive quota. Remove the unimplemented fallback category.
-- Retain confirmed native Claude login during quota errors, including quota-only
-  access denial; explicit credential rejection still requires sign-in. Exclude
-  stale or unauthenticated measurements from Lowest and alerts.
+- Make Sign in the only provider-row action and use the standard global native
+  login. Remove Open, Use this account, and Add account from the ellipsis menu.
+- Detect the current account by native email instead of legacy manual selection;
+  poll only one global connection per provider. Inactive accounts are gray and
+  cannot receive another account’s quota or plan. Preserve legacy isolated files
+  and metadata; selective sessions are deferred.
+- Keep compact parenthesized badges, tightly grouped left-side markers, and the
+  Color/Auth/Selection/Quota legend. Selection now describes the global login.
+- Settings → Accounts manages labels, associations, inline additions and global
+  sign-in; General contains only application-wide settings. New associations
+  create no isolated credential directory; cancel creates no metadata.
+- Separate authentication from quota availability. Quota errors retain confirmed
+  native auth; stale or unauthenticated measurements cannot drive Lowest/alerts.
 
 ### Fixed
 

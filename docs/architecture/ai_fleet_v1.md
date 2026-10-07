@@ -57,8 +57,9 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `ProviderStatus` — subscription row ID, provider ID, display name, state,
   quota windows, optional account metadata, and an account notification scope.
 - `AccountStore` — provider-independent accounts with stable badges, provider
-  connections, and per-provider selections. `ProviderConnection` owns its
-  configuration selector; credentials remain with the native provider CLI.
+  associations, and preserved legacy connection paths/selections. Global
+  associations have unique row IDs without credential directories. Native
+  credentials remain with the provider CLI.
 - `ClaudeQuotaPoller` — actor that coalesces in-flight usage requests, caches
   successful quota measurements, and persists per-identity retry cooldowns.
   `ProviderStatus.quotaNotice` distinguishes last-known/paused quota from login
@@ -77,8 +78,11 @@ its existing transport/threshold state. Native login confirmation survives usage
 endpoint failure; explicit credential rejection requires sign-in. All profile,
 connection, account, and notice transformations preserve the independent fields.
 `hasCurrentQuota` gates Lowest and notifications, excluding unknown, unsupported,
-stale, unauthenticated, and unavailable measurements. Selection remains owned by
-AccountStore rather than inferred from authentication or remaining percentage.
+stale, unauthenticated, and unavailable measurements. StatusService checks one canonical global connection per provider, then matches
+the reported email through AccountStore. Its globalAccountIDs maps observed
+identity to badges; legacy manual selections do not control the current login.
+Inactive associations receive no quota or reported identity. Ambiguous labels
+receive no current row; the provider summary retains the actual native status.
 
 ## UI
 
@@ -89,19 +93,20 @@ AccountStore rather than inferred from authentication or remaining percentage.
   markers use aligned left columns; quotas align with the provider name. Only
   the ellipsis menu occupies the right edge. Inactive rows and quota windows are
   gray. Unavailable connections retain × plus their reason. Ellipsis actions
-  select an unselected account, launch/sign in, and route addition to Settings.
+  contain only global native Sign in; no isolated launch or manual Use action.
   Badge hover shows only email and plan immediately, using a noninteractive
-  inline overlay above neighbouring rows rather than delayed native help. Health/Lowest summarize selected connections.
+  inline overlay above neighbouring rows rather than delayed native help. Health/Lowest summarize native global connections.
   Long connection lists use a bounded scroll area. The legend separates Auth,
   Selection, Quota, and quota colors; no automatic fallback is advertised.
 - `SettingsNavigation` — shared, transient tab/add-provider navigation, including
   requests delivered while the existing Settings window is already open.
 - `AccountsSettingsView` — account editor in the existing Settings window's
   Accounts tab. Its inline email/provider form adds and signs in; cancellation
-  does not create metadata. Advanced holds connection move/import actions. It
+  does not create metadata. New associations do not create credential folders. It
   renames labels, removes metadata, opens native CLI sign-in, and owns global
   provider visibility controls. The editor picker never changes the working
-  account; selection and ordinary launches are confined to the main menu.
+  account; every Sign in action uses a canonical native-default connection.
+  Folder imports and isolated launches are deferred; legacy files are preserved.
   General has no provider/account controls. There is no
   account-management window. Settings has a bounded 500 × 640 point layout with
   scrolling so SwiftUI fitting-size changes cannot collapse it to a narrow strip.

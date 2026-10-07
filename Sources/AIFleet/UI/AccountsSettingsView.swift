@@ -49,7 +49,7 @@ struct AccountsSettingsView: View {
                 }
             }
             .font(.callout)
-            Text("Choose the working account and open sessions from the row’s … menu. This page manages connections. Existing sessions and ordinary CLI commands keep their login.")
+            Text("Sign in changes the provider’s global login for standard CLI commands. Choose the account in its native browser or SSO flow. Badges follow the detected email; this picker only edits labels.")
                 .font(.caption).foregroundColor(.secondary)
             Spacer(minLength: 0)
         }
@@ -74,14 +74,11 @@ struct AccountsSettingsView: View {
                     let email = draftEmail.trimmingCharacters(in: .whitespacesAndNewlines)
                     let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let added = store.add(name: name.isEmpty ? email : name, email: email)
-                    store.attach(draftProviderID, to: added.id)
+                    store.attachGlobal(draftProviderID, to: added.id)
                     selectedID = added.id
                     isAdding = false
                     draftName = ""; draftEmail = ""
-                    if let account = store.accounts.first(where: { $0.id == added.id }),
-                       let connection = account.connection(for: draftProviderID) {
-                        store.open(connection, account: account, login: true)
-                    }
+                    store.signInGlobally(draftProviderID)
                     service.refresh()
                 }
                 .disabled(draftEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -133,12 +130,12 @@ private struct AccountEditor: View {
                         Toggle(provider.name, isOn: Binding(
                             get: { account.connection(for: provider.id) != nil },
                             set: { enabled in
-                                if enabled { store.attach(provider.id, to: account.id) }
+                                if enabled { store.attachGlobal(provider.id, to: account.id) }
                                 else { store.detach(provider.id, from: account.id) }
                                 service.refresh()
                             }
                         ))
-                        .disabled(account.connection(for: provider.id)?.configDirectory == nil && account.connection(for: provider.id) != nil)
+                        .disabled(account.connection(for: provider.id)?.isNativeDefault == true)
                         Spacer()
                         if let connection = account.connection(for: provider.id) {
                             Text(service.status(for: connection)?.detail ?? "Checking…")
@@ -151,20 +148,6 @@ private struct AccountEditor: View {
                         if let notice = service.status(for: connection)?.quotaNotice {
                             Text(notice).font(.caption).foregroundColor(.orange)
                         }
-                    } else {
-                        DisclosureGroup("Advanced") {
-                            HStack {
-                                Menu("Link existing") {
-                                    ForEach(store.linkedAccounts(for: provider.id)) { owner in
-                                        Button("\(owner.badge) · \(owner.name)") {
-                                            if let connection = owner.connection(for: provider.id) { store.move(connection, to: account.id) }
-                                            service.refresh()
-                                        }
-                                    }
-                                }
-                                Button("Import folder…") { importFolder(provider) }
-                            }
-                        }.font(.caption)
                     }
                 }
             }
@@ -182,7 +165,7 @@ private struct AccountEditor: View {
 
     private func connectionActions(_ connection: ProviderConnection, provider: ProviderDefinition) -> some View {
         HStack(spacing: 8) {
-            Button("Sign in…") { store.open(connection, account: account, login: true) }
+            Button("Sign in…") { store.signInGlobally(provider.id) }
             Spacer(minLength: 0)
         }
         .font(.caption)
@@ -190,15 +173,4 @@ private struct AccountEditor: View {
         .help(account.tooltip(for: connection, status: service.status(for: connection)))
     }
     private func save() { store.update(account.id, name: name, email: email) }
-    private func importFolder(_ provider: ProviderDefinition) {
-        let panel = NSOpenPanel()
-        panel.title = "Import \(provider.name) configuration folder"
-        panel.prompt = "Link"
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.showsHiddenFiles = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        store.attach(provider.id, to: account.id, configDirectory: url.path)
-        service.refresh()
-    }
 }

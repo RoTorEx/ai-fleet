@@ -36,32 +36,22 @@ subscription charges.
   outside this integration.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
-- Accounts are provider-independent identities with stable α, β, γ badges.
-  Each can link any supported provider; every connected account/provider pair
-  has its own menu row, with a smaller badge in parentheses after the provider
-  name, such as Codex (α). Selected
-  connections retain normal status colors and →; others are gray. Selection,
-  Lowest, and authentication markers stay aligned on the left with the provider
-  name and account badge; the right edge contains only the ellipsis action menu. The row’s
-  ellipsis menu selects the working account. Account names are not repeated below the provider. The ellipsis
-  menu opens launch,
-  sign-in, and addition actions. Selection changes the displayed quota and
-  future AI Fleet launches for that provider. Only email
-  and plan appear immediately on hover, in an overlay inside the menu. Selection is manual; no automatic routing or
-  fallback is implemented. Authentication, selection, and quota are independent:
-  ○ signed in, × needs sign-in/explicit access denial, ? unknown check;
-  → selected for future launches and gray unselected; ↓ lowest positive current
-  quota among selected authenticated connections. Exhaustion and quota refresh
-  failures do not themselves invalidate login. The legend groups Color, Auth,
-  Selection, and Quota; there is no fallback profile type. Legend changes require
-  an explicit request. Management lives inside the existing
-  Settings window's Accounts tab. Its editor picker does not select the working
-  login; working-account selection and ordinary session launch belong to the
-  main menu. General contains only application-wide settings. Global provider
-  visibility preferences live in Accounts and remain independent of connections.
-  Account management creates no separate app window. Existing
-  sessions and ordinary CLI commands retain their login. See
-  [Accounts](business/accounts.md) for selection, isolation, and storage rules.
+- Accounts are provider-independent labelled identities with stable α, β, γ
+  badges. Each provider uses one standard global native CLI login. The row’s
+  ellipsis menu exposes only Sign in, which changes that global login through
+  the provider’s native browser/SSO flow. No isolated session launch or manual
+  working-account selection is exposed. Native email determines the current
+  badge; duplicate email labels remain ambiguous. Current authenticated rows
+  show → and normal colors; other associations are gray and have no quota.
+  Small parenthesized badges follow the provider name; tightly grouped markers
+  remain on the left and only … on the right. Hover immediately shows only
+  email and plan in an inline overlay. Authentication and quota remain
+  independent; the Color/Auth/Selection/Quota legend stays visible and ↓ marks
+  lowest positive current global quota. Management stays in Settings → Accounts,
+  with inline additions, label editing, global sign-in, and menu visibility;
+  General contains only application-wide settings. Existing isolated files and
+  metadata are preserved without polling or launching them. Selective login is
+  deferred. See [Accounts](business/accounts.md) for matching and storage rules.
 
 - Quota notifications name the provider, crossed threshold, and exact window;
   no redundant remaining value follows the threshold. When the provider supplies

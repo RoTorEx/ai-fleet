@@ -11,6 +11,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var codex: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.codex)
     @Published var claude: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.claude)
     @Published var subscriptions: [ProviderStatus] = []
+    @Published private(set) var globalAccountIDs: [String: String] = [:]
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var lastError: String?
     @Published var notificationStatusText = "Checking"
@@ -194,7 +195,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         task?.cancel()
         task = Task { @MainActor in
             lastError = nil
-            let connections = AccountStore.shared.accounts.flatMap(\.connections)
+            let connections = ProviderCatalog.all.map { ProviderConnection.global($0.id) }
             var results: [ProviderStatus] = []
             await withTaskGroup(of: ProviderStatus.self) { group in
                 for connection in connections {
@@ -203,19 +204,35 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 for await result in group { results.append(result) }
             }
             guard !Task.isCancelled else { return }
-            self.subscriptions = connections.compactMap { connection in results.first { $0.id == connection.statusID } }
-            self.codex = selectedStatus(for: ProviderCatalog.codex)
-            self.kimi = selectedStatus(for: ProviderCatalog.kimi)
-            self.claude = selectedStatus(for: ProviderCatalog.claude)
-            self.qwen = selectedStatus(for: ProviderCatalog.qwen)
+            applyGlobalStatuses(results, accounts: AccountStore.shared)
             processDrainNotifications()
         }
     }
 
-    private func selectedStatus(for provider: ProviderDefinition) -> ProviderStatus {
-        guard let connection = AccountStore.shared.selected(for: provider.id)?.connection(for: provider.id),
-              let result = status(for: connection) else { return Self.initialStatus(for: provider) }
-        return result
+    func applyGlobalStatuses(_ results: [ProviderStatus], accounts: AccountStore) {
+        var owners: [String: String] = [:]
+        for result in results {
+            owners[result.providerID] = accounts.globalAccount(for: result)
+        }
+        globalAccountIDs = owners
+        subscriptions = accounts.accounts.flatMap { account in
+            account.connections.compactMap { connection -> ProviderStatus? in
+                guard let result = results.first(where: { $0.providerID == connection.providerID }) else { return nil }
+                if owners[connection.providerID] == account.id { return connection.status(from: result) }
+                let ambiguous = owners[connection.providerID] == nil && result.account?.email.map {
+                    $0.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(
+                        account.email.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                } == true
+                return connection.status(from: ProviderStatus(id: connection.providerID, name: result.name,
+                    state: ambiguous ? .offline : .noKey,
+                    detail: ambiguous ? "Global identity ambiguous" : "Not signed in globally", lastUpdated: result.lastUpdated,
+                    providerID: connection.providerID, authentication: ambiguous ? .unknown : .signInRequired, quotaState: .unknown))
+            }
+        }
+        codex = results.first { $0.providerID == "codex" } ?? Self.initialStatus(for: ProviderCatalog.codex)
+        kimi = results.first { $0.providerID == "kimi" } ?? Self.initialStatus(for: ProviderCatalog.kimi)
+        claude = results.first { $0.providerID == "claude" } ?? Self.initialStatus(for: ProviderCatalog.claude)
+        qwen = results.first { $0.providerID == "qwen" } ?? Self.initialStatus(for: ProviderCatalog.qwen)
     }
 
     private func checkConnection(_ connection: ProviderConnection) async -> ProviderStatus {

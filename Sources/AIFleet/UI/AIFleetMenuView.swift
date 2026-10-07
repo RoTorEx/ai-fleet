@@ -18,12 +18,15 @@ struct AIFleetMenuView: View {
                 let status = service.status(for: connection) ?? ProviderStatus(id: connection.statusID, name: provider.name,
                     state: .offline, detail: "Checking…", lastUpdated: nil, providerID: provider.id)
                 return MenuAccountConnection(account: account, connection: connection, status: status,
-                    isSelected: accounts.selections[provider.id] == account.id)
+                    isSelected: service.globalAccountIDs[provider.id] == account.id && status.authentication == .signedIn)
             }
         }
     }
 
-    private var providers: [ProviderStatus] { connections.filter(\.isSelected).map(\.status) }
+    private var providers: [ProviderStatus] {
+        ProviderCatalog.all.filter { settings.isEnabled($0.id) && ProviderCatalog.isInstalled($0) }
+            .map { service.status(for: $0.id) }
+    }
 
     private var lowestProvider: ProviderStatus? {
         providers
@@ -35,6 +38,10 @@ struct AIFleetMenuView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             summarySection
+            if let error = accounts.launchError {
+                Text(error).font(.caption).foregroundColor(FleetPalette.danger)
+                    .padding(.horizontal, 16).padding(.top, 8)
+            }
 
             FleetDivider()
                 .padding(.top, 11)
@@ -104,7 +111,7 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, isLowest: entry.id == lowestProvider?.id, openSettings: openSettings)
+                ProviderLimitRow(entry: entry, isLowest: entry.isSelected && entry.status.providerID == lowestProvider?.providerID, openSettings: openSettings)
             }
         }
         .padding(.horizontal, 16)
@@ -230,7 +237,7 @@ struct ProviderLimitRow: View {
                     Text(entry.isSelected ? "→" : " ")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
-                        .accessibilityLabel(entry.isSelected ? "\(status.name) account \(entry.account.badge), selected for next launch" : "")
+                        .accessibilityLabel(entry.isSelected ? "\(status.name) account \(entry.account.badge), global login" : "")
                     Text(isLowest ? "↓" : " ")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
@@ -248,20 +255,8 @@ struct ProviderLimitRow: View {
                     .accessibilityLabel("\(status.name) account \(entry.account.badge)")
                 Spacer(minLength: 8)
                 Menu {
-                    if !entry.isSelected {
-                        Button("Use this account") {
-                            accounts.select(entry.account.id, for: status.providerID)
-                            service.refresh()
-                        }
-                        Divider()
-                    }
-                    Button("Open \(status.name)…") { accounts.open(entry.connection, account: entry.account) }
-                    Button("Sign in…") { accounts.open(entry.connection, account: entry.account, login: true) }
-                    Divider()
-                    Button("Add account…") {
-                        SettingsNavigation.shared.addAccount(for: status.providerID)
-                        openSettings()
-                    }
+                    Button("Sign in…") { accounts.signInGlobally(status.providerID) }
+                    .help("Changes the provider’s global login. Choose the account in its native login flow.")
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
@@ -420,7 +415,7 @@ struct LegendSection: View {
             }
             GridRow {
                 Text("Selection:").foregroundColor(FleetPalette.label)
-                Text("→ selected · gray unselected").foregroundColor(FleetPalette.value)
+                Text("→ global login · gray other accounts").foregroundColor(FleetPalette.value)
             }
             GridRow {
                 Text("Quota:").foregroundColor(FleetPalette.label)
