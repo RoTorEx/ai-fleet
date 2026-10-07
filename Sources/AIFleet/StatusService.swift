@@ -93,7 +93,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             name: provider.name,
             state: .ok,
             detail: "Disabled",
-            lastUpdated: nil
+            lastUpdated: nil,
+            authentication: .unknown
         )
     }
 
@@ -259,7 +260,11 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         } else {
             status = ClaudeQuota.unavailable("Signed in · quota unavailable")
         }
-        return profile.status(from: status, account: snapshot.account)
+        // A failed usage endpoint does not undo a successful native auth check.
+        // Only an explicit credential rejection invalidates the confirmed login.
+        let checked = snapshot.auth == .signedIn && status.authentication != .signInRequired
+            ? status.withAuthentication(.signedIn) : status
+        return profile.status(from: checked, account: snapshot.account)
     }
 
     // MARK: - Drain notifications
@@ -303,7 +308,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let defaults = UserDefaults.standard
 
         for provider in providerStatuses where settings.isEnabled(provider.providerID) {
-            guard provider.quotaNotice == nil, provider.state == .ok || provider.state == .limited else {
+            guard provider.hasCurrentQuota else {
                 continue
             }
 

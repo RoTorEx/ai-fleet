@@ -40,7 +40,7 @@ struct ClaudeProfile: Codable, Identifiable, Equatable {
                        windowLabel: status.windowLabel, resetAt: status.resetAt, limitWindows: status.limitWindows,
                        providerID: "claude", account: account,
                        notificationScope: "claude.\(id).\(account?.scope ?? "unidentified")",
-                       quotaNotice: status.quotaNotice)
+                       quotaNotice: status.quotaNotice, authentication: status.authentication, quotaState: status.quotaState)
     }
 }
 

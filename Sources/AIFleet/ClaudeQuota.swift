@@ -44,7 +44,8 @@ enum ClaudeQuota {
     private static let liveSession = URLSession(configuration: .ephemeral, delegate: ClaudeQuotaRedirectGuard(),
                                                delegateQueue: nil)
     static func unavailable(_ detail: String, state: ProviderStatus.State = .offline) -> ProviderStatus {
-        ProviderStatus(id: "claude", name: "Claude", state: state, detail: detail, lastUpdated: Date())
+        ProviderStatus(id: "claude", name: "Claude", state: state, detail: detail, lastUpdated: Date(),
+                       quotaState: state == .noKey ? .unknown : .unavailable)
     }
 
     static func decode(_ data: Data, now: Date = Date()) throws -> ProviderStatus {

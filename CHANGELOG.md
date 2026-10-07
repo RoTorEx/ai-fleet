@@ -27,9 +27,12 @@ Tracks real product and release progress.
   Badge hover immediately shows only email and plan in an inline overlay.
 - Add accounts through an inline email/provider form in existing Settings,
   reachable directly from each provider; move/import controls are under Advanced.
-- Preserve the existing Color / Profiles / Routing legend and provider-state
-  symbols; account selection remains manual and the downward arrow marks only
-  the lowest remaining quota.
+- Separate authentication, quota, and manual selection in the status model and
+  legend: ○ signed in, × needs access, ? unknown; → selected, gray unselected;
+  ↓ lowest current positive quota. Remove the unimplemented fallback category.
+- Retain confirmed native Claude login during quota errors, including quota-only
+  access denial; explicit credential rejection still requires sign-in. Exclude
+  stale or unauthenticated measurements from Lowest and alerts.
 
 ### Fixed
 

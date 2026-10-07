@@ -20,24 +20,32 @@ contains Use this account for unselected connections; it selects that provider's
 displayed quota and future AI Fleet launches. No separate Use button appears. Other
 providers' selections remain independent. A bounded scroll area handles long
 connection lists. Summary health and Lowest use the selected connections.
-The row's ellipsis menu also offers Open, Sign in, and Add account actions. The
-existing × marker denotes unavailable authentication/status, with the detailed
-reason beneath the header; an unselected but available account retains ○ and
-gray coloring. A quota cooldown retains confirmed login and is described by its
-notice rather than a new unavailable state. The → marker replaces a redundant
-Active label and the separate ↓ marker continues to identify Lowest.
+The row's ellipsis menu also offers Open, Sign in, and Add account actions.
+Authentication, quota, and selection are independent. The Auth legend uses ○
+for confirmed sign-in, × for sign-in required or explicitly denied access, and
+? for a failed/unknown auth check. Missing installation is separate and is
+shown in Settings, not as a menu connection. Selection uses → for the next
+AI Fleet launch and gray for unselected connections. A selected connection can
+remain selected while it requires sign-in or its quota is exhausted.
+
+Quota has current, exhausted, stale, unavailable, unsupported, and unknown
+states. Exhaustion is red 0%, not ×. Usage endpoint failures do not invalidate
+an independently confirmed native login; Claude’s explicit HTTP 401 credential
+rejection does. A usage-endpoint 403 denies quota access, not necessarily login.
+A cooldown retains sign-in with a last-known or waiting notice. Unknown/stale
+quota never drives Lowest or notifications. The ↓ marker describes the lowest
+positive current remaining quota among selected, authenticated connections.
 Badge hover immediately displays an inline overlay with only the
 provider-reported email and plan, without the native tooltip delay or another
 window. Moving away dismisses it; missing plans
 are omitted and the user-supplied email is a fallback. No quota, account name,
 organization, or status text belongs in this tooltip.
 
-Selection is manual and independent per provider. AI Fleet does not implement
-automatic quota draining, fallback profiles, or traffic routing. The existing
-Color / Profiles / Routing legend and its symbols are retained at the user's
-request; the legacy fallback notation does not implement automatic fallback.
-Changes to this legend require an explicit user request. The downward arrow identifies the provider
-with the lowest current remaining quota, not a routing target.
+Selection is manual and independent per provider. The legend separates Color,
+Auth, Selection, and Quota; it does not advertise automatic routing or fallback.
+There is no fallback profile type today. A future primary/backup role belongs
+to an implemented routing policy, separately from authentication or selection.
+Changes to the legend require an explicit user request.
 
 Settings uses its existing window, with General and Accounts tabs. General owns
 only application-wide shortcut, notifications, and analytics refresh settings.

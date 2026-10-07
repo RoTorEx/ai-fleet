@@ -72,6 +72,14 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `UsageAnalyticsSnapshot` — cached Codex account usage, local token analytics,
   Kimi quota analytics, refresh times, and local scan duration.
 
+`ProviderStatus` carries independent authentication and quota states alongside
+its existing transport/threshold state. Native login confirmation survives usage
+endpoint failure; explicit credential rejection requires sign-in. All profile,
+connection, account, and notice transformations preserve the independent fields.
+`hasCurrentQuota` gates Lowest and notifications, excluding unknown, unsupported,
+stale, unauthenticated, and unavailable measurements. Selection remains owned by
+AccountStore rather than inferred from authentication or remaining percentage.
+
 ## UI
 
 - `AIFleetMenuView` — one row per connected account/provider pair, grouped by
@@ -82,7 +90,8 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
   select an unselected account, launch/sign in, and route addition to Settings.
   Badge hover shows only email and plan immediately, using a noninteractive
   inline overlay above neighbouring rows rather than delayed native help. Health/Lowest summarize selected connections.
-  Long connection lists use a bounded scroll area. The original legend remains.
+  Long connection lists use a bounded scroll area. The legend separates Auth,
+  Selection, Quota, and quota colors; no automatic fallback is advertised.
 - `SettingsNavigation` — shared, transient tab/add-provider navigation, including
   requests delivered while the existing Settings window is already open.
 - `AccountsSettingsView` — account editor in the existing Settings window's

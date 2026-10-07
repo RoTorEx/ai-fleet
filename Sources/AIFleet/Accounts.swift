@@ -81,7 +81,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
                        resetAt: source.resetAt, limitWindows: source.limitWindows, providerID: providerID,
                        account: source.account,
                        notificationScope: "\(statusID).\(source.account?.scope ?? "unidentified")",
-                       quotaNotice: source.quotaNotice)
+                       quotaNotice: source.quotaNotice, authentication: source.authentication, quotaState: source.quotaState)
     }
 }
 

@@ -66,7 +66,10 @@ The chosen account shows **→**; other accounts are gray. Choose **… → Use 
 Hover the badge to immediately see email and plan. The **…** menu offers **Open**, **Sign in**,
 and **Add account…**. Selection persists across restart and affects quota and
 future AI Fleet sessions; existing sessions and ordinary CLI commands retain
-their login. The ↓ marker means lowest selected remaining quota. AI Fleet does
+their login. The legend separates **Auth** (○ signed in, × needs access, ? unknown),
+**Selection** (→ selected, gray unselected), and **Quota** (↓ lowest current
+positive quota among selected signed-in connections). Exhausted quota is red 0%;
+failed quota updates retain confirmed login and show their reason. AI Fleet does
 not automatically route requests or choose fallback accounts.
 
 **Add account…** opens the existing **Settings → Accounts** tab with that

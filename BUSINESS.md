@@ -46,9 +46,13 @@ subscription charges.
   sign-in, and addition actions. Selection changes the displayed quota and
   future AI Fleet launches for that provider. Only email
   and plan appear immediately on hover, in an overlay inside the menu. Selection is manual; no automatic routing or
-  fallback is implemented. The existing Color / Profiles / Routing legend and
-  provider-state symbols are preserved; legend changes require an explicit
-  request. Management lives inside the existing
+  fallback is implemented. Authentication, selection, and quota are independent:
+  ○ signed in, × needs sign-in/explicit access denial, ? unknown check;
+  → selected for future launches and gray unselected; ↓ lowest positive current
+  quota among selected authenticated connections. Exhaustion and quota refresh
+  failures do not themselves invalidate login. The legend groups Color, Auth,
+  Selection, and Quota; there is no fallback profile type. Legend changes require
+  an explicit request. Management lives inside the existing
   Settings window's Accounts tab. Its editor picker does not select the working
   login; working-account selection and ordinary session launch belong to the
   main menu. General contains only application-wide settings. Global provider

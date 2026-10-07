@@ -21,7 +21,8 @@ enum LocalProviderAuth: Equatable {
             detail = "Auth status unknown"
         }
         return ProviderStatus(id: provider.id, name: provider.name, state: state,
-                              detail: detail, lastUpdated: Date())
+                              detail: detail, lastUpdated: Date(),
+                              quotaState: self == .signedIn ? .unsupported : .unknown)
     }
 }
 

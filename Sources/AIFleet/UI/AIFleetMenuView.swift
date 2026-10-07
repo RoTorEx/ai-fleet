@@ -27,7 +27,7 @@ struct AIFleetMenuView: View {
 
     private var lowestProvider: ProviderStatus? {
         providers
-            .filter { $0.quotaNotice == nil }
+            .filter(\.hasCurrentQuota)
             .filter { ($0.remainingPercent ?? 0) > 0 }
             .min { ($0.remainingPercent ?? 101) < ($1.remainingPercent ?? 101) }
     }
@@ -113,7 +113,7 @@ struct AIFleetMenuView: View {
     private var summarySection: some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 6, verticalSpacing: 7) {
             GridRow {
-                summaryLabel("Server")
+                summaryLabel("Status")
                 summaryValue(fleetStateLabel, color: fleetStateColor)
             }
             GridRow {
@@ -157,11 +157,10 @@ struct AIFleetMenuView: View {
         if providers.isEmpty {
             return "no providers"
         }
-        if providers.contains(where: { $0.state == .offline }) {
-            return "degraded"
-        }
-        if providers.contains(where: { $0.state == .noKey }) {
-            return "needs auth"
+        if providers.contains(where: { $0.authentication.needsAccess }) { return "needs access" }
+        if providers.contains(where: { $0.authentication == .unknown }) { return "unknown" }
+        if providers.contains(where: { $0.quotaState == .unavailable || $0.quotaState == .stale }) {
+            return "quota unavailable"
         }
         return "ready"
     }
@@ -170,7 +169,7 @@ struct AIFleetMenuView: View {
         switch fleetStateLabel {
         case "ready":
             return FleetPalette.ready
-        case "needs auth":
+        case "needs access", "quota unavailable":
             return FleetPalette.warning
         default:
             return FleetPalette.muted
@@ -178,7 +177,7 @@ struct AIFleetMenuView: View {
     }
 
     private var activeProviderCount: Int {
-        providers.filter { $0.state != .offline && $0.state != .noKey }.count
+        providers.filter { $0.authentication == .signedIn }.count
     }
 
     private var lastUpdateText: String {
@@ -230,7 +229,7 @@ struct ProviderLimitRow: View {
                 Text(isLowest ? "↓" : " ")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundColor(color).frame(width: 14)
-                Text(profileMarker(for: status))
+                Text(status.authentication.marker)
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
                     .foregroundColor(color).frame(width: 14)
                 Text(status.name)
@@ -415,33 +414,17 @@ struct LegendSection: View {
             }
 
             GridRow {
-                Text("Profiles:")
-                    .foregroundColor(FleetPalette.label)
-                HStack(spacing: 4) {
-                    Text("○ ordinary")
-                        .foregroundColor(FleetPalette.value)
-                    Text("·")
-                        .foregroundColor(FleetPalette.muted)
-                    Text("△ drain fallback")
-                        .foregroundColor(FleetPalette.value)
-                    Text("·")
-                        .foregroundColor(FleetPalette.muted)
-                    Text("× unavailable")
-                        .foregroundColor(FleetPalette.value)
-                }
+                Text("Auth:").foregroundColor(FleetPalette.label)
+                Text("○ signed in · × needs access · ? unknown")
+                    .foregroundColor(FleetPalette.value)
             }
-
             GridRow {
-                Text("Routing:")
-                    .foregroundColor(FleetPalette.label)
-                HStack(spacing: 4) {
-                    Text("→ active")
-                        .foregroundColor(FleetPalette.value)
-                    Text("·")
-                        .foregroundColor(FleetPalette.muted)
-                    Text("↓ lowest")
-                        .foregroundColor(FleetPalette.value)
-                }
+                Text("Selection:").foregroundColor(FleetPalette.label)
+                Text("→ selected · gray unselected").foregroundColor(FleetPalette.value)
+            }
+            GridRow {
+                Text("Quota:").foregroundColor(FleetPalette.label)
+                Text("↓ lowest remaining").foregroundColor(FleetPalette.value)
             }
         }
         .font(.system(size: 10.5, weight: .medium))
@@ -544,28 +527,13 @@ private func limitText(for status: ProviderStatus) -> String {
 }
 
 private func rowColor(for status: ProviderStatus) -> Color {
-    switch status.state {
-    case .ok:
-        if let remaining = status.remainingPercent, (11...25).contains(remaining) {
-            return FleetPalette.warning
-        }
-        return FleetPalette.value
-    case .limited:
-        return FleetPalette.danger
-    case .offline, .noKey, .notInstalled:
-        return FleetPalette.faint
+    if status.authentication.needsAccess || status.authentication == .notInstalled { return FleetPalette.faint }
+    if status.authentication == .unknown { return FleetPalette.muted }
+    if let remaining = status.remainingPercent {
+        if remaining <= 10 { return FleetPalette.danger }
+        if remaining <= 25 { return FleetPalette.warning }
     }
-}
-
-private func profileMarker(for status: ProviderStatus) -> String {
-    switch status.state {
-    case .offline, .noKey:
-        return "×"
-    case .notInstalled:
-        return "-"
-    default:
-        return "○"
-    }
+    return FleetPalette.value
 }
 
 private func formatResetTime(_ date: Date) -> String {

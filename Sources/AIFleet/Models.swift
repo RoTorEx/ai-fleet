@@ -42,6 +42,8 @@ struct ProviderStatus: Identifiable, Equatable {
     let account: ProviderAccountIdentity?
     let notificationScope: String
     let quotaNotice: String?
+    let authentication: Authentication
+    let quotaState: QuotaState
 
     init(
         id: String,
@@ -56,7 +58,9 @@ struct ProviderStatus: Identifiable, Equatable {
         providerID: String? = nil,
         account: ProviderAccountIdentity? = nil,
         notificationScope: String? = nil,
-        quotaNotice: String? = nil
+        quotaNotice: String? = nil,
+        authentication: Authentication? = nil,
+        quotaState: QuotaState? = nil
     ) {
         self.id = id
         self.providerID = providerID ?? id
@@ -71,6 +75,19 @@ struct ProviderStatus: Identifiable, Equatable {
         self.account = account
         self.notificationScope = notificationScope ?? id
         self.quotaNotice = quotaNotice
+        self.authentication = authentication ?? {
+            switch state {
+            case .ok, .limited: return .signedIn
+            case .noKey: return .signInRequired
+            case .offline: return .unknown
+            case .notInstalled: return .notInstalled
+            }
+        }()
+        self.quotaState = quotaState ?? {
+            if quotaNotice != nil { return remainingPercent == nil ? .unavailable : .stale }
+            if let remainingPercent { return remainingPercent <= 0 ? .exhausted : .available }
+            return state == .offline && lastUpdated != nil ? .unavailable : .unknown
+        }()
     }
 
     enum State: Equatable {
@@ -81,6 +98,29 @@ struct ProviderStatus: Identifiable, Equatable {
         case notInstalled
     }
 
+    enum Authentication: Equatable {
+        case signedIn, signInRequired, accessDenied, unknown, notInstalled
+
+        var marker: String {
+            switch self {
+            case .signedIn: return "○"
+            case .signInRequired, .accessDenied: return "×"
+            case .unknown: return "?"
+            case .notInstalled: return "-"
+            }
+        }
+        var needsAccess: Bool { self == .signInRequired || self == .accessDenied }
+    }
+
+    enum QuotaState: Equatable {
+        case available, exhausted, stale, unavailable, unsupported, unknown
+    }
+
+    var hasCurrentQuota: Bool {
+        authentication == .signedIn && quotaNotice == nil && remainingPercent != nil &&
+            (quotaState == .available || quotaState == .exhausted)
+    }
+
     var isInstalled: Bool {
         state != .notInstalled
     }
@@ -89,15 +129,25 @@ struct ProviderStatus: Identifiable, Equatable {
         ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
                        remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
                        limitWindows: limitWindows, providerID: providerID, account: identity,
-                       notificationScope: notificationScope, quotaNotice: quotaNotice)
+                       notificationScope: notificationScope, quotaNotice: quotaNotice,
+                       authentication: authentication, quotaState: quotaState)
     }
 
     func withQuotaNotice(_ notice: String) -> ProviderStatus {
         ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
                        remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
                        limitWindows: limitWindows, providerID: providerID, account: account,
-                       notificationScope: notificationScope, quotaNotice: notice)
+                       notificationScope: notificationScope, quotaNotice: notice,
+                       authentication: authentication, quotaState: remainingPercent == nil ? .unavailable : .stale)
     }
+    func withAuthentication(_ authentication: Authentication) -> ProviderStatus {
+        ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
+                       remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
+                       limitWindows: limitWindows, providerID: providerID, account: account,
+                       notificationScope: notificationScope, quotaNotice: quotaNotice,
+                       authentication: authentication, quotaState: quotaState)
+    }
+
 }
 
 func durationSeconds(for label: String) -> Double? {
