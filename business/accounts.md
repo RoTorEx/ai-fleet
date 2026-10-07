@@ -9,22 +9,36 @@ mean matching subscriptions.
 
 ## Interface and selection
 
-The menu contains one row per installed, enabled provider. A circular badge for
-its selected account is aligned at the right edge of the provider header, which
-has no colon. Clicking it opens an account chooser with a checkmark on the
-current account, plus Open, Sign in, and Add account actions. Choosing an account
-changes that provider's displayed quota and future sessions launched through
-AI Fleet. Hover contains only the provider-reported email and plan; missing
-plans are omitted and the user-supplied email is a fallback. No quota, account
-name, organization, or status text belongs in this tooltip.
+The menu contains one row per linked account/provider connection for installed,
+enabled providers. The circular α/β/γ badge comes before the provider name, which
+has no colon. Each row is labelled with the account name. The selected connection
+uses the normal quota/status colors and an Active label; other connections are
+gray, including their quota windows, and have a Use button at the right. Use
+selects that provider's displayed quota and future AI Fleet launches. Other
+providers' selections remain independent. A bounded scroll area handles long
+connection lists. Summary health and Lowest use the selected connections.
+The row's ellipsis menu offers Open, Sign in, and Add account actions.
+Badge hover contains only the provider-reported email and plan; missing plans
+are omitted and the user-supplied email is a fallback. No quota, account name,
+organization, or status text belongs in this tooltip.
 
 Selection is manual and independent per provider. AI Fleet does not implement
-automatic quota draining, fallback profiles, or traffic routing; the interface
-must not advertise those behaviors. The downward arrow identifies the provider
+automatic quota draining, fallback profiles, or traffic routing. The existing
+Color / Profiles / Routing legend and its symbols are retained at the user's
+request; the legacy fallback notation does not implement automatic fallback.
+Changes to this legend require an explicit user request. The downward arrow identifies the provider
 with the lowest current remaining quota, not a routing target.
 
-Settings uses its existing window, with General and Accounts tabs. Add account
-from the provider chooser opens an inline form on Accounts with that provider
+Settings uses its existing window, with General and Accounts tabs. General owns
+only application-wide shortcut, notifications, and analytics refresh settings.
+Accounts owns identity/connection management and native sign-in. Its Manage
+account picker chooses which identity to edit, never the working login; it has
+no Use/Selected controls or ordinary session-launch button. Working-account
+selection and session launch belong to the main menu. The collapsed Menu
+visibility section in Accounts preserves global Show provider preferences,
+independently of attaching a provider to an identity; those preferences are not
+reset when the controls move out of General. Add account
+from a connection’s action menu opens an inline form on Accounts with that provider
 preselected. The + button opens the same form. Enter an email, optionally a name,
 and choose a provider; Add & sign in creates an isolated connection and opens
 native login. Cancel creates no identity or connection. Other providers can

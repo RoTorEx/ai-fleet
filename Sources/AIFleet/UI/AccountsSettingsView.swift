@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AccountsSettingsView: View {
     @ObservedObject private var store = AccountStore.shared
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
     @State private var isAdding = false
@@ -16,7 +17,7 @@ struct AccountsSettingsView: View {
             Text("One badge can connect accounts from several providers.")
                 .font(.callout).foregroundColor(.secondary)
             HStack {
-                Picker("Account", selection: $selectedID) {
+                Picker("Manage account", selection: $selectedID) {
                     ForEach(store.accounts) { account in
                         Text("\(account.badge) · \(account.name)").tag(account.id)
                     }
@@ -34,7 +35,21 @@ struct AccountsSettingsView: View {
             if let error = store.launchError {
                 Text(error).font(.caption).foregroundColor(.red)
             }
-            Text("Badges select quota and future sessions opened from AI Fleet. Existing sessions and ordinary CLI commands keep their login.")
+            Divider()
+            DisclosureGroup("Menu visibility") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Applies to all accounts.").font(.caption).foregroundColor(.secondary)
+                    ForEach(ProviderCatalog.all) { provider in
+                        Toggle("Show \(provider.name)", isOn: Binding(
+                            get: { settings.isEnabled(provider.id) },
+                            set: { settings.setEnabled($0, for: provider.id); service.refresh() }
+                        ))
+                        .disabled(!ProviderCatalog.isInstalled(provider))
+                    }
+                }
+            }
+            .font(.callout)
+            Text("Choose the working account with Use in the main menu; open sessions from the row’s … menu. This page manages connections. Existing sessions and ordinary CLI commands keep their login.")
                 .font(.caption).foregroundColor(.secondary)
             Spacer(minLength: 0)
         }
@@ -168,12 +183,6 @@ private struct AccountEditor: View {
     private func connectionActions(_ connection: ProviderConnection, provider: ProviderDefinition) -> some View {
         HStack(spacing: 8) {
             Button("Sign in…") { store.open(connection, account: account, login: true) }
-            Button("Open…") { store.open(connection, account: account) }
-            if store.selections[provider.id] == account.id {
-                Text("Selected").foregroundColor(.secondary)
-            } else {
-                Button("Use") { store.select(account.id, for: provider.id); service.refresh() }
-            }
             Spacer(minLength: 0)
         }
         .font(.caption)

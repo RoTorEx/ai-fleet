@@ -47,19 +47,6 @@ struct SettingsView: View {
                 HotkeyRecorder(settings: settings)
             }
 
-            settingsRow("Providers") {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(ProviderCatalog.all) { provider in
-                        ProviderSettingsRow(
-                            provider: provider,
-                            status: service.status(for: provider.id),
-                            isInstalled: ProviderCatalog.isInstalled(provider),
-                            isOn: providerBinding(provider.id)
-                        )
-                    }
-                }
-            }
-
             settingsRow("Notifications") {
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -144,16 +131,6 @@ struct SettingsView: View {
         }
     }
 
-    private func providerBinding(_ providerID: String) -> Binding<Bool> {
-        Binding(
-            get: { settings.isEnabled(providerID) },
-            set: { newValue in
-                settings.setEnabled(newValue, for: providerID)
-                StatusService.shared.refresh()
-            }
-        )
-    }
-
     private var analyticsRefreshTimeBinding: Binding<Date> {
         Binding(
             get: { settings.analyticsRefreshTime() },
@@ -228,41 +205,6 @@ struct SettingsView: View {
         service.resetNotificationThresholdState()
         newThresholdText = "\(threshold)"
         isAddingThreshold = false
-    }
-}
-
-private struct ProviderSettingsRow: View {
-    let provider: ProviderDefinition
-    let status: ProviderStatus
-    let isInstalled: Bool
-    let isOn: Binding<Bool>
-
-    var body: some View {
-        Toggle(isOn: isInstalled ? isOn : .constant(false)) {
-            HStack(spacing: 8) {
-                Text(provider.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 56, alignment: .leading)
-                Text(detailText)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-        }
-        .disabled(!isInstalled)
-        .opacity(isInstalled ? 1 : 0.45)
-        .help(status.quotaNotice ?? detailText)
-    }
-
-    private var detailText: String {
-        if !isInstalled {
-            return "Not installed"
-        }
-        if status.quotaNotice != nil, let remaining = status.remainingPercent {
-            return "Last known: \(remaining)% left"
-        }
-        return status.detail
     }
 }
 

@@ -8,19 +8,26 @@ Tracks real product and release progress.
 
 - Shared accounts with stable α/β/γ badges and independent provider connections,
   native sign-in, configuration-folder import, and per-provider selection.
-- One menu row per provider with selectable account badges and email/plan hover
+- Connected account/provider rows with account badges and email/plan hover
   details; account management is embedded in the existing Settings window.
 - Separate quota and notification scopes for Claude, Codex, and Kimi profiles;
   Qwen retains its explicit unsupported-quota state.
 
 ### Changed
 
-- Use one right-aligned circular account badge per provider; click opens account
-  selection and native launch/sign-in actions. Hover shows only email and plan.
+- Keep working-account selection and session launch in the main menu; Accounts
+  manages identities, connections, sign-in, and global menu visibility. General
+  contains only application-wide settings, with no duplicate provider controls.
+
+- Show every connected account/provider pair with its circular badge before the
+  provider name. Selected connections show Active; others are gray and labelled,
+  with a right-side Use button. Ellipsis actions launch/sign in or add accounts.
+  Badge hover shows only email and plan.
 - Add accounts through an inline email/provider form in existing Settings,
   reachable directly from each provider; move/import controls are under Advanced.
-- Remove misleading routing and fallback labels; selection is manual and the
-  downward arrow marks only the lowest remaining quota.
+- Preserve the existing Color / Profiles / Routing legend and provider-state
+  symbols; account selection remains manual and the downward arrow marks only
+  the lowest remaining quota.
 
 ### Fixed
 

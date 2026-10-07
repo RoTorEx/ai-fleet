@@ -10,14 +10,20 @@ struct AIFleetMenuView: View {
     @ObservedObject private var updater = UpdateService.shared
     @ObservedObject private var accounts = AccountStore.shared
 
-    private var providers: [ProviderStatus] {
-        ProviderCatalog.all.compactMap { provider in
-            guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider),
-                  let connection = accounts.selected(for: provider.id)?.connection(for: provider.id) else { return nil }
-            return service.status(for: connection) ?? ProviderStatus(id: connection.statusID, name: provider.name,
-                state: .offline, detail: "Checking…", lastUpdated: nil, providerID: provider.id)
+    private var connections: [MenuAccountConnection] {
+        ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
+            guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider) else { return [] }
+            return accounts.linkedAccounts(for: provider.id).compactMap { account in
+                guard let connection = account.connection(for: provider.id) else { return nil }
+                let status = service.status(for: connection) ?? ProviderStatus(id: connection.statusID, name: provider.name,
+                    state: .offline, detail: "Checking…", lastUpdated: nil, providerID: provider.id)
+                return MenuAccountConnection(account: account, connection: connection, status: status,
+                    isSelected: accounts.selections[provider.id] == account.id)
+            }
         }
     }
+
+    private var providers: [ProviderStatus] { connections.filter(\.isSelected).map(\.status) }
 
     private var lowestProvider: ProviderStatus? {
         providers
@@ -34,7 +40,7 @@ struct AIFleetMenuView: View {
                 .padding(.top, 11)
                 .padding(.bottom, 8)
 
-            if providers.count > 3 {
+            if connections.count > 3 {
                 ScrollView {
                     providerRows
                 }
@@ -97,8 +103,8 @@ struct AIFleetMenuView: View {
 
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(providers) { provider in
-                ProviderLimitRow(status: provider, isLowest: provider.id == lowestProvider?.id, openSettings: openSettings)
+            ForEach(connections) { entry in
+                ProviderLimitRow(entry: entry, isLowest: entry.id == lowestProvider?.id, openSettings: openSettings)
             }
         }
         .padding(.horizontal, 16)
@@ -200,100 +206,90 @@ struct AIFleetMenuView: View {
     }
 }
 
-struct ProviderLimitRow: View {
+struct MenuAccountConnection: Identifiable {
+    let account: FleetAccount
+    let connection: ProviderConnection
     let status: ProviderStatus
+    let isSelected: Bool
+    var id: String { connection.statusID }
+}
+
+struct ProviderLimitRow: View {
+    let entry: MenuAccountConnection
     let isLowest: Bool
     let openSettings: () -> Void
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
+    private var status: ProviderStatus { entry.status }
+    private var color: Color { entry.isSelected ? rowColor(for: status) : FleetPalette.muted }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(isLowest ? "↓" : " ")
+                Text(isLowest ? "↓" : (entry.isSelected ? "→" : " "))
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundColor(rowColor(for: status))
-                    .frame(width: 14, alignment: .center)
-
+                    .foregroundColor(color).frame(width: 14)
+                Text(profileMarker(for: status))
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundColor(color).frame(width: 14)
+                Text(entry.account.badge)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 20, height: 20)
+                    .overlay(Circle().stroke(color.opacity(0.7), lineWidth: 1))
+                    .foregroundColor(color)
+                    .help(entry.account.tooltip(for: entry.connection, status: status))
+                    .accessibilityLabel("\(status.name) account \(entry.account.badge)")
                 Text(status.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(rowColor(for: status))
-
+                    .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
                 Spacer(minLength: 8)
-
-                if let selected = accounts.selected(for: status.providerID),
-                   let connection = selected.connection(for: status.providerID) {
-                    Menu {
-                        ForEach(accounts.linkedAccounts(for: status.providerID)) { account in
-                            Button {
-                                accounts.select(account.id, for: status.providerID)
-                                service.refresh()
-                            } label: {
-                                if account.id == selected.id {
-                                    Label(accountChoiceTitle(account), systemImage: "checkmark")
-                                } else {
-                                    Text(accountChoiceTitle(account))
-                                }
-                            }
-                        }
-                        Divider()
-                        Button("Open \(status.name)…") { accounts.open(connection, account: selected) }
-                        Button("Sign in…") { accounts.open(connection, account: selected, login: true) }
-                        Divider()
-                        Button("Add account…") {
-                            SettingsNavigation.shared.addAccount(for: status.providerID)
-                            openSettings()
-                        }
-                    } label: {
-                        Text(selected.badge)
-                            .font(.system(size: 12, weight: .medium))
-                            .frame(width: 20, height: 20)
-                            .overlay(Circle().stroke(Color.secondary.opacity(0.7), lineWidth: 1))
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    .help(selected.tooltip(for: connection, status: service.status(for: connection)))
-                    .accessibilityLabel("\(status.name) account \(selected.badge), choose account")
+                if entry.isSelected {
+                    Text("Active").font(.system(size: 10.5, weight: .medium)).foregroundColor(color)
+                } else {
+                    Button("Use") { accounts.select(entry.account.id, for: status.providerID); service.refresh() }
+                        .font(.system(size: 10.5, weight: .medium))
+                        .accessibilityLabel("Use \(entry.account.badge) \(status.name)")
                 }
+                Menu {
+                    Button("Open \(status.name)…") { accounts.open(entry.connection, account: entry.account) }
+                    Button("Sign in…") { accounts.open(entry.connection, account: entry.account, login: true) }
+                    Divider()
+                    Button("Add account…") {
+                        SettingsNavigation.shared.addAccount(for: status.providerID)
+                        openSettings()
+                    }
+                } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
-
+            Text(entry.account.name)
+                .font(.system(size: 10.5)).foregroundColor(FleetPalette.muted)
+                .lineLimit(1).padding(.leading, 66)
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(status.limitWindows) { window in
-                        LimitWindowLine(window: window, status: status)
+                        LimitWindowLine(window: window, status: status, isActive: entry.isSelected)
                     }
                 }
-                .padding(.leading, 20)
+                .padding(.leading, 66)
             } else {
                 Text(status.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(rowColor(for: status))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .padding(.leading, 20)
+                    .foregroundColor(color).lineLimit(1).minimumScaleFactor(0.8)
+                    .padding(.leading, 66)
             }
             if let notice = status.quotaNotice {
-                Text(notice)
-                    .font(.system(size: 10.5))
-                    .foregroundColor(FleetPalette.warning)
-                    .lineLimit(2)
-                    .padding(.leading, 20)
+                Text(notice).font(.system(size: 10.5))
+                    .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
+                    .lineLimit(2).padding(.leading, 66)
             }
         }
     }
-    private func accountChoiceTitle(_ account: FleetAccount) -> String {
-        let actualEmail = account.connection(for: status.providerID)
-            .flatMap { service.status(for: $0)?.account?.email }
-        let label = actualEmail.flatMap { $0.isEmpty ? nil : $0 } ?? (account.email.isEmpty ? account.name : account.email)
-        return "\(account.badge) · \(label)"
-    }
-
 }
 
 struct LimitWindowLine: View {
     let window: ProviderLimitWindow
     let status: ProviderStatus
+    var isActive = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -357,10 +353,12 @@ struct LimitWindowLine: View {
     }
 
     private var resetColor: Color {
-        blockingWindow == nil ? FleetPalette.muted : FleetPalette.faint
+        if !isActive { return FleetPalette.muted }
+        return blockingWindow == nil ? FleetPalette.muted : FleetPalette.faint
     }
 
     private var windowColor: Color {
+        if !isActive { return FleetPalette.muted }
         if blockingWindow != nil {
             return FleetPalette.faint
         }
@@ -395,12 +393,33 @@ struct LegendSection: View {
             }
 
             GridRow {
-                Text("Account:").foregroundColor(FleetPalette.label)
-                Text("click badge to choose or open").foregroundColor(FleetPalette.value)
+                Text("Profiles:")
+                    .foregroundColor(FleetPalette.label)
+                HStack(spacing: 4) {
+                    Text("○ ordinary")
+                        .foregroundColor(FleetPalette.value)
+                    Text("·")
+                        .foregroundColor(FleetPalette.muted)
+                    Text("△ drain fallback")
+                        .foregroundColor(FleetPalette.value)
+                    Text("·")
+                        .foregroundColor(FleetPalette.muted)
+                    Text("× unavailable")
+                        .foregroundColor(FleetPalette.value)
+                }
             }
+
             GridRow {
-                Text("↓").foregroundColor(FleetPalette.label)
-                Text("lowest remaining quota").foregroundColor(FleetPalette.value)
+                Text("Routing:")
+                    .foregroundColor(FleetPalette.label)
+                HStack(spacing: 4) {
+                    Text("→ active")
+                        .foregroundColor(FleetPalette.value)
+                    Text("·")
+                        .foregroundColor(FleetPalette.muted)
+                    Text("↓ lowest")
+                        .foregroundColor(FleetPalette.value)
+                }
             }
         }
         .font(.system(size: 10.5, weight: .medium))
@@ -513,6 +532,17 @@ private func rowColor(for status: ProviderStatus) -> Color {
         return FleetPalette.danger
     case .offline, .noKey, .notInstalled:
         return FleetPalette.faint
+    }
+}
+
+private func profileMarker(for status: ProviderStatus) -> String {
+    switch status.state {
+    case .offline, .noKey:
+        return "×"
+    case .notInstalled:
+        return "-"
+    default:
+        return "○"
     }
 }
 

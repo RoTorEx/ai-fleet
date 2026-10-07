@@ -74,16 +74,21 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 
 ## UI
 
-- `AIFleetMenuView` — one row per provider, with a right-aligned circular badge
-  for the selected account. Its primary-click menu chooses an account, launches
-  or signs in, and routes addition to the existing Settings window. Hover shows
-  only email and plan. The lowest-quota arrow does not imply automatic routing.
+- `AIFleetMenuView` — one row per connected account/provider pair, grouped by
+  provider. Each circular badge precedes the provider name. Selected rows use
+  status colors; inactive rows and quota windows are gray with a Use button.
+  Ellipsis actions launch/sign in and route addition to existing Settings.
+  Hover shows only email and plan. Health/Lowest summarize selected connections.
+  Long connection lists use a bounded scroll area. The original legend remains.
 - `SettingsNavigation` — shared, transient tab/add-provider navigation, including
   requests delivered while the existing Settings window is already open.
 - `AccountsSettingsView` — account editor in the existing Settings window's
   Accounts tab. Its inline email/provider form adds and signs in; cancellation
   does not create metadata. Advanced holds connection move/import actions. It
-  renames labels, removes metadata, and opens native CLI sign-in. There is no
+  renames labels, removes metadata, opens native CLI sign-in, and owns global
+  provider visibility controls. The editor picker never changes the working
+  account; selection and ordinary launches are confined to the main menu.
+  General has no provider/account controls. There is no
   account-management window. Settings has a bounded 500 × 640 point layout with
   scrolling so SwiftUI fitting-size changes cannot collapse it to a narrow strip.
 - `StatisticsView` — centered, resizable provider analytics window with

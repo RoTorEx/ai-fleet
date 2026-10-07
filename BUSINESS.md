@@ -37,13 +37,21 @@ subscription charges.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent identities with stable α, β, γ badges.
-  Each can link any supported provider; one provider appears once in the menu
-  with the selected account's circular badge aligned right. Clicking the badge
-  opens account selection, launch, and addition actions. Selection changes the
-  displayed quota and future AI Fleet launches for that provider. Only email
+  Each can link any supported provider; every connected account/provider pair
+  has its own menu row, with a circular badge before the provider name. Selected
+  connections retain normal status colors and Active; others are gray with a
+  Use button. Rows show their account names. The ellipsis menu opens launch,
+  sign-in, and addition actions. Selection changes the displayed quota and
+  future AI Fleet launches for that provider. Only email
   and plan appear on hover. Selection is manual; no automatic routing or
-  fallback is promised. Management lives inside the existing
-  Settings window; account management creates no separate app window. Existing
+  fallback is implemented. The existing Color / Profiles / Routing legend and
+  provider-state symbols are preserved; legend changes require an explicit
+  request. Management lives inside the existing
+  Settings window's Accounts tab. Its editor picker does not select the working
+  login; working-account selection and ordinary session launch belong to the
+  main menu. General contains only application-wide settings. Global provider
+  visibility preferences live in Accounts and remain independent of connections.
+  Account management creates no separate app window. Existing
   sessions and ordinary CLI commands retain their login. See
   [Accounts](business/accounts.md) for selection, isolation, and storage rules.
 
