@@ -38,12 +38,14 @@ subscription charges.
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent identities with stable α, β, γ badges.
   Each can link any supported provider; every connected account/provider pair
-  has its own menu row, with a circular badge before the provider name. Selected
-  connections retain normal status colors and Active; others are gray with a
-  Use button. Rows show their account names. The ellipsis menu opens launch,
+  has its own menu row, with a smaller badge in parentheses after the provider
+  name, such as Codex (α). Selected
+  connections retain normal status colors and →; others are gray. The row’s
+  ellipsis menu selects the working account. Account names are not repeated below the provider. The ellipsis
+  menu opens launch,
   sign-in, and addition actions. Selection changes the displayed quota and
   future AI Fleet launches for that provider. Only email
-  and plan appear on hover. Selection is manual; no automatic routing or
+  and plan appear immediately on hover, in an overlay inside the menu. Selection is manual; no automatic routing or
   fallback is implemented. The existing Color / Profiles / Routing legend and
   provider-state symbols are preserved; legend changes require an explicit
   request. Management lives inside the existing

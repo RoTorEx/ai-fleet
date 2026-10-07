@@ -220,36 +220,42 @@ struct ProviderLimitRow: View {
     let openSettings: () -> Void
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
+    @State private var isBadgeHovered = false
     private var status: ProviderStatus { entry.status }
     private var color: Color { entry.isSelected ? rowColor(for: status) : FleetPalette.muted }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(isLowest ? "↓" : (entry.isSelected ? "→" : " "))
+                Text(isLowest ? "↓" : " ")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundColor(color).frame(width: 14)
                 Text(profileMarker(for: status))
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
                     .foregroundColor(color).frame(width: 14)
-                Text(entry.account.badge)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 20, height: 20)
-                    .overlay(Circle().stroke(color.opacity(0.7), lineWidth: 1))
-                    .foregroundColor(color)
-                    .help(entry.account.tooltip(for: entry.connection, status: status))
-                    .accessibilityLabel("\(status.name) account \(entry.account.badge)")
                 Text(status.name)
                     .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
+                Text("(\(entry.account.badge))")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(color)
+                    .onHover { isBadgeHovered = $0 }
+                    .accessibilityHint(Text(entry.account.tooltip(for: entry.connection, status: status)))
+                    .accessibilityLabel("\(status.name) account \(entry.account.badge)")
                 Spacer(minLength: 8)
                 if entry.isSelected {
-                    Text("Active").font(.system(size: 10.5, weight: .medium)).foregroundColor(color)
-                } else {
-                    Button("Use") { accounts.select(entry.account.id, for: status.providerID); service.refresh() }
-                        .font(.system(size: 10.5, weight: .medium))
-                        .accessibilityLabel("Use \(entry.account.badge) \(status.name)")
+                    Text("→")
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundColor(color)
+                        .accessibilityLabel("\(status.name) account \(entry.account.badge), active")
                 }
                 Menu {
+                    if !entry.isSelected {
+                        Button("Use this account") {
+                            accounts.select(entry.account.id, for: status.providerID)
+                            service.refresh()
+                        }
+                        Divider()
+                    }
                     Button("Open \(status.name)…") { accounts.open(entry.connection, account: entry.account) }
                     Button("Sign in…") { accounts.open(entry.connection, account: entry.account, login: true) }
                     Divider()
@@ -261,28 +267,44 @@ struct ProviderLimitRow: View {
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
-            Text(entry.account.name)
-                .font(.system(size: 10.5)).foregroundColor(FleetPalette.muted)
-                .lineLimit(1).padding(.leading, 66)
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(status.limitWindows) { window in
                         LimitWindowLine(window: window, status: status, isActive: entry.isSelected)
                     }
                 }
-                .padding(.leading, 66)
+                .padding(.leading, 40)
             } else {
                 Text(status.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(color).lineLimit(1).minimumScaleFactor(0.8)
-                    .padding(.leading, 66)
+                    .padding(.leading, 40)
             }
             if let notice = status.quotaNotice {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
-                    .lineLimit(2).padding(.leading, 66)
+                    .lineLimit(2).padding(.leading, 40)
             }
         }
+        .overlay(alignment: .topLeading) {
+            if isBadgeHovered {
+                let tooltip = entry.account.tooltip(for: entry.connection, status: status)
+                if !tooltip.isEmpty {
+                    Text(tooltip)
+                        .font(.system(size: 11))
+                        .foregroundColor(FleetPalette.value)
+                        .frame(maxWidth: 260, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: true)
+                        .padding(8)
+                        .background(FleetPalette.background, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(FleetPalette.border))
+                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                        .offset(x: 40, y: 22)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .zIndex(isBadgeHovered ? 1 : 0)
     }
 }
 

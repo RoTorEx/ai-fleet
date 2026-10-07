@@ -60,10 +60,10 @@ The app reads your ChatGPT OAuth token from `~/.codex/auth.json` (created automa
 
 ### Accounts
 
-Each connected account/provider pair has a row with its circular α/β/γ badge
-before the provider name. The chosen account shows **Active**; other accounts
-are gray and labelled by name. Click **Use** on the right to switch that provider.
-Hover the badge for email and plan. The **…** menu offers **Open**, **Sign in**,
+Each connected account/provider pair has a compact row such as **Codex (α)**,
+with a smaller account badge after the provider name and no extra name line.
+The chosen account shows **→**; other accounts are gray. Choose **… → Use this account** on that row to switch that provider.
+Hover the badge to immediately see email and plan. The **…** menu offers **Open**, **Sign in**,
 and **Add account…**. Selection persists across restart and affects quota and
 future AI Fleet sessions; existing sessions and ordinary CLI commands retain
 their login. The ↓ marker means lowest selected remaining quota. AI Fleet does

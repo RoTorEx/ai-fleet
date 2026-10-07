@@ -10,15 +10,25 @@ mean matching subscriptions.
 ## Interface and selection
 
 The menu contains one row per linked account/provider connection for installed,
-enabled providers. The circular α/β/γ badge comes before the provider name, which
-has no colon. Each row is labelled with the account name. The selected connection
-uses the normal quota/status colors and an Active label; other connections are
-gray, including their quota windows, and have a Use button at the right. Use
-selects that provider's displayed quota and future AI Fleet launches. Other
+enabled providers. A smaller α/β/γ badge appears in parentheses after the provider
+name, such as Codex (α), without a circle or colon. No extra account-name line
+appears below the header; the badge and its email/plan tooltip distinguish
+subscriptions compactly. The selected connection
+uses the normal quota/status colors and a → marker; other connections are
+gray, including their quota windows. The row’s ellipsis menu at the right
+contains Use this account for unselected connections; it selects that provider's
+displayed quota and future AI Fleet launches. No separate Use button appears. Other
 providers' selections remain independent. A bounded scroll area handles long
 connection lists. Summary health and Lowest use the selected connections.
-The row's ellipsis menu offers Open, Sign in, and Add account actions.
-Badge hover contains only the provider-reported email and plan; missing plans
+The row's ellipsis menu also offers Open, Sign in, and Add account actions. The
+existing × marker denotes unavailable authentication/status, with the detailed
+reason beneath the header; an unselected but available account retains ○ and
+gray coloring. A quota cooldown retains confirmed login and is described by its
+notice rather than a new unavailable state. The → marker replaces a redundant
+Active label and the separate ↓ marker continues to identify Lowest.
+Badge hover immediately displays an inline overlay with only the
+provider-reported email and plan, without the native tooltip delay or another
+window. Moving away dismisses it; missing plans
 are omitted and the user-supplied email is a fallback. No quota, account name,
 organization, or status text belongs in this tooltip.
 

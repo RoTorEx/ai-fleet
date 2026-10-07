@@ -49,7 +49,7 @@ struct AccountsSettingsView: View {
                 }
             }
             .font(.callout)
-            Text("Choose the working account with Use in the main menu; open sessions from the row’s … menu. This page manages connections. Existing sessions and ordinary CLI commands keep their login.")
+            Text("Choose the working account and open sessions from the row’s … menu. This page manages connections. Existing sessions and ordinary CLI commands keep their login.")
                 .font(.caption).foregroundColor(.secondary)
             Spacer(minLength: 0)
         }

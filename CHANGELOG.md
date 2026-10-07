@@ -19,10 +19,12 @@ Tracks real product and release progress.
   manages identities, connections, sign-in, and global menu visibility. General
   contains only application-wide settings, with no duplicate provider controls.
 
-- Show every connected account/provider pair with its circular badge before the
-  provider name. Selected connections show Active; others are gray and labelled,
-  with a right-side Use button. Ellipsis actions launch/sign in or add accounts.
-  Badge hover shows only email and plan.
+- Show every connected account/provider pair compactly as Codex (α), with a
+  smaller parenthesized badge and no extra account-name line or circle.
+  Selected connections show →; others are gray,
+  with working-account selection in the right-side ellipsis menu. Other ellipsis
+  actions launch/sign in or add accounts.
+  Badge hover immediately shows only email and plan in an inline overlay.
 - Add accounts through an inline email/provider form in existing Settings,
   reachable directly from each provider; move/import controls are under Advanced.
 - Preserve the existing Color / Profiles / Routing legend and provider-state
