@@ -21,7 +21,9 @@ Tracks real product and release progress.
 
 - Show every connected account/provider pair compactly as Codex (α), with a
   smaller parenthesized badge and no extra account-name line or circle.
-  Selected connections show →; others are gray,
+  Selection, Lowest, and authentication markers are aligned on the left; the
+  right edge contains only the ellipsis action menu. Selected connections show
+  →; others are gray,
   with working-account selection in the right-side ellipsis menu. Other ellipsis
   actions launch/sign in or add accounts.
   Badge hover immediately shows only email and plan in an inline overlay.

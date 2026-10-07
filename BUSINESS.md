@@ -40,7 +40,9 @@ subscription charges.
   Each can link any supported provider; every connected account/provider pair
   has its own menu row, with a smaller badge in parentheses after the provider
   name, such as Codex (α). Selected
-  connections retain normal status colors and →; others are gray. The row’s
+  connections retain normal status colors and →; others are gray. Selection,
+  Lowest, and authentication markers stay aligned on the left with the provider
+  name and account badge; the right edge contains only the ellipsis action menu. The row’s
   ellipsis menu selects the working account. Account names are not repeated below the provider. The ellipsis
   menu opens launch,
   sign-in, and addition actions. Selection changes the displayed quota and

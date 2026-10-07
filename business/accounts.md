@@ -14,7 +14,10 @@ enabled providers. A smaller α/β/γ badge appears in parentheses after the pro
 name, such as Codex (α), without a circle or colon. No extra account-name line
 appears below the header; the badge and its email/plan tooltip distinguish
 subscriptions compactly. The selected connection
-uses the normal quota/status colors and a → marker; other connections are
+uses the normal quota/status colors and a → marker; selection, Lowest, and auth
+markers occupy aligned columns on the left. The provider name and parenthesized
+badge follow them; quota lines align with that name. Only the ellipsis action
+menu remains on the right. Other connections are
 gray, including their quota windows. The row’s ellipsis menu at the right
 contains Use this account for unselected connections; it selects that provider's
 displayed quota and future AI Fleet launches. No separate Use button appears. Other
