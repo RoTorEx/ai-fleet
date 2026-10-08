@@ -4,6 +4,13 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop showing Gemini as active/available solely because a refresh token exists.
+  Expired or unconfirmed login is gray, with Sign in required and no active arrow;
+  only verified server identity can confirm sign-in. Keep quota-only errors
+  distinct from failed identity verification.
+
 ## [1.2.7] - 2026-10-07
 
 ### Added

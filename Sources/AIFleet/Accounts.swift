@@ -248,7 +248,7 @@ final class AccountStore: ObservableObject {
         let geminiLogin = providerID == "gemini" ? GeminiLoginSnapshot.read(home: home) : nil
         let command = AccountLaunch.command(connection: .global(providerID), executable: executable,
                                             directory: home, login: true,
-                                            hasGeminiLogin: geminiLogin.map { $0.auth == .signedIn || !$0.supported } ?? false)
+                                            hasGeminiLogin: geminiLogin.map { $0.auth == .signedIn || $0.canRefresh || !$0.supported } ?? false)
         let source = "tell application \"Terminal\"\nactivate\ndo script \(ClaudeProfileLaunch.appleScriptString(command))\nend tell"
         var error: NSDictionary?
         guard let script = NSAppleScript(source: source) else { launchError = "Could not prepare Terminal login."; return }

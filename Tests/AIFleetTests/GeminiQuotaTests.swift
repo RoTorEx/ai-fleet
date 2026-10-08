@@ -5,7 +5,8 @@ final class GeminiQuotaTests: XCTestCase {
     func testLocalOAuthRequiresTokensAndExpiredAccessDoesNotInventQuota() {
         let now = Date(timeIntervalSince1970: 100)
         let cached = GeminiLoginSnapshot.decode(Data(#"{"refresh_token":"fixture-refresh","access_token":"fixture-access","expiry_date":1}"#.utf8), email: "person@example.test", now: now)
-        XCTAssertEqual(cached.auth, .signedIn)
+        XCTAssertEqual(cached.auth, .unknown)
+        XCTAssertTrue(cached.canRefresh)
         XCTAssertTrue(cached.expired)
         XCTAssertNil(cached.accessToken)
         XCTAssertEqual(GeminiLoginSnapshot.decode(Data(#"{"access_token":"fixture","expiry_date":1}"#.utf8), email: nil, now: now).auth, .signedOut)
@@ -23,6 +24,38 @@ final class GeminiQuotaTests: XCTestCase {
         XCTAssertNil(GeminiLoginSnapshot.read(home: home).email)
         try Data(#"{"security":{"auth":{"selectedType":"gemini-api-key"}}}"#.utf8).write(to: folder.appendingPathComponent("settings.json"))
         XCTAssertFalse(GeminiLoginSnapshot.read(home: home).supported)
+    }
+
+    func testExpiredRefreshableLoginIsUnknownAndCannotBeActiveOrCountAsAvailable() async throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let folder = home.appendingPathComponent(".gemini")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try Data(#"{"access_token":"fixture","refresh_token":"fixture","expiry_date":1}"#.utf8)
+            .write(to: folder.appendingPathComponent("oauth_creds.json"))
+        let result = await GeminiQuota.check(home: home)
+        XCTAssertEqual(result.detail, "Sign in required")
+        XCTAssertEqual(result.authentication, .unknown)
+        XCTAssertEqual(result.authentication.marker, "?")
+        XCTAssertNotEqual(result.authentication, .signedIn, "The UI uses signedIn to count availability and show the active arrow")
+        XCTAssertNil(result.remainingPercent)
+        XCTAssertFalse(result.hasCurrentQuota)
+    }
+
+    func testIdentityFailureCannotClaimSignedInEvenWithCachedEmail() async {
+        let session = mockSession()
+        defer { GeminiProtocol.handler = nil }
+        for code in [200, 401, 403, 429, 500] {
+            GeminiProtocol.handler = { request in
+                XCTAssertEqual(request.url!.path, "/oauth2/v2/userinfo")
+                return (code, "{}", [:])
+            }
+            let result = await GeminiQuota.fetch(token: "fixture", cachedEmail: "cached@example.test", session: session).status
+            XCTAssertEqual(result.detail, "Sign in required")
+            XCTAssertEqual(result.authentication, code == 401 ? .signInRequired : .unknown)
+            XCTAssertNil(result.remainingPercent)
+            XCTAssertFalse(result.hasCurrentQuota)
+        }
     }
 
     func testModelQuotaUsesLowestBucketAndKeepsZeroWhileSkippingInvalidData() throws {

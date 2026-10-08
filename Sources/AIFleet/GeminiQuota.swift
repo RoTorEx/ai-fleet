@@ -7,6 +7,7 @@ struct GeminiLoginSnapshot {
     let email: String?
     let expired: Bool
     let supported: Bool
+    var canRefresh = false
 
     static func read(home: URL = FileManager.default.homeDirectoryForCurrentUser, now: Date = Date()) -> Self {
         let folder = home.appendingPathComponent(".gemini")
@@ -47,9 +48,10 @@ struct GeminiLoginSnapshot {
         let access = value.access_token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let refresh = value.refresh_token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let expired = value.expiry_date.map { $0 <= now.timeIntervalSince1970 * 1000 } ?? false
-        let auth: LocalProviderAuth = !refresh.isEmpty || (!access.isEmpty && !expired) ? .signedIn : .signedOut
+        // A refresh token permits native renewal; it does not prove current access.
+        let auth: LocalProviderAuth = !access.isEmpty && !expired ? .signedIn : (!refresh.isEmpty ? .unknown : .signedOut)
         return Self(auth: auth, accessToken: access.isEmpty || expired ? nil : access, email: email,
-                    expired: expired, supported: true)
+                    expired: expired, supported: true, canRefresh: !refresh.isEmpty)
     }
 }
 
@@ -57,7 +59,7 @@ enum GeminiQuota {
     private static let liveSession = URLSession(configuration: .ephemeral, delegate: GeminiRedirectGuard(), delegateQueue: nil)
     static let endpoint = "https://cloudcode-pa.googleapis.com/v1internal:"
 
-    static func status(_ detail: String, auth: ProviderStatus.Authentication = .signedIn,
+    static func status(_ detail: String, auth: ProviderStatus.Authentication = .unknown,
                        account: ProviderAccountIdentity? = nil) -> ProviderStatus {
         ProviderStatus(id: "gemini", name: "Gemini", state: auth == .signInRequired ? .noKey : .offline,
                        detail: detail, lastUpdated: Date(), account: account, authentication: auth,
@@ -67,15 +69,13 @@ enum GeminiQuota {
     static func check(home: URL = FileManager.default.homeDirectoryForCurrentUser) async -> ProviderStatus {
         let snapshot = await Task.detached(priority: .utility) { GeminiLoginSnapshot.read(home: home) }.value
         guard snapshot.supported else { return status("API/Vertex login · quota unsupported", auth: .unknown) }
-        switch snapshot.auth {
-        case .signedOut: return status("Sign in required", auth: .signInRequired)
-        case .unknown: return status("Auth status unknown", auth: .unknown)
-        case .signedIn: break
-        }
         let account = ProviderAccountIdentity(email: snapshot.email, organizationID: nil, organizationName: nil, subscriptionType: nil)
-        guard let token = snapshot.accessToken else {
-            return status(snapshot.expired ? "Open Gemini to refresh credentials" : "Signed in · quota unavailable", account: account)
+        switch snapshot.auth {
+        case .signedOut: return status("Sign in required", auth: .signInRequired, account: account)
+        case .unknown: return status("Sign in required", auth: .unknown, account: account)
+        case .signedIn: break // Locally usable credential; server identity still needs verification.
         }
+        guard let token = snapshot.accessToken else { return status("Sign in required", account: account) }
         let key = SHA256.hash(data: Data(token.utf8)).map { String(format: "%02x", $0) }.joined()
         return await GeminiQuotaPoller.shared.status(key: key) { await fetch(token: token, cachedEmail: snapshot.email) }
     }
@@ -90,13 +90,15 @@ enum GeminiQuota {
         var identity = cachedEmail.map {
             ProviderAccountIdentity(email: $0, organizationID: nil, organizationName: nil, subscriptionType: nil)
         }
+        var identityConfirmed = false
         do {
             // Check the token's actual email instead of attributing quota to a stale cached label.
             let user = try await request(url: URL(string: "https://www.googleapis.com/oauth2/v2/userinfo")!,
                                          token: token, body: nil, session: session)
             guard let email = user["email"] as? String, !email.isEmpty else {
-                return Result(status: status("Signed in · account identity unavailable"))
+                return Result(status: status("Sign in required", account: identity))
             }
+            identityConfirmed = true
             identity = ProviderAccountIdentity(email: email, organizationID: nil, organizationName: nil, subscriptionType: nil)
             let load = try await request(url: URL(string: endpoint + "loadCodeAssist")!, token: token,
                 body: ["metadata": ["ideType": "IDE_UNSPECIFIED", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"]], session: session)
@@ -106,20 +108,27 @@ enum GeminiQuota {
             identity = ProviderAccountIdentity(email: email, organizationID: project, organizationName: nil,
                                                subscriptionType: tier?["name"] as? String ?? tier?["id"] as? String)
             guard let project, !project.isEmpty else {
-                return Result(status: status("Complete Gemini CLI project setup", account: identity))
+                return Result(status: status("Complete Gemini CLI project setup", auth: .signedIn, account: identity))
             }
             let quota = try await request(url: URL(string: endpoint + "retrieveUserQuota")!, token: token,
                                           body: ["project": project], session: session)
             return Result(status: try decode(JSONSerialization.data(withJSONObject: quota), account: identity))
         } catch let failure as RequestFailure {
+            if failure.code != 401 && !identityConfirmed {
+                return Result(status: status("Sign in required", account: identity),
+                              retryAt: failure.code == 429 ? failure.retryAt ?? Date().addingTimeInterval(300) : nil)
+            }
             switch failure.code {
             case 401: return Result(status: status("Sign in required", auth: .signInRequired, account: identity))
-            case 403: return Result(status: status("Signed in · quota access denied", account: identity))
-            case 429: return Result(status: status("Signed in · quota update paused", account: identity),
+            case 403: return Result(status: status("Signed in · quota access denied", auth: .signedIn, account: identity))
+            case 429: return Result(status: status("Signed in · quota update paused", auth: .signedIn, account: identity),
                                    retryAt: failure.retryAt ?? Date().addingTimeInterval(300))
-            default: return Result(status: status("Signed in · quota unavailable", account: identity))
+            default: return Result(status: status("Signed in · quota unavailable", auth: .signedIn, account: identity))
             }
-        } catch { return Result(status: status("Signed in · quota unavailable", account: identity)) }
+        } catch {
+            return Result(status: status(identityConfirmed ? "Signed in · quota unavailable" : "Sign in required",
+                                         auth: identityConfirmed ? .signedIn : .unknown, account: identity))
+        }
     }
 
     private static func request(url: URL, token: String, body: [String: Any]?, session: URLSession) async throws -> [String: Any] {
@@ -163,7 +172,7 @@ enum GeminiQuota {
         }
         let windows = models.values.sorted { $0.id < $1.id }
         guard let lowest = windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
-            return status("Signed in · no quota data", account: account)
+            return status("Signed in · no quota data", auth: .signedIn, account: account)
         }
         return ProviderStatus(id: "gemini", name: "Gemini", state: lowest.remainingPercent <= 10 ? .limited : .ok,
             detail: "\(lowest.remainingPercent)% left", lastUpdated: now, remainingPercent: lowest.remainingPercent,

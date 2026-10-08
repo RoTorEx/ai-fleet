@@ -70,8 +70,9 @@ provider’s Google Cloud project setup.
 AI Fleet reads file-backed OAuth in `~/.gemini`, checks the actual email, and
 retrieves the CLI’s model quota and plan. Quota updates are spaced five minutes
 apart. API-key/Vertex and encrypted OAuth storage are outside this reader.
-Expired access credentials require opening the native CLI to renew them;
-AI Fleet does not rewrite Google tokens. See [Gemini integration](business/gemini.md).
+Expired or unconfirmed credentials show a gray **Sign in required** row with
+no active arrow; cached tokens alone do not count as available. Use native Sign in
+to renew access; AI Fleet does not rewrite Google tokens. See [Gemini integration](business/gemini.md).
 
 ### Accounts
 

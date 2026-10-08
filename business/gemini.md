@@ -17,9 +17,12 @@ environment settings remain available to the native Terminal workflow.
   with unknown auth. No guessed quota or tariff is shown.
 - `oauth_creds.json` must contain a usable access token or a refresh token;
   arbitrary JSON is not login. Malformed/unreadable data is unknown. Expired
-  access without refresh requires sign-in; a refresh token retains configured
-  login, but quota reads `Open Gemini to refresh credentials` until the native
-  CLI renews access. AI Fleet never performs Google token refresh or rewrites
+  access without refresh requires sign-in. A refresh token alone, including an
+  expired access token with refresh available, is **unknown**, not signed in.
+  Unconfirmed Google login reads `Sign in required`, stays gray, has no active
+  arrow, and cannot count as an available provider. Confirmed missing/rejected
+  login uses ×; unconfirmed login uses ?. Native renewal remains possible but
+  does not prove access until the server identity check succeeds. AI Fleet never performs Google token refresh or rewrites
   these files. Encrypted OAuth/Keychain storage is outside this file reader;
   a cached active account without readable credentials remains unknown.
 - `google_accounts.json` → `active` is a native display hint; `old` is ignored.
@@ -57,8 +60,11 @@ interval bounds read traffic for longer quota periods; it is not a claimed Googl
 limit. HTTP 429 pauses for at least that interval and a later Retry-After takes
 precedence. This gate is in memory and resets on app restart. Failure produces
 no measurements; previous measurements are not silently reused as current.
-HTTP 401 requires sign-in; 403, 429, server/network errors preserve configured
-OAuth login while showing unavailable quota. Explicit API/Vertex quota monitoring
+HTTP 401 requires sign-in. HTTP 403, 429, server/network errors retain signed-in
+status only when OAuth userinfo has already confirmed the current identity in
+that request. Failure or missing identity during userinfo remains unknown with
+`Sign in required`; cached email cannot establish access. Quota-only failures
+following successful userinfo retain confirmed auth with unavailable quota. Explicit API/Vertex quota monitoring
 and encrypted storage are deferred.
 
 ## Sources and checks
@@ -72,5 +78,6 @@ The installed 0.46.0 bundle was inspected for native auth-dialog dispatch,
 credential/account paths, project/tier fields, and quota requests. GeminiQuotaTests
 covers missing/malformed/expired credentials, old-account exclusion, unsupported
 methods, model buckets including zero, identity/project/tier request flow, error
-states, and credential-specific request gating. Corporate browser/SSO login and
+states, and credential-specific request gating. Regression tests cover expired
+refreshable credentials and failed/empty userinfo without false active status. Corporate browser/SSO login and
 live quota require user authentication and are not established by fixtures.

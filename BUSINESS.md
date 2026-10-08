@@ -36,8 +36,11 @@ subscription charges.
   outside this integration.
 - Gemini uses native file-backed Google OAuth and the CLI’s Code Assist model
   quota endpoint. Its email/plan and quota belong to the global login; API/Vertex
-  and encrypted OAuth monitoring are unsupported. Token renewal stays with the
-  native CLI. [Gemini](business/gemini.md) owns its auth, endpoint, model-bucket,
+  and encrypted OAuth monitoring are unsupported. A refresh token or cached
+  email cannot establish signed-in status: expired/unconfirmed credentials read
+  Sign in required with ?, a gray row, no active arrow and no availability count.
+  Only successful server identity verification confirms auth; explicit credential
+  rejection uses ×. Token renewal stays with the native CLI. [Gemini](business/gemini.md) owns its auth, endpoint, model-bucket,
   request-gating and error rules.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
