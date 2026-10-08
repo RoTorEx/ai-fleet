@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-10-08
+
 ### Fixed
 
 - Keep the menu compact when adding a fourth account/provider row. Measure the
