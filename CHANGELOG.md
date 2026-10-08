@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-10-08
+
 ### Fixed
 
 - Stop showing Gemini as active/available solely because a refresh token exists.
