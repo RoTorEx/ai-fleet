@@ -4,6 +4,13 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Replace the application and menu-bar icons with the approved front-facing
+  ship: curved hull, clearer bridge, and a wave that clips the lowered bow.
+  Keep the previous application assets and exact native menu drawing in the
+  project's icon collection for reuse.
+
 ## [1.2.9] - 2026-10-08
 
 ### Fixed
