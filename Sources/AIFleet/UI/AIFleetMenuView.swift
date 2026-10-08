@@ -48,10 +48,9 @@ struct AIFleetMenuView: View {
                 .padding(.bottom, 8)
 
             if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
-                ScrollView {
+                MenuRowsViewport(maxHeight: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 350))) {
                     providerRows
                 }
-                .frame(height: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 350)))
             } else {
                 providerRows
             }
@@ -209,6 +208,36 @@ struct AIFleetMenuView: View {
             return "development build"
         }
         return version
+    }
+}
+
+struct MenuRowsViewport<Content: View>: View {
+    let maxHeight: CGFloat
+    let content: Content
+    @State private var contentHeight: CGFloat = 1
+
+    init(maxHeight: CGFloat, @ViewBuilder content: () -> Content) {
+        self.maxHeight = maxHeight
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            content
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: MenuRowsHeightKey.self, value: geometry.size.height)
+                })
+        }
+        .frame(height: min(maxHeight, contentHeight))
+        .onPreferenceChange(MenuRowsHeightKey.self) { contentHeight = max(1, $0) }
+    }
+}
+
+private struct MenuRowsHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

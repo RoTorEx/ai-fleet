@@ -4,6 +4,12 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the menu compact when adding a fourth account/provider row. Measure the
+  actual row content before applying the scroll-height cap, and resize when
+  rows or quota windows change instead of reserving an empty 340-point area.
+
 ## [1.2.8] - 2026-10-08
 
 ### Fixed

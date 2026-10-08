@@ -101,7 +101,10 @@ receive no current row; the provider summary retains the actual native status.
   contain only global native Sign in; no isolated launch or manual Use action.
   Badge hover shows only email and plan immediately, using a noninteractive
   inline overlay above neighbouring rows rather than delayed native help. Health/Lowest summarize native global connections.
-  Long connection lists use a bounded scroll area. The legend separates Auth,
+  Long connection lists use a bounded scroll area measured from the actual
+  row content. Short content keeps its natural height even when adding a fourth
+  row activates scrolling; additions, removals and quota changes resize the
+  open menu up to its screen-dependent cap. The legend separates Auth,
   Selection, Quota, and quota colors; no automatic fallback is advertised.
 - `SettingsNavigation` — shared, transient tab/add-provider navigation, including
   requests delivered while the existing Settings window is already open.
