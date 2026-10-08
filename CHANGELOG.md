@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.10] - 2026-10-09
+
 ### Changed
 
 - Replace the application and menu-bar icons with the approved front-facing
