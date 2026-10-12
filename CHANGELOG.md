@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Restore the original clipper in the menu bar and application icon. Keep the
+  front-facing ship v4 and the original icon set in the collection for reuse.
+
 ## [1.2.10] - 2026-10-09
 
 ### Changed

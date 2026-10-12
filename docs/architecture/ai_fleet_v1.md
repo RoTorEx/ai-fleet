@@ -37,7 +37,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 1. `AppDelegate` sets `NSApplication` activation policy to `.accessory` so no dock icon appears.
 2. `StatusService.start()` begins refreshing provider state every 60 seconds.
 3. `StatusBarController` owns the menu-bar icon and hosts `AIFleetMenuView` inside an `NSPopover`.
-   `FleetIcon.menuBarImage()` draws the approved ship as an 18-point native
+   `FleetIcon.menuBarImage()` draws the original clipper as an 18-point native
    vector template; macOS supplies its appearance color. Application PNGs live
    in `AppBundle/Assets.xcassets/AppIcon.appiconset`. Approved sources and previous
    icons are retained in [the icon collection](../assets/icon-collection/README.md).

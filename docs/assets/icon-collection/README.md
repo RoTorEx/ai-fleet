@@ -1,8 +1,8 @@
 # AI Fleet icon collection
 
-## Current: ship-v4
+## Preserved: ship-v4
 
-The approved front-facing ship has curved sides, a visible bridge, and a hull
+Used in v1.2.10; retained here for reuse. The front-facing ship has curved sides, a visible bridge, and a hull
 clipped at the wave. The app icon uses a dark blue tile and turquoise water.
 
 - `ship-v4/Preview.png`: approved comparison sheet.
@@ -11,18 +11,14 @@ clipped at the wave. The app icon uses a dark blue tile and turquoise water.
 - `ship-v4/draw.swift`: standalone AppKit renderer. Run
   `swift docs/assets/icon-collection/ship-v4/draw.swift /path/to/output`
   with `design.json` copied into that output directory to regenerate the PNGs.
-- `AppBundle/Assets.xcassets/AppIcon.appiconset`: active application PNGs.
-- `Sources/AIFleet/FleetIcon.swift`: native menu-bar vector drawing with an
-  18-point template image; macOS supplies the light/dark appearance color.
-- The two existing `FleetIcon.imageset` directories retain matching PNG exports.
 
-The runtime vector matches the geometry in `design.json`. When changing the
-shape, update the native paths and both SVGs, rerender application/menu PNGs,
-and inspect the native template at small sizes as well as the preview.
+To reuse ship-v4, regenerate its PNGs from the preserved renderer and restore
+its geometry in the native menu-bar drawing. Keep both sets in the collection.
 
-## Preserved: clipper-v1.2.9
+## Current: clipper-v1.2.9
 
-This is the complete icon set replaced in v1.2.10. Keep it in the collection.
+The original clipper is restored in v1.2.11 for both the app and the menu bar.
+Its complete archived set remains in the collection.
 
 - `AppIcon.appiconset`: original application icon PNGs and size mapping.
 - `MenuBarIcon.swift`: exact original native menu-bar drawing, including its
@@ -33,6 +29,8 @@ This is the complete icon set replaced in v1.2.10. Keep it in the collection.
   asset directories. They were retained in the project but the runtime menu
   used the native drawing above.
 
-Restore the application PNGs from this archived appiconset and the menu drawing
-from `MenuBarIcon.swift` if the clipper is selected again. Do not delete the
-collection when switching active icons.
+Active app PNGs live in `AppBundle/Assets.xcassets/AppIcon.appiconset`.
+`Sources/AIFleet/FleetIcon.swift` restores the archived native drawing as an
+18-point template; macOS supplies its light/dark appearance color. The two
+existing `FleetIcon.imageset` directories also contain their original PNGs.
+Do not delete the collection when switching active icons.
