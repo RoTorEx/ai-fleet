@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.11] - 2026-10-12
+
 ### Changed
 
 - Restore the original clipper in the menu bar and application icon. Keep the
