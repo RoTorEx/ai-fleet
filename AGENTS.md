@@ -41,6 +41,10 @@ Read these only when the task requires them:
 - `docs/ideas/*` — idea triage only.
 - `docs/reports/*` — reports/history only when relevant.
 
+## Local rules
+
+- Write authored code, comments, docs, plans, generated labels, and commit text in English; keep original-language source data and behavior-bearing fixtures unchanged.
+
 ## Rule priority
 
 1. Current user instruction
