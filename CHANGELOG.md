@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.12] - 2026-10-19
+
 ### Added
 
 - Add Sign out to the active provider row in the menu and Accounts settings.
