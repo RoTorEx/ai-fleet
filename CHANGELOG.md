@@ -4,6 +4,13 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Add Sign out to the active provider row in the menu and Accounts settings.
+  Remove monitored local credentials without launching provider commands, wait
+  for in-flight refreshes, and clear the provider's displayed identity and quota
+  while preserving other logins, settings, and session history.
+
 ## [1.2.11] - 2026-10-12
 
 ### Changed

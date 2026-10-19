@@ -239,6 +239,7 @@ final class AccountStore: ObservableObject {
     }
 
     func signInGlobally(_ providerID: String) {
+        guard StatusService.shared.signingOutProvider == nil else { return }
         guard let provider = ProviderCatalog.definition(for: providerID),
               let executable = ProviderCatalog.executableURL(for: provider) else {
             launchError = "Provider CLI is not installed."

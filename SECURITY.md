@@ -4,9 +4,13 @@
 
 AI Fleet reads existing provider credentials from the current user's home
 directory. Kimi and Codex credentials are used only for HTTPS requests to the
-corresponding provider endpoints documented in the architecture. Claude and Qwen
-credential files are currently used only to detect whether the local CLI appears
-signed in. Tokens are not logged or shown in the UI.
+corresponding provider endpoints documented in the architecture. Claude
+credentials also provide subscription quota status; Qwen credentials are used
+for local auth detection. Explicit Sign out
+removes the monitored native credentials and cached identity without launching
+provider commands; see [Accounts](business/accounts.md) for exact stores and
+limitations. Ordinary status polling does not remove credentials. Tokens are
+not logged or shown in the UI.
 
 AI Fleet also reads local Codex session JSONL files under `~/.codex/sessions`
 to extract numeric token-usage metadata for the Statistics window. The app does

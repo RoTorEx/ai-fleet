@@ -102,7 +102,8 @@ receive no current row; the provider summary retains the actual native status.
   markers use aligned left columns; quotas align with the provider name. Only
   the ellipsis menu occupies the right edge. Inactive rows and quota windows are
   gray. Unavailable connections retain × plus their reason. Ellipsis actions
-  contain only global native Sign in; no isolated launch or manual Use action.
+  contain global native Sign in and local Sign out on the active row; no isolated
+  launch or manual Use action. Failed sign-out retains a Retry sign out action.
   Badge hover shows only email and plan immediately, using a noninteractive
   inline overlay above neighbouring rows rather than delayed native help. Health/Lowest summarize native global connections.
   Long connection lists use a bounded scroll area measured from the actual
@@ -168,6 +169,15 @@ receive no current row; the provider summary retains the actual native status.
   Source reference: https://github.com/steipete/CodexBar/blob/main/docs/claude.md.
 - Qwen quota retrieval is unsupported. Login and quota errors remain separate
   in both the menu and Settings; opening either surface requests a fresh check.
+- Local sign-out: `ProviderLogout.swift` deletes only the monitored global
+  credential stores and cached identity fields. Claude uses Security.framework
+  to delete and verify its native Keychain item, without executing its CLI.
+  `StatusService` serializes refresh lifetimes, blocks new refreshes/sign-in
+  during logout, waits for outstanding token renewal, then clears the target
+  provider's displayed auth/quota. Failure becomes unknown auth with an explicit
+  error and retry action. File-backed and external-store limits are documented
+  in [Accounts](../../business/accounts.md). Tests use temporary homes, injected
+  Keychain operations, and a delayed credential write to verify cancellation.
 - Claude profile and launch boundaries:
   [business/accounts.md](../../business/accounts.md).
 

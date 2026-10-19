@@ -22,8 +22,9 @@ environment settings remain available to the native Terminal workflow.
   Unconfirmed Google login reads `Sign in required`, stays gray, has no active
   arrow, and cannot count as an available provider. Confirmed missing/rejected
   login uses ×; unconfirmed login uses ?. Native renewal remains possible but
-  does not prove access until the server identity check succeeds. AI Fleet never performs Google token refresh or rewrites
-  these files. Encrypted OAuth/Keychain storage is outside this file reader;
+  does not prove access until the server identity check succeeds. AI Fleet never performs Google token refresh. Explicit local Sign out removes
+  `oauth_creds.json` and clears only `active` in `google_accounts.json`; ordinary
+  monitoring does not rewrite these files. Encrypted OAuth/Keychain storage is outside this file reader;
   a cached active account without readable credentials remains unknown.
 - `google_accounts.json` → `active` is a native display hint; `old` is ignored.
   OAuth userinfo verifies actual email before retrieving quota. If that request

@@ -166,10 +166,16 @@ private struct AccountEditor: View {
     private func connectionActions(_ connection: ProviderConnection, provider: ProviderDefinition) -> some View {
         HStack(spacing: 8) {
             Button("Sign in…") { store.signInGlobally(provider.id) }
+            if service.globalAccountIDs[provider.id] == account.id,
+               (service.status(for: provider.id).authentication == .signedIn || service.signOutFailedProvider == provider.id) {
+                Button(service.signOutFailedProvider == provider.id ? "Retry sign out" : "Sign out", role: .destructive) {
+                    Task { await service.signOutGlobally(provider.id) }
+                }
+            }
             Spacer(minLength: 0)
         }
         .font(.caption)
-        .disabled(!ProviderCatalog.isInstalled(provider))
+        .disabled(!ProviderCatalog.isInstalled(provider) || service.signingOutProvider != nil)
         .help(account.tooltip(for: connection, status: service.status(for: connection)))
     }
     private func save() { store.update(account.id, name: name, email: email) }

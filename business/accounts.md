@@ -7,7 +7,7 @@ Claude, Codex, Kimi, Qwen, and Gemini. Labels are app metadata, not credentials.
 ## Login and interface
 
 Each provider has one current standard global CLI login. The row’s **…** menu
-contains only **Sign in…**, which launches the provider’s native login in
+contains **Sign in…**, which launches the provider’s native login in
 Terminal: Claude `auth login`, Codex/Kimi `login`, Qwen’s interactive CLI, and
 Gemini’s native login or `/auth login` dialog when already configured.
 It unsets inherited provider directory and API/account overrides and uses the
@@ -17,6 +17,23 @@ provider’s browser/SSO flow; the badge does not force that flow’s email.
 Completing login changes the standard provider credentials used by ordinary
 CLI commands. Already-running processes may retain cached credentials until
 they refresh or authenticate again; AI Fleet does not control their lifetime.
+The active signed-in row also offers **Sign out** in the menu and Settings.
+Sign-out removes the monitored global local credentials without launching any
+provider CLI, and immediately clears that provider's identity and quota from all
+badges. It waits for in-flight refreshes before deletion so native token renewal
+cannot restore a removed credential. Other providers, account labels, legacy
+isolated stores, settings, and session history are preserved. Failures are shown
+without claiming signed-out status; a partial failure can require retrying.
+
+Claude removes the native `Claude Code-credentials` Keychain item,
+`~/.claude/.credentials.json`, and only `oauthAccount` in `~/.claude.json`.
+Codex, Kimi, Qwen, and Gemini remove the file-backed credentials monitored by
+AI Fleet; Gemini also clears its cached active Google account, and Kimi clears
+AI Fleet's fallback API key. An inherited `KIMI_API_KEY` blocks sign-out until
+removed and the app restarted. Redirected credential paths are rejected.
+External API keys, credential helpers, encrypted/keychain-only stores outside
+these readers, and tokens already held by running agents are outside this
+local sign-out. It does not revoke server sessions or stop running agents.
 Selective per-session login is deferred until requested.
 
 Status checks read only one native default connection per provider, regardless

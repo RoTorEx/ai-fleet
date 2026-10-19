@@ -79,9 +79,15 @@ to renew access; AI Fleet does not rewrite Google tokens. See [Gemini integratio
 Each account/provider association has a compact row such as **Codex (α)**.
 **→** marks the detected global login; other accounts are gray without quota.
 Hover the badge to immediately see only email and plan. The **…** menu contains
-only **Sign in…**. Complete native login in Terminal and the provider’s browser
+**Sign in…** and, on the active signed-in row, **Sign out**. Complete native login in Terminal and the provider’s browser
 or SSO flow to change its standard global login. This affects ordinary CLI
 commands; an already-running process may retain cached credentials until refresh.
+**Sign out** removes the monitored local global login without starting the
+provider CLI, clears its displayed quota, and preserves settings, history, and
+other providers. The same action is available in Settings → Accounts. It does
+not revoke server sessions or clear credentials already held by running agents.
+External API keys and stores outside AI Fleet's readers are outside this action;
+see [Accounts](business/accounts.md) for supported stores and limitations.
 There is no separate session launch or manual account selection.
 
 AI Fleet checks one global connection per provider and assigns its status to a

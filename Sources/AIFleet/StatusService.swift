@@ -21,7 +21,9 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     private var timer: Timer?
     private var task: Task<Void, Never>?
     private let session: URLSession
-    private let config = AppConfig.load()
+    private let connectionCheck: ((ProviderConnection) async -> ProviderStatus)?
+    @Published private(set) var signingOutProvider: String?
+    @Published private(set) var signOutFailedProvider: String?
     private let iso8601 = ISO8601DateFormatter()
     private let iso8601Fractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -58,11 +60,13 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     private override init() {
         session = URLSession(configuration: .ephemeral)
+        connectionCheck = nil
         super.init()
     }
 
-    init(session: URLSession) {
+    init(session: URLSession, connectionCheck: ((ProviderConnection) async -> ProviderStatus)? = nil) {
         self.session = session
+        self.connectionCheck = connectionCheck
         super.init()
     }
 
@@ -195,8 +199,12 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     func refresh() {
-        task?.cancel()
+        guard signingOutProvider == nil else { return }
+        let previous = task
+        previous?.cancel()
         task = Task { @MainActor in
+            await previous?.value
+            guard !Task.isCancelled else { return }
             lastError = nil
             let connections = ProviderCatalog.all.map { ProviderConnection.global($0.id) }
             var results: [ProviderStatus] = []
@@ -210,6 +218,32 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             applyGlobalStatuses(results, accounts: AccountStore.shared)
             processDrainNotifications()
         }
+    }
+
+    func signOutGlobally(_ providerID: String, accounts suppliedAccounts: AccountStore? = nil,
+                         logout: ProviderLogout = ProviderLogout()) async {
+        guard signingOutProvider == nil,
+              let provider = ProviderCatalog.definition(for: providerID) else { return }
+        let accounts = suppliedAccounts ?? AccountStore.shared
+        signingOutProvider = providerID
+        signOutFailedProvider = nil
+        accounts.launchError = nil
+        defer { signingOutProvider = nil }
+        // Join all earlier refreshes before deleting credentials: token renewal must not restore them.
+        task?.cancel()
+        await task?.value
+        task = nil
+        let replacement: ProviderStatus
+        do {
+            try await Task.detached(priority: .userInitiated) { try logout.signOut(providerID) }.value
+            replacement = LocalProviderAuth.signedOut.status(for: provider)
+        } catch {
+            signOutFailedProvider = providerID
+            accounts.launchError = "Sign-out could not complete. Some credentials may already be removed. \(error is ProviderLogout.Failure ? error.localizedDescription : "Check local credential access and retry.")"
+            replacement = LocalProviderAuth.unknown.status(for: provider)
+        }
+        let results = ProviderCatalog.all.map { $0.id == providerID ? replacement : status(for: $0.id) }
+        applyGlobalStatuses(results, accounts: accounts)
     }
 
     func applyGlobalStatuses(_ results: [ProviderStatus], accounts: AccountStore) {
@@ -240,6 +274,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     private func checkConnection(_ connection: ProviderConnection) async -> ProviderStatus {
+        if let connectionCheck { return await connectionCheck(connection) }
         guard let provider = ProviderCatalog.definition(for: connection.providerID) else {
             return connection.status(from: LocalProviderAuth.unknown.status(for: ProviderCatalog.claude))
         }
@@ -461,7 +496,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         }
 
         // 2. Fall back to Open Platform API key balance.
-        guard connection.configDirectory == nil, let key = config.resolvedKimiKey, !key.isEmpty else {
+        guard connection.configDirectory == nil, let key = AppConfig.load().resolvedKimiKey, !key.isEmpty else {
             return Self.unavailableStatus(for: ProviderCatalog.kimi)
         }
 

@@ -26,7 +26,7 @@ subscription charges.
   is not implemented and reads `Signed in · quota unsupported` when login is
   configured. Claude subscription quotas reuse that CLI profile's OAuth token
   from its credentials file or its profile-specific Claude Code Keychain item.
-  Tokens stay in memory, are never logged or rewritten by AI Fleet, and
+  Tokens stay in memory and are never logged; credentials are removed only by an explicit local Sign out action, and
   requests go only to Anthropic's usage endpoint without following redirects.
   The main `five_hour` and `seven_day` windows display remaining percentages
   and reset times using the existing quota and notification rules. Missing or
@@ -46,7 +46,7 @@ subscription charges.
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
   badges. Each provider uses one standard global native CLI login. The row’s
-  ellipsis menu exposes only Sign in, which changes that global login through
+  ellipsis menu exposes Sign in and, on the active signed-in row, Sign out. Sign out clears the monitored native credentials locally without launching the provider CLI; Sign in changes that global login through
   the provider’s native browser/SSO flow. No isolated session launch or manual
   working-account selection is exposed. Native email determines the current
   badge; duplicate email labels remain ambiguous. Current authenticated rows

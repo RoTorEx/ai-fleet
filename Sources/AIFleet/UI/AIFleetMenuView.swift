@@ -286,8 +286,15 @@ struct ProviderLimitRow: View {
                 Menu {
                     Button("Sign in…") { accounts.signInGlobally(status.providerID) }
                     .help("Changes the provider’s global login. Choose the account in its native login flow.")
+                    if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
+                        Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
+                            Task { await service.signOutGlobally(status.providerID) }
+                        }
+                        .help("Removes this provider's local global login without starting its CLI. Running agents may retain credentials in memory.")
+                    }
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .disabled(service.signingOutProvider != nil)
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
             if !status.limitWindows.isEmpty {
