@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.2.13] - 2026-10-27
+
 ### Added
 
 - Add Claude to Statistics with local token/cache accounting, model/day tables,
