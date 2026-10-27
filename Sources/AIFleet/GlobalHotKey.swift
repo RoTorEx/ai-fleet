@@ -12,12 +12,13 @@ final class GlobalHotKey {
         return hotKey.handle(event: eventRef)
     }
 
-    private let hotKeyID = EventHotKeyID(signature: GlobalHotKey.signature, id: 1)
+    private let hotKeyID: EventHotKeyID
     private let action: () -> Void
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
 
-    init?(keyCode: UInt32, modifiers: UInt32, action: @escaping () -> Void) {
+    init?(keyCode: UInt32, modifiers: UInt32, id: UInt32 = 1, action: @escaping () -> Void) {
+        hotKeyID = EventHotKeyID(signature: GlobalHotKey.signature, id: id)
         self.action = action
 
         var eventSpec = EventTypeSpec(

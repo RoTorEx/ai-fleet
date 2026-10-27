@@ -3,6 +3,32 @@ import Carbon.HIToolbox
 import SwiftUI
 
 @MainActor
+final class FleetMenuScreen: ObservableObject {
+    @Published var showsAgents = false
+}
+
+private struct FleetMenuRoot: View {
+    @ObservedObject var screen: FleetMenuScreen
+    @ObservedObject var agents: AgentSessionsService
+    let service: StatusService
+    let openSettings: () -> Void
+    let openStatistics: () -> Void
+    let toggleAgents: () -> Void
+
+    var body: some View {
+        Group {
+            if screen.showsAgents {
+                AgentsView(service: agents, back: toggleAgents)
+            } else {
+                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics, openAgents: toggleAgents)
+                    .environmentObject(service)
+                    .environmentObject(AppSettings.shared)
+            }
+        }.fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+@MainActor
 final class StatusBarController: NSObject, NSPopoverDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: 18)
     private let popover = NSPopover()
@@ -10,6 +36,9 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     private let openStatistics: (NSRect?) -> Void
     private var globalClickMonitor: Any?
     private var localEventMonitor: Any?
+    private let screen = FleetMenuScreen()
+    private let agents = AgentSessionsService()
+    private var agentsHotKey: GlobalHotKey?
 
     init(
         service: StatusService,
@@ -24,12 +53,15 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
             button.image = FleetIcon.menuBarImage()
             button.imagePosition = .imageOnly
             button.imageScaling = .scaleNone
-            button.toolTip = "AI Fleet (Command-Shift-I)"
+            button.toolTip = "AI Fleet (\(AppSettings.shared.hotkey.displayString))"
             button.target = self
             button.action = #selector(statusItemClicked)
         }
 
-        let content = AIFleetMenuView(
+        let content = FleetMenuRoot(
+            screen: screen,
+            agents: agents,
+            service: service,
             openSettings: { [weak self] in
                 guard let self else { return }
                 let anchorFrame = self.popoverScreenFrame
@@ -45,11 +77,9 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
                 DispatchQueue.main.async { [weak self] in
                     self?.openStatistics(anchorFrame)
                 }
-            }
+            },
+            toggleAgents: { [weak self] in self?.toggleAgents() }
         )
-            .environmentObject(service)
-            .environmentObject(AppSettings.shared)
-            .fixedSize(horizontal: false, vertical: true)
         let hostingController = NSHostingController(rootView: content)
         hostingController.sizingOptions = [.preferredContentSize]
 
@@ -73,6 +103,18 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         statusItem.button?.highlight(false)
         stopClickMonitor()
+        agents.stop()
+        agentsHotKey?.unregister()
+        agentsHotKey = nil
+        screen.showsAgents = false
+    }
+
+    func toggleAgents() {
+        screen.showsAgents.toggle()
+        if screen.showsAgents { agents.start() } else { agents.stop() }
+        // Jump transfers focus to iTerm2. The same shortcut brings the menu back.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
     @objc private func statusItemClicked() {
@@ -90,6 +132,9 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         button.highlight(true)
         startClickMonitor()
+        agentsHotKey = GlobalHotKey(keyCode: UInt32(kVK_ANSI_A), modifiers: UInt32(cmdKey), id: 2) { [weak self] in
+            self?.toggleAgents()
+        }
     }
 
     func closePopoverIfNeeded() {
@@ -126,6 +171,13 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
 
             if event.type == .keyDown, event.keyCode == UInt16(kVK_Escape) {
                 self.closePopover()
+                return nil
+            }
+
+            // Carbon can also deliver a local key event. Use one route per press.
+            if self.agentsHotKey == nil, event.type == .keyDown, event.keyCode == UInt16(kVK_ANSI_A),
+               event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
+                self.toggleAgents()
                 return nil
             }
 

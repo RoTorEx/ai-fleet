@@ -4,6 +4,7 @@ import SwiftUI
 struct AIFleetMenuView: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
+    var openAgents: () -> Void = {}
 
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
@@ -66,6 +67,10 @@ struct AIFleetMenuView: View {
             VStack(alignment: .leading, spacing: 7) {
                 ActionButton(title: "Refresh now", shortcut: "⌘R", keyEquivalent: "r", modifiers: .command) {
                     service.refresh()
+                }
+
+                ActionButton(title: "Agents", shortcut: "⌘A", keyEquivalent: nil) {
+                    openAgents()
                 }
 
                 ActionButton(title: "Statistics…", shortcut: "", keyEquivalent: nil) {

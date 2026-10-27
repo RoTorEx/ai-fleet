@@ -7,6 +7,10 @@ subscription charges.
 
 ## Actors and flows
 
+- The developer switches Usage/Agents with Command-A in the open menu, reviews
+  local live Codex/Claude sessions and jumps to an exact iTerm2 pane without
+  closing the overview. [Agents](business/agents.md) owns this integration.
+
 - A local developer reads quota state from the menu and receives threshold
   notifications for individual provider windows such as `5h` and `7d`.
 - The developer opens Statistics to explore cached Codex and Claude Code usage by period without

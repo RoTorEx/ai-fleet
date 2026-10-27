@@ -1,0 +1,13 @@
+[package]
+name = "fleet-session-engine"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Private stdio adapter for AI Fleet's bundled AI Session Hub core"
+
+[dependencies]
+anyhow = "1"
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["std"] }

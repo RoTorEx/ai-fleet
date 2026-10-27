@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Add Agents after Refresh now. Command-A toggles the main menu and a colorful
+  live project-grouped session overview, including after a terminal Jump.
+- Embed the AI Session Hub core in the application: no standalone CLI required.
+  Click to jump to the exact existing iTerm2 pane while keeping the overview open.
+  Include status filters, collapsible groups, model metadata when available,
+  animated working indicators, stale/error handling and visibility-based cleanup.
+
 ### Fixed
 
 - Group Codex Days, Activity, and date-filtered totals by local session timestamps

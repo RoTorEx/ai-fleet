@@ -30,6 +30,11 @@ jobs:
           version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' AppBundle/Info.plist)
           test "$GITHUB_REF_NAME" = "v$version"
 
+      - name: Prepare Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
       - name: Build release assets
         env:
           DIST_DIR: ${{ runner.temp }}/ai-fleet-dist
@@ -48,6 +53,9 @@ jobs:
           ditto -x -k "$archive" "$RUNNER_TEMP/ai-fleet-smoke"
           app="$RUNNER_TEMP/ai-fleet-smoke/AIFleet.app"
           test -x "$app/Contents/MacOS/AIFleet"
+          test -x "$app/Contents/MacOS/fleet-session-engine"
+          test -f "$app/Contents/Resources/AI-Session-Hub-LICENSE.txt"
+          "$app/Contents/MacOS/fleet-session-engine" </dev/null
           plutil -lint "$app/Contents/Info.plist"
           codesign --verify --deep --strict "$app"
 

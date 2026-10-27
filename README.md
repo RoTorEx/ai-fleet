@@ -21,6 +21,21 @@ No dock icon. AI Fleet monitors and opens native sign-in for each provider’s g
 - macOS 13 (Ventura) or later
 - Swift 5.9 or later
 
+## Agents
+
+Choose **Agents** after **Refresh now**, or press **Command-A** in the open menu.
+The same shortcut returns to Usage, including after Jump transfers focus to iTerm2.
+The colorful list groups live Codex/Claude sessions by project, with filters,
+collapsible groups, observed statuses and animated working indicators. Click a row
+to open its exact iTerm2 window/tab/split; the overview stays open. Escape or an
+outside click closes it. The engine ships inside the app; no separate Hub CLI or
+Rust toolchain is required by installed releases. Source builds also need Rust
+with the current stable toolchain. iTerm2 access may require macOS Automation permission.
+
+Only local interactive Codex/Claude in iTerm2 are supported. Unknown states remain
+explicit, and activity stripes do not claim a task-completion percentage.
+See [Agents](business/agents.md).
+
 ## Run from source
 
 ```bash
