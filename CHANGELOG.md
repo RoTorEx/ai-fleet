@@ -4,6 +4,14 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Add Claude to Statistics with local token/cache accounting, model/day tables,
+  period filtering, an Activity heatmap, and standard API-equivalent estimates.
+  Include nested subagent logs, deduplicate repeated content-block usage, and
+  reuse unchanged files during manual or scheduled background refreshes.
+  Preserve existing Codex caches and hide incomplete unknown-model estimates.
+
 ## [1.2.12] - 2026-10-19
 
 ### Added

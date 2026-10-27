@@ -1,7 +1,7 @@
 # AI Fleet Product Rules
 
 AI Fleet is a native macOS menu-bar companion for monitoring remaining AI coding
-provider quotas and reviewing local Codex usage. It is informational: it does
+provider quotas and reviewing Codex and local Claude Code usage. It is informational: it does
 not proxy prompts, bill users, or claim that API-equivalent estimates are actual
 subscription charges.
 
@@ -9,7 +9,7 @@ subscription charges.
 
 - A local developer reads quota state from the menu and receives threshold
   notifications for individual provider windows such as `5h` and `7d`.
-- The developer opens Statistics to explore cached Codex usage by period without
+- The developer opens Statistics to explore cached Codex and Claude Code usage by period without
   triggering expensive work.
 - The developer may refresh statistics manually or let the app perform one
   low-priority refresh per day at a configured local time.
@@ -74,6 +74,28 @@ subscription charges.
   parsing displays it automatically.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
+- Claude has a separate Statistics tab with the same periods, token/cache cards,
+  model/day tables, and Activity heatmap as Codex. All Claude metrics are local
+  to `~/.claude/projects/**/*.jsonl`, including nested subagent transcripts;
+  they are not subscription-wide history and are independent of current login.
+  Input includes uncached input, cache reads and cache creation; Output includes
+  reported thinking as a subset, never an extra charge. Unreported thinking is
+  not inferred. Repeated content-block records with the same request/message ID
+  count once per file, keeping the most complete usage sample. Missing/malformed
+  records and synthetic messages are skipped. Refresh scans both providers at
+  background priority, reuses unchanged per-file aggregates, and preserves old
+  Codex-only snapshots. Opening or switching tabs never scans logs.
+- Claude API-equivalent estimates use standard USD-per-million-token rates from
+  [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing),
+  encoded in `ClaudeAPIRates`. Supported families match exact model names or
+  dated variants; future unknown versions never inherit older prices. Cache
+  reads have their own rate; writes cost 1.25 × input for 5m and 2 × input for
+  1h, defaulting to 5m when duration metadata is absent. These are standard-rate
+  comparisons, not bills: tool charges, fast-mode, long-context and platform
+  premiums are excluded. An unknown price suppresses the affected model/day
+  estimate and the selected total estimate while retaining token counts.
+  `ClaudeUsageAnalyticsTests` protects cache accounting, repeated records,
+  unknown prices, nested discovery, period selection, and snapshot compatibility.
 - Statistics opens on the all-time range. Account-wide Total, Days, and Activity
   come from Codex account usage so they survive deleting local sessions or
   moving to another Mac. Input, Output, cache, reasoning, Models, Events, and
@@ -178,7 +200,7 @@ subscription charges.
   `10 seconds`, terminating the owned CLI process so a hung check cannot stall
   subsequent provider refreshes. This bound is shorter than the polling period;
   timeout is an unknown auth state, not proof that sign-in is missing.
-- Automatic Codex analytics refresh is enabled by default once per local day at
+- Automatic Codex and Claude analytics refresh is enabled by default once per local day at
   `12:00`. The user can disable it or choose any minute of the day in Settings.
   A daily cadence limits disk and CPU use while keeping historical reporting
   useful; manual refresh covers urgent cases.
@@ -196,5 +218,6 @@ subscription charges.
 - Claude configuration/Keychain selectors: `Sources/AIFleet/ClaudeProfiles.swift`
 - Account management inside Settings: `Sources/AIFleet/UI/AccountsSettingsView.swift`
 - Refresh preferences: `Sources/AIFleet/AppSettings.swift`
+- Claude local accounting and API rates: `Sources/AIFleet/ClaudeUsageAnalytics.swift`
 - Analytics and caches: `Sources/AIFleet/UsageAnalytics.swift`
 - User interfaces: `Sources/AIFleet/UI/*`

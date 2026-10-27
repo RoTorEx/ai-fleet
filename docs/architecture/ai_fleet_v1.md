@@ -51,6 +51,14 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
    Statistics may perform the lightweight account request but does not scan
    session logs. Manual or scheduled refreshes reuse unchanged files from a
    per-file aggregate cache and parse changed files at background priority.
+   `ClaudeUsageLogReader` adds local Claude Code project/subagent transcripts to
+   the same metadata-driven scan and protected aggregate cache. It deduplicates
+   content-block records by request/message ID within a file, normalizes cache
+   reads/writes into total input, and calculates standard API equivalents.
+   `CodexUsageAnalytics` and its aggregation/period-selection helpers also carry
+   Claude local analytics, with no account usage attached. The optional `claude`
+   snapshot field preserves decoding of older caches; cost-coverage metadata
+   suppresses incomplete estimates for unknown models without hiding tokens.
    Kimi statistics use quota windows from `StatusService`.
 8. `UpdateService` resolves the latest GitHub Release for the current CPU,
    verifies the published checksum and application bundle, atomically replaces
@@ -79,7 +87,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 - `CodexUsageResponse` — ChatGPT WHAM usage payload.
 - `CodexAuth` — minimal `~/.codex/auth.json` shape.
 - `ProviderCatalog` — supported provider list, executable names, and local credential paths used for install/login detection.
-- `UsageAnalyticsSnapshot` — cached Codex account usage, local token analytics,
+- `UsageAnalyticsSnapshot` — cached Codex account usage, local Codex/Claude token analytics,
   Kimi quota analytics, refresh times, and local scan duration.
 
 `ProviderStatus` carries independent authentication and quota states alongside
@@ -149,6 +157,8 @@ receive no current row; the provider summary retains the actual native status.
   `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl` files.
 - Codex account usage: lifetime and daily token activity from the official
   `account/usage/read` Codex app-server method for the signed-in ChatGPT account.
+- Claude local usage analytics: numeric token-usage metadata from
+  `~/.claude/projects/**/*.jsonl`, including nested subagent transcripts.
 - Statistics cache: `~/Library/Application Support/AI Fleet/usage-analytics-cache.json`.
 - Incremental per-file statistics cache:
   `~/Library/Application Support/AI Fleet/usage-analytics-files-cache.json`.

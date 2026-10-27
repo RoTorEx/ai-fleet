@@ -3,6 +3,7 @@ import Foundation
 struct UsageAnalyticsSnapshot: Codable, Equatable {
     var codex: CodexUsageAnalytics
     var kimi: KimiQuotaAnalytics
+    var claude: CodexUsageAnalytics? = nil
     var refreshedAt: Date?
     var lastLoadDuration: TimeInterval?
 
@@ -181,6 +182,9 @@ struct UsageTotals: Codable, Equatable {
     var outputTokens: Int
     var reasoningOutputTokens: Int
     var estimatedCostUSD: Double
+    var costEstimateAvailable: Bool? = nil
+
+    var hasCostEstimate: Bool { costEstimateAvailable ?? true }
 
     static let zero = UsageTotals(
         inputTokens: 0,
@@ -205,6 +209,7 @@ struct UsageTotals: Codable, Equatable {
         cacheWriteInputTokens += other.cacheWriteInputTokens
         outputTokens += other.outputTokens
         reasoningOutputTokens += other.reasoningOutputTokens
+        costEstimateAvailable = hasCostEstimate && other.hasCostEstimate
         estimatedCostUSD += other.estimatedCostUSD
     }
 }
@@ -229,7 +234,7 @@ final class UsageAnalyticsService: ObservableObject {
         progress = UsageAnalyticsLoadProgress(
             isLoading: false,
             processedFiles: 0,
-            totalFiles: cached.codex.fileCount,
+            totalFiles: cached.codex.fileCount + (cached.claude?.fileCount ?? 0),
             startedAt: nil,
             lastDuration: cached.lastLoadDuration,
             lastCompletedAt: cached.refreshedAt,
@@ -320,7 +325,7 @@ final class UsageAnalyticsService: ObservableObject {
                 try? CodexAccountUsageReader().read()
             }.value
             let files = await Task.detached(priority: .background) {
-                CodexUsageLogReader().codexLogFileMetadata()
+                CodexUsageLogReader().codexLogFileMetadata() + ClaudeUsageLogReader().logFileMetadata()
             }.value
             guard !Task.isCancelled else { return }
 
@@ -335,7 +340,10 @@ final class UsageAnalyticsService: ObservableObject {
                     nextFileCache[file.url.path] = cached
                 } else {
                     let record = await Task.detached(priority: .background) {
-                        CodexUsageLogReader().usageRecord(for: file)
+                        if ClaudeUsageLogReader.isClaudeLog(file.url) {
+                            return ClaudeUsageLogReader().usageRecord(for: file)
+                        }
+                        return CodexUsageLogReader().usageRecord(for: file)
                     }.value
                     nextFileCache[file.url.path] = record
                 }
@@ -345,9 +353,16 @@ final class UsageAnalyticsService: ObservableObject {
 
             let records = Array(nextFileCache.values)
             var codex = await Task.detached(priority: .background) {
-                CodexUsageLogReader().analytics(from: records, fileCount: files.count)
+                let codexRecords = records.filter { !ClaudeUsageLogReader.isClaudeLog(URL(fileURLWithPath: $0.path)) }
+                return CodexUsageLogReader().analytics(from: codexRecords, fileCount: codexRecords.count)
             }.value
             codex.accountUsage = await accountUsageResult ?? existingAccountUsage
+            let claude = await Task.detached(priority: .background) {
+                let claudeRecords = records.filter { ClaudeUsageLogReader.isClaudeLog(URL(fileURLWithPath: $0.path)) }
+                var result = CodexUsageLogReader().analytics(from: claudeRecords, fileCount: claudeRecords.count)
+                result.source = "~/.claude/projects"
+                return result
+            }.value
 
             guard !Task.isCancelled else { return }
             let duration = Date().timeIntervalSince(startedAt)
@@ -355,6 +370,7 @@ final class UsageAnalyticsService: ObservableObject {
             let nextSnapshot = UsageAnalyticsSnapshot(
                 codex: codex,
                 kimi: kimiAnalytics,
+                claude: claude,
                 refreshedAt: completedAt,
                 lastLoadDuration: duration
             )
@@ -500,6 +516,7 @@ private extension UsageAnalyticsSnapshot {
         UsageAnalyticsSnapshot(
             codex: codex,
             kimi: kimi,
+            claude: claude,
             refreshedAt: refreshedAt,
             lastLoadDuration: lastLoadDuration
         )
@@ -511,6 +528,7 @@ private extension UsageAnalyticsSnapshot {
         return UsageAnalyticsSnapshot(
             codex: nextCodex,
             kimi: kimi,
+            claude: claude,
             refreshedAt: refreshedAt,
             lastLoadDuration: lastLoadDuration
         )
@@ -758,7 +776,7 @@ struct CodexUsageLogReader {
         }
     }
 
-    private func dailyModelUsage(entries: [CodexUsageLogEntry]) -> [DailyModelUsage] {
+    func dailyModelUsage(entries: [CodexUsageLogEntry]) -> [DailyModelUsage] {
         var buckets: [String: DailyModelUsage] = [:]
         for entry in entries {
             let day = calendar.startOfDay(for: entry.timestamp)

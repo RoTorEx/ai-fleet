@@ -10,9 +10,13 @@ struct StatisticsView: View {
 
     private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
 
+    private var localAnalytics: CodexUsageAnalytics {
+        tab == .claude ? (snapshot.claude ?? .empty) : snapshot.codex
+    }
+
     private var selection: CodexUsageSelection {
         let bounds = period.bounds()
-        return codexUsageSelection(from: snapshot.codex, start: bounds.start, end: bounds.end)
+        return codexUsageSelection(from: localAnalytics, start: bounds.start, end: bounds.end)
     }
 
     private var periodDetail: String {
@@ -26,7 +30,7 @@ struct StatisticsView: View {
         VStack(alignment: .leading, spacing: 8) {
             header
             switch tab {
-            case .codex: codexContent
+            case .codex, .claude: codexContent
             case .kimi: kimiContent
             }
         }
@@ -47,12 +51,13 @@ struct StatisticsView: View {
                 RefreshStatus(
                     progress: analytics.progress,
                     refreshedAt: snapshot.refreshedAt,
-                    accountRefreshedAt: snapshot.codex.accountUsage?.fetchedAt,
+                    accountRefreshedAt: localAnalytics.accountUsage?.fetchedAt,
+                    showsAccount: tab == .codex,
                     isRefreshing: analytics.isRefreshing,
                     refresh: { analytics.refresh(kimi: service.kimi) }
                 )
             }
-            if tab == .codex {
+            if tab != .kimi {
                 HStack {
                     Spacer(minLength: 0)
                     PeriodToolbar(period: $period)
@@ -68,7 +73,7 @@ struct StatisticsView: View {
             switch detailPage {
             case .tables:
                 HStack(alignment: .top, spacing: 10) {
-                    ModelTablePanel(models: selection.models)
+                    ModelTablePanel(models: selection.models, usesAccountUsage: selection.usesAccountUsage)
                         .frame(minWidth: 430, maxWidth: .infinity)
                     DailyTablePanel(daily: selection.daily, usesAccountUsage: selection.usesAccountUsage)
                         .frame(minWidth: 330, maxWidth: .infinity)
@@ -95,10 +100,12 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Estimate",
                         sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                        value: money(selection.estimatedCostUSD),
+                        value: selection.totals.hasCostEstimate ? money(selection.estimatedCostUSD) : "—",
                         help: selection.usesAccountUsage
                             ? "Estimated from Codex account tokens for the selected period, multiplied by the average API-equivalent cost per token observed in local sessions. The 7d, 30d, and 90d ranges use the matching Codex daily totals. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
-                            : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
+                            : tab == .claude
+                                ? "Unknown model prices show no estimate. Standard rates exclude tool charges, fast mode, long-context and platform premiums. Cache writes use their reported 5m/1h duration, defaulting to 5m when absent. Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge."
+                                : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
                         rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account total × local rate" : "model rates")],
                         fixedHeight: 98
                     )
@@ -114,7 +121,7 @@ struct StatisticsView: View {
                     .frame(width: columnWidth * 2 + spacing)
                 }
                 HStack(spacing: spacing) {
-                    DatasetCard(codex: snapshot.codex, eventCount: selection.eventCount)
+                    DatasetCard(codex: localAnalytics, eventCount: selection.eventCount, isClaude: tab == .claude)
                         .frame(width: columnWidth)
                     MetricCard(
                         title: "Input",
@@ -133,9 +140,11 @@ struct StatisticsView: View {
                         title: "Output",
                         sourceLabel: "Local",
                         value: compactCount(selection.totals.outputTokens),
-                        helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output),
+                        helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output).map {
+                            tab == .claude ? $0.replacingOccurrences(of: "reported by Codex", with: "reported by Claude when available") : $0
+                        },
                         rows: [
-                            AccountingRow(label: "Reasoning", value: compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
+                            AccountingRow(label: "Reasoning", value: tab == .claude && selection.totals.reasoningOutputTokens == 0 ? "—" : compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
                         ],
                         fixedHeight: 122
                     )
@@ -174,6 +183,7 @@ struct StatisticsView: View {
 
 private enum AnalyticsTab: String, CaseIterable, Identifiable {
     case codex = "Codex"
+    case claude = "Claude"
     case kimi = "Kimi"
     var id: String { rawValue }
 }
@@ -241,6 +251,7 @@ private struct RefreshStatus: View {
     let progress: UsageAnalyticsLoadProgress
     let refreshedAt: Date?
     let accountRefreshedAt: Date?
+    let showsAccount: Bool
     let isRefreshing: Bool
     let refresh: () -> Void
 
@@ -266,11 +277,13 @@ private struct RefreshStatus: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(isRefreshing)
-                .help("Refresh Codex statistics now")
+                .help("Refresh local Codex and Claude statistics and Codex account usage")
             }
 
             HStack(spacing: 8) {
-                Text(accountRefreshedAt.map { "Account \(dateTimeText($0))" } ?? "Account not synced")
+                if showsAccount {
+                    Text(accountRefreshedAt.map { "Account \(dateTimeText($0))" } ?? "Account not synced")
+                }
                 Text(refreshedAt.map { "Local \(dateTimeText($0))" } ?? "Local not scanned")
             }
             .font(.system(size: 10.5, weight: .medium, design: .monospaced))
@@ -407,12 +420,15 @@ private struct MetricCard: View {
 private struct DatasetCard: View {
     let codex: CodexUsageAnalytics
     let eventCount: Int
+    var isClaude = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Text("Sources")
-                HoverInfoTip(text: "Account totals and daily activity come from Codex through your ChatGPT account. Input/output categories, models, events, files, and the blended rate used for cost estimates come from session logs stored on this Mac.")
+                HoverInfoTip(text: isClaude
+                    ? "Claude statistics come only from local Claude Code project and subagent transcripts on this Mac. Events count distinct API messages, with repeated content-block usage counted once. Missing history is not recovered from your subscription. Unknown model prices show no estimate; standard API equivalents exclude tools, fast mode and platform premiums."
+                    : "Account totals and daily activity come from Codex through your ChatGPT account. Input/output categories, models, events, files, and the blended rate used for cost estimates come from session logs stored on this Mac.")
             }
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundColor(.secondary)
@@ -425,7 +441,7 @@ private struct DatasetCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 DatasetValue(label: "Files", value: groupedInteger(codex.fileCount))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                DatasetValue(label: "Events", value: groupedInteger(eventCount), help: "Token-usage samples found in Codex session logs.")
+                DatasetValue(label: "Events", value: groupedInteger(eventCount), help: "Distinct usage samples found in local session logs.")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -533,12 +549,15 @@ private struct HoverInfoTip: View {
 
 private struct ModelTablePanel: View {
     let models: [ModelUsage]
+    var usesAccountUsage = false
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Text("Models")
                 SourceBadge(text: "Local")
-                HoverInfoTip(text: "Models and their row estimates come from local sessions. The headline account estimate can be larger because it applies the observed blended local rate to all Codex account tokens. Reasoning is the internally processed subset of output.")
+                HoverInfoTip(text: usesAccountUsage
+                    ? "Models and their row estimates come from local sessions. The headline account estimate can be larger because it applies the observed blended local rate to all Codex account tokens. Reasoning is the internally processed subset of output."
+                    : "Models and API-equivalent estimates come from local sessions. Estimates use standard model rates, not subscription charges. Unknown prices show no estimate. Reasoning is a reported subset of output; missing Claude reasoning is not inferred.")
             }
             .font(.system(size: 12.5, weight: .semibold))
             .foregroundColor(.secondary)
@@ -550,8 +569,8 @@ private struct ModelTablePanel: View {
                         compactModelRow(
                             model: model.model,
                             tokens: compactCount(model.totals.totalTokens),
-                            reasoning: compactCount(model.totals.reasoningOutputTokens),
-                            estimate: money(model.totals.estimatedCostUSD),
+                            reasoning: model.model.hasPrefix("claude-") && model.totals.reasoningOutputTokens == 0 ? "—" : compactCount(model.totals.reasoningOutputTokens),
+                            estimate: model.totals.hasCostEstimate ? money(model.totals.estimatedCostUSD) : "—",
                             isHeader: false
                         )
                         Divider()
@@ -937,7 +956,7 @@ func codexUsageSelection(
         }
     } else {
         displayDaily = localDaily.map {
-            CodexSelectedDay(day: $0.day, tokens: $0.totals.totalTokens, estimatedCostUSD: $0.totals.estimatedCostUSD)
+            CodexSelectedDay(day: $0.day, tokens: $0.totals.totalTokens, estimatedCostUSD: $0.totals.hasCostEstimate ? $0.totals.estimatedCostUSD : nil)
         }
     }
     let accountTotal = isAllTime

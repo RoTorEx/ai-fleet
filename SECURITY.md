@@ -13,6 +13,8 @@ limitations. Ordinary status polling does not remove credentials. Tokens are
 not logged or shown in the UI.
 
 AI Fleet also reads local Codex session JSONL files under `~/.codex/sessions`
+and `~/.codex/archived_sessions`, and Claude Code transcripts under
+`~/.claude/projects` (including nested subagent logs)
 to extract numeric token-usage metadata for the Statistics window. The app does
 not display prompt, response, diff, or file content from those logs.
 

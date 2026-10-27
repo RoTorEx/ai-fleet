@@ -132,6 +132,15 @@ Detailed usage data remains available in **Statistics…**.
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
 **Statistics…** provides `7d`, `30d`, `90d`, and all-time ranges.
+Choose **Claude** for local Claude Code tokens, input/cache/output breakdowns,
+standard API-equivalent estimates, models, daily totals, and Activity. This reads
+`~/.claude/projects` including subagent transcripts, with repeated content-block
+usage counted once per API message in each file. It covers history retained on
+this Mac, independently of your current login. Unknown model prices show no
+estimate; estimates exclude tool charges and pricing premiums and are not
+subscription bills. Click refresh to scan your history for the first time.
+
+On the **Codex** tab:
 Account-wide Total, Days, and the bottom GitHub-style Activity heatmap are read
 from Codex through the signed-in ChatGPT account, so this history is not tied to
 session files retained on one Mac. Input, Output, cache, reasoning, Models,
@@ -159,7 +168,7 @@ the upper right.
 Opening Statistics performs only a lightweight account-usage sync and never
 starts a session-log scan. Manual refresh remains
 available, and Settings can enable a low-priority daily refresh at a chosen
-local time (12:00 by default). Unchanged Codex session files are reused from an
+local time (12:00 by default). Unchanged Codex and Claude session files are reused from an
 incremental local cache.
 
 ## Quit
