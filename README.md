@@ -141,13 +141,16 @@ estimate; estimates exclude tool charges and pricing premiums and are not
 subscription bills. Click refresh to scan your history for the first time.
 
 On the **Codex** tab:
-Account-wide Total, Days, and the bottom GitHub-style Activity heatmap are read
-from Codex through the signed-in ChatGPT account, so this history is not tied to
-session files retained on one Mac. Input, Output, cache, reasoning, Models,
-Events, and Files still come from active and archived local session logs because
-Codex does not provide those account-wide breakdowns. API-equivalent Estimate
-uses the selected account token total multiplied by the blended cost per token
-observed in those local logs. `Account` and `Local` badges identify the source.
+The all-time Total comes from the signed-in ChatGPT account, with its Estimate
+extrapolated using the blended API-equivalent cost per token in local logs.
+Days, Activity, and the `7d`, `30d`, and `90d` totals and estimates use active and
+archived local sessions. Each event belongs to the day from midnight to midnight
+in the computer's current time zone, including daylight-saving changes. This
+shows today's recorded activity even when account daily reports are delayed.
+Daily history covers logs retained on this Mac. Input, Output, cache, reasoning,
+Models, Events, and Files also use local logs. `Account` and `Local` badges
+identify the source. Click refresh to include new activity or rebuild daily
+aggregates after changing the computer's time zone.
 
 The dashboard scrolls vertically to the final Activity block. The heatmap uses
 separate month grids with centered abbreviated labels and spacing, an exact

@@ -18,7 +18,8 @@ struct ClaudeUsageLogReader {
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
         CodexFileUsageRecord(
             path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
-            dailyModels: CodexUsageLogReader().dailyModelUsage(entries: readEntries(from: file.url))
+            dailyModels: CodexUsageLogReader().dailyModelUsage(entries: readEntries(from: file.url)),
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
         )
     }
 

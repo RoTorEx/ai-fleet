@@ -45,12 +45,17 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 5. Each provider returns a `ProviderStatus` with `ok`, `limited`, `offline`, `noKey`, or `notInstalled` state.
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
 7. `UsageAnalyticsService` asks `codex app-server` for account-wide lifetime and
-   daily usage, and reads local Codex JSONL metadata for input/output/cache,
+   daily usage, retaining only the lifetime total for the all-time headline.
+   Date-based views use local JSONL event timestamps grouped at computer-local
+   midnight. Local Codex JSONL metadata also provides input/output/cache,
    model, reasoning, event, file, and API-equivalent rate details. Account cost
    estimates extrapolate that blended local rate across account tokens. Opening
    Statistics may perform the lightweight account request but does not scan
    session logs. Manual or scheduled refreshes reuse unchanged files from a
    per-file aggregate cache and parse changed files at background priority.
+   Cache records carry their aggregation time-zone identifier; a missing or
+   different identifier forces reparsing on refresh, preserving local-day
+   boundaries after a time-zone change.
    `ClaudeUsageLogReader` adds local Claude Code project/subagent transcripts to
    the same metadata-driven scan and protected aggregate cache. It deduplicates
    content-block records by request/message ID within a file, normalizes cache

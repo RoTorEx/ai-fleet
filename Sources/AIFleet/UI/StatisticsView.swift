@@ -75,13 +75,13 @@ struct StatisticsView: View {
                 HStack(alignment: .top, spacing: 10) {
                     ModelTablePanel(models: selection.models, usesAccountUsage: selection.usesAccountUsage)
                         .frame(minWidth: 430, maxWidth: .infinity)
-                    DailyTablePanel(daily: selection.daily, usesAccountUsage: selection.usesAccountUsage)
+                    DailyTablePanel(daily: selection.daily)
                         .frame(minWidth: 330, maxWidth: .infinity)
                 }
             case .activity:
                 ActivityHeatmap(
                     days: selection.daily,
-                    sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
+                    sourceLabel: "Local",
                     displayThrough: period == .allTime
                         ? selection.daily.first.map { heatmapHorizon(startingAt: $0.day) }
                         : nil
@@ -102,7 +102,7 @@ struct StatisticsView: View {
                         sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
                         value: selection.totals.hasCostEstimate ? money(selection.estimatedCostUSD) : "—",
                         help: selection.usesAccountUsage
-                            ? "Estimated from Codex account tokens for the selected period, multiplied by the average API-equivalent cost per token observed in local sessions. The 7d, 30d, and 90d ranges use the matching Codex daily totals. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
+                            ? "Estimated from the all-time Codex account token total, multiplied by the average API-equivalent cost per token observed in local sessions. Date-filtered estimates use local session timestamps and model rates in the computer’s time zone. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
                             : tab == .claude
                                 ? "Unknown model prices show no estimate. Standard rates exclude tool charges, fast mode, long-context and platform premiums. Cache writes use their reported 5m/1h duration, defaulting to 5m when absent. Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge."
                                 : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
@@ -428,14 +428,14 @@ private struct DatasetCard: View {
                 Text("Sources")
                 HoverInfoTip(text: isClaude
                     ? "Claude statistics come only from local Claude Code project and subagent transcripts on this Mac. Events count distinct API messages, with repeated content-block usage counted once. Missing history is not recovered from your subscription. Unknown model prices show no estimate; standard API equivalents exclude tools, fast mode and platform premiums."
-                    : "Account totals and daily activity come from Codex through your ChatGPT account. Input/output categories, models, events, files, and the blended rate used for cost estimates come from session logs stored on this Mac.")
+                    : "The all-time total comes from your Codex account. Days, Activity, date-filtered totals, and detailed accounting come from local sessions, grouped from midnight to midnight in this computer’s time zone. Refresh to include new session activity.")
             }
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundColor(.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                DatasetValue(label: "Total & days", value: codex.accountUsage == nil ? "Local" : "Codex account")
+                DatasetValue(label: "All-time total", value: codex.accountUsage == nil ? "Local" : "Codex account")
                     .frame(maxWidth: .infinity, alignment: .leading)
-                DatasetValue(label: "Details", value: "Local sessions", help: "Input, output, cache, reasoning, models, events, and the blended cost rate are calculated from local session logs.")
+                DatasetValue(label: "Details", value: "Local sessions", help: "Days, Activity, date-filtered totals, input, output, cache, reasoning, models, events, and costs come from local session logs. Days follow the computer’s time zone.")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -606,7 +606,6 @@ private struct ModelTablePanel: View {
 
 private struct DailyTablePanel: View {
     let daily: [CodexSelectedDay]
-    let usesAccountUsage: Bool
     private var newestFirst: [CodexSelectedDay] {
         Array(daily.filter { $0.tokens > 0 }.reversed())
     }
@@ -614,7 +613,7 @@ private struct DailyTablePanel: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Text("Days")
-                SourceBadge(text: usesAccountUsage ? "Account" : "Local")
+                SourceBadge(text: "Local")
             }
             .font(.system(size: 12.5, weight: .semibold))
             .foregroundColor(.secondary)
@@ -940,28 +939,16 @@ func codexUsageSelection(
     }
     let isAllTime = startDay == nil && endDay == nil
     let selectedTotals = isAllTime && localDaily.isEmpty ? codex.total : totals
-    let accountDaily = codex.accountUsage?.daily.filter { includes($0.day) }
     let rateBasisTotals = selectedTotals.totalTokens > 0 ? selectedTotals : codex.total
     let blendedCostPerToken = rateBasisTotals.totalTokens > 0
         ? rateBasisTotals.estimatedCostUSD / Double(rateBasisTotals.totalTokens)
         : 0
-    let displayDaily: [CodexSelectedDay]
-    if let accountDaily {
-        displayDaily = accountDaily.map { usage in
-            return CodexSelectedDay(
-                day: usage.day,
-                tokens: usage.tokens,
-                estimatedCostUSD: blendedCostPerToken > 0 ? Double(usage.tokens) * blendedCostPerToken : nil
-            )
-        }
-    } else {
-        displayDaily = localDaily.map {
-            CodexSelectedDay(day: $0.day, tokens: $0.totals.totalTokens, estimatedCostUSD: $0.totals.hasCostEstimate ? $0.totals.estimatedCostUSD : nil)
-        }
+    // Account day buckets have no event timestamps to regroup at local midnight.
+    // Keep date-based views on the same local accounting source as their details.
+    let displayDaily = localDaily.map {
+        CodexSelectedDay(day: $0.day, tokens: $0.totals.totalTokens, estimatedCostUSD: $0.totals.hasCostEstimate ? $0.totals.estimatedCostUSD : nil)
     }
-    let accountTotal = isAllTime
-        ? codex.accountUsage?.lifetimeTokens
-        : accountDaily?.reduce(0) { $0 + $1.tokens }
+    let accountTotal = isAllTime ? codex.accountUsage?.lifetimeTokens : nil
     return CodexUsageSelection(
         totals: selectedTotals,
         totalTokens: accountTotal ?? selectedTotals.totalTokens,
@@ -969,7 +956,7 @@ func codexUsageSelection(
         daily: displayDaily,
         models: selectedDailyModels.isEmpty && isAllTime ? codex.models : models,
         eventCount: selectedDailyModels.isEmpty && isAllTime ? codex.eventCount : selectedDailyModels.reduce(0) { $0 + $1.events },
-        usesAccountUsage: codex.accountUsage != nil
+        usesAccountUsage: accountTotal != nil
     )
 }
 

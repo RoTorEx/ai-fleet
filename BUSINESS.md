@@ -96,14 +96,18 @@ subscription charges.
   estimate and the selected total estimate while retaining token counts.
   `ClaudeUsageAnalyticsTests` protects cache accounting, repeated records,
   unknown prices, nested discovery, period selection, and snapshot compatibility.
-- Statistics opens on the all-time range. Account-wide Total, Days, and Activity
-  come from Codex account usage so they survive deleting local sessions or
-  moving to another Mac. Input, Output, cache, reasoning, Models, Events, and
-  Files remain local because the account endpoint does not expose those
-  breakdowns. API-equivalent Estimate applies the blended cost per token found
-  in local sessions to the account token total for the selected period. Native
-  `Account` and `Local` labels make the boundary visible wherever the two scopes
-  meet.
+- Statistics opens on the all-time range. Only the all-time Codex Total and
+  its extrapolated API-equivalent Estimate use account-wide usage, preserving
+  that headline after deleting local sessions or moving to another Mac.
+  Days, Activity, and date-filtered totals/estimates use local session event
+  timestamps grouped from local midnight to the next local midnight in the
+  computer's current time zone, including daylight-saving transitions. Provider
+  day buckets have no event timestamps and cannot establish that boundary;
+  delayed or missing account days must never hide recorded local activity.
+  These date-based views cover only history retained on this Mac. Input, Output,
+  cache, reasoning, Models, Events, and Files also remain local. `Account` and
+  `Local` labels identify the actual source. Refresh rereads changed files;
+  per-file aggregates from another or unknown time zone are rebuilt from logs.
 - Period controls remain unboxed and accounting values are grouped by meaning.
   The lower Statistics region has two arrow-controlled pages: `Models + Days`
   and `Activity`. There is no surrounding vertical scroll view, so the compact
@@ -144,7 +148,7 @@ subscription charges.
   oversized off-center frame. Opening Statistics also closes the menu popover
   so it cannot cover the analytics window.
 - API-equivalent cost is always an estimate, never a subscription bill. With
-  account usage available, it equals account tokens for the selected period ×
+  account usage available, it equals the all-time account token total ×
   the blended API-equivalent cost per token observed in local session logs.
   This extrapolation is necessary because Codex exposes the account token total
   but not its model/input/output mix. Offline fallback cost remains the direct

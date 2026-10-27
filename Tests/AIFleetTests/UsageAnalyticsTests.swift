@@ -20,6 +20,45 @@ final class UsageAnalyticsTests: XCTestCase {
         XCTAssertEqual(usage.fetchedAt, fetchedAt)
     }
 
+    func testLocalDaysFollowComputerMidnightAcrossDSTChanges() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Warsaw"))
+        let formatter = ISO8601DateFormatter()
+        // Midnight is UTC+2 before the autumn transition and UTC+1 after it.
+        for (before, after, monthDay) in [
+            ("2026-10-23T21:59:59Z", "2026-10-23T22:00:00Z", 24),
+            ("2026-10-26T22:59:59Z", "2026-10-26T23:00:00Z", 27)
+        ] {
+            var totals = UsageTotals.zero
+            totals.inputTokens = 100
+            totals.outputTokens = 20
+            let entries = try [before, after].map {
+                CodexUsageLogEntry(timestamp: try XCTUnwrap(formatter.date(from: $0)), model: "gpt-test", totals: totals)
+            }
+            let reader = CodexUsageLogReader(calendar: calendar)
+            let analytics = reader.analytics(from: entries, fileCount: 1)
+            let day = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: monthDay)))
+            let yesterday = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: day))
+            let todaySelection = codexUsageSelection(from: analytics, start: day, end: day, calendar: calendar)
+            let yesterdaySelection = codexUsageSelection(from: analytics, start: yesterday, end: yesterday, calendar: calendar)
+            XCTAssertEqual(todaySelection.totalTokens, 120)
+            XCTAssertEqual(yesterdaySelection.totalTokens, 120)
+            XCTAssertEqual(todaySelection.eventCount, 1)
+            XCTAssertEqual(yesterdaySelection.eventCount, 1)
+        }
+    }
+
+    func testFileCacheReparsesWhenComputerTimeZoneChangesOrIsUnknown() throws {
+        let file = CodexLogFile(url: URL(fileURLWithPath: "/tmp/session.jsonl"), modifiedAt: Date(), size: 42)
+        let warsaw = try XCTUnwrap(TimeZone(identifier: "Europe/Warsaw"))
+        let utc = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        var record = CodexFileUsageRecord(path: file.url.path, modifiedAt: file.modifiedAt, size: file.size, dailyModels: [], timeZoneIdentifier: warsaw.identifier)
+        XCTAssertTrue(record.matches(file, timeZone: warsaw))
+        XCTAssertFalse(record.matches(file, timeZone: utc))
+        record.timeZoneIdentifier = nil
+        XCTAssertFalse(record.matches(file, timeZone: warsaw))
+    }
+
     func testCodexUsageReaderReadsNestedTokenUsage() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

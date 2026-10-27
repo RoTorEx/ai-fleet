@@ -165,13 +165,15 @@ struct CodexFileUsageRecord: Codable, Equatable {
     let modifiedAt: Date
     let size: Int
     let dailyModels: [DailyModelUsage]
+    var timeZoneIdentifier: String? = nil
 
     var eventCount: Int {
         dailyModels.reduce(0) { $0 + $1.events }
     }
 
-    func matches(_ file: CodexLogFile) -> Bool {
-        size == file.size && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1
+    func matches(_ file: CodexLogFile, timeZone: TimeZone = .autoupdatingCurrent) -> Bool {
+        timeZoneIdentifier == timeZone.identifier
+            && size == file.size && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1
     }
 }
 
@@ -542,7 +544,7 @@ struct CodexUsageLogEntry {
 }
 
 struct CodexUsageLogReader {
-    private let calendar = Calendar.autoupdatingCurrent
+    var calendar = Calendar.autoupdatingCurrent
     private let iso8601 = ISO8601DateFormatter()
     private let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -574,7 +576,8 @@ struct CodexUsageLogReader {
             path: file.url.path,
             modifiedAt: file.modifiedAt,
             size: file.size,
-            dailyModels: dailyModelUsage(entries: readEntries(from: file.url))
+            dailyModels: dailyModelUsage(entries: readEntries(from: file.url)),
+            timeZoneIdentifier: calendar.timeZone.identifier
         )
     }
 

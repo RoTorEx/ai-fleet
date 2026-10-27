@@ -4,6 +4,13 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Group Codex Days, Activity, and date-filtered totals by local session timestamps
+  in the computer's time zone, so delayed account reports cannot hide today's
+  activity. Keep the all-time account headline separate and rebuild per-file
+  day aggregates on refresh when the computer's time zone changes.
+
 ## [1.2.13] - 2026-10-27
 
 ### Added

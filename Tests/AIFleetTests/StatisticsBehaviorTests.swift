@@ -140,7 +140,7 @@ final class StatisticsBehaviorTests: XCTestCase {
     func testFileUsageCacheMatchesOnlyUnchangedMetadata() {
         let date = Date(timeIntervalSince1970: 1_000)
         let url = URL(fileURLWithPath: "/tmp/session.jsonl")
-        let record = CodexFileUsageRecord(path: url.path, modifiedAt: date, size: 42, dailyModels: [])
+        let record = CodexFileUsageRecord(path: url.path, modifiedAt: date, size: 42, dailyModels: [], timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
 
         XCTAssertTrue(record.matches(CodexLogFile(url: url, modifiedAt: date, size: 42)))
         XCTAssertFalse(record.matches(CodexLogFile(url: url, modifiedAt: date, size: 43)))
@@ -177,7 +177,7 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertEqual(selection.eventCount, 45)
     }
 
-    func testAccountUsageDrivesTotalAndDaysWhileLocalLogsDriveDetails() throws {
+    func testAccountUsageOnlyDrivesAllTimeTotalWhileLocalLogsDriveCalendarDays() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let firstDay = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 20)))
@@ -221,13 +221,29 @@ final class StatisticsBehaviorTests: XCTestCase {
 
         XCTAssertEqual(all.totalTokens, 9_000)
         XCTAssertEqual(all.totals.totalTokens, 100)
-        XCTAssertEqual(all.daily.map(\.tokens), [3_000, 6_000])
+        XCTAssertEqual(all.daily.map(\.tokens), [100])
         XCTAssertEqual(all.estimatedCostUSD, 112.5, accuracy: 0.001)
-        XCTAssertEqual(all.daily[0].estimatedCostUSD, 37.5)
-        XCTAssertEqual(all.daily[1].estimatedCostUSD, 75)
+        XCTAssertEqual(all.daily[0].estimatedCostUSD, 1.25)
         XCTAssertTrue(all.usesAccountUsage)
-        XCTAssertEqual(firstOnly.totalTokens, 3_000)
-        XCTAssertEqual(firstOnly.estimatedCostUSD, 37.5, accuracy: 0.001)
+        XCTAssertEqual(firstOnly.totalTokens, 0)
+        XCTAssertEqual(firstOnly.estimatedCostUSD, 0)
+        XCTAssertFalse(firstOnly.usesAccountUsage)
+
+        // A local day absent from the account response must still be visible.
+        var delayedAccount = codex
+        delayedAccount.accountUsage = CodexAccountUsage(
+            lifetimeTokens: 3_000, peakDailyTokens: nil, longestRunningTurnSeconds: nil,
+            currentStreakDays: nil, longestStreakDays: nil,
+            daily: [CodexAccountDailyUsage(day: firstDay, tokens: 3_000)], fetchedAt: Date()
+        )
+        let today = codexUsageSelection(from: delayedAccount, start: secondDay, end: secondDay, calendar: calendar)
+        XCTAssertEqual(today.totalTokens, 100)
+        XCTAssertEqual(today.daily.map(\.day), [secondDay])
+        XCTAssertEqual(today.estimatedCostUSD, 1.25)
+        XCTAssertEqual(today.eventCount, 1)
+        XCTAssertFalse(today.usesAccountUsage)
+        let activity = heatmapMonths(from: codexUsageSelection(from: delayedAccount, start: nil, end: nil, calendar: calendar).daily, calendar: calendar)
+        XCTAssertEqual(activity.flatMap(\.weeks).flatMap { $0 }.compactMap { $0 }.first { $0.day == secondDay }?.tokens, 100)
     }
 
     func testHeatmapBuildsCalendarWeeksAndLevels() throws {
