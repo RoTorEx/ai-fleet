@@ -4,14 +4,17 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
-## [1.3.0] - 2026-10-27
-
 ### Added
 
 - Add Kimi and Qwen local token history to Statistics, including cache categories,
   model/day tables, periods, and Activity using computer-local day boundaries.
   Preserve Kimi quota usage/reset details and existing Codex/Claude caches.
   Label missing history and leave unconfigured cost estimates unavailable.
+
+## [1.3.0] - 2026-10-27
+
+### Added
+
 - Add Agents after Refresh now. Command-A toggles the main menu and a colorful
   live project-grouped session overview, including after a terminal Jump.
 - Embed the AI Session Hub core in the application: no standalone CLI required.
