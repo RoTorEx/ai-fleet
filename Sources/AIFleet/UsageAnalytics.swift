@@ -4,6 +4,8 @@ struct UsageAnalyticsSnapshot: Codable, Equatable {
     var codex: CodexUsageAnalytics
     var kimi: KimiQuotaAnalytics
     var claude: CodexUsageAnalytics? = nil
+    var kimiUsage: CodexUsageAnalytics? = nil
+    var qwen: CodexUsageAnalytics? = nil
     var refreshedAt: Date?
     var lastLoadDuration: TimeInterval?
 
@@ -236,7 +238,7 @@ final class UsageAnalyticsService: ObservableObject {
         progress = UsageAnalyticsLoadProgress(
             isLoading: false,
             processedFiles: 0,
-            totalFiles: cached.codex.fileCount + (cached.claude?.fileCount ?? 0),
+            totalFiles: cached.codex.fileCount + (cached.claude?.fileCount ?? 0) + (cached.kimiUsage?.fileCount ?? 0) + (cached.qwen?.fileCount ?? 0),
             startedAt: nil,
             lastDuration: cached.lastLoadDuration,
             lastCompletedAt: cached.refreshedAt,
@@ -328,6 +330,7 @@ final class UsageAnalyticsService: ObservableObject {
             }.value
             let files = await Task.detached(priority: .background) {
                 CodexUsageLogReader().codexLogFileMetadata() + ClaudeUsageLogReader().logFileMetadata()
+                    + LocalUsageProvider.allCases.flatMap { $0.logFileMetadata() }
             }.value
             guard !Task.isCancelled else { return }
 
@@ -342,6 +345,9 @@ final class UsageAnalyticsService: ObservableObject {
                     nextFileCache[file.url.path] = cached
                 } else {
                     let record = await Task.detached(priority: .background) {
+                        if let provider = LocalUsageProvider.allCases.first(where: { $0.contains(file.url) }) {
+                            return provider.usageRecord(for: file)
+                        }
                         if ClaudeUsageLogReader.isClaudeLog(file.url) {
                             return ClaudeUsageLogReader().usageRecord(for: file)
                         }
@@ -355,7 +361,10 @@ final class UsageAnalyticsService: ObservableObject {
 
             let records = Array(nextFileCache.values)
             var codex = await Task.detached(priority: .background) {
-                let codexRecords = records.filter { !ClaudeUsageLogReader.isClaudeLog(URL(fileURLWithPath: $0.path)) }
+                let codexRecords = records.filter {
+                    let url = URL(fileURLWithPath: $0.path)
+                    return !ClaudeUsageLogReader.isClaudeLog(url) && !LocalUsageProvider.allCases.contains { $0.contains(url) }
+                }
                 return CodexUsageLogReader().analytics(from: codexRecords, fileCount: codexRecords.count)
             }.value
             codex.accountUsage = await accountUsageResult ?? existingAccountUsage
@@ -366,6 +375,13 @@ final class UsageAnalyticsService: ObservableObject {
                 return result
             }.value
 
+            let providerUsage = await Task.detached(priority: .background) {
+                Dictionary(uniqueKeysWithValues: LocalUsageProvider.allCases.map { provider in
+                    let matching = records.filter { provider.contains(URL(fileURLWithPath: $0.path)) }
+                    return (provider, provider.analytics(from: matching))
+                })
+            }.value
+
             guard !Task.isCancelled else { return }
             let duration = Date().timeIntervalSince(startedAt)
             let completedAt = Date()
@@ -373,6 +389,8 @@ final class UsageAnalyticsService: ObservableObject {
                 codex: codex,
                 kimi: kimiAnalytics,
                 claude: claude,
+                kimiUsage: providerUsage[.kimi],
+                qwen: providerUsage[.qwen],
                 refreshedAt: completedAt,
                 lastLoadDuration: duration
             )
@@ -515,25 +533,15 @@ final class UsageAnalyticsService: ObservableObject {
 
 private extension UsageAnalyticsSnapshot {
     func withKimi(_ kimi: KimiQuotaAnalytics) -> UsageAnalyticsSnapshot {
-        UsageAnalyticsSnapshot(
-            codex: codex,
-            kimi: kimi,
-            claude: claude,
-            refreshedAt: refreshedAt,
-            lastLoadDuration: lastLoadDuration
-        )
+        var next = self
+        next.kimi = kimi
+        return next
     }
 
     func withAccountUsage(_ accountUsage: CodexAccountUsage) -> UsageAnalyticsSnapshot {
-        var nextCodex = codex
-        nextCodex.accountUsage = accountUsage
-        return UsageAnalyticsSnapshot(
-            codex: nextCodex,
-            kimi: kimi,
-            claude: claude,
-            refreshedAt: refreshedAt,
-            lastLoadDuration: lastLoadDuration
-        )
+        var next = self
+        next.codex.accountUsage = accountUsage
+        return next
     }
 }
 

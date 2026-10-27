@@ -7,11 +7,17 @@ struct StatisticsView: View {
     @State private var tab: AnalyticsTab = .codex
     @State private var period: AnalyticsPeriod = .allTime
     @State private var detailPage: StatisticsDetailPage = .tables
+    @State private var showsKimiQuotas = false
 
     private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
 
     private var localAnalytics: CodexUsageAnalytics {
-        tab == .claude ? (snapshot.claude ?? .empty) : snapshot.codex
+        switch tab {
+        case .codex: return snapshot.codex
+        case .claude: return snapshot.claude ?? .empty
+        case .kimi: return snapshot.kimiUsage ?? LocalUsageProvider.kimi.analytics(from: [])
+        case .qwen: return snapshot.qwen ?? LocalUsageProvider.qwen.analytics(from: [])
+        }
     }
 
     private var selection: CodexUsageSelection {
@@ -29,10 +35,7 @@ struct StatisticsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            switch tab {
-            case .codex, .claude: codexContent
-            case .kimi: kimiContent
-            }
+            codexContent
         }
         .padding(16)
         .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
@@ -57,11 +60,9 @@ struct StatisticsView: View {
                     refresh: { analytics.refresh(kimi: service.kimi) }
                 )
             }
-            if tab != .kimi {
-                HStack {
-                    Spacer(minLength: 0)
-                    PeriodToolbar(period: $period)
-                }
+            HStack {
+                Spacer(minLength: 0)
+                PeriodToolbar(period: $period)
             }
         }
     }
@@ -69,11 +70,17 @@ struct StatisticsView: View {
     private var codexContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             summaryGrid
+            if tab == .kimi { kimiQuotaSummary }
+            if localAnalytics.eventCount == 0 {
+                Text("No recorded \(tab.rawValue) token usage. Refresh after using the CLI; only locally retained accounting records are included.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
             DetailPageControl(page: $detailPage)
             switch detailPage {
             case .tables:
                 HStack(alignment: .top, spacing: 10) {
-                    ModelTablePanel(models: selection.models, usesAccountUsage: selection.usesAccountUsage)
+                    ModelTablePanel(models: selection.models, usesAccountUsage: selection.usesAccountUsage, showsMissingReasoning: tab != .codex)
                         .frame(minWidth: 430, maxWidth: .infinity)
                     DailyTablePanel(daily: selection.daily)
                         .frame(minWidth: 330, maxWidth: .infinity)
@@ -100,8 +107,10 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Estimate",
                         sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                        value: selection.totals.hasCostEstimate ? money(selection.estimatedCostUSD) : "—",
-                        help: selection.usesAccountUsage
+                        value: tab.hasTokenPrices && selection.totals.hasCostEstimate ? money(selection.estimatedCostUSD) : "—",
+                        help: !tab.hasTokenPrices
+                            ? "Token usage comes from local CLI accounting records. API-equivalent prices are not configured for this provider; a missing estimate does not mean free usage. Quotas and subscription charges are separate."
+                            : selection.usesAccountUsage
                             ? "Estimated from the all-time Codex account token total, multiplied by the average API-equivalent cost per token observed in local sessions. Date-filtered estimates use local session timestamps and model rates in the computer’s time zone. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
                             : tab == .claude
                                 ? "Unknown model prices show no estimate. Standard rates exclude tool charges, fast mode, long-context and platform premiums. Cache writes use their reported 5m/1h duration, defaulting to 5m when absent. Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge."
@@ -121,7 +130,7 @@ struct StatisticsView: View {
                     .frame(width: columnWidth * 2 + spacing)
                 }
                 HStack(spacing: spacing) {
-                    DatasetCard(codex: localAnalytics, eventCount: selection.eventCount, isClaude: tab == .claude)
+                    DatasetCard(codex: localAnalytics, eventCount: selection.eventCount, providerName: tab.rawValue)
                         .frame(width: columnWidth)
                     MetricCard(
                         title: "Input",
@@ -141,10 +150,10 @@ struct StatisticsView: View {
                         sourceLabel: "Local",
                         value: compactCount(selection.totals.outputTokens),
                         helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output).map {
-                            tab == .claude ? $0.replacingOccurrences(of: "reported by Codex", with: "reported by Claude when available") : $0
+                            tab == .codex ? $0 : $0.replacingOccurrences(of: "reported by Codex", with: "recorded by the CLI when available")
                         },
                         rows: [
-                            AccountingRow(label: "Reasoning", value: tab == .claude && selection.totals.reasoningOutputTokens == 0 ? "—" : compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
+                            AccountingRow(label: "Reasoning", value: tab != .codex && selection.totals.reasoningOutputTokens == 0 ? "—" : compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
                         ],
                         fixedHeight: 122
                     )
@@ -155,36 +164,43 @@ struct StatisticsView: View {
         .frame(height: 228)
     }
 
-    private var kimiContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 240), spacing: 10)],
-                alignment: .leading,
-                spacing: 10
-            ) {
-                MetricCard(title: "Lowest remaining", value: kimiRemainingText, detail: kimiResetText)
-                MetricCard(title: "Quota windows", value: groupedInteger(snapshot.kimi.windows.count), detail: snapshot.kimi.source)
+    private var kimiQuotaSummary: some View {
+        HStack(spacing: 12) {
+            Button("Kimi quotas") { showsKimiQuotas.toggle() }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .help("Show quota usage counts and reset times")
+                .popover(isPresented: $showsKimiQuotas) {
+                    KimiTablePanel(windows: snapshot.kimi.windows)
+                        .padding(10)
+                        .frame(width: 650)
+                }
+            if snapshot.kimi.windows.isEmpty {
+                Text("No quota measurement available").foregroundColor(.secondary)
             }
-            KimiTablePanel(windows: snapshot.kimi.windows)
+            ForEach(snapshot.kimi.windows) { window in
+                Text("\(window.label): \(window.remainingPercent)% remaining")
+                    .help(kimiQuotaHelp(window))
+            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .font(.system(size: 11))
     }
 
-    private var kimiRemainingText: String {
-        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else { return "--" }
-        return "\(lowest.remainingPercent)%"
+    private func kimiQuotaHelp(_ window: KimiQuotaWindow) -> String {
+        let usage = window.used.flatMap { used in window.limit.map { "\(groupedInteger(used))/\(groupedInteger($0)) used" } } ?? "Usage count unavailable"
+        let reset = window.resetAt.map { "Resets \(dateTimeText($0))" } ?? "Reset time unavailable"
+        return "\(usage)\n\(reset)\n\(snapshot.kimi.source)"
     }
 
-    private var kimiResetText: String {
-        guard let lowest = snapshot.kimi.windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else { return "no quota data" }
-        return lowest.resetAt.map { "resets \(dateTimeText($0))" } ?? lowest.label
-    }
 }
 
 private enum AnalyticsTab: String, CaseIterable, Identifiable {
     case codex = "Codex"
     case claude = "Claude"
     case kimi = "Kimi"
+    case qwen = "Qwen"
+    var hasTokenPrices: Bool { self == .codex || self == .claude }
     var id: String { rawValue }
 }
 
@@ -277,7 +293,7 @@ private struct RefreshStatus: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(isRefreshing)
-                .help("Refresh local Codex and Claude statistics and Codex account usage")
+                .help("Refresh local Codex, Claude, Kimi and Qwen statistics and Codex account usage")
             }
 
             HStack(spacing: 8) {
@@ -420,14 +436,14 @@ private struct MetricCard: View {
 private struct DatasetCard: View {
     let codex: CodexUsageAnalytics
     let eventCount: Int
-    var isClaude = false
+    var providerName = "Codex"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Text("Sources")
-                HoverInfoTip(text: isClaude
-                    ? "Claude statistics come only from local Claude Code project and subagent transcripts on this Mac. Events count distinct API messages, with repeated content-block usage counted once. Missing history is not recovered from your subscription. Unknown model prices show no estimate; standard API equivalents exclude tools, fast mode and platform premiums."
+                HoverInfoTip(text: providerName != "Codex"
+                    ? "\(providerName) statistics come from local CLI accounting records on this Mac. Days follow the computer’s time zone. Events count recorded model requests, with repeated usage records counted once. History is independent of login and is not recovered from your subscription. Missing model prices show no estimate."
                     : "The all-time total comes from your Codex account. Days, Activity, date-filtered totals, and detailed accounting come from local sessions, grouped from midnight to midnight in this computer’s time zone. Refresh to include new session activity.")
             }
                 .font(.system(size: 11.5, weight: .semibold))
@@ -550,6 +566,7 @@ private struct HoverInfoTip: View {
 private struct ModelTablePanel: View {
     let models: [ModelUsage]
     var usesAccountUsage = false
+    var showsMissingReasoning = false
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
@@ -569,7 +586,7 @@ private struct ModelTablePanel: View {
                         compactModelRow(
                             model: model.model,
                             tokens: compactCount(model.totals.totalTokens),
-                            reasoning: model.model.hasPrefix("claude-") && model.totals.reasoningOutputTokens == 0 ? "—" : compactCount(model.totals.reasoningOutputTokens),
+                            reasoning: showsMissingReasoning && model.totals.reasoningOutputTokens == 0 ? "—" : compactCount(model.totals.reasoningOutputTokens),
                             estimate: model.totals.hasCostEstimate ? money(model.totals.estimatedCostUSD) : "—",
                             isHeader: false
                         )

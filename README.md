@@ -147,6 +147,16 @@ Detailed usage data remains available in **Statistics…**.
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
 **Statistics…** provides `7d`, `30d`, `90d`, and all-time ranges.
+Choose **Kimi** or **Qwen** for local token history with the same periods,
+input/cache/output cards, models, days, and Activity. Kimi reads `wire.jsonl`
+under `~/.kimi-code/sessions` and legacy `~/.kimi/sessions`; Qwen reads JSONL
+chat records under `~/.qwen/projects/*/chats`. Refresh scans retained logs;
+opening or switching tabs uses the cache. Missing history is labelled, and API
+prices are not configured for these two tabs, so their Estimate reads `—`.
+Kimi's quota summary remains available; click **Kimi quotas** for usage counts
+and reset times. Local token statistics do not provide Qwen subscription quotas.
+See [provider statistics](business/provider-statistics.md) for format support.
+
 Choose **Claude** for local Claude Code tokens, input/cache/output breakdowns,
 standard API-equivalent estimates, models, daily totals, and Activity. This reads
 `~/.claude/projects` including subagent transcripts, with repeated content-block

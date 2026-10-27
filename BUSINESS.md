@@ -1,7 +1,7 @@
 # AI Fleet Product Rules
 
 AI Fleet is a native macOS menu-bar companion for monitoring remaining AI coding
-provider quotas and reviewing Codex and local Claude Code usage. It is informational: it does
+provider quotas and reviewing Codex, Claude Code, Kimi and Qwen usage. It is informational: it does
 not proxy prompts, bill users, or claim that API-equivalent estimates are actual
 subscription charges.
 
@@ -13,7 +13,7 @@ subscription charges.
 
 - A local developer reads quota state from the menu and receives threshold
   notifications for individual provider windows such as `5h` and `7d`.
-- The developer opens Statistics to explore cached Codex and Claude Code usage by period without
+- The developer opens Statistics to explore cached Codex, Claude Code, Kimi and Qwen usage by period without
   triggering expensive work.
 - The developer may refresh statistics manually or let the app perform one
   low-priority refresh per day at a configured local time.
@@ -78,6 +78,13 @@ subscription charges.
   parsing displays it automatically.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
+- Kimi and Qwen have separate Statistics tabs with local token/cache accounting,
+  model/day tables, periods, and Activity grouped in the computer's time zone.
+  Kimi keeps its separate account quota windows and their usage/reset details.
+  No Qwen quota integration or provider API prices are implied. Missing prices
+  show no cost estimate, and empty history is explicitly labelled.
+  [Provider statistics](business/provider-statistics.md) owns formats, accounting
+  boundaries, and verification.
 - Claude has a separate Statistics tab with the same periods, token/cache cards,
   model/day tables, and Activity heatmap as Codex. All Claude metrics are local
   to `~/.claude/projects/**/*.jsonl`, including nested subagent transcripts;
@@ -86,7 +93,7 @@ subscription charges.
   reported thinking as a subset, never an extra charge. Unreported thinking is
   not inferred. Repeated content-block records with the same request/message ID
   count once per file, keeping the most complete usage sample. Missing/malformed
-  records and synthetic messages are skipped. Refresh scans both providers at
+  records and synthetic messages are skipped. Refresh scans all four providers at
   background priority, reuses unchanged per-file aggregates, and preserves old
   Codex-only snapshots. Opening or switching tabs never scans logs.
 - Claude API-equivalent estimates use standard USD-per-million-token rates from
@@ -208,7 +215,7 @@ subscription charges.
   `10 seconds`, terminating the owned CLI process so a hung check cannot stall
   subsequent provider refreshes. This bound is shorter than the polling period;
   timeout is an unknown auth state, not proof that sign-in is missing.
-- Automatic Codex and Claude analytics refresh is enabled by default once per local day at
+- Automatic Codex, Claude, Kimi and Qwen analytics refresh is enabled by default once per local day at
   `12:00`. The user can disable it or choose any minute of the day in Settings.
   A daily cadence limits disk and CPU use while keeping historical reporting
   useful; manual refresh covers urgent cases.
@@ -227,5 +234,6 @@ subscription charges.
 - Account management inside Settings: `Sources/AIFleet/UI/AccountsSettingsView.swift`
 - Refresh preferences: `Sources/AIFleet/AppSettings.swift`
 - Claude local accounting and API rates: `Sources/AIFleet/ClaudeUsageAnalytics.swift`
+- Kimi and Qwen local accounting: `Sources/AIFleet/ProviderUsageAnalytics.swift`
 - Analytics and caches: `Sources/AIFleet/UsageAnalytics.swift`
 - User interfaces: `Sources/AIFleet/UI/*`
