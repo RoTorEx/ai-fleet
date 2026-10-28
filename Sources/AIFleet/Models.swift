@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProviderLimitWindow: Identifiable, Equatable {
+struct ProviderLimitWindow: Codable, Identifiable, Equatable {
     let id: String
     let label: String
     let remainingPercent: Int

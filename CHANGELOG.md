@@ -4,6 +4,21 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep account rows strictly in Greek badge order within each tool, independent
+  of selected/working account. Disclose shared-login dependencies and retain
+  confirmed historical limits after external login changes without claiming
+  live access or copying credentials.
+
+### Added
+
+- Select a saved Codex account for future sessions, launch a project in a new terminal,
+  or copy a launcher command for an existing terminal. Use that account's own
+  native home and --no-daemon so global console login changes cannot retarget
+  Fleet-launched tasks. Refuse Fleet login/logout while its account has a
+  registered running session. Preserve existing shared-home history in place.
+
 ## [1.3.7] - 2026-10-28
 
 ### Fixed

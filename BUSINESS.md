@@ -60,8 +60,10 @@ subscription charges.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
-  badges. Menu rows sort by tool name, then current CLI account (→) first within
-  each tool, then Greek badge order. Independent saved Codex logins retain their
+  badges. Menu rows sort by tool name, then strictly by Greek badge within each tool.
+  For Codex, → selects the saved account for future Fleet sessions; it does not
+  claim that existing agents changed identity. New session uses that account's
+  own home with `--no-daemon`, leaving shared login and running tasks intact. Independent saved Codex logins retain their
   own quota and normal colors. Signing into one does not switch running sessions
   or change their shared CLI authorization. Other providers retain their global
   native login; changing shared Codex authorization is blocked while Codex runs.

@@ -93,7 +93,7 @@ final class AccountProviderPresentationTests: XCTestCase {
             XCTAssertEqual(rows.map(\.account.badge), ["α", "β"])
             XCTAssertEqual(rows.map(\.status.remainingPercent), [87, 42])
             XCTAssertTrue(rows.allSatisfy(\.isSelected), "Both independently authenticated accounts remain available")
-            XCTAssertEqual(rows.filter { $0.isCurrentCLI == true }.map(\.account.id), [current.id])
+            XCTAssertTrue(rows.allSatisfy { $0.isCurrentCLI == false }, "Shared terminal login does not select a Fleet launch account")
         }
         XCTAssertEqual(accounts.visibleAccounts.map(\.badge), ["α", "β", "γ"])
         XCTAssertEqual(codex.profiles.count, 2)
@@ -106,7 +106,7 @@ final class AccountProviderPresentationTests: XCTestCase {
             global: status(work.email, remaining: 1), statusForConnection: { _ in nil }, codex: codex) + claudeRows
         let sorted = sortedAccountProviderRows(Array(displayed.reversed()))
         XCTAssertEqual(sorted.map(\.status.name), ["Claude", "Codex", "Codex"])
-        XCTAssertEqual(sorted.map(\.account.badge), ["γ", "β", "α"], "Current CLI account leads its tool, never another tool")
+        XCTAssertEqual(sorted.map(\.account.badge), ["γ", "α", "β"], "Greek badge order is stable when terminal identity changes")
         let personalCurrent = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
             global: status(personal.email, remaining: 1), statusForConnection: { _ in nil }, codex: codex)
         XCTAssertEqual(sortedAccountProviderRows(Array(personalCurrent.reversed())).map(\.account.badge), ["α", "β"])
@@ -156,7 +156,7 @@ final class AccountProviderPresentationTests: XCTestCase {
             global: status(personal.email, remaining: 87), statusForConnection: { _ in nil }, codex: codex)
         XCTAssertEqual(rows[0].status.remainingPercent, 87)
         XCTAssertNil(rows[1].status.remainingPercent)
-        XCTAssertEqual(rows[1].status.authentication, .signInRequired)
+        XCTAssertEqual(rows[1].status.authentication, .unknown)
         let anotherWorkspace = accounts.add(name: "Another workspace", email: personal.email)
         accounts.attachGlobal("codex", to: anotherWorkspace.id)
         let ambiguous = accountProviderRows(accounts: accounts.accounts, providerID: "codex",

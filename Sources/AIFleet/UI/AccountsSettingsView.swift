@@ -155,6 +155,10 @@ private struct AccountEditor: View {
                             else { store.signInGlobally(connection.providerID, accountID: account.id) }
                         }
                         if connection.providerID == "codex" {
+                            if codex.profile(for: account) != nil {
+                                Button("Use for new sessions") { codex.selectForNewSessions(account) }
+                                Button("New session…") { codex.newSession(for: account) }
+                            }
                             if let profile = codex.profile(for: account), status?.authentication == .signedIn {
                                 Button("Sign out", role: .destructive) { codex.signOut(profile) }
                             }
@@ -164,6 +168,10 @@ private struct AccountEditor: View {
                     }
                     .disabled(codex.authenticatingID != nil || service.signingOutProvider != nil ||
                               (connection.providerID == "codex" && codex.refreshing))
+                }
+                if connection.providerID == "codex", codex.profile(for: account) == nil {
+                    Text("This account uses the shared terminal login. Connect a separate login once to retain access when the terminal account changes.")
+                        .font(.caption).foregroundColor(.secondary)
                 }
                 Divider()
             }

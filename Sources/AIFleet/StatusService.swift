@@ -227,6 +227,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             }
             guard !Task.isCancelled else { return }
             applyGlobalStatuses(results, accounts: AccountStore.shared)
+            CodexMonitoringStore.shared.observeSharedLogin(codex, accounts: AccountStore.shared.accounts)
             processDrainNotifications()
         }
     }

@@ -61,6 +61,11 @@ struct AIFleetMenuView: View {
                 ActionButton(title: "Agents", shortcut: "⌘A", keyEquivalent: nil) {
                     openAgents()
                 }
+                if let selected = accounts.visibleAccounts.first(where: { $0.id == codexProfiles.selectedLaunchAccountID }) {
+                    ActionButton(title: "New Codex session (\(selected.badge))…", shortcut: "", keyEquivalent: nil) {
+                        codexProfiles.newSession(for: selected)
+                    }.disabled(codexProfiles.authenticatingID != nil)
+                }
 
                 ActionButton(title: "Statistics…", shortcut: "", keyEquivalent: nil) {
                     openStatistics()
@@ -260,7 +265,13 @@ struct ProviderLimitRow: View {
                 }
                 Spacer(minLength: 8)
                 Menu {
-                    Button("Sign in…") {
+                    if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) != nil {
+                        Button("Use for new sessions") { codexProfiles.selectForNewSessions(entry.account) }
+                        Button("New session…") { codexProfiles.newSession(for: entry.account) }
+                        Button("Copy session command") { codexProfiles.copySessionCommand(for: entry.account) }
+                        Divider()
+                    }
+                    Button(entry.usesAccountLogin && codexProfiles.profile(for: entry.account) == nil ? "Connect separate login…" : "Sign in…") {
                         if entry.usesAccountLogin {
                             if entry.account.badge.isEmpty {
                                 SettingsNavigation.shared.addAccount(for: "codex")
@@ -269,10 +280,12 @@ struct ProviderLimitRow: View {
                         }
                         else { accounts.signInGlobally(status.providerID, accountID: entry.account.id) }
                     }
+                    .disabled(entry.usesAccountLogin && codexProfiles.refreshing)
                     .help("Sign in to this account. Existing Codex terminal sessions keep their current login.")
                     if entry.usesAccountLogin {
                         if let profile = codexProfiles.profile(for: entry.account), status.authentication == .signedIn {
                             Button("Sign out", role: .destructive) { codexProfiles.signOut(profile) }
+                                .disabled(codexProfiles.refreshing)
                         }
                     } else if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
                         Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
@@ -281,7 +294,7 @@ struct ProviderLimitRow: View {
                     }
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn || codexProfiles.authenticatingID != nil || (entry.usesAccountLogin && codexProfiles.refreshing))
+                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn || codexProfiles.authenticatingID != nil)
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
             if !status.limitWindows.isEmpty {
@@ -309,6 +322,13 @@ struct ProviderLimitRow: View {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
                     .lineLimit(2).padding(.leading, 52)
+            }
+            if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil,
+               status.hasCurrentQuota || !status.limitWindows.isEmpty {
+                Text(status.hasCurrentQuota ? "Linked to terminal login" : status.detail)
+                    .font(.system(size: 10.5)).foregroundColor(FleetPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
+                    .help("Connect a separate login to keep this account available when the terminal login changes.")
             }
             if entry.usesAccountLogin {
                 CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)

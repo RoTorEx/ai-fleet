@@ -33,17 +33,21 @@ login is attached, its state controls that account, including explicit sign-out.
 Claude and the other provider integrations retain their standard global CLI
 login. Their Sign in uses the provider's browser/SSO flow in Terminal. The badge
 names the account the provider belongs to; it does not route prompts or choose an
-email in the browser. The current CLI account may show →. Other independently
+email in the browser. For Codex, → identifies the account selected for new Fleet sessions; for other
+providers it still identifies the observed standard CLI account. Other independently
 measured Codex accounts retain normal colors and their own limits without that
 arrow. ↓ and the summary Lowest row identify the exact account connection,
 including its badge. Placeholder provider rows are hidden when real account
 associations exist. Provider visibility applies to menu rows and statistics tabs.
 
-Menu rows sort first by tool name alphabetically, then put that tool's current
-CLI account (→) first, then order the other accounts by Greek badge allocation.
-Independently measured accounts retain normal colors but do not outrank the
-current CLI account. Changing the current account reorders only its tool group;
-it never moves that tool above an alphabetically earlier tool.
+Menu rows sort first by tool name alphabetically, then strictly by Greek badge
+allocation within each tool. Selection and availability never reorder badges.
+Codex Use for new sessions stores only the default for future Fleet launches;
+it never changes shared CLI credentials or retargets running work. New session
+chooses a project folder and opens iTerm2 (or Terminal if unavailable) using that account's saved home and
+`--no-daemon`. Copy session command uses the same protected launcher in an
+existing terminal's current folder. A separate login is required; an observed
+shared CLI login is not presented as a saved, independently launchable login.
 
 The menu's Limits summary counts connections with current reported quota, not
 signed-in accounts. A signed-in provider without a measurement is excluded;
@@ -67,8 +71,10 @@ establishing the exact order of every overnight failure.
 
 Changes to the shared CLI login remain protected internally by a conservative
 current-user Codex process check. Account-specific browser logins do not change
-that shared login and do not require terminating existing agents. Fleet never
-kills agents, sends text to terminals, swaps tokens, or retargets running tasks.
+that shared login and do not require terminating existing agents. Fleet never kills agents, swaps tokens, or retargets running tasks. Explicit
+New session opens only a new terminal command; it does not type into existing
+agent panes. Login/logout for an account is refused while a registered Fleet
+session under that account is running. Other account logins remain usable.
 Login/logout and account-usage reads are exclusive within each credential home;
 browser login additionally serializes the localhost callback across homes.
 Login allows 600 seconds and logout 30 seconds. Cancel and app termination stop
@@ -83,8 +89,7 @@ Kimi, Qwen, and Gemini remove monitored file-backed credentials; Gemini also
 clears its cached active Google account, and Kimi clears Fleet's fallback API
 key. An inherited `KIMI_API_KEY` blocks sign-out until removed and the app
 restarted. Redirected credential paths are rejected. External API keys and
-stores outside these integrations remain outside local sign-out. Selective
-per-session login is deferred.
+stores outside these integrations remain outside local sign-out. Per-account launch isolation is implemented for Codex only.
 
 Status checks read only one native default connection per provider, regardless
 of the number of registered identities. A reported email matches a unique label
@@ -102,7 +107,8 @@ current limits is gray, even if its CLI reports a configured login; a missing
 measurement never looks ready. The compact legend has three independent rows: Capacity names the remaining
 allowance bands (Enough ≥26%, Low 11–25%, Critical ≤10%); Access names connector
 availability (○ ready, × sign in, ? unavailable); Marks explains → current and
-↓ lowest remaining. Unavailable access is visually muted without a separate
+↓ lowest remaining. Codex current means the selected account for future launches,
+not an assertion about identities already held by running processes. Unavailable access is visually muted without a separate
 "gray" label attached to an arrow. Both arrows use the same vector rotated 90°
 in equal square frames, in the rows and in the legend. Legend marks match the
 legend's text size; provider-row marks retain their larger row size.
@@ -147,6 +153,14 @@ suffix; the account's existing Sign in action remains available.
   proof of authorization. Keychain-only/ephemeral storage remains outside this
   reader. Kimi retains native credential refresh and balance fallback. Qwen
   retains local OAuth detection and explicitly unsupported quota.
+- `codex.launchAccountID` stores the selected account for future Fleet launches;
+  it is independent of observed terminal identity and historical selections.
+- `codex.sharedLimitSnapshots` retains only confirmed numeric windows, email and
+  measurement time for a uniquely matched shared-login account. After a global
+  account change, these remain explicitly historical: unknown authentication,
+  stale quota, gray rows, no Lowest/count/alerts, and no account token attribution.
+  They survive restart but are discarded when identity metadata changes or the
+  account is forgotten. No credentials are copied or reconstructed.
 - Alerts are evaluated only for the current global row, with connection and
   reported account/organization scope. Inactive associations have no quota.
 - The Codex Usage dashboard keeps the standard global scope. Its Accounts view

@@ -117,7 +117,7 @@ receive no current row; the provider summary retains the actual native status.
 ## UI
 
 - `AIFleetMenuView` — one row per connected account/provider pair, sorted by
-  tool, current CLI account first, then Greek badge. Parenthesized badges follow
+  tool, then strictly Greek badge regardless of selection. Parenthesized badges follow
   the provider name; aligned left columns show current, lowest, and measurement
   availability markers. `MenuConnectionState` determines ○/×/? and gray from
   current limit availability independently of configured authentication.
@@ -137,8 +137,10 @@ receive no current row; the provider summary retains the actual native status.
   does not create metadata. New associations do not create credential folders. It
   renames labels, removes metadata, opens native CLI sign-in, and owns global
   provider visibility controls. The editor picker never changes the working
-  account; every Sign in action uses a canonical native-default connection.
-  Folder imports and isolated launches are deferred; legacy files are preserved.
+  account. Codex login and explicit session launch use the account's saved home;
+  other provider sign-ins retain their canonical native-default connection.
+  Folder imports are deferred; Codex isolated launches use the saved account
+  home and --no-daemon. Legacy files are preserved.
   General has no provider/account controls. There is no
   account-management window. Settings has a bounded 500 × 640 point layout with
   scrolling so SwiftUI fitting-size changes cannot collapse it to a narrow strip.

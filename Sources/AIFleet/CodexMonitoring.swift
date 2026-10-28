@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 struct CodexMonitoringProfile: Codable, Identifiable, Equatable {
@@ -23,6 +24,7 @@ final class CodexMonitoringStore: ObservableObject {
     @Published private(set) var authenticatingID: String?
     @Published private(set) var authenticationAction: CodexAuthenticationOperation.Action?
     @Published private(set) var errorProfileID: String?
+    @Published private(set) var selectedLaunchAccountID: String?
     @Published var error: String?
     private let defaults: UserDefaults
     private let root: URL
@@ -30,6 +32,7 @@ final class CodexMonitoringStore: ObservableObject {
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
     private var lastRefresh: Date?
+    private var sharedSnapshots: [String: CodexSharedLimitSnapshot]
     private let measure: (URL) async -> CodexMonitoringResult
     private let authenticate: @Sendable (CodexAuthenticationOperation, CodexAuthenticationOperation.Action, URL) throws -> Void
 
@@ -39,6 +42,8 @@ final class CodexMonitoringStore: ObservableObject {
              try $0.run($1, timeout: $1 == .login ? 600 : 30, profileDirectory: $2)
          }) {
         self.defaults = defaults
+        sharedSnapshots = defaults.data(forKey: "codex.sharedLimitSnapshots")
+            .flatMap { try? JSONDecoder().decode([String: CodexSharedLimitSnapshot].self, from: $0) } ?? [:]
         self.root = (root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("AI Fleet/CodexProfiles", isDirectory: true)).standardizedFileURL
         self.authenticate = authenticate
@@ -58,6 +63,8 @@ final class CodexMonitoringStore: ObservableObject {
         profiles = (defaults.data(forKey: "codex.monitoringProfiles")
             .flatMap { try? JSONDecoder().decode([CodexMonitoringProfile].self, from: $0) } ?? [])
             .filter { UUID(uuidString: $0.id) != nil && ids.insert($0.id.uppercased()).inserted }
+        let selected = defaults.string(forKey: "codex.launchAccountID")
+        selectedLaunchAccountID = profiles.contains { $0.accountID == selected } ? selected : nil
     }
 
     func directory(for profile: CodexMonitoringProfile) throws -> URL {
@@ -115,6 +122,91 @@ final class CodexMonitoringStore: ObservableObject {
 
     func forgetAccount(_ account: FleetAccount) {
         if let profile = profile(for: account) { remove(profile) }
+        sharedSnapshots.removeValue(forKey: account.id)
+        saveSnapshots()
+    }
+
+    func observeSharedLogin(_ status: ProviderStatus, accounts: [FleetAccount]) {
+        guard let snapshot = CodexSharedLimitSnapshot(status: status) else { return }
+        let matching = accounts.filter {
+            $0.connection(for: "codex") != nil && !$0.email.isEmpty &&
+            $0.email.caseInsensitiveCompare(snapshot.email) == .orderedSame
+        }
+        guard matching.count == 1, let account = matching.first, profile(for: account) == nil else { return }
+        sharedSnapshots[account.id] = snapshot
+        saveSnapshots()
+    }
+
+    private func saveSnapshots() {
+        defaults.set(try? JSONEncoder().encode(sharedSnapshots), forKey: "codex.sharedLimitSnapshots")
+    }
+
+    func selectForNewSessions(_ account: FleetAccount) {
+        do {
+            _ = try sessionHome(for: account)
+            selectedLaunchAccountID = account.id
+            defaults.set(account.id, forKey: "codex.launchAccountID")
+            error = nil
+            errorProfileID = nil
+        } catch {
+            errorProfileID = profile(for: account)?.id
+            self.error = error.localizedDescription
+        }
+    }
+
+    func sessionHome(for account: FleetAccount) throws -> URL {
+        guard let profile = profile(for: account) else { throw CodexSessionLaunch.Failure.missingLogin }
+        let home = try directory(for: profile)
+        guard let data = try? Data(contentsOf: home.appendingPathComponent("auth.json")),
+              let auth = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw CodexSessionLaunch.Failure.missingLogin
+        }
+        let tokens = auth["tokens"] as? [String: Any]
+        guard let access = tokens?["access_token"] as? String ?? auth["access_token"] as? String,
+              !access.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw CodexSessionLaunch.Failure.missingLogin }
+        let identity = CodexProfileIdentity.read(auth: auth, accountID: tokens?["account_id"] as? String)
+        guard !account.email.isEmpty, identity?.email?.caseInsensitiveCompare(account.email) == .orderedSame else {
+            throw CodexSessionLaunch.Failure.wrongAccount
+        }
+        return home
+    }
+
+    func newSession(for account: FleetAccount) {
+        guard authenticatingID == nil else { return }
+        do {
+            let home = try sessionHome(for: account)
+            guard let executable = ProviderCatalog.executableURL(for: ProviderCatalog.codex) else { throw CodexAuthenticationError.unavailable }
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.title = "New Codex session · \(account.name) (\(account.badge))"
+            panel.prompt = "Start session"
+            guard panel.runModal() == .OK, let project = panel.url else { return }
+            // Recheck after the picker; another login may have completed meanwhile.
+            guard try sessionHome(for: account) == home else { throw CodexSessionLaunch.Failure.wrongAccount }
+            try CodexSessionLaunch.open(home: home, executable: executable, project: project)
+            selectForNewSessions(account)
+        } catch {
+            errorProfileID = profile(for: account)?.id
+            self.error = error.localizedDescription
+        }
+    }
+
+    func copySessionCommand(for account: FleetAccount) {
+        guard authenticatingID == nil else { return }
+        do {
+            let home = try sessionHome(for: account)
+            guard let executable = ProviderCatalog.executableURL(for: ProviderCatalog.codex) else { throw CodexAuthenticationError.unavailable }
+            let file = try CodexSessionLaunch.prepareScript(home: home, executable: executable, project: nil, reusable: true)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString("/bin/zsh " + ClaudeProfileLaunch.shellQuote(file.path), forType: .string)
+            error = nil
+            errorProfileID = nil
+        } catch {
+            errorProfileID = profile(for: account)?.id
+            self.error = error.localizedDescription
+        }
     }
 
     func status(for account: FleetAccount, global: ProviderStatus, accounts: [FleetAccount]) -> ProviderStatus {
@@ -127,8 +219,12 @@ final class CodexMonitoringStore: ObservableObject {
                   accounts.filter({ !$0.email.isEmpty && $0.email.caseInsensitiveCompare(email) == .orderedSame }).count == 1 {
             status = global
         } else {
-            status = ProviderStatus(id: "codex", name: "Codex", state: .noKey,
-                detail: "Sign in required", lastUpdated: nil, authentication: .signInRequired)
+            if let snapshot = sharedSnapshots[account.id], snapshot.email.caseInsensitiveCompare(account.email) == .orderedSame {
+                status = snapshot.status
+            } else {
+                status = ProviderStatus(id: "codex", name: "Codex", state: .offline,
+                    detail: "Connection not saved", lastUpdated: nil, authentication: .unknown)
+            }
         }
         if status.authentication == .signedIn, !account.email.isEmpty,
            status.account?.email?.caseInsensitiveCompare(account.email) != .orderedSame {
@@ -150,6 +246,10 @@ final class CodexMonitoringStore: ObservableObject {
         guard authenticatingID == nil, !refreshing else { return }
         profiles.removeAll { $0.id == profile.id }
         results.removeValue(forKey: profile.id)
+        if selectedLaunchAccountID == profile.accountID {
+            selectedLaunchAccountID = nil
+            defaults.removeObject(forKey: "codex.launchAccountID")
+        }
         // Forget metadata only. Never delete credentials or session history here.
         save()
     }
@@ -181,11 +281,15 @@ final class CodexMonitoringStore: ObservableObject {
         let directory: URL
         do {
             directory = try self.directory(for: profile)
+            guard try !CodexSessionLaunch.hasRunningSessions(home: directory) else { throw CodexSessionLaunch.Failure.activeSessions }
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             for url in [root, directory] {
                 try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
             }
-        } catch { self.error = "Could not open this account's saved login."; return }
+        } catch {
+            self.error = (error as? CodexSessionLaunch.Failure)?.errorDescription ?? "Could not open this account's saved login."
+            return
+        }
         let operation = CodexAuthenticationOperation()
         self.operation = operation
         authenticatingID = profile.id

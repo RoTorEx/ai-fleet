@@ -42,14 +42,11 @@ struct MenuOperationStatus {
     }
 }
 
-/// Keep tools together; prioritize the current CLI account within each tool.
+/// Tool groups and Greek badges remain stable when the selected account changes.
 func sortedAccountProviderRows(_ rows: [MenuAccountConnection]) -> [MenuAccountConnection] {
     rows.sorted { lhs, rhs in
         let toolOrder = lhs.status.name.localizedCaseInsensitiveCompare(rhs.status.name)
         if toolOrder != .orderedSame { return toolOrder == .orderedAscending }
-        let lhsCurrent = lhs.isCurrentCLI ?? lhs.isSelected
-        let rhsCurrent = rhs.isCurrentCLI ?? rhs.isSelected
-        if lhsCurrent != rhsCurrent { return lhsCurrent }
         if lhs.account.badgeIndex != rhs.account.badgeIndex {
             return lhs.account.badgeIndex < rhs.account.badgeIndex
         }
@@ -68,7 +65,8 @@ func accountProviderRows(accounts: [FleetAccount], providerID: String, global: P
         guard let connection = account.connection(for: providerID) else { return nil }
         let status = providerID == "codex" ? connection.status(from: codex.status(for: account, global: global, accounts: accounts))
             : statusForConnection(connection) ?? connection.status(from: LocalProviderAuth.unknown.status(for: ProviderCatalog.definition(for: providerID)!))
-        let currentCLI = global.authentication == .signedIn && !account.email.isEmpty &&
+        let currentCLI = providerID == "codex" ? codex.selectedLaunchAccountID == account.id :
+            global.authentication == .signedIn && !account.email.isEmpty &&
             global.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame
         return MenuAccountConnection(account: account, connection: connection, status: status,
             isSelected: status.authentication == .signedIn,
