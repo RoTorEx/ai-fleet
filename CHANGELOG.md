@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-10-28
+
 ### Fixed
 
 - Separate app-operation Status from provider limit availability; use Checked,
