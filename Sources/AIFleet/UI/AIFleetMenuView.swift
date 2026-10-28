@@ -149,10 +149,17 @@ struct AIFleetMenuView: View {
     private var operationStatus: MenuOperationStatus {
         let active = codexProfiles.profiles.first { $0.id == codexProfiles.authenticatingID }
         let badge = accounts.accounts.first { $0.id == active?.accountID }?.badge
-        let signing = badge.map { "\(codexProfiles.authenticationAction == .logout ? "Signing out" : "Signing in") Codex (\($0))…" } ?? service.signingOutProvider.map {
-            "Signing out \(ProviderCatalog.definition(for: $0)?.name ?? $0)…"
-        } ?? accounts.signingInProviderID.map { "Signing in \(ProviderCatalog.definition(for: $0)?.name ?? $0)…" }
-            ?? (accounts.codexSigningIn ? "Signing in Codex…" : nil)
+        let signing: String?
+        if let badge {
+            let verb = codexProfiles.authenticationAction == .logout ? "Signing out" : "Signing in"
+            signing = "\(verb) Codex (\(badge))…"
+        } else if let provider = service.signingOutProvider {
+            signing = "Signing out \(ProviderCatalog.definition(for: provider)?.name ?? provider)…"
+        } else if let provider = accounts.signingInProviderID {
+            signing = "Signing in \(ProviderCatalog.definition(for: provider)?.name ?? provider)…"
+        } else {
+            signing = accounts.codexSigningIn ? "Signing in Codex…" : nil
+        }
         return MenuOperationStatus.resolve(update: updater.state, refreshing: service.isRefreshing || codexProfiles.refreshing,
                                             signingIn: signing, monitoring: service.isMonitoring)
     }

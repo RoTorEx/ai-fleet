@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Split the authentication status expression for production compiler compatibility.
+  Includes the credential-switch repair prepared in 1.3.9, whose build did not publish.
+
 ## [1.3.9] - 2026-10-28
 
 ### Fixed
