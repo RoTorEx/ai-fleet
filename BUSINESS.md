@@ -60,21 +60,18 @@ subscription charges.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
-  badges. Each provider uses one standard global native CLI login. The row’s
-  ellipsis menu exposes Sign in and, on the active signed-in row, Sign out. Codex Sign out uses native `codex logout`; other providers clear monitored native credentials locally. Changes to shared CLI authorization block while Codex processes run; per-account login uses independent storage and preserves those sessions. Sign in changes the global login through
-  the provider’s native browser/SSO flow. No isolated session launch or manual
-  working-account selection is exposed. Native email determines the current
-  badge; duplicate email labels remain ambiguous. Current authenticated rows
-  show → and normal colors; other associations are gray and have no quota.
-  Small parenthesized badges follow the provider name; tightly grouped markers
-  remain on the left and only … on the right. Hover immediately shows only
-  email and plan in an inline overlay. Authentication and quota remain
-  independent; the Color/Auth/Selection/Quota legend stays visible and ↓ marks
-  lowest positive current global quota. Management stays in Settings → Accounts,
-  with inline additions, label editing, global sign-in, and menu visibility;
-  General contains only application-wide settings. Existing isolated files and
-  metadata are preserved without polling or launching them. Selective login is
-  deferred. See [Accounts](business/accounts.md) for matching and storage rules.
+  badges. Menu rows sort by tool name, then current CLI account (→) first within
+  each tool, then Greek badge order. Independent saved Codex logins retain their
+  own quota and normal colors. Signing into one does not switch running sessions
+  or change their shared CLI authorization. Other providers retain their global
+  native login; changing shared Codex authorization is blocked while Codex runs.
+  Management stays in Settings → Accounts with one account editor and an
+  existing/new account choice when connecting a provider. Small parenthesized
+  badges follow the provider name; the ellipsis exposes account login actions.
+  Hover shows email and plan. The Color/Auth/Selection/Quota legend remains
+  visible, and ↓ marks the exact lowest positive current quota connection.
+  Legacy isolated files and metadata remain preserved. See
+  [Accounts](business/accounts.md) for matching, ordering and storage rules.
 
 - Quota notifications name the provider, crossed threshold, and exact window;
   no redundant remaining value follows the threshold. When the provider supplies

@@ -39,6 +39,12 @@ arrow. ↓ and the summary Lowest row identify the exact account connection,
 including its badge. Placeholder provider rows are hidden when real account
 associations exist. Provider visibility applies to menu rows and statistics tabs.
 
+Menu rows sort first by tool name alphabetically, then put that tool's current
+CLI account (→) first, then order the other accounts by Greek badge allocation.
+Independent signed-in accounts retain normal colors but do not outrank the
+current CLI account. Changing the current account reorders only its tool group;
+it never moves that tool above an alphabetically earlier tool.
+
 Codex's shared cached credentials can change while an existing CLI, IDE or
 app-server process still holds the previous identity. On subsequent refresh,
 Codex may reject that process with the account-changed token error. Repeating

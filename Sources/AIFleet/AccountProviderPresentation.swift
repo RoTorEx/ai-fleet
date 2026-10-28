@@ -1,5 +1,20 @@
 import Foundation
 
+/// Keep tools together; prioritize the current CLI account within each tool.
+func sortedAccountProviderRows(_ rows: [MenuAccountConnection]) -> [MenuAccountConnection] {
+    rows.sorted { lhs, rhs in
+        let toolOrder = lhs.status.name.localizedCaseInsensitiveCompare(rhs.status.name)
+        if toolOrder != .orderedSame { return toolOrder == .orderedAscending }
+        let lhsCurrent = lhs.isCurrentCLI ?? lhs.isSelected
+        let rhsCurrent = rhs.isCurrentCLI ?? rhs.isSelected
+        if lhsCurrent != rhsCurrent { return lhsCurrent }
+        if lhs.account.badgeIndex != rhs.account.badgeIndex {
+            return lhs.account.badgeIndex < rhs.account.badgeIndex
+        }
+        return lhs.id < rhs.id
+    }
+}
+
 /// The badge always identifies a Fleet account, regardless of credential storage.
 @MainActor
 func accountProviderRows(accounts: [FleetAccount], providerID: String, global: ProviderStatus,

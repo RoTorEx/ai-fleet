@@ -57,9 +57,19 @@ final class AccountProviderPresentationTests: XCTestCase {
         XCTAssertEqual(claudeRows.map(\.account.badge), ["γ"])
         let displayed = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
             global: status(work.email, remaining: 1), statusForConnection: { _ in nil }, codex: codex) + claudeRows
+        let sorted = sortedAccountProviderRows(Array(displayed.reversed()))
+        XCTAssertEqual(sorted.map(\.status.name), ["Claude", "Codex", "Codex"])
+        XCTAssertEqual(sorted.map(\.account.badge), ["γ", "β", "α"], "Current CLI account leads its tool, never another tool")
+        let personalCurrent = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
+            global: status(personal.email, remaining: 1), statusForConnection: { _ in nil }, codex: codex)
+        XCTAssertEqual(sortedAccountProviderRows(Array(personalCurrent.reversed())).map(\.account.badge), ["α", "β"])
+        let noCurrent = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
+            global: status("unlinked@example.test", remaining: 1), statusForConnection: { _ in nil }, codex: codex)
+        XCTAssertEqual(sortedAccountProviderRows(Array(noCurrent.reversed())).map(\.account.badge), ["α", "β"],
+                       "Independent sign-in does not displace Greek badge order")
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let host = NSHostingController(rootView: VStack(alignment: .leading, spacing: 8) {
-                ForEach(displayed) { entry in
+                ForEach(sorted) { entry in
                     ProviderLimitRow(entry: entry, isLowest: entry.account.id == work.id, openSettings: {})
                 }
             }.padding(16).frame(width: 354).background(Color(nsColor: .windowBackgroundColor))

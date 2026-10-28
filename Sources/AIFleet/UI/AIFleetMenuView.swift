@@ -13,11 +13,11 @@ struct AIFleetMenuView: View {
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
 
     private var connections: [MenuAccountConnection] {
-        ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
+        sortedAccountProviderRows(ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
             guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider) else { return [] }
             return accountProviderRows(accounts: accounts.accounts, providerID: provider.id,
                 global: service.status(for: provider.id), statusForConnection: service.status(for:), codex: codexProfiles)
-        }
+        })
     }
 
     private var providers: [ProviderStatus] { connections.map(\.status) }

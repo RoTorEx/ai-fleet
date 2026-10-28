@@ -6,6 +6,8 @@ Tracks real product and release progress.
 
 ### Fixed
 
+- Sort menu connections by tool name, current CLI account first within each
+  tool, then Greek account badge. Keep other saved Codex logins available.
 - Unify Codex saved logins with existing account badges across the menu, Settings
   and account statistics. Remove the separate Native row and profile list.
   Connect providers to an existing or new account, prevent duplicate providers,
