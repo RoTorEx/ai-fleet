@@ -20,6 +20,14 @@ subscription charges.
 
 ## Invariants
 
+- Codex can keep multiple independent monitoring logins, each with its own
+  native CODEX_HOME and file-backed credentials. Menu profile rows show remaining
+  5h/7d quota. Statistics → Codex → Accounts compares account token totals for
+  the selected period. These logins never replace the standard CLI account or
+  retarget running sessions; no local model mix or historical cost is borrowed.
+  [Codex profiles](business/codex-profiles.md) owns lifecycle, isolation, polling,
+  accounting boundaries and the distinction from future session launching.
+
 - Provider installation, login, and quota support are separate states. Claude
   login comes from the CLI's structured `auth status` result, never from
   `.claude.json` settings. Qwen requires OAuth token fields, not merely a

@@ -8,6 +8,7 @@ struct StatisticsView: View {
     @State private var period: AnalyticsPeriod = .allTime
     @State private var detailPage: StatisticsDetailPage = .tables
     @State private var showsKimiQuotas = false
+    @State private var showsCodexAccounts = false
 
     private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
 
@@ -35,7 +36,16 @@ struct StatisticsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            codexContent
+            if tab == .codex && showsCodexAccounts {
+                let bounds = period.bounds()
+                ScrollView(.vertical) {
+                    CodexProfilesView(nativeStatus: service.codex, nativeUsage: snapshot.codex.accountUsage,
+                                      start: bounds.start, end: bounds.end,
+                                      refreshNative: { analytics.refreshAccountUsage(); service.refresh() })
+                }
+            } else {
+                codexContent
+            }
         }
         .padding(16)
         .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
@@ -61,6 +71,13 @@ struct StatisticsView: View {
                 )
             }
             HStack {
+                if tab == .codex {
+                    Picker("Codex view", selection: $showsCodexAccounts) {
+                        Text("Usage").tag(false)
+                        Text("Accounts").tag(true)
+                    }
+                    .pickerStyle(.segmented).frame(width: 190)
+                }
                 Spacer(minLength: 0)
                 PeriodToolbar(period: $period)
             }

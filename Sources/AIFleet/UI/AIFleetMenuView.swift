@@ -10,12 +10,17 @@ struct AIFleetMenuView: View {
     @EnvironmentObject var settings: AppSettings
     @ObservedObject private var updater = UpdateService.shared
     @ObservedObject private var accounts = AccountStore.shared
+    @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
 
     private var connections: [MenuAccountConnection] {
         ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
             guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider) else { return [] }
             return accounts.linkedAccounts(for: provider.id).compactMap { account in
                 guard let connection = account.connection(for: provider.id) else { return nil }
+                if provider.id == "codex" {
+                    let nativeOwner = service.globalAccountIDs["codex"]
+                    guard nativeOwner == account.id || (nativeOwner == nil && connection.isNativeDefault) else { return nil }
+                }
                 let status = service.status(for: connection) ?? ProviderStatus(id: connection.statusID, name: provider.name,
                     state: .offline, detail: "Checking…", lastUpdated: nil, providerID: provider.id)
                 return MenuAccountConnection(account: account, connection: connection, status: status,
@@ -52,7 +57,7 @@ struct AIFleetMenuView: View {
                 .padding(.top, 11)
                 .padding(.bottom, 8)
 
-            if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
+            if connections.count + codexProfiles.profiles.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
                 MenuRowsViewport(maxHeight: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 350))) {
                     providerRows
                 }
@@ -70,7 +75,7 @@ struct AIFleetMenuView: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 ActionButton(title: "Refresh now", shortcut: "⌘R", keyEquivalent: "r", modifiers: .command) {
-                    service.refresh()
+                    service.refresh(); codexProfiles.refresh(force: true)
                 }
 
                 ActionButton(title: "Agents", shortcut: "⌘A", keyEquivalent: nil) {
@@ -120,6 +125,12 @@ struct AIFleetMenuView: View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(connections) { entry in
                 ProviderLimitRow(entry: entry, isLowest: entry.isSelected && entry.status.providerID == lowestProvider?.providerID, openSettings: openSettings)
+            }
+            if settings.isEnabled("codex") {
+                CodexMonitoringMenuRows(manage: {
+                    SettingsNavigation.shared.tab = "accounts"
+                    openSettings()
+                })
             }
         }
         .padding(.horizontal, 16)
@@ -283,7 +294,7 @@ struct ProviderLimitRow: View {
                         .font(.system(size: 14, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
                 }
-                Text(status.name)
+                Text(status.providerID == "codex" ? "Codex · Native" : status.name)
                     .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
                 Text("(\(entry.account.badge))")
                     .font(.system(size: 10.5, weight: .medium))
@@ -293,7 +304,7 @@ struct ProviderLimitRow: View {
                     .accessibilityLabel("\(status.name) account \(entry.account.badge)")
                 Spacer(minLength: 8)
                 Menu {
-                    Button("Sign in…") { accounts.signInGlobally(status.providerID) }
+                    Button(status.providerID == "codex" ? "Change native login…" : "Sign in…") { accounts.signInGlobally(status.providerID) }
                     .help("Changes the provider’s global login. Choose the account in its native login flow.")
                     if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
                         Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {

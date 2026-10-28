@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.setActivationPolicy(.accessory)
         StatusService.shared.start()
         UsageAnalyticsService.shared.startDailyRefreshSchedule()
+        CodexMonitoringStore.shared.start()
 
         let statusBarController = StatusBarController(
             service: StatusService.shared,
@@ -76,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         AccountStore.shared.cancelCodexSignIn()
+        CodexMonitoringStore.shared.stop()
     }
 
     func openSettings(anchorFrame: NSRect? = nil) {

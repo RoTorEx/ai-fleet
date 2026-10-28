@@ -91,6 +91,23 @@ to renew access; AI Fleet does not rewrite Google tokens. See [Gemini integratio
 
 ### Accounts
 
+To monitor several Codex accounts simultaneously, open **Settings → Accounts →
+Codex accounts → Add & sign in…** and complete the browser flow once per account.
+Each profile keeps its own login and shows the actual email/plan. The ordinary
+**+** form also creates an independent profile when Codex is selected. Your
+native CLI login and already-running sessions remain unchanged.
+
+Remaining 5h/7d quota appears under **Codex profiles** in the menu. Open
+**Statistics → Codex → Accounts** to compare tokens and quotas across profiles
+and the native account, using `7d`, `30d`, `90d`, or `All`. Tokens there come from
+provider-reported account totals/dates; local model details and API-equivalent
+costs are not attributed to monitoring profiles. Missing data reads as unavailable.
+Profiles signed into the same account share its limits. Native session launching
+under a profile is deferred. **Sign out** clears only the chosen profile through
+native Codex; **Forget profile** removes its metadata and preserves local files.
+See [Codex profile behavior](business/codex-profiles.md).
+
+
 Each account/provider association has a compact row such as **Codex (α)**.
 **→** marks the detected global login; other accounts are gray without quota.
 Hover the badge to immediately see only email and plan. The **…** menu contains
@@ -121,11 +138,11 @@ duplicate labels remain ambiguous. The legend retains **Auth**, **Selection**,
 their reason; stale quota cannot generate alerts or become Lowest.
 
 Use **Settings → Accounts → +** to register an email/provider and **Add & sign
-in…** to start global login. Cancel leaves metadata unchanged. The **Manage
+in…** to start independent Codex monitoring login or global login for other providers. Cancel leaves metadata unchanged. The **Manage
 account** picker edits labels only. Provider toggles associate more providers
 with the same badge without making isolated directories. **Menu visibility**
 applies across accounts; **General** owns shortcut, notifications, and analytics.
-Existing isolated credential folders remain intact but are not polled/launched.
+Legacy isolated credential folders remain intact and are not automatically adopted. New Codex monitoring profiles use their separate workflow above.
 Selective per-session login is deferred.
 
 ## Refresh

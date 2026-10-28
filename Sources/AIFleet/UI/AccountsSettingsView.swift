@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AccountsSettingsView: View {
     @ObservedObject private var store = AccountStore.shared
+    @ObservedObject private var profiles = CodexMonitoringStore.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
@@ -37,6 +38,8 @@ struct AccountsSettingsView: View {
                 Text(error).font(.caption).foregroundColor(.red)
             }
             Divider()
+            CodexProfilesView(managesProfiles: true)
+            Divider()
             DisclosureGroup("Menu visibility") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Applies to all accounts.").font(.caption).foregroundColor(.secondary)
@@ -68,22 +71,27 @@ struct AccountsSettingsView: View {
             Picker("Provider", selection: $draftProviderID) {
                 ForEach(ProviderCatalog.all) { Text($0.name).tag($0.id) }
             }
-            Text("Sign in with this email in the provider’s browser or SSO flow. You can connect more providers to this badge later.")
+            Text(draftProviderID == "codex" ? "Creates an independent Codex monitoring login. Choose the account in its browser flow; your native CLI login stays unchanged." : "Sign in with this email in the provider’s browser or SSO flow. You can connect more providers to this badge later.")
                 .font(.caption).foregroundColor(.secondary)
             HStack {
                 Button("Add & sign in…") {
                     let email = draftEmail.trimmingCharacters(in: .whitespacesAndNewlines)
                     let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let added = store.add(name: name.isEmpty ? email : name, email: email)
-                    store.attachGlobal(draftProviderID, to: added.id)
-                    selectedID = added.id
+                    if draftProviderID == "codex" {
+                        profiles.signIn(profiles.add(label: name.isEmpty ? email : name))
+                    } else {
+                        let added = store.add(name: name.isEmpty ? email : name, email: email)
+                        store.attachGlobal(draftProviderID, to: added.id)
+                        selectedID = added.id
+                        store.signInGlobally(draftProviderID)
+                    }
                     isAdding = false
                     draftName = ""; draftEmail = ""
-                    store.signInGlobally(draftProviderID)
                     service.refresh()
                 }
                 .disabled(draftEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                          !isDraftProviderInstalled)
+                          !isDraftProviderInstalled ||
+                          (draftProviderID == "codex" && (profiles.refreshing || profiles.authenticatingID != nil || store.codexSigningIn)))
                 Button("Cancel") { isAdding = false; draftName = ""; draftEmail = "" }
             }
         }
@@ -166,7 +174,7 @@ private struct AccountEditor: View {
 
     private func connectionActions(_ connection: ProviderConnection, provider: ProviderDefinition) -> some View {
         HStack(spacing: 8) {
-            Button("Sign in…") { store.signInGlobally(provider.id) }
+            Button(provider.id == "codex" ? "Change native login…" : "Sign in…") { store.signInGlobally(provider.id) }
             if service.globalAccountIDs[provider.id] == account.id,
                (service.status(for: provider.id).authentication == .signedIn || service.signOutFailedProvider == provider.id) {
                 Button(service.signOutFailedProvider == provider.id ? "Retry sign out" : "Sign out", role: .destructive) {

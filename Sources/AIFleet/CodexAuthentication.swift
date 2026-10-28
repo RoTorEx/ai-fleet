@@ -25,9 +25,14 @@ enum CodexAuthenticationError: LocalizedError {
 
 /// Serializes Fleet's native auth consumers. Never changes credentials itself.
 enum CodexCredentialAccess {
-    private static let lock = NSLock()
+    private static let registryLock = NSLock()
+    private static var locks: [String: NSLock] = [:]
 
-    static func perform<T>(_ body: () throws -> T) throws -> T {
+    static func perform<T>(scope: String = "native", _ body: () throws -> T) throws -> T {
+        registryLock.lock()
+        let lock = locks[scope] ?? NSLock()
+        locks[scope] = lock
+        registryLock.unlock()
         guard lock.try() else { throw CodexAuthenticationError.busy }
         defer { lock.unlock() }
         return try body()
@@ -63,6 +68,7 @@ struct CodexProcessInventory {
 /// Owns only the login/logout process it starts; never signals another Codex process.
 final class CodexAuthenticationOperation: @unchecked Sendable {
     enum Action: String { case login, logout }
+    private static let browserLoginLock = NSLock()
     private let lock = NSLock()
     private var process: Process?
     private var cancelled = false
@@ -78,16 +84,24 @@ final class CodexAuthenticationOperation: @unchecked Sendable {
              executable: URL? = ProviderCatalog.executableURL(for: ProviderCatalog.codex),
              environment: [String: String] = ProcessInfo.processInfo.environment,
              inventory: () throws -> [Int32] = { try CodexProcessInventory().runningPIDs() },
-             timeout: TimeInterval = 600) throws {
-        try CodexCredentialAccess.perform {
+             timeout: TimeInterval = 600,
+             profileDirectory: URL? = nil) throws {
+        let browserLock = action == .login ? Self.browserLoginLock : nil
+        if let browserLock, !browserLock.try() { throw CodexAuthenticationError.busy }
+        defer { browserLock?.unlock() }
+        try CodexCredentialAccess.perform(scope: profileDirectory?.standardizedFileURL.path ?? "native") {
             guard let executable else { throw CodexAuthenticationError.unavailable }
-            let pids = try inventory()
-            guard pids.isEmpty else { throw CodexAuthenticationError.activeProcesses(pids) }
+            if profileDirectory == nil {
+                let pids = try inventory()
+                guard pids.isEmpty else { throw CodexAuthenticationError.activeProcesses(pids) }
+            }
             let child = Process()
             child.executableURL = executable
-            child.arguments = [action.rawValue]
+            child.arguments = profileDirectory == nil ? [action.rawValue]
+                : ["-c", "cli_auth_credentials_store=\"file\"", action.rawValue]
             var nativeEnvironment = environment
             for key in ProviderConnection.global("codex").overrideKeys { nativeEnvironment.removeValue(forKey: key) }
+            if let profileDirectory { nativeEnvironment["CODEX_HOME"] = profileDirectory.path }
             child.environment = nativeEnvironment
             child.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
             child.standardInput = FileHandle.nullDevice

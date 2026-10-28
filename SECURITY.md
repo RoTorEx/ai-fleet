@@ -26,6 +26,16 @@ restricts that directory to mode `0700` and those files to mode `0600` when it
 reads or writes them. Never copy real credentials, auth files, local usage
 caches, or environment files into this repository.
 
+## Independent Codex profiles
+
+Monitoring credentials are created directly by native Codex in separate
+`~/Library/Application Support/AI Fleet/CodexProfiles/<UUID>` homes. Nothing is
+copied from `~/.codex`. Login, logout and account usage always select that exact
+home and file credential storage. Directories use 0700 and successful auth files
+0600. Redirected auth/config paths are refused. UserDefaults contains only
+profile IDs and labels; measurements stay in memory. See
+[business/codex-profiles.md](business/codex-profiles.md) for isolation and retention.
+
 ## Local session overview
 
 Agents additionally reads bounded visible iTerm2 screens and process-bound local

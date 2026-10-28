@@ -29,9 +29,10 @@ struct CodexAccountUsageReader {
     var executableURL: URL? = ProviderCatalog.executableURL(for: ProviderCatalog.codex)
     var timeout: TimeInterval = 15
     var calendar = Calendar.autoupdatingCurrent
+    var profileDirectory: URL? = nil
 
     func read(fetchedAt: Date = Date()) throws -> CodexAccountUsage {
-        try CodexCredentialAccess.perform { try readExclusively(fetchedAt: fetchedAt) }
+        try CodexCredentialAccess.perform(scope: profileDirectory?.standardizedFileURL.path ?? "native") { try readExclusively(fetchedAt: fetchedAt) }
     }
 
     private func readExclusively(fetchedAt: Date) throws -> CodexAccountUsage {
@@ -44,9 +45,11 @@ struct CodexAccountUsageReader {
         let collector = CodexUsageResponseCollector()
 
         process.executableURL = executableURL
-        process.arguments = ["app-server"]
+        process.arguments = profileDirectory == nil ? ["app-server"]
+            : ["-c", "cli_auth_credentials_store=\"file\"", "app-server"]
         var environment = ProcessInfo.processInfo.environment
         for key in ProviderConnection.global("codex").overrideKeys { environment.removeValue(forKey: key) }
+        if let profileDirectory { environment["CODEX_HOME"] = profileDirectory.path }
         process.environment = environment
         process.standardInput = inputPipe
         process.standardOutput = outputPipe

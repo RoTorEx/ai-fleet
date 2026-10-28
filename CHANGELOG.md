@@ -4,6 +4,14 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Keep multiple independent Codex monitoring accounts signed in without changing
+  native CLI sessions. Add per-profile browser login/logout/cancel in Settings,
+  compact menu quota rows, and Statistics → Codex → Accounts with period-filtered
+  account tokens and 5h/7d remaining quotas. Isolate credentials and refresh locks;
+  preserve existing global auth and never borrow shared local history or cost.
+
 ## [1.3.1] - 2026-10-28
 
 ### Fixed

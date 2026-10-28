@@ -6,7 +6,9 @@ Claude, Codex, Kimi, Qwen, and Gemini. Labels are app metadata, not credentials.
 
 ## Login and interface
 
-Each provider has one current standard global CLI login. The row’s **…** menu
+Each provider has one current standard global CLI login. Codex additionally
+supports independent monitor-only logins: [Codex profiles](codex-profiles.md)
+owns their storage, native auth, quota, token accounting and interface. The row’s **…** menu
 contains **Sign in…**. Codex uses native `codex login` directly from AI Fleet,
 opens the system browser, and shows pending/cancel controls in both Accounts and
 Usage. Other providers launch native login in Terminal: Claude `auth login`,
@@ -43,7 +45,8 @@ Codex sign-out runs native `codex logout`, leaving file/keyring cleanup and
 revocation to the CLI. Other providers retain local monitored credential
 removal without launching their CLI. Status polling and Codex statistics never
 start logout. Fleet's Codex login/logout and account-statistics app-server reads
-share a nonblocking exclusive gate. A busy gate refuses the change before any
+share a nonblocking exclusive gate for that credential home. Independent
+monitoring homes have separate gates and do not change the native login. A busy gate refuses the change before any
 credential mutation and preserves displayed identity/quota. New account reads
 skip while native auth is running. This covers both manual/open-window and
 daily statistics paths. Login allows 600 seconds for browser/SSO completion;
@@ -96,8 +99,8 @@ login and gray other accounts. No automatic fallback or request routing exists.
 
 Settings → Accounts edits labels and provider associations; its picker only
 chooses the record to edit. **+** opens the inline email/provider form;
-**Add & sign in…** registers metadata and starts global native login. Cancel
-creates nothing. Provider toggles add associations without creating credential
+**Add & sign in…** registers metadata and starts global native login for other
+providers; Codex creates an independent monitoring profile. Cancel creates nothing. Provider toggles add associations without creating credential
 folders. **Sign in…** has the same global meaning on every badge. Folder import
 and selective launch controls are deferred. General owns only shortcut,
 notifications, and analytics; Menu visibility in Accounts applies globally.
@@ -129,8 +132,9 @@ notifications, and analytics; Menu visibility in Accounts applies globally.
   retains local OAuth detection and explicitly unsupported quota.
 - Alerts are evaluated only for the current global row, with connection and
   reported account/organization scope. Inactive associations have no quota.
-- Statistics keeps the standard global Codex scope. Multi-account historical
-  analytics remains a separate queued task.
+- The Codex Usage dashboard keeps the standard global scope. Its Accounts view
+  compares independent monitoring profiles using only provider-reported totals;
+  old common local history is not attributed to them.
 
 Gemini login and quota boundaries are owned by [Gemini](gemini.md).
 

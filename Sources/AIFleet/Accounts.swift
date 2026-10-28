@@ -66,7 +66,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
     var overrideKeys: [String] {
         switch providerID {
         case "claude": return ClaudeProfile.authOverrideKeys
-        case "codex": return [selector, "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"]
+        case "codex": return [selector, "CODEX_SQLITE_HOME", "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"]
         case "kimi": return [selector, "KIMI_SHARE_DIR", "KIMI_API_KEY", "KIMI_BASE_URL", "KIMI_MODEL_NAME"]
         case "qwen": return [selector, "QWEN_RUNTIME_DIR", "QWEN_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"]
         case "gemini": return [selector, "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI",
