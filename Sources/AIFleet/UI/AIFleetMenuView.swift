@@ -72,15 +72,7 @@ struct AIFleetMenuView: View {
 
                 ActionButton(title: updater.actionTitle, shortcut: "", keyEquivalent: nil) {
                     updater.update()
-                }
-
-                if let detail = updater.detailText {
-                    Text(detail)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(FleetPalette.muted)
-                        .lineLimit(2)
-                        .padding(.leading, 8)
-                }
+                }.disabled(updater.isBusy)
 
                 ActionButton(title: "Quit", shortcut: "⌘Q", keyEquivalent: "q", modifiers: .command) {
                     NSApplication.shared.terminate(nil)
@@ -108,10 +100,16 @@ struct AIFleetMenuView: View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 6, verticalSpacing: 7) {
             GridRow {
                 summaryLabel("Status")
-                summaryValue(fleetStateLabel, color: fleetStateColor)
+                VStack(alignment: .leading, spacing: 3) {
+                    summaryValue(operationStatus.title, color: operationStatus.failed ? FleetPalette.warning : FleetPalette.value)
+                    if let detail = operationStatus.detail {
+                        Text(detail).font(.system(size: 11)).foregroundColor(FleetPalette.warning)
+                            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    }
+                }
             }
             GridRow {
-                summaryLabel("Refresh")
+                summaryLabel("Checked")
                 summaryValue(lastUpdateText)
             }
             GridRow {
@@ -122,7 +120,7 @@ struct AIFleetMenuView: View {
                 )
             }
             GridRow {
-                summaryLabel("Quota")
+                summaryLabel("Limits")
                 summaryValue(quotaAvailabilityText(providers))
             }
             GridRow {
@@ -147,27 +145,14 @@ struct AIFleetMenuView: View {
             .minimumScaleFactor(0.78)
     }
 
-    private var fleetStateLabel: String {
-        if providers.isEmpty {
-            return "no providers"
-        }
-        if providers.contains(where: { $0.authentication.needsAccess }) { return "needs access" }
-        if providers.contains(where: { $0.authentication == .unknown }) { return "unknown" }
-        if providers.contains(where: { $0.quotaState == .unavailable || $0.quotaState == .stale }) {
-            return "quota unavailable"
-        }
-        return "ready"
-    }
-
-    private var fleetStateColor: Color {
-        switch fleetStateLabel {
-        case "ready":
-            return FleetPalette.ready
-        case "needs access", "quota unavailable":
-            return FleetPalette.warning
-        default:
-            return FleetPalette.muted
-        }
+    private var operationStatus: MenuOperationStatus {
+        let active = codexProfiles.profiles.first { $0.id == codexProfiles.authenticatingID }
+        let badge = accounts.accounts.first { $0.id == active?.accountID }?.badge
+        let signing = badge.map { "\(codexProfiles.authenticationAction == .logout ? "Signing out" : "Signing in") Codex (\($0))…" } ?? service.signingOutProvider.map {
+            "Signing out \(ProviderCatalog.definition(for: $0)?.name ?? $0)…"
+        } ?? (accounts.codexSigningIn ? "Signing in Codex…" : nil)
+        return MenuOperationStatus.resolve(update: updater.state, refreshing: service.isRefreshing || codexProfiles.refreshing,
+                                            signingIn: signing)
     }
 
     private var lastUpdateText: String {
@@ -245,7 +230,8 @@ struct ProviderLimitRow: View {
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @State private var isBadgeHovered = false
     private var status: ProviderStatus { entry.status }
-    private var color: Color { entry.isSelected ? rowColor(for: status) : FleetPalette.muted }
+    private var presentation: MenuConnectionState { MenuConnectionState(status: status) }
+    private var color: Color { presentation.available ? rowColor(for: status) : FleetPalette.muted }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -254,11 +240,11 @@ struct ProviderLimitRow: View {
                     Text((entry.isCurrentCLI ?? entry.isSelected) ? "→" : " ")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
-                        .accessibilityLabel((entry.isCurrentCLI ?? entry.isSelected) ? "\(status.name) account \(entry.account.badge), current CLI account" : "")
+                        .accessibilityLabel((entry.isCurrentCLI ?? entry.isSelected) ? "\(status.name) account \(entry.account.badge), current" : "")
                     Text(isLowest ? "↓" : " ")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
-                    Text(status.authentication.marker)
+                    Text(presentation.marker)
                         .font(.system(size: 14, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
                 }
@@ -305,18 +291,18 @@ struct ProviderLimitRow: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(window.label).font(.system(size: 10, weight: .medium, design: .monospaced))
                                     .foregroundColor(color).lineLimit(1)
-                                LimitWindowLine(window: window, status: status, isActive: entry.isSelected, showsLabel: false)
+                                LimitWindowLine(window: window, status: status, isActive: presentation.available, showsLabel: false)
                             }
                         } else {
-                            LimitWindowLine(window: window, status: status, isActive: entry.isSelected)
+                            LimitWindowLine(window: window, status: status, isActive: presentation.available)
                         }
                     }
                 }
                 .padding(.leading, 52)
             } else {
-                Text(status.detail)
+                Text(presentation.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(color).lineLimit(1).minimumScaleFactor(0.8)
+                    .foregroundColor(color).fixedSize(horizontal: false, vertical: true)
                     .padding(.leading, 52)
             }
             if let notice = status.quotaNotice {
@@ -471,16 +457,16 @@ struct LegendSection: View {
             }
 
             GridRow {
-                Text("Auth:").foregroundColor(FleetPalette.label)
-                Text("○ signed in · × needs access · ? unknown")
+                Text("Limits:").foregroundColor(FleetPalette.label)
+                Text("○ loaded · × sign in · ? unavailable")
                     .foregroundColor(FleetPalette.value)
             }
             GridRow {
-                Text("Selection:").foregroundColor(FleetPalette.label)
-                Text("→ current CLI account · gray signed out").foregroundColor(FleetPalette.value)
+                Text("Current:").foregroundColor(FleetPalette.label)
+                Text("→ · gray unavailable").foregroundColor(FleetPalette.value)
             }
             GridRow {
-                Text("Quota:").foregroundColor(FleetPalette.label)
+                Text("Lowest:").foregroundColor(FleetPalette.label)
                 Text("↓ lowest remaining").foregroundColor(FleetPalette.value)
             }
         }

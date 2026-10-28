@@ -22,26 +22,14 @@ final class UpdateService: ObservableObject {
     private init() {}
 
     var actionTitle: String {
-        switch state {
-        case .idle, .upToDate, .failed:
-            return "Update…"
-        case .checking:
-            return "Checking for updates…"
-        case .downloading(let version):
-            return "Downloading v\(version)…"
-        case .installing(let version):
-            return "Installing v\(version)…"
-        }
+        if case .failed = state { return "Retry update…" }
+        return "Update…"
     }
 
-    var detailText: String? {
+    var isBusy: Bool {
         switch state {
-        case .upToDate(let version):
-            return "Already on the latest version (v\(version))."
-        case .failed(let message):
-            return message
-        default:
-            return nil
+        case .checking, .downloading, .installing: return true
+        default: return false
         }
     }
 
@@ -116,7 +104,7 @@ final class UpdateService: ObservableObject {
     }
 }
 
-private enum ReleaseUpdater {
+enum ReleaseUpdater {
     private static let repository = "RoTorEx/ai-fleet"
     private static let bundleIdentifier = "dev.ai-fleet"
 
@@ -133,24 +121,9 @@ private enum ReleaseUpdater {
         let checksum: Asset
     }
 
-    struct Asset: Decodable, Sendable {
+    struct Asset: Sendable {
         let name: String
         let browserDownloadURL: URL
-
-        enum CodingKeys: String, CodingKey {
-            case name
-            case browserDownloadURL = "browser_download_url"
-        }
-    }
-
-    private struct GitHubRelease: Decodable {
-        let tagName: String
-        let assets: [Asset]
-
-        enum CodingKeys: String, CodingKey {
-            case tagName = "tag_name"
-            case assets
-        }
     }
 
     static var currentVersion: String {
@@ -163,28 +136,30 @@ private enum ReleaseUpdater {
         return candidateVersion > currentVersion
     }
 
-    static func latestRelease() async throws -> Release {
-        let url = URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
+    static func latestRelease(session: URLSession = .shared) async throws -> Release {
+        // The public release redirect also powers the terminal installer and avoids
+        // GitHub's shared unauthenticated API allowance.
+        let url = URL(string: "https://github.com/\(repository)/releases/latest")!
         var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.httpMethod = "HEAD"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("AI-Fleet/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 20
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response)
-        let decoded = try JSONDecoder().decode(GitHubRelease.self, from: data)
-        guard decoded.tagName.hasPrefix("v") else { throw UpdateError.invalidRelease }
-        let version = String(decoded.tagName.dropFirst())
-        guard isSemanticVersion(version) else { throw UpdateError.invalidRelease }
-
-        let basename = "AIFleet-\(decoded.tagName)-macos-\(architecture).zip"
-        guard let archive = decoded.assets.first(where: { $0.name == basename }),
-              let checksum = decoded.assets.first(where: { $0.name == "\(basename).sha256" }) else {
-            throw UpdateError.missingReleaseAsset
-        }
-        try validateDownloadURL(archive.browserDownloadURL)
-        try validateDownloadURL(checksum.browserDownloadURL)
-        return Release(version: version, archive: archive, checksum: checksum)
+        let response: URLResponse
+        do { (_, response) = try await session.data(for: request) }
+        catch { throw UpdateError.requestFailed("Update check", error.localizedDescription) }
+        try validate(response, operation: "Update check")
+        guard let final = response.url, final.scheme == "https", final.host == "github.com",
+              final.path.hasPrefix("/\(repository)/releases/tag/v") else { throw UpdateError.invalidRelease }
+        let tag = final.lastPathComponent
+        let version = String(tag.dropFirst())
+        guard tag.hasPrefix("v"), isSemanticVersion(version),
+              final.path == "/\(repository)/releases/tag/\(tag)" else { throw UpdateError.invalidRelease }
+        let basename = "AIFleet-\(tag)-macos-\(architecture).zip"
+        let base = "https://github.com/\(repository)/releases/download/\(tag)/"
+        return Release(version: version,
+            archive: Asset(name: basename, browserDownloadURL: URL(string: base + basename)!),
+            checksum: Asset(name: basename + ".sha256", browserDownloadURL: URL(string: base + basename + ".sha256")!))
     }
 
     static func download(_ release: Release) async throws -> Download {
@@ -257,23 +232,21 @@ private enum ReleaseUpdater {
         var request = URLRequest(url: asset.browserDownloadURL)
         request.setValue("AI-Fleet/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 60
-        let (temporaryURL, response) = try await URLSession.shared.download(for: request)
-        try validate(response)
+        let temporaryURL: URL
+        let response: URLResponse
+        do { (temporaryURL, response) = try await URLSession.shared.download(for: request) }
+        catch { throw UpdateError.requestFailed("Release download", error.localizedDescription) }
+        try validate(response, operation: "Release download")
 
         let destination = directory.appendingPathComponent(asset.name)
         try FileManager.default.moveItem(at: temporaryURL, to: destination)
         return destination
     }
 
-    private static func validate(_ response: URLResponse) throws {
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw UpdateError.downloadFailed
-        }
-    }
-
-    private static func validateDownloadURL(_ url: URL) throws {
-        guard url.scheme == "https", url.host == "github.com" else {
-            throw UpdateError.invalidRelease
+    static func validate(_ response: URLResponse, operation: String) throws {
+        guard let http = response as? HTTPURLResponse else { throw UpdateError.requestFailed(operation, "Invalid server response.") }
+        guard (200..<300).contains(http.statusCode) else {
+            throw UpdateError.httpFailure(operation, http.statusCode)
         }
     }
 
@@ -337,7 +310,8 @@ private enum UpdateError: LocalizedError {
     case installLocationNotWritable
     case invalidRelease
     case missingReleaseAsset
-    case downloadFailed
+    case httpFailure(String, Int)
+    case requestFailed(String, String)
     case invalidChecksum
     case checksumMismatch
     case invalidApplicationBundle
@@ -353,8 +327,10 @@ private enum UpdateError: LocalizedError {
             return "GitHub returned an invalid release."
         case .missingReleaseAsset:
             return "The latest release has no build for this Mac."
-        case .downloadFailed:
-            return "The release download failed."
+        case .httpFailure(let operation, let code):
+            return "\(operation) failed (HTTP \(code)). Retry update."
+        case .requestFailed(let operation, let reason):
+            return "\(operation) failed: \(reason)"
         case .invalidChecksum:
             return "The release checksum is invalid."
         case .checksumMismatch:

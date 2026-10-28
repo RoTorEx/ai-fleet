@@ -15,6 +15,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var gemini: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.gemini)
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var lastError: String?
+    @Published private(set) var isRefreshing = false
+    private var refreshID: UUID?
     @Published var notificationStatusText = "Checking"
     @Published var notificationsEnabled = false
 
@@ -196,13 +198,19 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         timer = nil
         task?.cancel()
         task = nil
+        refreshID = nil
+        isRefreshing = false
     }
 
     func refresh() {
         guard signingOutProvider == nil else { return }
         let previous = task
         previous?.cancel()
+        let id = UUID()
+        refreshID = id
+        isRefreshing = true
         task = Task { @MainActor in
+            defer { if refreshID == id { isRefreshing = false } }
             await previous?.value
             guard !Task.isCancelled else { return }
             lastError = nil
@@ -310,14 +318,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     static func checkClaudeProfile(_ profile: ClaudeProfile, executableURL: URL?,
                                    quotaSession: URLSession? = nil) async -> ProviderStatus {
-        let (snapshot, credential) = await Task.detached(priority: .utility) {
+        let (snapshot, resolution) = await Task.detached(priority: .utility) {
             let snapshot = ClaudeAuthReader(executableURL: executableURL, environment: profile.environment()).readSnapshot()
-            return (snapshot, ClaudeQuotaCredential.read(snapshot: snapshot, profile: profile))
+            return (snapshot, ClaudeQuotaCredential.resolve(snapshot: snapshot, profile: profile))
         }.value
         let status: ProviderStatus
         if snapshot.auth != .signedIn {
             status = snapshot.auth.status(for: ProviderCatalog.claude)
-        } else if let credential {
+        } else if let credential = resolution.credential {
             if let quotaSession {
                 status = await ClaudeQuota.fetch(credential: credential, session: quotaSession)
             } else {
@@ -327,7 +335,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 }
             }
         } else {
-            status = ClaudeQuota.unavailable("Signed in · quota unavailable")
+            status = ClaudeQuota.unavailable(resolution.detail)
         }
         // A failed usage endpoint does not undo a successful native auth check.
         // Only an explicit credential rejection invalidates the confirmed login.

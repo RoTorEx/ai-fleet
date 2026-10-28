@@ -37,17 +37,12 @@ final class MenuLayoutTests: XCTestCase {
             XCTAssertTrue(popover.isShown)
             XCTAssertEqual(host.view.fittingSize.width, 354, accuracy: 1)
             XCTAssertGreaterThan(host.view.fittingSize.height, 250)
-            if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"], let window = host.view.window {
-                // Capture the composited screen region: window-only captures omit material backdrops.
-                let capture = Process()
-                capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-                let frame = window.frame
-                let top = (NSScreen.screens.first?.frame.maxY ?? 0) - frame.maxY
-                capture.arguments = ["-x", "-R\(Int(frame.minX)),\(Int(top)),\(Int(frame.width)),\(Int(frame.height))",
-                    URL(fileURLWithPath: directory).appendingPathComponent("native-menu-\(appearance.rawValue).png").path]
-                try capture.run()
-                capture.waitUntilExit()
-                XCTAssertEqual(capture.terminationStatus, 0)
+            if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
+               let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
+                // Preview menu content without depending on screen-recording access or display geometry.
+                host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+                try bitmap.representation(using: .png, properties: [:])?.write(to:
+                    URL(fileURLWithPath: directory).appendingPathComponent("native-menu-\(appearance.rawValue).png"))
             }
             popover.performClose(nil)
         }

@@ -102,7 +102,11 @@ to retain each account's remaining quota while using another. Running terminal
 sessions keep their current authorization. **Sign out** clears only the selected
 account's saved Codex login.
 
-The menu shows each account's remaining 5h/7d quota. **Statistics → Codex →
+The menu shows each account's remaining 5h/7d limits. A circle means current
+limits are loaded, × requests sign-in, and ? with a gray row means limits are
+unavailable, even if the CLI has a configured login. The row explains why.
+The header separates application Status, last Checked time, and Limits loaded.
+→ marks Current and ↓ marks Lowest. **Statistics → Codex →
 Accounts** compares tokens and quotas under the same account letters for `7d`,
 `30d`, `90d` and `All`. These account totals come from provider-reported dates;
 shared local model history and cost estimates are not split between accounts.
@@ -219,6 +223,8 @@ The default destination is `~/Applications/AIFleet.app`. Pass `--system` to
 select `/Applications` when the current user can write there, or
 `--version MAJOR.MINOR.PATCH` to install one exact release.
 
+Update failures appear in the top Status with a **Retry update…** action.
+Version checks use the public release redirect without a GitHub API token.
 Choose **Update…** in the menu to download the newest compatible release,
 verify its SHA-256 checksum, bundle identity, version, and code signature,
 replace the installed application, and relaunch it. Updates do not bypass macOS

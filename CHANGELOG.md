@@ -4,6 +4,16 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Separate app-operation Status from provider limit availability; use Checked,
+  Limits and Current labels. Mark missing/stale limits gray with ? independently
+  of configured login, and explain expired Claude access instead of showing a
+  misleading signed-in success indicator. Retain actual login actions.
+- Report update failures once in Status with retry and the correct failing stage.
+  Check the public latest-release redirect instead of the rate-limited GitHub
+  API; retain checksum, version, signature and repository validation.
+
 ## [1.3.4] - 2026-10-28
 
 ### Fixed

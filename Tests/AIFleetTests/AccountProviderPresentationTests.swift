@@ -4,6 +4,35 @@ import XCTest
 @testable import AIFleet
 
 final class AccountProviderPresentationTests: XCTestCase {
+    func testMenuAvailabilityAndLoginAreDifferentStates() {
+        let signedInWithoutLimits = ProviderStatus(id: "claude", name: "Claude", state: .offline,
+            detail: "Limits access expired · sign in again", lastUpdated: Date(), authentication: .signedIn)
+        let unavailable = MenuConnectionState(status: signedInWithoutLimits)
+        XCTAssertFalse(unavailable.available)
+        XCTAssertEqual(unavailable.marker, "?")
+        XCTAssertEqual(unavailable.detail, "Limits access expired · sign in again")
+        let signedOut = ProviderStatus(id: "codex", name: "Codex", state: .noKey, detail: "Sign in required", lastUpdated: nil)
+        XCTAssertEqual(MenuConnectionState(status: signedOut).marker, "×")
+        let exhausted = status("work@example.test", remaining: 0)
+        XCTAssertTrue(MenuConnectionState(status: exhausted).available)
+        XCTAssertEqual(MenuConnectionState(status: exhausted).marker, "○", "Zero is a loaded limit, not missing access")
+        let stale = exhausted.withQuotaNotice("Retry later")
+        XCTAssertFalse(MenuConnectionState(status: stale).available)
+        XCTAssertEqual(MenuConnectionState(status: stale).marker, "?")
+    }
+
+    func testMenuStatusDescribesApplicationOperationsAndKeepsUpdateFailureVisible() {
+        XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: false).title, "Idle")
+        XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: true).title, "Updating limits…")
+        XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: true, signingIn: "Signing in Codex (β)…").title,
+                       "Signing in Codex (β)…")
+        let failed = MenuOperationStatus.resolve(update: .failed("Update check failed (HTTP 403)."), refreshing: true)
+        XCTAssertTrue(failed.failed)
+        XCTAssertEqual(failed.title, "Update failed")
+        XCTAssertEqual(failed.detail, "Update check failed (HTTP 403).")
+        XCTAssertEqual(MenuOperationStatus.resolve(update: .checking, refreshing: false).title, "Checking for updates…")
+    }
+
     func testQuotaAvailabilityRequiresCurrentMeasurementRatherThanLogin() {
         func measured(_ remaining: Int?, auth: ProviderStatus.Authentication = .signedIn,
                       quota: ProviderStatus.QuotaState) -> ProviderStatus {
@@ -12,9 +41,9 @@ final class AccountProviderPresentationTests: XCTestCase {
         }
         let available = measured(74, quota: .available)
         let noClaudeQuota = measured(nil, quota: .unavailable)
-        XCTAssertEqual(quotaAvailabilityText([available, available, noClaudeQuota]), "2/3 available")
+        XCTAssertEqual(quotaAvailabilityText([available, available, noClaudeQuota]), "2/3 loaded")
         XCTAssertEqual(quotaAvailabilityText([available, measured(0, quota: .exhausted),
-            noClaudeQuota, measured(70, quota: .stale), measured(99, auth: .unknown, quota: .available)]), "2/5 available")
+            noClaudeQuota, measured(70, quota: .stale), measured(99, auth: .unknown, quota: .available)]), "2/5 loaded")
         XCTAssertEqual(quotaAvailabilityText([]), "none installed")
     }
 

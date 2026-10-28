@@ -2,6 +2,19 @@ import XCTest
 @testable import AIFleet
 
 final class ClaudeQuotaTests: XCTestCase {
+    func testExpiredCredentialExplainsMissingLimitsWithoutPretendingTheCLIIsSignedOut() {
+        let now = Date(timeIntervalSince1970: 100)
+        let expired = ClaudeQuotaCredential.decodeResolution(
+            Data(#"{"claudeAiOauth":{"accessToken":"fixture","expiresAt":99000,"scopes":["user:profile"]}}"#.utf8), now: now)
+        XCTAssertNil(expired.credential)
+        XCTAssertEqual(expired.detail, "Limits access expired · sign in again")
+        let valid = ClaudeQuotaCredential.decodeResolution(
+            Data(#"{"claudeAiOauth":{"accessToken":"fixture","expiresAt":101000,"scopes":["user:profile"]}}"#.utf8), now: now)
+        XCTAssertNotNil(valid.credential)
+        XCTAssertEqual(valid.detail, "")
+        XCTAssertNil(ClaudeQuotaCredential.decodeResolution(Data("{}".utf8), now: now).credential)
+    }
+
     func testMainWindowsShowRemainingQuotaAndFractionalResetTimes() throws {
         let status = try ClaudeQuota.decode(Data(#"{"five_hour":{"utilization":24.5,"resets_at":"2026-10-06T19:39:59.920314+00:00"},"seven_day":{"utilization":90,"resets_at":"2026-10-08T14:59:59Z"},"seven_day_sonnet":{"utilization":99}}"#.utf8))
         XCTAssertEqual(status.limitWindows.map(\.remainingPercent), [76, 10])

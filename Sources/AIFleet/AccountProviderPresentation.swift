@@ -1,7 +1,43 @@
 import Foundation
 
 func quotaAvailabilityText(_ statuses: [ProviderStatus]) -> String {
-    statuses.isEmpty ? "none installed" : "\(statuses.filter(\.hasCurrentQuota).count)/\(statuses.count) available"
+    statuses.isEmpty ? "none installed" : "\(statuses.filter(\.hasCurrentQuota).count)/\(statuses.count) loaded"
+}
+
+struct MenuConnectionState {
+    let status: ProviderStatus
+    var available: Bool { status.hasCurrentQuota }
+    var marker: String { available ? "○" : status.authentication.needsAccess ? "×" : "?" }
+    var detail: String {
+        if status.authentication.needsAccess { return "Sign in to load limits" }
+        if status.quotaState == .unsupported { return "Limit tracking not supported" }
+        if status.quotaState == .stale { return "Last known limits · update pending" }
+        if status.detail == "Signed in · quota unavailable" || status.detail == "Quota unavailable" { return "Limits unavailable" }
+        if status.detail == "Auth status unknown" { return "Could not verify login" }
+        return status.detail.replacingOccurrences(of: "Signed in · ", with: "")
+            .replacingOccurrences(of: "quota", with: "limits")
+            .replacingOccurrences(of: "Quota", with: "Limits")
+    }
+}
+
+struct MenuOperationStatus {
+    let title: String
+    var detail: String? = nil
+    var failed = false
+
+    static func resolve(update: UpdateService.State, refreshing: Bool, signingIn: String? = nil) -> Self {
+        switch update {
+        case .checking: return Self(title: "Checking for updates…")
+        case .downloading(let version): return Self(title: "Downloading v\(version)…")
+        case .installing(let version): return Self(title: "Installing v\(version)…")
+        case .failed(let message): return Self(title: "Update failed", detail: message, failed: true)
+        case .idle, .upToDate:
+            if let signingIn { return Self(title: signingIn) }
+            if refreshing { return Self(title: "Updating limits…") }
+            if case .upToDate = update { return Self(title: "Up to date") }
+            return Self(title: "Idle")
+        }
+    }
 }
 
 /// Keep tools together; prioritize the current CLI account within each tool.

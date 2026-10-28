@@ -116,22 +116,20 @@ receive no current row; the provider summary retains the actual native status.
 
 ## UI
 
-- `AIFleetMenuView` — one row per connected account/provider pair, grouped by
-  provider. Each small parenthesized badge follows the provider name; there is
-  no circle or separate account-name line. Selected rows use
-  status colors and the legend’s → marker. Selection, Lowest, and authentication
-  markers use aligned left columns; quotas align with the provider name. Only
-  the ellipsis menu occupies the right edge. Inactive rows and quota windows are
-  gray. Unavailable connections retain × plus their reason. Ellipsis actions
-  contain global native Sign in and local Sign out on the active row; no isolated
-  launch or manual Use action. Failed sign-out retains a Retry sign out action.
-  Badge hover shows only email and plan immediately, using a noninteractive
-  inline overlay above neighbouring rows rather than delayed native help. Health/Lowest summarize native global connections.
-  Long connection lists use a bounded scroll area measured from the actual
-  row content. Short content keeps its natural height even when adding a fourth
-  row activates scrolling; additions, removals and quota changes resize the
-  open menu up to its screen-dependent cap. The legend separates Auth,
-  Selection, Quota, and quota colors; no automatic fallback is advertised.
+- `AIFleetMenuView` — one row per connected account/provider pair, sorted by
+  tool, current CLI account first, then Greek badge. Parenthesized badges follow
+  the provider name; aligned left columns show current, lowest, and measurement
+  availability markers. `MenuConnectionState` determines ○/×/? and gray from
+  current limit availability independently of configured authentication.
+  Each row reports its own missing-limit reason, login progress and errors.
+  Ellipsis actions preserve actual login state and per-account Codex isolation.
+  Badge hover shows email/plan. `MenuOperationStatus` owns the top operation
+  status and update errors; Checked shows the last check and Limits counts
+  current measurements. The legend uses Color, Limits, Current and Lowest.
+  Commands remain compact; native popover clipping owns the corners around a
+  plain system background. Long connection lists use a measured bounded scroll
+  area; short lists retain natural height. [Accounts](../../business/accounts.md)
+  owns presentation and matching semantics.
 - `SettingsNavigation` — shared, transient tab/add-provider navigation, including
   requests delivered while the existing Settings window is already open.
 - `AccountsSettingsView` — account editor in the existing Settings window's
@@ -216,6 +214,10 @@ receive no current row; the provider summary retains the actual native status.
 - Annotated `vMAJOR.MINOR.PATCH` tags trigger native Apple Silicon and Intel
   builds in GitHub Actions.
 - Release ZIPs and their SHA-256 files are attached to GitHub Releases.
+- In-app update checks follow the public HTTPS latest-release redirect and
+  validate the exact repository/tag destination, avoiding the unauthenticated
+  GitHub API rate limit. Downloads use fixed architecture-specific asset names;
+  check and download failures retain their actual stage and HTTP status.
 - In-app updates accept only HTTPS assets from `RoTorEx/ai-fleet`, require the
   expected architecture-specific filenames, verify SHA-256, bundle identifier,
   release version, and code signature, then replace the running app.

@@ -34,22 +34,22 @@ Claude and the other provider integrations retain their standard global CLI
 login. Their Sign in uses the provider's browser/SSO flow in Terminal. The badge
 names the account the provider belongs to; it does not route prompts or choose an
 email in the browser. The current CLI account may show →. Other independently
-signed-in Codex accounts retain normal colors and their own quota without that
+measured Codex accounts retain normal colors and their own limits without that
 arrow. ↓ and the summary Lowest row identify the exact account connection,
 including its badge. Placeholder provider rows are hidden when real account
 associations exist. Provider visibility applies to menu rows and statistics tabs.
 
 Menu rows sort first by tool name alphabetically, then put that tool's current
 CLI account (→) first, then order the other accounts by Greek badge allocation.
-Independent signed-in accounts retain normal colors but do not outrank the
+Independently measured accounts retain normal colors but do not outrank the
 current CLI account. Changing the current account reorders only its tool group;
 it never moves that tool above an alphabetically earlier tool.
 
-The menu's Quota summary counts connections with current reported quota, not
+The menu's Limits summary counts connections with current reported quota, not
 signed-in accounts. A signed-in provider without a measurement is excluded;
 stale and unknown measurements are excluded too. A current exhausted (0%) quota
 is still reported data and counts. For two measured Codex accounts and an
-authenticated Claude without quota, the summary reads `2/3 available`.
+authenticated Claude without quota, the summary reads `2/3 loaded`.
 Account login progress, cancellation and errors appear beneath that provider's
 own row, never as an unscoped banner beneath the application version. Each
 message retains its account badge, including after a failed login completes.
@@ -95,12 +95,21 @@ the native status. With no reported email, status belongs to the native-default
 connection’s existing owner as a label fallback, without claiming verified
 identity. Historical manual selections do not determine status or login.
 
-Authentication and quota remain independent: ○ signed in, × requires sign-in,
-? unknown. Exhaustion is 0%, not missing login. Missing or failed measurements
-never become 100% remaining. Email/plan hover identifies the actual provider
-identity. Global-provider errors retain their existing authentication rules.
-Account-specific Codex errors or mismatched identity cannot borrow another
-account's limits or tokens. Old shared session history is not split by badge.
+Authentication and limit measurement remain independent internally. Menu markers
+communicate measurement availability: ○ current limits loaded (including 0%),
+× sign-in required, ? limits unavailable or unknown. Any connection without
+current limits is gray, even if its CLI reports a configured login; a missing
+measurement never looks ready. The concise Current legend explains → and gray;
+Lowest explains ↓. Email/plan hover and login actions retain actual authentication
+state. Account-specific errors cannot borrow another account's limits or tokens.
+Old shared session history is not split by badge.
+
+The top Status row describes application operations: checking/downloading/installing
+an update, authentication of a named account, refreshing limits, or Idle. Provider
+measurement problems belong to their own rows and never become an unscoped app
+error. Checked names the last provider check; Limits counts current measurements.
+Update errors appear once in Status, including the failing stage, with Retry update
+as the command. Account authentication errors remain under their named provider.
 
 ## Storage and preservation
 

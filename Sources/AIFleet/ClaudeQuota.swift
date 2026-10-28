@@ -19,25 +19,53 @@ struct ClaudeQuotaCredential {
         return ClaudeQuotaCredential(accessToken: oauth.accessToken, expiresAt: expiry)
     }
 
+    struct Resolution {
+        let credential: ClaudeQuotaCredential?
+        let detail: String
+    }
+
+    static func decodeResolution(_ data: Data, now: Date = Date()) -> Resolution {
+        if let credential = decode(data, now: now) { return Resolution(credential: credential, detail: "") }
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        if let oauth = json?["claudeAiOauth"] as? [String: Any],
+           let expires = oauth["expiresAt"] as? Double, expires / 1000 <= now.timeIntervalSince1970 {
+            return Resolution(credential: nil, detail: "Limits access expired · sign in again")
+        }
+        return Resolution(credential: nil, detail: "Limits access unavailable · sign in again")
+    }
+
     static func read(snapshot: ClaudeAuthSnapshot, profile: ClaudeProfile? = nil) -> ClaudeQuotaCredential? {
-        guard snapshot.auth == .signedIn, snapshot.authMethod == "claude.ai" else { return nil }
+        resolve(snapshot: snapshot, profile: profile).credential
+    }
+
+    static func resolve(snapshot: ClaudeAuthSnapshot, profile: ClaudeProfile? = nil) -> Resolution {
+        guard snapshot.auth == .signedIn, snapshot.authMethod == "claude.ai" else {
+            return Resolution(credential: nil, detail: "Limits require a Claude subscription login")
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let defaultDirectory = home.appendingPathComponent(".claude")
         let directory = snapshot.configDirectory.map { URL(fileURLWithPath: $0) } ?? defaultDirectory
         if let profile, let reported = snapshot.configDirectory {
             let requested = profile.configDirectory.map { URL(fileURLWithPath: $0) } ?? defaultDirectory
-            guard URL(fileURLWithPath: reported).standardizedFileURL == requested.standardizedFileURL else { return nil }
+            guard URL(fileURLWithPath: reported).standardizedFileURL == requested.standardizedFileURL else {
+                return Resolution(credential: nil, detail: "Limits account mismatch · check login")
+            }
         }
-        if let data = try? Data(contentsOf: directory.appendingPathComponent(".credentials.json")),
-           let credential = decode(data) { return credential }
-        // Named profiles use only their own scoped Keychain item.
+        var failure = Resolution(credential: nil, detail: "Limits access unavailable · sign in again")
+        if let data = try? Data(contentsOf: directory.appendingPathComponent(".credentials.json")) {
+            let result = decodeResolution(data)
+            if result.credential != nil { return result }
+            failure = result
+        }
+        // Named profiles never borrow another profile's Keychain credentials.
         guard profile != nil || directory.standardizedFileURL == defaultDirectory.standardizedFileURL,
               let result = LocalCommandReader.read(
                 executableURL: URL(fileURLWithPath: "/usr/bin/security"),
                 arguments: ["find-generic-password", "-s", profile?.keychainService ?? "Claude Code-credentials", "-w"]),
-              result.exitCode == 0 else { return nil }
-        return decode(result.data)
+              result.exitCode == 0 else { return failure }
+        return decodeResolution(result.data)
     }
+
 }
 
 enum ClaudeQuota {
