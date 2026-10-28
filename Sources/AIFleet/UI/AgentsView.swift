@@ -115,8 +115,7 @@ struct AgentsView: View {
             }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 11)
         }
         .frame(width: 520)
-        .background(Color(nsColor: .windowBackgroundColor).opacity(0.97))
-        .clipShape(RoundedRectangle(cornerRadius: 15))
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var emptyTitle: String { service.sessions.isEmpty ? "No linked agents yet" : "No sessions in this filter" }

@@ -125,6 +125,8 @@ final class AccountStore: ObservableObject {
     @Published private(set) var accounts: [FleetAccount]
     @Published private(set) var selections: [String: String]
     @Published var launchError: String?
+    @Published private(set) var launchProviderID: String?
+    @Published private(set) var launchAccountID: String?
     @Published private(set) var codexSigningIn = false
     private var codexLoginOperation: CodexAuthenticationOperation?
 
@@ -260,8 +262,10 @@ final class AccountStore: ObservableObject {
         return discovered.id
     }
 
-    func signInGlobally(_ providerID: String) {
+    func signInGlobally(_ providerID: String, accountID: String? = nil) {
         guard StatusService.shared.signingOutProvider == nil, !codexSigningIn else { return }
+        launchProviderID = providerID
+        launchAccountID = accountID
         guard let provider = ProviderCatalog.definition(for: providerID),
               let executable = ProviderCatalog.executableURL(for: provider) else {
             launchError = "Provider CLI is not installed."
@@ -287,6 +291,7 @@ final class AccountStore: ObservableObject {
     func startCodexSignIn(executable: URL,
                           inventory: @escaping @Sendable () throws -> [Int32] = { try CodexProcessInventory().runningPIDs() }) {
         guard !codexSigningIn, StatusService.shared.signingOutProvider == nil else { return }
+        launchProviderID = "codex"
         launchError = nil
         let operation = CodexAuthenticationOperation()
         codexLoginOperation = operation

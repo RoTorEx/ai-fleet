@@ -4,6 +4,20 @@ import XCTest
 @testable import AIFleet
 
 final class AccountProviderPresentationTests: XCTestCase {
+    func testQuotaAvailabilityRequiresCurrentMeasurementRatherThanLogin() {
+        func measured(_ remaining: Int?, auth: ProviderStatus.Authentication = .signedIn,
+                      quota: ProviderStatus.QuotaState) -> ProviderStatus {
+            ProviderStatus(id: "fixture", name: "Fixture", state: .ok, detail: "Fixture", lastUpdated: Date(),
+                remainingPercent: remaining, authentication: auth, quotaState: quota)
+        }
+        let available = measured(74, quota: .available)
+        let noClaudeQuota = measured(nil, quota: .unavailable)
+        XCTAssertEqual(quotaAvailabilityText([available, available, noClaudeQuota]), "2/3 available")
+        XCTAssertEqual(quotaAvailabilityText([available, measured(0, quota: .exhausted),
+            noClaudeQuota, measured(70, quota: .stale), measured(99, auth: .unknown, quota: .available)]), "2/5 available")
+        XCTAssertEqual(quotaAvailabilityText([]), "none installed")
+    }
+
     private func status(_ email: String, remaining: Int) -> ProviderStatus {
         ProviderStatus(id: "codex", name: "Codex", state: .ok, detail: "Measured", lastUpdated: Date(),
             remainingPercent: remaining,

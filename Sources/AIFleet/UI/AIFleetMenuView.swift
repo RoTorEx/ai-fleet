@@ -32,16 +32,6 @@ struct AIFleetMenuView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             summarySection
-            if accounts.codexSigningIn {
-                CodexSignInProgress(accounts: accounts)
-                    .padding(.horizontal, 16).padding(.top, 8)
-            }
-            CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts)
-                .padding(.horizontal, 16)
-            if let error = accounts.launchError {
-                Text(error).font(.caption).foregroundColor(FleetPalette.danger)
-                    .padding(.horizontal, 16).padding(.top, 8)
-            }
 
             FleetDivider()
                 .padding(.top, 11)
@@ -63,7 +53,7 @@ struct AIFleetMenuView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 9)
 
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 0) {
                 ActionButton(title: "Refresh now", shortcut: "⌘R", keyEquivalent: "r", modifiers: .command) {
                     service.refresh(); codexProfiles.refresh(force: true)
                 }
@@ -101,14 +91,7 @@ struct AIFleetMenuView: View {
         }
         .padding(.vertical, 14)
         .frame(width: 354)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(FleetPalette.background.opacity(0.96))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(FleetPalette.border, lineWidth: 1)
-        )
+        .background(FleetPalette.background)
     }
 
     private var providerRows: some View {
@@ -139,8 +122,8 @@ struct AIFleetMenuView: View {
                 )
             }
             GridRow {
-                summaryLabel("Connections")
-                summaryValue(providers.isEmpty ? "none installed" : "\(activeProviderCount)/\(providers.count) available")
+                summaryLabel("Quota")
+                summaryValue(quotaAvailabilityText(providers))
             }
             GridRow {
                 summaryLabel("Version")
@@ -185,10 +168,6 @@ struct AIFleetMenuView: View {
         default:
             return FleetPalette.muted
         }
-    }
-
-    private var activeProviderCount: Int {
-        providers.filter { $0.authentication == .signedIn }.count
     }
 
     private var lastUpdateText: String {
@@ -302,7 +281,7 @@ struct ProviderLimitRow: View {
                                 openSettings()
                             } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
                         }
-                        else { accounts.signInGlobally(status.providerID) }
+                        else { accounts.signInGlobally(status.providerID, accountID: entry.account.id) }
                     }
                     .help("Sign in to this account. Existing Codex terminal sessions keep their current login.")
                     if entry.usesAccountLogin {
@@ -344,6 +323,20 @@ struct ProviderLimitRow: View {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
                     .lineLimit(2).padding(.leading, 52)
+            }
+            if entry.usesAccountLogin {
+                CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
+                    .padding(.leading, 52)
+            }
+            if accounts.launchProviderID == status.providerID &&
+                (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {
+                if accounts.codexSigningIn && status.providerID == "codex" && entry.isCurrentCLI == true {
+                    CodexSignInProgress(accounts: accounts).padding(.leading, 52)
+                }
+                if let error = accounts.launchError {
+                    Text("Sign-in: \(error)").font(.caption).foregroundColor(FleetPalette.danger)
+                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
+                }
             }
         }
         .overlay(alignment: .topLeading) {
@@ -549,7 +542,7 @@ struct ActionButton: View {
                     .foregroundColor(FleetPalette.muted)
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.vertical, 3)
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())

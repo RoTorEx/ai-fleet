@@ -21,6 +21,8 @@ final class CodexMonitoringStore: ObservableObject {
     @Published private(set) var results: [String: CodexMonitoringResult] = [:]
     @Published private(set) var refreshing = false
     @Published private(set) var authenticatingID: String?
+    @Published private(set) var authenticationAction: CodexAuthenticationOperation.Action?
+    @Published private(set) var errorProfileID: String?
     @Published var error: String?
     private let defaults: UserDefaults
     private let root: URL
@@ -175,6 +177,7 @@ final class CodexMonitoringStore: ObservableObject {
     private func changeAuthentication(_ action: CodexAuthenticationOperation.Action, profile: CodexMonitoringProfile) {
         guard authenticatingID == nil, !refreshing, profiles.contains(where: { $0.id == profile.id }) else { return }
         error = nil
+        errorProfileID = profile.id
         let directory: URL
         do {
             directory = try self.directory(for: profile)
@@ -186,6 +189,7 @@ final class CodexMonitoringStore: ObservableObject {
         let operation = CodexAuthenticationOperation()
         self.operation = operation
         authenticatingID = profile.id
+        authenticationAction = action
         let authenticate = self.authenticate
         Task {
             let failure = await Task.detached(priority: .userInitiated) { () -> String? in
@@ -207,7 +211,9 @@ final class CodexMonitoringStore: ObservableObject {
             }
             self.operation = nil
             self.authenticatingID = nil
+            self.authenticationAction = nil
             self.error = outcome
+            self.errorProfileID = outcome == nil ? nil : profile.id
             // Even cancellation can race with native completion: discard old identity measurements.
             self.results.removeValue(forKey: profile.id)
             self.lastRefresh = nil
@@ -238,6 +244,7 @@ final class CodexMonitoringStore: ObservableObject {
                 } catch {
                     self.results.removeValue(forKey: profile.id)
                     self.error = "Could not read a redirected Codex profile directory."
+                    self.errorProfileID = profile.id
                 }
             }
             self.lastRefresh = Date()

@@ -45,6 +45,15 @@ Independent signed-in accounts retain normal colors but do not outrank the
 current CLI account. Changing the current account reorders only its tool group;
 it never moves that tool above an alphabetically earlier tool.
 
+The menu's Quota summary counts connections with current reported quota, not
+signed-in accounts. A signed-in provider without a measurement is excluded;
+stale and unknown measurements are excluded too. A current exhausted (0%) quota
+is still reported data and counts. For two measured Codex accounts and an
+authenticated Claude without quota, the summary reads `2/3 available`.
+Account login progress, cancellation and errors appear beneath that provider's
+own row, never as an unscoped banner beneath the application version. Each
+message retains its account badge, including after a failed login completes.
+
 Codex's shared cached credentials can change while an existing CLI, IDE or
 app-server process still holds the previous identity. On subsequent refresh,
 Codex may reject that process with the account-changed token error. Repeating

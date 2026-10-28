@@ -4,6 +4,44 @@ import XCTest
 @testable import AIFleet
 
 final class CodexMonitoringTests: XCTestCase {
+    @MainActor
+    func testAuthenticationProgressAndFailureStayWithTheirAccount() async throws {
+        let root = try root()
+        let suite = "auth-row-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let accounts = AccountStore(defaults: defaults, homeDirectory: root)
+        let personal = accounts.add(name: "Personal", email: "personal@example.test")
+        let work = accounts.add(name: "Work", email: "work@example.test")
+        let finish = DispatchSemaphore(value: 0)
+        let store = CodexMonitoringStore(defaults: defaults, root: root, authenticate: { _, _, _ in
+            _ = finish.wait(timeout: .now() + 5)
+            throw CodexAuthenticationError.failed
+        })
+        let profile = store.ensureProfile(for: work)
+        store.signIn(profile)
+        XCTAssertEqual(store.authenticatingID, profile.id)
+        XCTAssertEqual(store.authenticationAction, .login)
+        func height(_ account: FleetAccount) -> CGFloat {
+            let host = NSHostingController(rootView:
+                CodexAccountAuthenticationStatus(store: store, accounts: accounts, accountID: account.id).frame(width: 260))
+            host.view.layoutSubtreeIfNeeded()
+            return host.view.fittingSize.height
+        }
+        XCTAssertEqual(height(personal), 0, accuracy: 1)
+        XCTAssertGreaterThan(height(work), 20)
+        finish.signal()
+        for _ in 0..<200 where store.authenticatingID != nil || store.refreshing {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNil(store.authenticatingID)
+        XCTAssertNil(store.authenticationAction)
+        XCTAssertEqual(store.errorProfileID, profile.id)
+        XCTAssertNotNil(store.error)
+        XCTAssertEqual(height(personal), 0, accuracy: 1)
+        XCTAssertGreaterThan(height(work), 20)
+    }
+
     private func root() throws -> URL {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

@@ -196,6 +196,10 @@ subscription charges.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.
+- The native popover owns its surface, border and rounded corners; menu content
+  does not draw a second rounded panel. Command rows use compact spacing like
+  the summary. Quota availability counts current measurements independently of
+  login, and authentication progress/errors belong to the affected account row.
 - Remaining-quota color states in the compact menu are red at `10%` or below,
   orange from `11%` through `25%` inclusive, and normal at `26%` or above.
   The boundaries make the warning band more visible before an account becomes

@@ -4,6 +4,13 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Remove the duplicate menu panel behind native popover corners and tighten
+  command spacing. Replace Connections with Quota and count only current quota
+  measurements. Show login progress and errors beneath their own account row,
+  with the correct sign-in/sign-out action and account badge.
+
 ## [1.3.3] - 2026-10-28
 
 ### Fixed

@@ -100,7 +100,7 @@ struct AccountsSettingsView: View {
         store.attachGlobal(providerID, to: account.id)
         selectedID = account.id
         if providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
-        else { store.signInGlobally(providerID) }
+        else { store.signInGlobally(providerID, accountID: account.id) }
         isAdding = false
         email = ""; name = ""
         service.refresh()
@@ -152,7 +152,7 @@ private struct AccountEditor: View {
                     HStack {
                         Button("Sign in…") {
                             if connection.providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
-                            else { store.signInGlobally(connection.providerID) }
+                            else { store.signInGlobally(connection.providerID, accountID: account.id) }
                         }
                         if connection.providerID == "codex" {
                             if let profile = codex.profile(for: account), status?.authentication == .signedIn {
@@ -182,17 +182,32 @@ private struct AccountEditor: View {
 struct CodexAccountAuthenticationStatus: View {
     @ObservedObject var store: CodexMonitoringStore
     @ObservedObject var accounts: AccountStore
+    var accountID: String? = nil
+
+    private func matches(_ id: String?) -> Bool {
+        guard let accountID else { return true }
+        return store.profiles.first { $0.id == id }?.accountID == accountID
+    }
+    private func label(_ id: String?) -> String {
+        let linkedID = store.profiles.first { $0.id == id }?.accountID
+        let badge = accounts.accounts.first { $0.id == linkedID }?.badge ?? ""
+        return badge.isEmpty ? "Codex" : "Codex (\(badge))"
+    }
     var body: some View {
-        if let id = store.authenticatingID {
-            let accountID = store.profiles.first { $0.id == id }?.accountID
-            let badge = accounts.accounts.first { $0.id == accountID }?.badge ?? ""
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Complete Codex (\(badge)) sign-in in your browser…").font(.caption)
-                Button("Cancel") { store.cancelAuthentication() }.font(.caption)
+        if let id = store.authenticatingID, matches(id) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.small)
+                    Text(store.authenticationAction == .logout ? "\(label(id)): signing out…" : "\(label(id)): complete sign-in in your browser…")
+                        .font(.caption).fixedSize(horizontal: false, vertical: true)
+                }
+                Button("Cancel") { store.cancelAuthentication() }.font(.caption).buttonStyle(.link)
             }
         }
-        if let error = store.error { Text(error).font(.caption).foregroundColor(.red) }
+        if let error = store.error, matches(store.errorProfileID) {
+            Text("\(label(store.errorProfileID)): \(error)").font(.caption).foregroundColor(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 

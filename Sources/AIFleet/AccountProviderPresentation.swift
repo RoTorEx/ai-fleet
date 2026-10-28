@@ -1,5 +1,9 @@
 import Foundation
 
+func quotaAvailabilityText(_ statuses: [ProviderStatus]) -> String {
+    statuses.isEmpty ? "none installed" : "\(statuses.filter(\.hasCurrentQuota).count)/\(statuses.count) available"
+}
+
 /// Keep tools together; prioritize the current CLI account within each tool.
 func sortedAccountProviderRows(_ rows: [MenuAccountConnection]) -> [MenuAccountConnection] {
     rows.sorted { lhs, rhs in
