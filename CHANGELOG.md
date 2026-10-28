@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-10-28
+
 ### Fixed
 
 - Remove the duplicate menu panel behind native popover corners and tighten
