@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-28
+
 ### Fixed
 
 - Refuse Codex account changes while CLI or IDE/desktop Codex processes are
