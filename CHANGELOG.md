@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-28
+
 ### Fixed
 
 - Sort menu connections by tool name, current CLI account first within each
