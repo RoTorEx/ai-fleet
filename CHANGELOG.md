@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.6] - 2026-10-28
+
 ### Fixed
 
 - Replace color-name and mixed-state legend rows with Capacity, Access and Marks.
