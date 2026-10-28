@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.7] - 2026-10-28
+
 ### Fixed
 
 - Scale legend arrows to its 10.5-point text while retaining equal arrow lengths
