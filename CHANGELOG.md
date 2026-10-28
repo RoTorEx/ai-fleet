@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-28
+
 ### Added
 
 - Keep multiple independent Codex monitoring accounts signed in without changing
