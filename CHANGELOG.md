@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.9] - 2026-10-28
+
 ### Fixed
 
 - Remove the rejected terminal/session launcher and launch-account selection.
