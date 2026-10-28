@@ -29,15 +29,14 @@ caches, or environment files into this repository.
 ## Independent Codex profiles
 
 Monitoring credentials are created directly by native Codex in separate
-`~/Library/Application Support/AI Fleet/CodexProfiles/<UUID>` homes. Nothing is
-copied from `~/.codex`. Login, logout and account usage always select that exact
+`~/Library/Application Support/AI Fleet/CodexProfiles/<UUID>` homes. Explicit save/switch can checkpoint credentials from `~/.codex`; config and history are never copied. Login, logout and account usage always select that exact
 home and file credential storage. Directories use 0700 and successful auth files
 0600. Redirected auth/config paths are refused. UserDefaults contains only
-account IDs, profile IDs, labels and a launch selection. Confirmed shared-login
+account IDs, profile IDs, labels and the active credential-account association. Confirmed shared-login
 numeric windows may persist with their measurement time and email as explicitly
-stale history; credentials and tokens never enter that cache. Explicit terminal
-launch uses an account home and `--no-daemon`; its PID marker blocks Fleet login
-changes for that account until the wrapper exits. See
+stale history; credentials and tokens never enter that cache. Explicit credential switching uses process preflight, private outgoing checkpoints,
+identity/path validation and atomic mode-0600 replacement. Active-account polling
+uses only the shared home, avoiding parallel refresh consumers. See
 [business/codex-profiles.md](business/codex-profiles.md) for isolation and retention.
 
 ## Local session overview

@@ -102,16 +102,12 @@ to retain each account's remaining quota while using another. Running terminal
 sessions keep their current authorization. **Sign out** clears only the selected
 account's saved Codex login, and is refused while its Fleet sessions are running.
 
-Use the account row's **Use for new sessions**, then **New session…** to choose a
-project and open a separate Codex session in a new iTerm2 window (Terminal fallback). These launches use the saved
-account and bypass the shared daemon; changing the standard terminal login does
-not select or replace them. **Copy session command** runs the same launcher in
-an existing terminal's current folder. Accounts remain sorted by Greek badge.
-Each account needs its own saved login. A row using the shared CLI login explains
-that dependency and offers **Connect separate login…**. Historical limit snapshots
-remain labeled with their time after an external account change; they are not
-live access. Isolated homes also have separate native settings, skills and history;
-existing conversations remain in the original home.
+Use **Save current login** to retain an already authenticated Codex account
+without signing in again. **Switch to this account** activates a saved account
+by changing only the credential file; history, settings and skills remain in the
+standard Codex home. Accounts stay in Greek order. No terminal or agent session
+is created. Switching is refused while Codex processes or its background server
+are running: changing the file cannot retarget their in-memory identity.
 
 The menu shows each account's remaining 5h/7d limits. A circle means current
 limits are loaded, × requests sign-in, and ? with a gray row means limits are

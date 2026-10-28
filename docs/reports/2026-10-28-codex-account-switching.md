@@ -1,5 +1,9 @@
 # Codex account-switching incident and repair
 
+> Historical 1.3.8 report. The user rejected terminal/session launching. That
+> implementation has been removed; the current contract is credential save/switch
+> in business/codex-profiles.md. No terminal creation is part of the product.
+
 ## User impact
 
 Changing the standard Codex login from Personal (α) to Innowise (β) removed live

@@ -155,9 +155,12 @@ private struct AccountEditor: View {
                             else { store.signInGlobally(connection.providerID, accountID: account.id) }
                         }
                         if connection.providerID == "codex" {
+                            if codex.profile(for: account) == nil,
+                               service.codex.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame {
+                                Button("Save current login") { codex.saveCurrentLogin(account) }
+                            }
                             if codex.profile(for: account) != nil {
-                                Button("Use for new sessions") { codex.selectForNewSessions(account) }
-                                Button("New session…") { codex.newSession(for: account) }
+                                Button("Switch to this account") { codex.switchAccount(account) }
                             }
                             if let profile = codex.profile(for: account), status?.authentication == .signedIn {
                                 Button("Sign out", role: .destructive) { codex.signOut(profile) }

@@ -61,11 +61,6 @@ struct AIFleetMenuView: View {
                 ActionButton(title: "Agents", shortcut: "⌘A", keyEquivalent: nil) {
                     openAgents()
                 }
-                if let selected = accounts.visibleAccounts.first(where: { $0.id == codexProfiles.selectedLaunchAccountID }) {
-                    ActionButton(title: "New Codex session (\(selected.badge))…", shortcut: "", keyEquivalent: nil) {
-                        codexProfiles.newSession(for: selected)
-                    }.disabled(codexProfiles.authenticatingID != nil)
-                }
 
                 ActionButton(title: "Statistics…", shortcut: "", keyEquivalent: nil) {
                     openStatistics()
@@ -156,7 +151,8 @@ struct AIFleetMenuView: View {
         let badge = accounts.accounts.first { $0.id == active?.accountID }?.badge
         let signing = badge.map { "\(codexProfiles.authenticationAction == .logout ? "Signing out" : "Signing in") Codex (\($0))…" } ?? service.signingOutProvider.map {
             "Signing out \(ProviderCatalog.definition(for: $0)?.name ?? $0)…"
-        } ?? (accounts.codexSigningIn ? "Signing in Codex…" : nil)
+        } ?? accounts.signingInProviderID.map { "Signing in \(ProviderCatalog.definition(for: $0)?.name ?? $0)…" }
+            ?? (accounts.codexSigningIn ? "Signing in Codex…" : nil)
         return MenuOperationStatus.resolve(update: updater.state, refreshing: service.isRefreshing || codexProfiles.refreshing,
                                             signingIn: signing, monitoring: service.isMonitoring)
     }
@@ -265,10 +261,14 @@ struct ProviderLimitRow: View {
                 }
                 Spacer(minLength: 8)
                 Menu {
+                    if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil, entry.isCurrentCLI == true {
+                        Button("Save current login") { codexProfiles.saveCurrentLogin(entry.account) }
+                            .disabled(codexProfiles.refreshing)
+                        Divider()
+                    }
                     if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) != nil {
-                        Button("Use for new sessions") { codexProfiles.selectForNewSessions(entry.account) }
-                        Button("New session…") { codexProfiles.newSession(for: entry.account) }
-                        Button("Copy session command") { codexProfiles.copySessionCommand(for: entry.account) }
+                        Button("Switch to this account") { codexProfiles.switchAccount(entry.account) }
+                            .disabled(codexProfiles.refreshing)
                         Divider()
                     }
                     Button(entry.usesAccountLogin && codexProfiles.profile(for: entry.account) == nil ? "Connect separate login…" : "Sign in…") {
@@ -294,7 +294,7 @@ struct ProviderLimitRow: View {
                     }
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn || codexProfiles.authenticatingID != nil)
+                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
             if !status.limitWindows.isEmpty {

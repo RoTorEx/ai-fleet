@@ -137,10 +137,10 @@ receive no current row; the provider summary retains the actual native status.
   does not create metadata. New associations do not create credential folders. It
   renames labels, removes metadata, opens native CLI sign-in, and owns global
   provider visibility controls. The editor picker never changes the working
-  account. Codex login and explicit session launch use the account's saved home;
+  account. Codex saved login uses its own home; activation replaces standard credentials;
   other provider sign-ins retain their canonical native-default connection.
-  Folder imports are deferred; Codex isolated launches use the saved account
-  home and --no-daemon. Legacy files are preserved.
+  Folder imports are deferred. Codex save/switch updates only credentials and
+  preserves standard state; no terminal launch is exposed. Legacy files are preserved.
   General has no provider/account controls. There is no
   account-management window. Settings has a bounded 500 × 640 point layout with
   scrolling so SwiftUI fitting-size changes cannot collapse it to a narrow strip.

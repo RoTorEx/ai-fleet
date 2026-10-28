@@ -128,6 +128,7 @@ final class AccountStore: ObservableObject {
     @Published private(set) var launchProviderID: String?
     @Published private(set) var launchAccountID: String?
     @Published private(set) var codexSigningIn = false
+    @Published private(set) var signingInProviderID: String?
     private var codexLoginOperation: CodexAuthenticationOperation?
 
     func cancelCodexSignIn() { codexLoginOperation?.cancel() }
@@ -276,16 +277,22 @@ final class AccountStore: ObservableObject {
             startCodexSignIn(executable: executable)
             return
         }
-        let geminiLogin = providerID == "gemini" ? GeminiLoginSnapshot.read(home: home) : nil
-        let command = AccountLaunch.command(connection: .global(providerID), executable: executable,
-                                            directory: home, login: true,
-                                            hasGeminiLogin: geminiLogin.map { $0.auth == .signedIn || $0.canRefresh || !$0.supported } ?? false)
-        let source = "tell application \"Terminal\"\nactivate\ndo script \(ClaudeProfileLaunch.appleScriptString(command))\nend tell"
-        var error: NSDictionary?
-        guard let script = NSAppleScript(source: source) else { launchError = "Could not prepare Terminal login."; return }
-        script.executeAndReturnError(&error)
-        if error != nil { launchError = "Could not open Terminal. Check macOS Automation permission for AI Fleet." }
-        // Login is asynchronous. Only a subsequent native status check changes the observed account.
+        guard signingInProviderID == nil else { return }
+        guard providerID == "claude" || providerID == "kimi" else {
+            launchError = "Complete login in the provider CLI, then refresh AI Fleet. No terminal was opened."
+            return
+        }
+        signingInProviderID = providerID
+        Task {
+            let arguments = providerID == "claude" ? ["auth", "login"] : ["login"]
+            let environment = providerID == "claude" ? ClaudeProfile.current.environment() : ProcessInfo.processInfo.environment
+            let result = await Task.detached(priority: .userInitiated) {
+                LocalCommandReader.read(executableURL: executable, arguments: arguments, timeout: 600, environment: environment)
+            }.value
+            self.signingInProviderID = nil
+            self.launchError = result?.exitCode == 0 ? nil : "Login did not complete. Check the provider's browser login."
+            StatusService.shared.refresh()
+        }
     }
 
     func startCodexSignIn(executable: URL,

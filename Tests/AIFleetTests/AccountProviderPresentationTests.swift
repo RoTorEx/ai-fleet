@@ -93,7 +93,7 @@ final class AccountProviderPresentationTests: XCTestCase {
             XCTAssertEqual(rows.map(\.account.badge), ["α", "β"])
             XCTAssertEqual(rows.map(\.status.remainingPercent), [87, 42])
             XCTAssertTrue(rows.allSatisfy(\.isSelected), "Both independently authenticated accounts remain available")
-            XCTAssertTrue(rows.allSatisfy { $0.isCurrentCLI == false }, "Shared terminal login does not select a Fleet launch account")
+            XCTAssertEqual(rows.filter { $0.isCurrentCLI == true }.map(\.account.id), [current.id])
         }
         XCTAssertEqual(accounts.visibleAccounts.map(\.badge), ["α", "β", "γ"])
         XCTAssertEqual(codex.profiles.count, 2)

@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Remove the rejected terminal/session launcher and launch-account selection.
+  Save current login without repeating browser authentication; switch saved
+  Codex credentials atomically while retaining standard history and settings.
+  Save outgoing credentials, prevent parallel active-account refresh consumers,
+  and refuse shared-login changes while Codex processes or its daemon are running.
+- Provider login actions no longer create Terminal windows.
+
 ## [1.3.8] - 2026-10-28
 
 ### Fixed

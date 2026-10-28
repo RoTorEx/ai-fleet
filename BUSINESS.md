@@ -61,9 +61,10 @@ subscription charges.
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
   badges. Menu rows sort by tool name, then strictly by Greek badge within each tool.
-  For Codex, → selects the saved account for future Fleet sessions; it does not
-  claim that existing agents changed identity. New session uses that account's
-  own home with `--no-daemon`, leaving shared login and running tasks intact. Independent saved Codex logins retain their
+  The → marker identifies the standard credential account. Explicit save/switch
+  preserves stored authorizations and updates only auth.json, retaining state.
+  Running Codex processes block shared credential replacement. Fleet never
+  creates terminals or agent sessions. Independent saved Codex logins retain their
   own quota and normal colors. Signing into one does not switch running sessions
   or change their shared CLI authorization. Other providers retain their global
   native login; changing shared Codex authorization is blocked while Codex runs.

@@ -65,7 +65,7 @@ func accountProviderRows(accounts: [FleetAccount], providerID: String, global: P
         guard let connection = account.connection(for: providerID) else { return nil }
         let status = providerID == "codex" ? connection.status(from: codex.status(for: account, global: global, accounts: accounts))
             : statusForConnection(connection) ?? connection.status(from: LocalProviderAuth.unknown.status(for: ProviderCatalog.definition(for: providerID)!))
-        let currentCLI = providerID == "codex" ? codex.selectedLaunchAccountID == account.id :
+        let currentCLI = providerID == "codex" ? global.authentication == .signedIn && !account.email.isEmpty && global.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame :
             global.authentication == .signedIn && !account.email.isEmpty &&
             global.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame
         return MenuAccountConnection(account: account, connection: connection, status: status,
