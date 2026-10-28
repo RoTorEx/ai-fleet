@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.8] - 2026-10-28
+
 ### Fixed
 
 - Keep account rows strictly in Greek badge order within each tool, independent
