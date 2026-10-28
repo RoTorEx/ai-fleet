@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.10] - 2026-10-28
+
 ### Fixed
 
 - Split the authentication status expression for production compiler compatibility.
