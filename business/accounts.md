@@ -104,7 +104,9 @@ allowance bands (Enough ≥26%, Low 11–25%, Critical ≤10%); Access names con
 availability (○ ready, × sign in, ? unavailable); Marks explains → current and
 ↓ lowest remaining. Unavailable access is visually muted without a separate
 "gray" label attached to an arrow. Both arrows use the same vector rotated 90°
-in equal square frames, in the rows and in the legend. Email/plan hover and login actions retain actual authentication
+in equal square frames, in the rows and in the legend. Legend marks match the
+legend's text size; provider-row marks retain their larger row size.
+Email/plan hover and login actions retain actual authentication
 state. Account-specific errors cannot borrow another account's limits or tokens.
 Old shared session history is not split by badge.
 

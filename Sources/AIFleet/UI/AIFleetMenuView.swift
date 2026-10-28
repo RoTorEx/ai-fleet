@@ -440,11 +440,12 @@ struct LimitWindowLine: View {
 struct FleetMark: View {
     enum Kind { case current, lowest }
     let kind: Kind
+    var size: CGFloat = 13
     var body: some View {
         Image(systemName: "arrow.right")
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: size, weight: .medium))
             .rotationEffect(.degrees(kind == .lowest ? 90 : 0))
-            .frame(width: 14, height: 14)
+            .frame(width: size + 1, height: size + 1)
     }
 }
 
@@ -479,10 +480,10 @@ struct LegendSection: View {
             GridRow {
                 Text("Marks:").foregroundColor(FleetPalette.label)
                 HStack(spacing: 6) {
-                    FleetMark(kind: .current)
+                    FleetMark(kind: .current, size: 10.5)
                     Text("current")
                     Spacer().frame(width: 8)
-                    FleetMark(kind: .lowest)
+                    FleetMark(kind: .lowest, size: 10.5)
                     Text("lowest remaining")
                 }.foregroundColor(FleetPalette.value)
             }

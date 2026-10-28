@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Scale legend arrows to its 10.5-point text while retaining equal arrow lengths
+  and the existing provider-row mark size.
+
 ## [1.3.6] - 2026-10-28
 
 ### Fixed

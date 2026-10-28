@@ -6,8 +6,8 @@ import XCTest
 final class MenuLayoutTests: XCTestCase {
     @MainActor
     func testCurrentAndLowestMarksHaveEqualRenderedArrowLengths() throws {
-        func inkSize(_ kind: FleetMark.Kind) throws -> CGSize {
-            let renderer = ImageRenderer(content: FleetMark(kind: kind).foregroundColor(.black))
+        func inkSize(_ kind: FleetMark.Kind, size: CGFloat) throws -> CGSize {
+            let renderer = ImageRenderer(content: FleetMark(kind: kind, size: size).foregroundColor(.black))
             renderer.scale = 4
             let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
             var minX = bitmap.pixelsWide, minY = bitmap.pixelsHigh, maxX = -1, maxY = -1
@@ -21,10 +21,12 @@ final class MenuLayoutTests: XCTestCase {
             XCTAssertGreaterThan(maxY, minY)
             return CGSize(width: maxX - minX + 1, height: maxY - minY + 1)
         }
-        let current = try inkSize(.current)
-        let lowest = try inkSize(.lowest)
-        XCTAssertEqual(current.width, lowest.height, accuracy: 1, "Arrow lengths must match after rotation")
-        XCTAssertEqual(current.height, lowest.width, accuracy: 1, "Arrowhead spans must match after rotation")
+        for size: CGFloat in [10.5, 13] {
+            let current = try inkSize(.current, size: size)
+            let lowest = try inkSize(.lowest, size: size)
+            XCTAssertEqual(current.width, lowest.height, accuracy: 1, "Arrow lengths must match after rotation")
+            XCTAssertEqual(current.height, lowest.width, accuracy: 1, "Arrowhead spans must match after rotation")
+        }
     }
 
     @MainActor
