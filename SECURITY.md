@@ -33,7 +33,7 @@ Monitoring credentials are created directly by native Codex in separate
 copied from `~/.codex`. Login, logout and account usage always select that exact
 home and file credential storage. Directories use 0700 and successful auth files
 0600. Redirected auth/config paths are refused. UserDefaults contains only
-profile IDs and labels; measurements stay in memory. See
+account IDs, profile IDs and labels; measurements stay in memory. See
 [business/codex-profiles.md](business/codex-profiles.md) for isolation and retention.
 
 ## Local session overview

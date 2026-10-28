@@ -15,24 +15,12 @@ struct AIFleetMenuView: View {
     private var connections: [MenuAccountConnection] {
         ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
             guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider) else { return [] }
-            return accounts.linkedAccounts(for: provider.id).compactMap { account in
-                guard let connection = account.connection(for: provider.id) else { return nil }
-                if provider.id == "codex" {
-                    let nativeOwner = service.globalAccountIDs["codex"]
-                    guard nativeOwner == account.id || (nativeOwner == nil && connection.isNativeDefault) else { return nil }
-                }
-                let status = service.status(for: connection) ?? ProviderStatus(id: connection.statusID, name: provider.name,
-                    state: .offline, detail: "Checking…", lastUpdated: nil, providerID: provider.id)
-                return MenuAccountConnection(account: account, connection: connection, status: status,
-                    isSelected: service.globalAccountIDs[provider.id] == account.id && status.authentication == .signedIn)
-            }
+            return accountProviderRows(accounts: accounts.accounts, providerID: provider.id,
+                global: service.status(for: provider.id), statusForConnection: service.status(for:), codex: codexProfiles)
         }
     }
 
-    private var providers: [ProviderStatus] {
-        ProviderCatalog.all.filter { settings.isEnabled($0.id) && ProviderCatalog.isInstalled($0) }
-            .map { service.status(for: $0.id) }
-    }
+    private var providers: [ProviderStatus] { connections.map(\.status) }
 
     private var lowestProvider: ProviderStatus? {
         providers
@@ -48,6 +36,8 @@ struct AIFleetMenuView: View {
                 CodexSignInProgress(accounts: accounts)
                     .padding(.horizontal, 16).padding(.top, 8)
             }
+            CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts)
+                .padding(.horizontal, 16)
             if let error = accounts.launchError {
                 Text(error).font(.caption).foregroundColor(FleetPalette.danger)
                     .padding(.horizontal, 16).padding(.top, 8)
@@ -57,7 +47,7 @@ struct AIFleetMenuView: View {
                 .padding(.top, 11)
                 .padding(.bottom, 8)
 
-            if connections.count + codexProfiles.profiles.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
+            if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
                 MenuRowsViewport(maxHeight: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 350))) {
                     providerRows
                 }
@@ -124,14 +114,9 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, isLowest: entry.isSelected && entry.status.providerID == lowestProvider?.providerID, openSettings: openSettings)
+                ProviderLimitRow(entry: entry, isLowest: entry.isSelected && entry.status.id == lowestProvider?.id, openSettings: openSettings)
             }
-            if settings.isEnabled("codex") {
-                CodexMonitoringMenuRows(manage: {
-                    SettingsNavigation.shared.tab = "accounts"
-                    openSettings()
-                })
-            }
+
         }
         .padding(.horizontal, 16)
     }
@@ -154,7 +139,7 @@ struct AIFleetMenuView: View {
                 )
             }
             GridRow {
-                summaryLabel("Providers")
+                summaryLabel("Connections")
                 summaryValue(providers.isEmpty ? "none installed" : "\(activeProviderCount)/\(providers.count) available")
             }
             GridRow {
@@ -215,7 +200,8 @@ struct AIFleetMenuView: View {
 
     private var lowestRemainingText: String {
         if let provider = lowestProvider {
-            return "\(provider.name) · \(limitText(for: provider))"
+            let badge = connections.first { $0.status.id == provider.id }?.account.badge ?? "?"
+            return "\(provider.name) (\(badge)) · \(limitText(for: provider))"
         }
         let hasData = providers.contains { $0.remainingPercent != nil }
         return hasData ? "-" : "waiting"
@@ -266,6 +252,8 @@ struct MenuAccountConnection: Identifiable {
     let connection: ProviderConnection
     let status: ProviderStatus
     let isSelected: Bool
+    var isCurrentCLI: Bool? = nil
+    var usesAccountLogin = false
     var id: String { connection.statusID }
 }
 
@@ -275,6 +263,7 @@ struct ProviderLimitRow: View {
     let openSettings: () -> Void
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
+    @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @State private var isBadgeHovered = false
     private var status: ProviderStatus { entry.status }
     private var color: Color { entry.isSelected ? rowColor(for: status) : FleetPalette.muted }
@@ -283,10 +272,10 @@ struct ProviderLimitRow: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text(entry.isSelected ? "→" : " ")
+                    Text((entry.isCurrentCLI ?? entry.isSelected) ? "→" : " ")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
-                        .accessibilityLabel(entry.isSelected ? "\(status.name) account \(entry.account.badge), global login" : "")
+                        .accessibilityLabel((entry.isCurrentCLI ?? entry.isSelected) ? "\(status.name) account \(entry.account.badge), current CLI account" : "")
                     Text(isLowest ? "↓" : " ")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
@@ -294,27 +283,40 @@ struct ProviderLimitRow: View {
                         .font(.system(size: 14, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
                 }
-                Text(status.providerID == "codex" ? "Codex · Native" : status.name)
+                Text(status.name)
                     .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
+                if !entry.account.badge.isEmpty {
                 Text("(\(entry.account.badge))")
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundColor(color)
                     .onHover { isBadgeHovered = $0 }
                     .accessibilityHint(Text(entry.account.tooltip(for: entry.connection, status: status)))
                     .accessibilityLabel("\(status.name) account \(entry.account.badge)")
+                }
                 Spacer(minLength: 8)
                 Menu {
-                    Button(status.providerID == "codex" ? "Change native login…" : "Sign in…") { accounts.signInGlobally(status.providerID) }
-                    .help("Changes the provider’s global login. Choose the account in its native login flow.")
-                    if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
+                    Button("Sign in…") {
+                        if entry.usesAccountLogin {
+                            if entry.account.badge.isEmpty {
+                                SettingsNavigation.shared.addAccount(for: "codex")
+                                openSettings()
+                            } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
+                        }
+                        else { accounts.signInGlobally(status.providerID) }
+                    }
+                    .help("Sign in to this account. Existing Codex terminal sessions keep their current login.")
+                    if entry.usesAccountLogin {
+                        if let profile = codexProfiles.profile(for: entry.account), status.authentication == .signedIn {
+                            Button("Sign out", role: .destructive) { codexProfiles.signOut(profile) }
+                        }
+                    } else if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
                         Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
                             Task { await service.signOutGlobally(status.providerID) }
                         }
-                        .help(status.providerID == "codex" ? "Uses native Codex logout after checking for running sessions. Finish and exit Codex sessions before changing accounts." : "Removes this provider's local global login. Running agents may retain credentials in memory.")
                     }
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn)
+                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn || codexProfiles.authenticatingID != nil || (entry.usesAccountLogin && codexProfiles.refreshing))
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
             if !status.limitWindows.isEmpty {
@@ -482,7 +484,7 @@ struct LegendSection: View {
             }
             GridRow {
                 Text("Selection:").foregroundColor(FleetPalette.label)
-                Text("→ global login · gray other accounts").foregroundColor(FleetPalette.value)
+                Text("→ current CLI account · gray signed out").foregroundColor(FleetPalette.value)
             }
             GridRow {
                 Text("Quota:").foregroundColor(FleetPalette.label)

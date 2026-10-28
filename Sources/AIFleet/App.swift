@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.setActivationPolicy(.accessory)
         StatusService.shared.start()
         UsageAnalyticsService.shared.startDailyRefreshSchedule()
+        CodexMonitoringStore.shared.synchronizeAccounts(AccountStore.shared)
         CodexMonitoringStore.shared.start()
 
         let statusBarController = StatusBarController(

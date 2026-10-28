@@ -76,8 +76,8 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
   token measurements. A 60-second timer checks a 300-second refresh interval.
   Credential consumer locks are keyed by home; browser login additionally shares
   one callback lock. `CodexProfilesView` serves Settings management and the
-  Statistics Accounts view; `CodexMonitoringMenuRows` serves compact quotas.
-  The native login remains separate. [Profile contract](../../business/codex-profiles.md).
+  Statistics Accounts view; `accountProviderRows` builds the same account/badge identity for compact quotas.
+  The standard CLI home is an internal read-only source for its matching account, not an extra row. [Profile contract](../../business/codex-profiles.md).
 
 - `ProviderStatus` — subscription row ID, provider ID, display name, state,
   quota windows, optional account metadata, and an account notification scope.

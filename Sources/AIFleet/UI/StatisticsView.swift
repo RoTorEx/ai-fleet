@@ -39,7 +39,7 @@ struct StatisticsView: View {
             if tab == .codex && showsCodexAccounts {
                 let bounds = period.bounds()
                 ScrollView(.vertical) {
-                    CodexProfilesView(nativeStatus: service.codex, nativeUsage: snapshot.codex.accountUsage,
+                    CodexProfilesView(nativeStatus: service.codex,
                                       start: bounds.start, end: bounds.end,
                                       refreshNative: { analytics.refreshAccountUsage(); service.refresh() })
                 }
@@ -255,10 +255,11 @@ private enum StatisticsDetailPage: Int, CaseIterable {
 
 private struct AnalyticsTabControl: View {
     @Binding var selection: AnalyticsTab
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(AnalyticsTab.allCases) { tab in
+            ForEach(AnalyticsTab.allCases.filter { settings.isEnabled($0.rawValue.lowercased()) }) { tab in
                 Button { selection = tab } label: {
                     Text(tab.rawValue)
                         .font(.system(size: 12, weight: .semibold))

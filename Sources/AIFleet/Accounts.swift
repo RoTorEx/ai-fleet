@@ -102,9 +102,10 @@ struct FleetAccount: Codable, Identifiable, Equatable {
     var connections: [ProviderConnection]
 
     static let defaultID = "default"
-    static let current = FleetAccount(id: defaultID, badgeIndex: 0, name: "Default", email: "",
+    static let current = FleetAccount(id: defaultID, badgeIndex: -1, name: "Default", email: "",
         connections: ProviderCatalog.all.map { ProviderConnection(id: $0.id, providerID: $0.id, configDirectory: nil) })
     var badge: String {
+        guard badgeIndex >= 0 else { return "" }
         let alphabet = Array("αβγδεζηθικλμνξοπρστυφχψω").map(String.init)
         return badgeIndex < alphabet.count ? alphabet[max(0, badgeIndex)] : "α\(badgeIndex + 1)"
     }
@@ -158,8 +159,14 @@ final class AccountStore: ObservableObject {
                     && connectionIDs.insert($0.statusID).inserted
             }
         }
+        // The internal fallback is storage metadata, not a user account or a Greek badge.
+        if let index = values.firstIndex(where: { $0.id == FleetAccount.defaultID && $0.email.isEmpty }) {
+            let account = values[index]
+            values[index] = FleetAccount(id: account.id, badgeIndex: -1, name: account.name,
+                                         email: account.email, connections: account.connections)
+        }
         // Preserve one default connection per provider, even after damaged preferences.
-        if !values.contains(where: { $0.id == FleetAccount.defaultID }) { values.insert(FleetAccount(id: "default", badgeIndex: 0, name: "Default", email: "", connections: []), at: 0) }
+        if !values.contains(where: { $0.id == FleetAccount.defaultID }) { values.insert(FleetAccount(id: "default", badgeIndex: -1, name: "Default", email: "", connections: []), at: 0) }
         let defaultIndex = values.firstIndex { $0.id == FleetAccount.defaultID }!
         for provider in ProviderCatalog.all where !values.contains(where: { $0.connections.contains { $0.providerID == provider.id && $0.isNativeDefault } }) {
             values[defaultIndex].connections.append(ProviderConnection(id: provider.id, providerID: provider.id, configDirectory: nil))
@@ -175,6 +182,11 @@ final class AccountStore: ObservableObject {
         }
         selections = selected
         nextBadge = max(defaults.integer(forKey: "fleet.nextBadge"), (values.map(\.badgeIndex).max() ?? -1) + 1)
+    }
+
+    var visibleAccounts: [FleetAccount] {
+        accounts.filter { $0.id != FleetAccount.defaultID || !$0.email.isEmpty }
+            .sorted { $0.badgeIndex < $1.badgeIndex }
     }
 
     func linkedAccounts(for providerID: String) -> [FleetAccount] {
@@ -195,6 +207,12 @@ final class AccountStore: ObservableObject {
         guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
         accounts[index].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         accounts[index].email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        if accounts[index].badgeIndex < 0, !accounts[index].email.isEmpty {
+            let account = accounts[index]
+            accounts[index] = FleetAccount(id: account.id, badgeIndex: nextBadge, name: account.name,
+                                           email: account.email, connections: account.connections)
+            nextBadge += 1
+        }
         save()
     }
     func select(_ accountID: String, for providerID: String) {

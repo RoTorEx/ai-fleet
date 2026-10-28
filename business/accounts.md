@@ -4,19 +4,40 @@ An AI Fleet account is a labelled identity with a stable α, β, γ badge and
 zero or one association with each supported provider. One badge can represent
 Claude, Codex, Kimi, Qwen, and Gemini. Labels are app metadata, not credentials.
 
-## Login and interface
+## Account model and interface
 
-Each provider has one current standard global CLI login. Codex additionally
-supports independent monitor-only logins: [Codex profiles](codex-profiles.md)
-owns their storage, native auth, quota, token accounting and interface. The row’s **…** menu
-contains **Sign in…**. Codex uses native `codex login` directly from AI Fleet,
-opens the system browser, and shows pending/cancel controls in both Accounts and
-Usage. Other providers launch native login in Terminal: Claude `auth login`,
-Kimi `login`, Qwen’s interactive CLI, and Gemini’s native login or `/auth login`
-dialog when already configured. Inherited provider directory and API/account
-overrides are removed so native global defaults apply. The account is chosen
-in the browser/SSO flow; a badge does not force an email. No project chooser,
-isolated session launch, manual Use action, or credential swapping is exposed.
+A Greek badge identifies one real account, independent of provider or credential
+storage. Provider rows use only `Provider (badge)` in the compact menu, Settings
+and account statistics. One account may connect several different providers but
+may contain at most one connection for each provider. Internal fallback metadata
+is not a visible account and consumes no Greek badge. New real accounts start
+at α; later additions receive the next unused badge. Existing real badges stay
+stable except when the user explicitly requests reassignment.
+
+Settings → Accounts owns one account picker and a Connect provider form. The
+form chooses a provider and either Existing account or New account before login.
+An already-connected provider cannot be added again to the selected account.
+Cancel creates nothing. Existing account IDs, associations, and labels remain
+stored when hidden; provider visibility controls do not log out or delete data.
+
+Codex saved authorizations belong to these same account IDs. There is no separate
+user-facing profile list, Native/CLI account row, or second account editor. Each
+Codex row's Sign in starts a private browser login for that account while
+preserving standard terminal credentials and other account logins. Expected email
+must match the authenticated email before quota or tokens are attributed to a
+badge. The standard CLI credentials may supply read-only measurements to the
+uniquely matching account until its independent login is connected. Once a saved
+login is attached, its state controls that account, including explicit sign-out.
+[Codex authorization](codex-profiles.md) owns isolation and storage details.
+
+Claude and the other provider integrations retain their standard global CLI
+login. Their Sign in uses the provider's browser/SSO flow in Terminal. The badge
+names the account the provider belongs to; it does not route prompts or choose an
+email in the browser. The current CLI account may show →. Other independently
+signed-in Codex accounts retain normal colors and their own quota without that
+arrow. ↓ and the summary Lowest row identify the exact account connection,
+including its badge. Placeholder provider rows are hidden when real account
+associations exist. Provider visibility applies to menu rows and statistics tabs.
 
 Codex's shared cached credentials can change while an existing CLI, IDE or
 app-server process still holds the previous identity. On subsequent refresh,
@@ -29,38 +50,17 @@ showed this error after account switching and a successful fresh request after
 old processes exited. That supports the stale-process explanation, without
 establishing the exact order of every overnight failure.
 
-Before either Codex login or logout, Fleet checks current-user process command
-names (never arguments/environment/terminal content). Any running `codex`,
-including CLI and IDE/desktop app-server processes, blocks the operation with
-PIDs and recovery instructions. Inability to inspect processes also blocks it.
-Detection is conservative: custom-home and idle processes count too because
-command names cannot establish credential scope. Finish tasks, exit the affected
-Codex terminals and close IDE/desktop Codex connections, retry login, then use
-`codex resume` to reopen saved conversations. Fleet never kills agents, sends
-text to them, or promises that their auth can change live. Processes started
-externally after the preflight and external login tools remain outside Fleet's
-control; do not start new sessions until the browser flow finishes.
+Changes to the shared CLI login remain protected internally by a conservative
+current-user Codex process check. Account-specific browser logins do not change
+that shared login and do not require terminating existing agents. Fleet never
+kills agents, sends text to terminals, swaps tokens, or retargets running tasks.
+Login/logout and account-usage reads are exclusive within each credential home;
+browser login additionally serializes the localhost callback across homes.
+Login allows 600 seconds and logout 30 seconds. Cancel and app termination stop
+only Fleet's owned authentication child. Failure never claims a completed login.
+Account sign-out removes only that account's independent saved authorization;
+removing account metadata preserves its credential directory and history.
 
-Codex sign-out runs native `codex logout`, leaving file/keyring cleanup and
-revocation to the CLI. Other providers retain local monitored credential
-removal without launching their CLI. Status polling and Codex statistics never
-start logout. Fleet's Codex login/logout and account-statistics app-server reads
-share a nonblocking exclusive gate for that credential home. Independent
-monitoring homes have separate gates and do not change the native login. A busy gate refuses the change before any
-credential mutation and preserves displayed identity/quota. New account reads
-skip while native auth is running. This covers both manual/open-window and
-daily statistics paths. Login allows 600 seconds for browser/SSO completion;
-logout allows 30 seconds. These are app operation deadlines, not provider
-limits. Cancel targets only the owned login child. Timeout/failure/cancel never
-claims successful authentication, and the next explicit attempt remains usable.
-Native success triggers a fresh provider check; a failed request remains distinct
-from merely having credential files. No model request is made to test login.
-
-The active signed-in row offers **Sign out** in Usage and Settings. Local
-sign-out waits for in-flight provider refreshes before removal. A refused Codex
-preflight keeps prior status and credentials; other failures retain explicit
-retry/error states without claiming signed-out status. Other providers, labels,
-legacy isolated stores, settings, and session history are preserved.
 
 Claude removes the native `Claude Code-credentials` Keychain item,
 `~/.claude/.credentials.json`, and only `oauthAccount` in `~/.claude.json`.
@@ -80,30 +80,12 @@ the native status. With no reported email, status belongs to the native-default
 connection’s existing owner as a label fallback, without claiming verified
 identity. Historical manual selections do not determine status or login.
 
-The menu shows one row per association for installed/enabled providers, with a
-small parenthesized badge after the name, such as Codex (α). Status markers stay
-in tightly spaced aligned columns on the left; only … occupies the right.
-**→** marks the detected global login only when authentication is confirmed.
-Other accounts are gray and read `Not signed in globally`, with no borrowed
-quota, plan, or provider identity. Badge hover immediately shows an inline
-overlay containing only email and plan; missing plans are omitted and the label
-email is a fallback. There is no new account-management window.
-
-Authentication and quota remain independent: ○ signed in, × requires sign-in
-or explicit access denial, ? unknown check. Exhaustion is red 0%, not missing
-login. Quota errors retain independently confirmed auth except explicit HTTP
-401 credential rejection. Stale/unknown quota cannot drive alerts or Lowest.
-The **↓** marker means lowest positive current global quota. The existing
-legend retains Color, Auth, Selection, and Quota; Selection describes global
-login and gray other accounts. No automatic fallback or request routing exists.
-
-Settings → Accounts edits labels and provider associations; its picker only
-chooses the record to edit. **+** opens the inline email/provider form;
-**Add & sign in…** registers metadata and starts global native login for other
-providers; Codex creates an independent monitoring profile. Cancel creates nothing. Provider toggles add associations without creating credential
-folders. **Sign in…** has the same global meaning on every badge. Folder import
-and selective launch controls are deferred. General owns only shortcut,
-notifications, and analytics; Menu visibility in Accounts applies globally.
+Authentication and quota remain independent: ○ signed in, × requires sign-in,
+? unknown. Exhaustion is 0%, not missing login. Missing or failed measurements
+never become 100% remaining. Email/plan hover identifies the actual provider
+identity. Global-provider errors retain their existing authentication rules.
+Account-specific Codex errors or mismatched identity cannot borrow another
+account's limits or tokens. Old shared session history is not split by badge.
 
 ## Storage and preservation
 

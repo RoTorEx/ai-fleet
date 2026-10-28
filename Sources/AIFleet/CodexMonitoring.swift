@@ -3,6 +3,7 @@ import Foundation
 struct CodexMonitoringProfile: Codable, Identifiable, Equatable {
     let id: String
     var label: String
+    var accountID: String? = nil
 }
 
 struct CodexMonitoringResult {
@@ -77,6 +78,72 @@ final class CodexMonitoringStore: ObservableObject {
         return profile
     }
 
+    func profile(for account: FleetAccount) -> CodexMonitoringProfile? {
+        profiles.first { $0.accountID == account.id }
+    }
+
+    @discardableResult
+    func ensureProfile(for account: FleetAccount) -> CodexMonitoringProfile {
+        if let existing = profile(for: account) { return existing }
+        let profile = CodexMonitoringProfile(id: UUID().uuidString, label: account.name, accountID: account.id)
+        profiles.append(profile)
+        save()
+        return profile
+    }
+
+    /// Adopt metadata only; credential directories and stable account badges never move.
+    func synchronizeAccounts(_ accounts: AccountStore) {
+        var changed = false
+        for index in profiles.indices where profiles[index].accountID == nil {
+            let label = profiles[index].label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let matches = accounts.accounts.filter {
+                (!$0.email.isEmpty && $0.email.caseInsensitiveCompare(label) == .orderedSame) ||
+                $0.name.caseInsensitiveCompare(label) == .orderedSame
+            }
+            let account: FleetAccount
+            if matches.count == 1 { account = matches[0] }
+            else { account = accounts.add(name: label, email: label.contains("@") ? label : "") }
+            guard !profiles.contains(where: { $0.accountID == account.id }) else { continue }
+            accounts.attachGlobal("codex", to: account.id)
+            profiles[index].accountID = account.id
+            changed = true
+        }
+        if changed { save() }
+    }
+
+    func forgetAccount(_ account: FleetAccount) {
+        if let profile = profile(for: account) { remove(profile) }
+    }
+
+    func status(for account: FleetAccount, global: ProviderStatus, accounts: [FleetAccount]) -> ProviderStatus {
+        let status: ProviderStatus
+        if let profile = profile(for: account) {
+            status = results[profile.id]?.status ?? ProviderStatus(id: "codex", name: "Codex", state: .noKey,
+                detail: "Sign in required", lastUpdated: nil, authentication: .signInRequired)
+        } else if let email = global.account?.email, !account.email.isEmpty,
+                  account.email.caseInsensitiveCompare(email) == .orderedSame,
+                  accounts.filter({ !$0.email.isEmpty && $0.email.caseInsensitiveCompare(email) == .orderedSame }).count == 1 {
+            status = global
+        } else {
+            status = ProviderStatus(id: "codex", name: "Codex", state: .noKey,
+                detail: "Sign in required", lastUpdated: nil, authentication: .signInRequired)
+        }
+        if status.authentication == .signedIn, !account.email.isEmpty,
+           status.account?.email?.caseInsensitiveCompare(account.email) != .orderedSame {
+            return ProviderStatus(id: "codex", name: "Codex", state: .offline,
+                detail: "Account mismatch · sign in with the expected email", lastUpdated: status.lastUpdated,
+                account: status.account, authentication: .unknown, quotaState: .unavailable)
+        }
+        return status
+    }
+
+    func usage(for account: FleetAccount, global: ProviderStatus, accounts: [FleetAccount]) -> CodexAccountUsage? {
+        guard status(for: account, global: global, accounts: accounts).authentication == .signedIn else { return nil }
+        if let profile = profile(for: account) { return results[profile.id]?.usage }
+        // The old shared statistics cache has no account identity. Never assign it to a badge.
+        return nil
+    }
+
     func remove(_ profile: CodexMonitoringProfile) {
         guard authenticatingID == nil, !refreshing else { return }
         profiles.removeAll { $0.id == profile.id }
@@ -115,7 +182,7 @@ final class CodexMonitoringStore: ObservableObject {
             for url in [root, directory] {
                 try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
             }
-        } catch { self.error = "Could not open this profile's private login directory."; return }
+        } catch { self.error = "Could not open this account's saved login."; return }
         let operation = CodexAuthenticationOperation()
         self.operation = operation
         authenticatingID = profile.id
@@ -132,10 +199,10 @@ final class CodexMonitoringStore: ObservableObject {
                     if FileManager.default.fileExists(atPath: auth.path) {
                         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: auth.path)
                     } else if action == .login {
-                        outcome = "Codex did not save this profile's login. Retry native sign-in."
+                        outcome = "Codex did not save this account's login. Retry native sign-in."
                     }
                 } catch {
-                    outcome = "Could not verify private permissions for this profile's login."
+                    outcome = "Could not verify private permissions for this account's login."
                 }
             }
             self.operation = nil

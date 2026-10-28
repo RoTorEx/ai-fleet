@@ -4,6 +4,16 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Unify Codex saved logins with existing account badges across the menu, Settings
+  and account statistics. Remove the separate Native row and profile list.
+  Connect providers to an existing or new account, prevent duplicate providers,
+  and preserve per-account Codex quota when the working CLI account changes.
+  Reject mismatched browser identities instead of borrowing their quota. Internal
+  fallback metadata no longer consumes a Greek badge; provider visibility also
+  hides statistics tabs without deleting logins or account data.
+
 ## [1.3.2] - 2026-10-28
 
 ### Added

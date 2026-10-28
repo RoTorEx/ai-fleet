@@ -14,7 +14,7 @@ enum CodexAuthenticationError: LocalizedError {
         case .unavailable:
             return "Codex CLI is not installed."
         case .failed:
-            return "Native Codex authentication did not complete. Check browser login and retry. No session history was removed."
+            return "Codex authentication did not complete. Check browser login and retry. No session history was removed."
         case .timedOut:
             return "Codex sign-in timed out. Retry and complete the browser flow. No session history was removed."
         case .cancelled:

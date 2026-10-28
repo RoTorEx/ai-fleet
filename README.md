@@ -91,59 +91,29 @@ to renew access; AI Fleet does not rewrite Google tokens. See [Gemini integratio
 
 ### Accounts
 
-To monitor several Codex accounts simultaneously, open **Settings → Accounts →
-Codex accounts → Add & sign in…** and complete the browser flow once per account.
-Each profile keeps its own login and shows the actual email/plan. The ordinary
-**+** form also creates an independent profile when Codex is selected. Your
-native CLI login and already-running sessions remain unchanged.
+Each Greek letter identifies an account. The same letter follows every provider
+connected to it: for example **Codex (α)** and **Claude (α)** belong to the same
+account. One account can connect each provider only once.
 
-Remaining 5h/7d quota appears under **Codex profiles** in the menu. Open
-**Statistics → Codex → Accounts** to compare tokens and quotas across profiles
-and the native account, using `7d`, `30d`, `90d`, or `All`. Tokens there come from
-provider-reported account totals/dates; local model details and API-equivalent
-costs are not attributed to monitoring profiles. Missing data reads as unavailable.
-Profiles signed into the same account share its limits. Native session launching
-under a profile is deferred. **Sign out** clears only the chosen profile through
-native Codex; **Forget profile** removes its metadata and preserves local files.
-See [Codex profile behavior](business/codex-profiles.md).
+Open **Settings → Accounts → Connect provider…**, choose the provider, then choose
+**Existing account** or **New account**. Codex **Sign in…** saves authorization
+for the selected account through its own browser flow. Sign in once per account
+to retain each account's remaining quota while using another. Running terminal
+sessions keep their current authorization. **Sign out** clears only the selected
+account's saved Codex login.
 
+The menu shows each account's remaining 5h/7d quota. **Statistics → Codex →
+Accounts** compares tokens and quotas under the same account letters for `7d`,
+`30d`, `90d` and `All`. These account totals come from provider-reported dates;
+shared local model history and cost estimates are not split between accounts.
+A wrong browser email is reported instead of showing another account's quota.
 
-Each account/provider association has a compact row such as **Codex (α)**.
-**→** marks the detected global login; other accounts are gray without quota.
-Hover the badge to immediately see only email and plan. The **…** menu contains
-**Sign in…** and, on the active signed-in row, **Sign out**. Login changes the
-standard provider account through its native browser/SSO flow. Other providers
-open this flow in Terminal; existing processes can retain their previous login.
-**Codex Sign in** opens its native browser flow directly, with progress and
-**Cancel sign-in** in AI Fleet. **Codex Sign out** uses native `codex logout`.
-Both first check for running Codex CLI and IDE/desktop connections. If any are
-found, Fleet keeps the existing login and lists their PIDs: finish their work,
-exit those Codex processes, retry, then reopen saved chats with `codex resume`.
-Changing a global account cannot safely retarget already-running conversations.
-Fleet never kills agents or clears session history. Account-statistics reads
-cannot overlap these operations; if one is running, wait and retry.
-
-For other providers, **Sign out** removes the monitored local global login
-without starting their CLI, clears displayed quota, and preserves settings,
-history, and other providers. The same action is available in Settings → Accounts. It does
-not revoke server sessions or clear credentials already held by running agents.
-External API keys and stores outside AI Fleet's readers are outside this action;
-see [Accounts](business/accounts.md) for supported stores and limitations.
-There is no separate session launch or manual account selection.
-
-AI Fleet checks one global connection per provider and assigns its status to a
-unique matching email label. New confirmed emails receive a badge automatically;
-duplicate labels remain ambiguous. The legend retains **Auth**, **Selection**,
-**Quota**, and quota colors. Failed quota updates retain confirmed login and show
-their reason; stale quota cannot generate alerts or become Lowest.
-
-Use **Settings → Accounts → +** to register an email/provider and **Add & sign
-in…** to start independent Codex monitoring login or global login for other providers. Cancel leaves metadata unchanged. The **Manage
-account** picker edits labels only. Provider toggles associate more providers
-with the same badge without making isolated directories. **Menu visibility**
-applies across accounts; **General** owns shortcut, notifications, and analytics.
-Legacy isolated credential folders remain intact and are not automatically adopted. New Codex monitoring profiles use their separate workflow above.
-Selective per-session login is deferred.
+Claude keeps its current standard login and appears under the associated account.
+Other provider integrations retain their existing login behavior. Provider visibility
+hides rows and statistics tabs without deleting logins or metadata. Hover an
+account badge to see its email and plan. Removing an account preserves credential
+files and history; sign out first when credentials should also be cleared.
+See [Accounts](business/accounts.md) and [Codex authorization](business/codex-profiles.md).
 
 ## Refresh
 

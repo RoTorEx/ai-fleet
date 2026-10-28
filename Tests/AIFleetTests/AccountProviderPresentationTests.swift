@@ -1,0 +1,159 @@
+import AppKit
+import SwiftUI
+import XCTest
+@testable import AIFleet
+
+final class AccountProviderPresentationTests: XCTestCase {
+    private func status(_ email: String, remaining: Int) -> ProviderStatus {
+        ProviderStatus(id: "codex", name: "Codex", state: .ok, detail: "Measured", lastUpdated: Date(),
+            remainingPercent: remaining,
+            limitWindows: [ProviderLimitWindow(id: "secondary", label: "7d", remainingPercent: remaining, resetAt: nil)],
+            account: ProviderAccountIdentity(email: email, organizationID: "test", organizationName: nil, subscriptionType: "pro"))
+    }
+
+    @MainActor
+    func testTwoCodexAccountsKeepTheirBadgesAndLimitsWhenWorkingAccountChanges() async throws {
+        let suite = "account-rows-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let accounts = AccountStore(defaults: defaults, homeDirectory: root)
+        let personal = accounts.add(name: "Personal", email: "personal@example.test")
+        let work = accounts.add(name: "Company", email: "work@example.test")
+        let third = accounts.add(name: "Other company", email: "third@example.test")
+        accounts.attachGlobal("codex", to: personal.id)
+        accounts.attachGlobal("codex", to: work.id)
+        accounts.attachGlobal("claude", to: third.id)
+        let codex = CodexMonitoringStore(defaults: defaults, root: root, measure: { directory in
+            let email = try! String(contentsOf: directory.appendingPathComponent("auth.json"))
+            return CodexMonitoringResult(status: self.status(email, remaining: email == personal.email ? 87 : 42),
+                                         usage: nil, usageError: nil)
+        })
+        for account in [personal, work] {
+            let profile = codex.ensureProfile(for: account)
+            XCTAssertEqual(codex.ensureProfile(for: account).id, profile.id, "One Codex per account")
+            let directory = try codex.directory(for: profile)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data(account.email.utf8).write(to: directory.appendingPathComponent("auth.json"))
+        }
+        codex.refresh(force: true)
+        for _ in 0..<200 where codex.refreshing { try await Task.sleep(nanoseconds: 10_000_000) }
+        for current in [personal, work] {
+            let rows = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
+                global: status(current.email, remaining: 1), statusForConnection: { _ in nil }, codex: codex)
+            XCTAssertEqual(rows.map(\.account.badge), ["α", "β"])
+            XCTAssertEqual(rows.map(\.status.remainingPercent), [87, 42])
+            XCTAssertTrue(rows.allSatisfy(\.isSelected), "Both independently authenticated accounts remain available")
+            XCTAssertEqual(rows.filter { $0.isCurrentCLI == true }.map(\.account.id), [current.id])
+        }
+        XCTAssertEqual(accounts.visibleAccounts.map(\.badge), ["α", "β", "γ"])
+        XCTAssertEqual(codex.profiles.count, 2)
+        let claude = ProviderStatus(id: "claude", name: "Claude", state: .ok, detail: "Measured", lastUpdated: Date(),
+            account: ProviderAccountIdentity(email: third.email, organizationID: nil, organizationName: nil, subscriptionType: "team"))
+        let claudeRows = accountProviderRows(accounts: accounts.accounts, providerID: "claude", global: claude,
+            statusForConnection: { $0.status(from: claude) }, codex: codex)
+        XCTAssertEqual(claudeRows.map(\.account.badge), ["γ"])
+        let displayed = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
+            global: status(work.email, remaining: 1), statusForConnection: { _ in nil }, codex: codex) + claudeRows
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let host = NSHostingController(rootView: VStack(alignment: .leading, spacing: 8) {
+                ForEach(displayed) { entry in
+                    ProviderLimitRow(entry: entry, isLowest: entry.account.id == work.id, openSettings: {})
+                }
+            }.padding(16).frame(width: 354).background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 300),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: appearance)
+            window.contentViewController = host
+            window.orderFrontRegardless()
+            host.view.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            try await Task.sleep(nanoseconds: 100_000_000)
+            XCTAssertEqual(host.view.fittingSize.width, 354, accuracy: 1)
+            if let capture = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
+               let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
+                host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+                try bitmap.representation(using: .png, properties: [:])?.write(to:
+                    URL(fileURLWithPath: capture).appendingPathComponent("account-rows-\(appearance.rawValue).png"))
+            }
+            window.orderOut(nil)
+            window.contentViewController = nil
+        }
+    }
+
+    @MainActor
+    func testAccountMismatchNeverBorrowsAnotherAccountsQuota() throws {
+        let suite = "account-mismatch-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let accounts = AccountStore(defaults: defaults)
+        let personal = accounts.add(email: "personal@example.test")
+        let work = accounts.add(email: "work@example.test")
+        accounts.attachGlobal("codex", to: personal.id)
+        accounts.attachGlobal("codex", to: work.id)
+        let codex = CodexMonitoringStore(defaults: defaults)
+        let rows = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
+            global: status(personal.email, remaining: 87), statusForConnection: { _ in nil }, codex: codex)
+        XCTAssertEqual(rows[0].status.remainingPercent, 87)
+        XCTAssertNil(rows[1].status.remainingPercent)
+        XCTAssertEqual(rows[1].status.authentication, .signInRequired)
+        let anotherWorkspace = accounts.add(name: "Another workspace", email: personal.email)
+        accounts.attachGlobal("codex", to: anotherWorkspace.id)
+        let ambiguous = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
+            global: status(personal.email, remaining: 87), statusForConnection: { _ in nil }, codex: codex)
+        XCTAssertTrue(ambiguous.allSatisfy { $0.status.remainingPercent == nil }, "An ambiguous shared login cannot be assigned to two badges")
+        accounts.attachGlobal("codex", to: personal.id)
+        XCTAssertEqual(accounts.accounts.first { $0.id == personal.id }?.connections.filter { $0.providerID == "codex" }.count, 1)
+    }
+
+    @MainActor
+    func testLegacySavedLoginAdoptsExistingAccountWithoutMovingCredentialsOrBadge() throws {
+        let suite = "account-adoption-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let accounts = AccountStore(defaults: defaults)
+        let account = accounts.add(name: "Work", email: "work@example.test")
+        let codex = CodexMonitoringStore(defaults: defaults)
+        let old = codex.add(label: account.email)
+        let originalPath = try codex.directory(for: old)
+        codex.synchronizeAccounts(accounts)
+        let adopted = try XCTUnwrap(codex.profile(for: account))
+        XCTAssertEqual(adopted.id, old.id)
+        XCTAssertEqual(try codex.directory(for: adopted), originalPath)
+        XCTAssertEqual(accounts.visibleAccounts.count, 1)
+        XCTAssertEqual(accounts.visibleAccounts[0].badge, "α")
+        XCTAssertEqual(CodexMonitoringStore(defaults: defaults).profile(for: account)?.id, old.id)
+    }
+
+    @MainActor
+    func testWrongBrowserAccountDoesNotExposeItsQuotaOrTokenTotalUnderWorkBadge() async throws {
+        let suite = "bound-account-mismatch-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let accounts = AccountStore(defaults: defaults)
+        let account = accounts.add(email: "work@example.test")
+        accounts.attachGlobal("codex", to: account.id)
+        let codex = CodexMonitoringStore(defaults: defaults, root: root, measure: { _ in
+            CodexMonitoringResult(status: self.status("personal@example.test", remaining: 99),
+                usage: CodexAccountUsage(lifetimeTokens: 1234, peakDailyTokens: nil, longestRunningTurnSeconds: nil,
+                    currentStreakDays: nil, longestStreakDays: nil, daily: [], fetchedAt: Date()), usageError: nil)
+        })
+        let profile = codex.ensureProfile(for: account)
+        let directory = try codex.directory(for: profile)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("fixture".utf8).write(to: directory.appendingPathComponent("auth.json"))
+        codex.refresh(force: true)
+        for _ in 0..<200 where codex.refreshing { try await Task.sleep(nanoseconds: 10_000_000) }
+        let displayed = codex.status(for: account, global: status("personal@example.test", remaining: 99), accounts: accounts.visibleAccounts)
+        XCTAssertNil(displayed.remainingPercent)
+        XCTAssertTrue(displayed.limitWindows.isEmpty)
+        XCTAssertEqual(displayed.authentication, .unknown)
+        XCTAssertNil(codex.usage(for: account, global: displayed, accounts: accounts.visibleAccounts))
+    }
+}

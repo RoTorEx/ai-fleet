@@ -20,14 +20,17 @@ subscription charges.
 
 ## Invariants
 
-- Codex can keep multiple independent monitoring logins, each with its own
-  native CODEX_HOME and file-backed credentials. Menu profile rows show remaining
-  5h/7d quota. Statistics → Codex → Accounts compares account token totals for
-  the selected period. These logins never replace the standard CLI account or
-  retarget running sessions; no local model mix or historical cost is borrowed.
-  [Codex profiles](business/codex-profiles.md) owns lifecycle, isolation, polling,
-  accounting boundaries and the distinction from future session launching.
-
+- Greek letters identify real accounts. One account can own several providers,
+  with at most one connection per provider. Provider rows and account statistics
+  use the same `Provider (badge)` identity. Internal credential homes and the
+  standard CLI login are not separate visible accounts. Connect provider chooses
+  an existing or new account before login; hidden providers retain stored data.
+- Each Codex account can keep an independent saved browser login. Its quota and
+  tokens remain available when another account signs in, without changing the
+  authorization of running terminals. Expected email must match before quota is
+  attributed. A matching standard CLI login may supply read-only data until an
+  independent login is attached. No shared local history or model cost is assigned
+  across accounts. [Saved Codex login](business/codex-profiles.md) owns storage.
 - Provider installation, login, and quota support are separate states. Claude
   login comes from the CLI's structured `auth status` result, never from
   `.claude.json` settings. Qwen requires OAuth token fields, not merely a
@@ -58,7 +61,7 @@ subscription charges.
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
   badges. Each provider uses one standard global native CLI login. The row’s
-  ellipsis menu exposes Sign in and, on the active signed-in row, Sign out. Codex Sign out uses native `codex logout`; other providers clear monitored native credentials locally. Codex login/logout first blocks while any current-user Codex process is running, preserving existing sessions and explaining exit/resume recovery. Sign in changes the global login through
+  ellipsis menu exposes Sign in and, on the active signed-in row, Sign out. Codex Sign out uses native `codex logout`; other providers clear monitored native credentials locally. Changes to shared CLI authorization block while Codex processes run; per-account login uses independent storage and preserves those sessions. Sign in changes the global login through
   the provider’s native browser/SSO flow. No isolated session launch or manual
   working-account selection is exposed. Native email determines the current
   badge; duplicate email labels remain ambiguous. Current authenticated rows

@@ -232,7 +232,8 @@ final class CodexMonitoringTests: XCTestCase {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             for width: CGFloat in [460, 860] {
                 let host = NSHostingController(rootView: ScrollView {
-                    CodexProfilesView(store: store, managesProfiles: true)
+                    CodexProfilesView(store: store, managesProfiles: true,
+                                      accounts: AccountStore(defaults: defaults, homeDirectory: root))
                 }.frame(width: width, height: 550)
                     .background(Color(nsColor: .windowBackgroundColor))
                     .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))

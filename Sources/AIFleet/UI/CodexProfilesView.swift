@@ -4,11 +4,10 @@ struct CodexProfilesView: View {
     @ObservedObject var store = CodexMonitoringStore.shared
     var managesProfiles = false
     var nativeStatus: ProviderStatus?
-    var nativeUsage: CodexAccountUsage?
     var start: Date?
     var end: Date?
     var refreshNative: () -> Void = {}
-    @State private var label = ""
+    @ObservedObject var accounts = AccountStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -19,63 +18,41 @@ struct CodexProfilesView: View {
                 Button("Refresh") { store.refresh(force: true); refreshNative() }
                     .disabled(store.refreshing || store.authenticatingID != nil)
             }
-            Text("Monitoring profiles keep independent logins. Native CLI sessions keep their current account.")
+            Text("Each letter identifies an account. Sign in once per account to keep its limits available.")
                 .font(.caption).foregroundColor(.secondary)
-            if managesProfiles {
-                HStack {
-                    TextField("Account label", text: $label)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Codex monitoring account label")
-                    Button("Add & sign in…") {
-                        let profile = store.add(label: label)
-                        label = ""
-                        store.signIn(profile)
+            let global = nativeStatus ?? StatusService.shared.codex
+            let linked = accounts.visibleAccounts.filter { $0.connection(for: "codex") != nil }
+            if linked.isEmpty {
+                Text("Connect Codex to an account in Settings → Accounts.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            ForEach(linked) { account in
+                let status = store.status(for: account, global: global, accounts: accounts.visibleAccounts)
+                let usage = store.usage(for: account, global: global, accounts: accounts.visibleAccounts)
+                row(label: "Codex (\(account.badge)) · \(account.name)", status: status, usage: usage,
+                    error: store.profile(for: account).flatMap { store.results[$0.id]?.usageError })
+                if store.profile(for: account) == nil {
+                    Text("Sign in once in Settings → Accounts to save this account's connection.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                if managesProfiles {
+                    HStack {
+                        Button("Sign in…") { store.signIn(store.ensureProfile(for: account)) }
+                        if let profile = store.profile(for: account), status.authentication == .signedIn {
+                            Button("Sign out") { store.signOut(profile) }
+                        }
                     }
                     .disabled(store.refreshing || store.authenticatingID != nil)
                 }
-            }
-            if let nativeStatus {
-                row(label: "Native CLI", status: nativeStatus, usage: nativeUsage, error: nil)
                 Divider()
             }
-            if store.profiles.isEmpty {
-                Text("No monitoring profiles. Add accounts in Settings → Accounts → Codex accounts.")
-                    .font(.caption).foregroundColor(.secondary)
-            }
-            ForEach(store.profiles) { profile in
-                VStack(alignment: .leading, spacing: 6) {
-                    let result = store.results[profile.id]
-                    row(label: profile.label, status: result?.status, usage: result?.usage, error: result?.usageError)
-                    if managesProfiles {
-                        HStack {
-                            Button("Sign in…") { store.signIn(profile) }
-                            Button("Sign out") { store.signOut(profile) }
-                            Spacer()
-                            Button("Forget profile") { store.remove(profile) }
-                                .help("Remove this profile from monitoring; preserve its login directory and history.")
-                        }
-                        .font(.caption)
-                        .disabled(store.refreshing || store.authenticatingID != nil)
-                    }
-                }
-                Divider()
-            }
-            if store.authenticatingID != nil {
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text("Complete native authentication in your browser…").font(.caption)
-                    Button("Cancel") { store.cancelAuthentication() }.font(.caption)
-                }
-            }
-            if let error = store.error {
-                Text(error).font(.caption).foregroundColor(.red)
-            }
+            CodexAccountAuthenticationStatus(store: store, accounts: accounts)
             Text(start == nil && end == nil
-                 ? "Tokens: account-reported all-time usage. No local model mix or cost is attributed to monitoring profiles."
+                 ? "Tokens: account-reported all-time usage. Local model details and cost estimates are not assigned across accounts."
                  : "Tokens: provider-reported dates for this period. Their day boundary may differ from this Mac's local session history.")
                 .font(.caption).foregroundColor(.secondary)
         }
-        .onAppear { store.refresh() }
+        .onAppear { store.synchronizeAccounts(accounts); store.refresh() }
     }
 
     private func row(label: String, status: ProviderStatus?, usage: CodexAccountUsage?, error: String?) -> some View {
@@ -115,41 +92,6 @@ struct CodexProfilesView: View {
         guard let status, status.hasCurrentQuota,
               let window = status.limitWindows.first(where: { $0.label == label }) else { return "—" }
         return "\(window.remainingPercent)% left"
-    }
-}
-
-struct CodexMonitoringMenuRows: View {
-    @ObservedObject var store = CodexMonitoringStore.shared
-    let manage: () -> Void
-
-    var body: some View {
-        if !store.profiles.isEmpty {
-            Divider()
-            HStack {
-                Text("Codex profiles").font(.caption).foregroundColor(.secondary)
-                Spacer()
-                Button("Manage…", action: manage).font(.caption).buttonStyle(.plain)
-            }
-            ForEach(store.profiles) { profile in
-                VStack(alignment: .leading, spacing: 3) {
-                    let result = store.results[profile.id]
-                    Text("Codex · \(profile.label)").font(.system(size: 12, weight: .semibold))
-                        .help([result?.status.account?.email, result?.status.account?.planLabel].compactMap { $0 }.joined(separator: "\n"))
-                    if let status = result?.status, status.hasCurrentQuota {
-                        HStack(spacing: 12) {
-                            ForEach(status.limitWindows) { window in
-                                Text("\(window.label): \(window.remainingPercent)% left")
-                                    .foregroundColor(window.remainingPercent <= 10 ? .red : window.remainingPercent <= 25 ? .orange : .primary)
-                            }
-                        }
-                        .font(.system(size: 10, design: .monospaced))
-                    } else {
-                        Text(result?.status.detail ?? (store.refreshing ? "Checking profile…" : "Sign in in Settings → Accounts"))
-                            .font(.caption).foregroundColor(.secondary)
-                    }
-                }
-            }
-        }
     }
 }
 

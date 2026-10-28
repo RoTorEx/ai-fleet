@@ -3,116 +3,124 @@ import SwiftUI
 
 struct AccountsSettingsView: View {
     @ObservedObject private var store = AccountStore.shared
-    @ObservedObject private var profiles = CodexMonitoringStore.shared
+    @ObservedObject private var codex = CodexMonitoringStore.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
+    @State private var selectedID = ""
     @State private var isAdding = false
-    @State private var draftName = ""
-    @State private var draftEmail = ""
-    @State private var draftProviderID = "codex"
-    @State private var selectedID = FleetAccount.defaultID
+    @State private var createsAccount = false
+    @State private var targetID = ""
+    @State private var providerID = "codex"
+    @State private var email = ""
+    @State private var name = ""
+
+    private var selected: FleetAccount? {
+        store.visibleAccounts.first { $0.id == selectedID } ?? store.visibleAccounts.first
+    }
+    private var target: FleetAccount? {
+        store.visibleAccounts.first { $0.id == targetID } ?? selected
+    }
+    private var duplicate: Bool { !createsAccount && target?.connection(for: providerID) != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("One badge can connect accounts from several providers.")
+            Text("Each letter identifies one account. Connect each provider once per account.")
                 .font(.callout).foregroundColor(.secondary)
-            HStack {
-                Picker("Manage account", selection: $selectedID) {
-                    ForEach(store.accounts) { account in
+            if !isAdding {
+                HStack {
+                    if !store.visibleAccounts.isEmpty {
+                        Picker("Account", selection: Binding(get: { selected?.id ?? "" }, set: { selectedID = $0 })) {
+                            ForEach(store.visibleAccounts) { account in
+                                Text("\(account.badge) · \(account.name)").tag(account.id)
+                            }
+                        }
+                    }
+                    Button("Connect provider…") {
+                        targetID = selected?.id ?? ""
+                        createsAccount = store.visibleAccounts.isEmpty
+                        isAdding = true
+                    }
+                }
+            }
+            if isAdding { connectionForm }
+            else if let selected { AccountEditor(account: selected).id(selected.id) }
+            CodexAccountAuthenticationStatus(store: codex, accounts: store)
+            if let error = store.launchError { Text(error).font(.caption).foregroundColor(.red) }
+            DisclosureGroup("Provider visibility") {
+                ForEach(ProviderCatalog.all) { provider in
+                    Toggle("Show \(provider.name)", isOn: Binding(
+                        get: { settings.isEnabled(provider.id) },
+                        set: { settings.setEnabled($0, for: provider.id); service.refresh() }
+                    ))
+                }
+            }.font(.callout)
+        }
+        .onAppear { codex.synchronizeAccounts(store); consumeAddRequest(); service.refresh() }
+        .onChange(of: navigation.addingProviderID) { _ in consumeAddRequest() }
+    }
+
+    private var connectionForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Provider", selection: $providerID) {
+                ForEach(ProviderCatalog.all.filter { settings.isEnabled($0.id) }) { Text($0.name).tag($0.id) }
+            }
+            Picker("Connect to", selection: $createsAccount) {
+                Text("Existing account").tag(false)
+                Text("New account").tag(true)
+            }.pickerStyle(.segmented)
+            if createsAccount {
+                TextField("Account name", text: $name).textFieldStyle(.roundedBorder)
+                TextField("Account email", text: $email).textFieldStyle(.roundedBorder)
+            } else {
+                Picker("Account", selection: Binding(get: { target?.id ?? "" }, set: { targetID = $0 })) {
+                    ForEach(store.visibleAccounts) { account in
                         Text("\(account.badge) · \(account.name)").tag(account.id)
                     }
                 }
-                Button {
-                    isAdding = true
-                } label: { Image(systemName: "plus") }
-                .help("Add account")
-                .accessibilityLabel("Add account")
+                if duplicate { Text("This provider is already connected to this account.").font(.caption) }
             }
-            if isAdding { addAccountForm }
-            else if let account = store.accounts.first(where: { $0.id == selectedID }) {
-                AccountEditor(account: account).id(account.id)
-            }
-            if store.codexSigningIn { CodexSignInProgress(accounts: store) }
-            if let error = store.launchError {
-                Text(error).font(.caption).foregroundColor(.red)
-            }
-            Divider()
-            CodexProfilesView(managesProfiles: true)
-            Divider()
-            DisclosureGroup("Menu visibility") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Applies to all accounts.").font(.caption).foregroundColor(.secondary)
-                    ForEach(ProviderCatalog.all) { provider in
-                        Toggle("Show \(provider.name)", isOn: Binding(
-                            get: { settings.isEnabled(provider.id) },
-                            set: { settings.setEnabled($0, for: provider.id); service.refresh() }
-                        ))
-                        .disabled(!ProviderCatalog.isInstalled(provider))
-                    }
-                }
-            }
-            .font(.callout)
-            Text("Sign in changes the provider’s global login for standard CLI commands. Choose the account in its native browser or SSO flow. Badges follow the detected email; this picker only edits labels.")
-                .font(.caption).foregroundColor(.secondary)
-            Spacer(minLength: 0)
-        }
-        .onChange(of: store.accounts.map(\.id)) { ids in
-            if !ids.contains(selectedID) { selectedID = FleetAccount.defaultID }
-        }
-        .onAppear { consumeAddRequest(); service.refresh() }
-        .onChange(of: navigation.addingProviderID) { _ in consumeAddRequest() }
-    }
-    private var addAccountForm: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("New account").font(.headline)
-            TextField("Email", text: $draftEmail).textFieldStyle(.roundedBorder)
-            TextField("Account name (optional)", text: $draftName).textFieldStyle(.roundedBorder)
-            Picker("Provider", selection: $draftProviderID) {
-                ForEach(ProviderCatalog.all) { Text($0.name).tag($0.id) }
-            }
-            Text(draftProviderID == "codex" ? "Creates an independent Codex monitoring login. Choose the account in its browser flow; your native CLI login stays unchanged." : "Sign in with this email in the provider’s browser or SSO flow. You can connect more providers to this badge later.")
-                .font(.caption).foregroundColor(.secondary)
             HStack {
-                Button("Add & sign in…") {
-                    let email = draftEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if draftProviderID == "codex" {
-                        profiles.signIn(profiles.add(label: name.isEmpty ? email : name))
-                    } else {
-                        let added = store.add(name: name.isEmpty ? email : name, email: email)
-                        store.attachGlobal(draftProviderID, to: added.id)
-                        selectedID = added.id
-                        store.signInGlobally(draftProviderID)
-                    }
-                    isAdding = false
-                    draftName = ""; draftEmail = ""
-                    service.refresh()
-                }
-                .disabled(draftEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                          !isDraftProviderInstalled ||
-                          (draftProviderID == "codex" && (profiles.refreshing || profiles.authenticatingID != nil || store.codexSigningIn)))
-                Button("Cancel") { isAdding = false; draftName = ""; draftEmail = "" }
+                Button("Connect & sign in…", action: connect)
+                    .disabled(duplicate || (createsAccount && email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
+                              (!createsAccount && target == nil) || codex.refreshing || codex.authenticatingID != nil)
+                Button("Cancel") { isAdding = false; email = ""; name = "" }
             }
         }
     }
 
-    private var isDraftProviderInstalled: Bool {
-        ProviderCatalog.definition(for: draftProviderID).map(ProviderCatalog.isInstalled) ?? false
+    private func connect() {
+        let account: FleetAccount
+        if createsAccount {
+            let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            account = store.add(name: name.isEmpty ? trimmed : name, email: trimmed)
+        } else if let target { account = target }
+        else { return }
+        guard account.connection(for: providerID) == nil else { return }
+        store.attachGlobal(providerID, to: account.id)
+        selectedID = account.id
+        if providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
+        else { store.signInGlobally(providerID) }
+        isAdding = false
+        email = ""; name = ""
+        service.refresh()
     }
 
     private func consumeAddRequest() {
-        guard let providerID = navigation.addingProviderID else { return }
-        draftProviderID = providerID
+        guard let requested = navigation.addingProviderID else { return }
+        providerID = requested
+        targetID = selected?.id ?? ""
+        createsAccount = store.visibleAccounts.isEmpty
         isAdding = true
         navigation.addingProviderID = nil
     }
-
 }
 
 private struct AccountEditor: View {
     let account: FleetAccount
     @ObservedObject private var store = AccountStore.shared
+    @ObservedObject private var codex = CodexMonitoringStore.shared
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @State private var name: String
     @State private var email: String
@@ -126,68 +134,66 @@ private struct AccountEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(account.badge).font(.title2).frame(width: 28)
-                TextField("Account name", text: $name).textFieldStyle(.roundedBorder).onSubmit(save)
-                Button("Save", action: save).disabled(name == account.name && email == account.email)
+                Text(account.badge).font(.title2)
+                TextField("Account name", text: $name).textFieldStyle(.roundedBorder)
+                Button("Save") { store.update(account.id, name: name, email: email) }
+                    .disabled(name == account.name && email == account.email)
             }
-            TextField("Email / label (optional)", text: $email).textFieldStyle(.roundedBorder).onSubmit(save)
-                .help("A label shared across providers. Hover a badge to see the actual provider login and plan when available.")
-            Divider()
-            ForEach(ProviderCatalog.all) { provider in
+            TextField("Account email", text: $email).textFieldStyle(.roundedBorder)
+            ForEach(account.connections.filter { settings.isEnabled($0.providerID) }) { connection in
+                let status = connection.providerID == "codex" ? codex.status(for: account, global: service.codex, accounts: store.visibleAccounts)
+                    : service.status(for: connection)
                 VStack(alignment: .leading, spacing: 5) {
                     HStack {
-                        Toggle(provider.name, isOn: Binding(
-                            get: { account.connection(for: provider.id) != nil },
-                            set: { enabled in
-                                if enabled { store.attachGlobal(provider.id, to: account.id) }
-                                else { store.detach(provider.id, from: account.id) }
-                                service.refresh()
-                            }
-                        ))
-                        .disabled(account.connection(for: provider.id)?.isNativeDefault == true)
+                        Text("\(ProviderCatalog.definition(for: connection.providerID)?.name ?? connection.providerID) (\(account.badge))").bold()
                         Spacer()
-                        if let connection = account.connection(for: provider.id) {
-                            Text(service.status(for: connection)?.detail ?? "Checking…")
-                                .font(.caption).foregroundColor(.secondary)
-                                .lineLimit(1)
+                        Text(status?.detail ?? "Checking…").font(.caption).foregroundColor(.secondary)
+                    }
+                    HStack {
+                        Button("Sign in…") {
+                            if connection.providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
+                            else { store.signInGlobally(connection.providerID) }
+                        }
+                        if connection.providerID == "codex" {
+                            if let profile = codex.profile(for: account), status?.authentication == .signedIn {
+                                Button("Sign out", role: .destructive) { codex.signOut(profile) }
+                            }
+                        } else if status?.authentication == .signedIn {
+                            Button("Sign out", role: .destructive) { Task { await service.signOutGlobally(connection.providerID) } }
                         }
                     }
-                    if let connection = account.connection(for: provider.id) {
-                        connectionActions(connection, provider: provider)
-                        if let notice = service.status(for: connection)?.quotaNotice {
-                            Text(notice).font(.caption).foregroundColor(.orange)
-                        }
-                    }
+                    .disabled(codex.authenticatingID != nil || service.signingOutProvider != nil ||
+                              (connection.providerID == "codex" && codex.refreshing))
                 }
+                Divider()
             }
-            Divider()
-            if account.id != FleetAccount.defaultID {
-                Button("Remove account") {
-                    store.remove(account.id)
-                    service.refresh()
-                }
-                .help("Forget this account in AI Fleet; keep provider logins and session files.")
+            Button("Remove account") {
+                guard !codex.refreshing, codex.authenticatingID == nil else { return }
+                codex.forgetAccount(account)
+                store.remove(account.id)
+                service.refresh()
             }
-        }
-        .font(.callout)
+            .disabled(codex.refreshing || codex.authenticatingID != nil)
+            .help("Forget account metadata; preserve credentials and session history.")
+        }.font(.callout)
     }
+}
 
-    private func connectionActions(_ connection: ProviderConnection, provider: ProviderDefinition) -> some View {
-        HStack(spacing: 8) {
-            Button(provider.id == "codex" ? "Change native login…" : "Sign in…") { store.signInGlobally(provider.id) }
-            if service.globalAccountIDs[provider.id] == account.id,
-               (service.status(for: provider.id).authentication == .signedIn || service.signOutFailedProvider == provider.id) {
-                Button(service.signOutFailedProvider == provider.id ? "Retry sign out" : "Sign out", role: .destructive) {
-                    Task { await service.signOutGlobally(provider.id) }
-                }
+struct CodexAccountAuthenticationStatus: View {
+    @ObservedObject var store: CodexMonitoringStore
+    @ObservedObject var accounts: AccountStore
+    var body: some View {
+        if let id = store.authenticatingID {
+            let accountID = store.profiles.first { $0.id == id }?.accountID
+            let badge = accounts.accounts.first { $0.id == accountID }?.badge ?? ""
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Complete Codex (\(badge)) sign-in in your browser…").font(.caption)
+                Button("Cancel") { store.cancelAuthentication() }.font(.caption)
             }
-            Spacer(minLength: 0)
         }
-        .font(.caption)
-        .disabled(!ProviderCatalog.isInstalled(provider) || service.signingOutProvider != nil || store.codexSigningIn)
-        .help(account.tooltip(for: connection, status: service.status(for: connection)))
+        if let error = store.error { Text(error).font(.caption).foregroundColor(.red) }
     }
-    private func save() { store.update(account.id, name: name, email: email) }
 }
 
 struct CodexSignInProgress: View {

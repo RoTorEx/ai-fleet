@@ -1,4 +1,4 @@
-# Independent Codex monitoring accounts
+# Saved Codex authorization per account
 
 ## Outcome and boundaries
 
@@ -9,25 +9,31 @@ launching sessions under a selected profile is a separate, deferred capability.
 The existing native login remains readable and protected by its running-process
 preflight. Profiles do not route prompts or pool subscription allowances.
 
-Settings → Accounts → Codex accounts creates a labelled profile with Add & sign
-in. The existing + form also creates an independent profile when Codex is chosen.
-Each profile completes its own native browser login and displays the email and
-plan actually reported by that login, independently of its label. A label never
-forces an email or establishes authentication. The native global login controls
-are explicitly named Change native login. Old generic account labels and
-associations remain stored; inactive Codex associations are not repeated as
-misleading unsigned-in global rows in the compact menu.
+Each saved login has an accountID linking it to the existing FleetAccount and
+its Greek badge. The label is internal legacy metadata, not another account.
+Settings → Accounts chooses the account; Sign in on its Codex connection starts
+the browser flow. Connect provider first selects an existing or new account and
+rejects a duplicate provider association. The same `Codex (badge)` appears in the
+menu, Settings and Statistics → Codex → Accounts. Internal auth homes and the
+standard CLI login are never presented as additional user accounts.
 
-The Usage menu shows Native Codex plus monitoring rows with current quota for
-each profile. Manage opens the Accounts settings tab. Statistics → Codex →
-Accounts compares the native account and all profiles, with the existing 7d,
-30d, 90d and All controls. Settings owns profile login, logout, cancellation
-and forgetting metadata. Empty, checking, expired, failed and missing-data states
-remain visible. Existing provider enable/disable controls apply to menu visibility.
+A uniquely matching standard CLI login can provide read-only quota when no
+independent login is attached. Its old numeric usage cache has no account identity
+and is never assigned to a badge; account token totals require the saved login. No credentials are copied. After
+an independent login is attached, that saved login owns the account's status.
+Authenticated email must match the account's expected email before quota or
+tokens are shown. A wrong browser account shows a mismatch, without its quota.
+
+Existing unbound 1.3.2 login metadata is adopted by unique account name/email;
+unmatched saved logins receive a real account record. UUID credential paths and
+existing real badges remain unchanged. No credentials are moved or deleted.
+Only independently connected account logins can remain available after an
+external tool replaces the standard CLI credentials; past signed-out credentials
+cannot be reconstructed from labels or numeric quota snapshots.
 
 ## Credential isolation and lifecycle
 
-`codex.monitoringProfiles` in UserDefaults stores only UUIDs and labels. Credentials
+`codex.monitoringProfiles` in UserDefaults stores UUIDs, legacy labels and account IDs. Credentials
 are created by native Codex under
 `~/Library/Application Support/AI Fleet/CodexProfiles/<UUID>/auth.json`.
 The profile root and directories use mode 0700; successful auth files are
@@ -53,8 +59,8 @@ logout deadlines. Native logout acts only on that profile's credential store;
 other profiles, the standard ~/.codex home, and session history are preserved.
 After any auth outcome, old measurements are discarded and native state is
 reconciled; cancellation is not a rollback of a login that already completed.
-Forget profile removes monitoring metadata, leaving its credential directory and
-any history intact. Sign out first when credentials should also be removed.
+Remove account forgets the corresponding metadata and saved-login association,
+leaving credential directories and history intact. Sign out first to clear login.
 
 ## Measurement and accounting
 
@@ -81,7 +87,8 @@ Missing daily coverage yields an unavailable period total, not a false zero.
 No local model/input/output mix, shared historical sessions, or dollar estimate
 is assigned to monitoring profiles. Profiles signed into the same actual account
 share that account's quota; separate logins do not create extra allowance.
-Profile measurements do not participate in native Lowest or threshold alerts.
+Account measurements participate in menu Lowest using the account badge.
+Threshold alerts retain the existing standard-login scope.
 
 ## Evidence and verification
 
