@@ -225,6 +225,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         guard signingOutProvider == nil,
               let provider = ProviderCatalog.definition(for: providerID) else { return }
         let accounts = suppliedAccounts ?? AccountStore.shared
+        guard !accounts.codexSigningIn else { return }
         signingOutProvider = providerID
         signOutFailedProvider = nil
         accounts.launchError = nil
@@ -238,8 +239,18 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             try await Task.detached(priority: .userInitiated) { try logout.signOut(providerID) }.value
             replacement = LocalProviderAuth.signedOut.status(for: provider)
         } catch {
+            if let authError = error as? CodexAuthenticationError {
+                accounts.launchError = authError.localizedDescription
+                // A preflight refusal must preserve confirmed identity/quota and retry controls.
+                switch authError {
+                case .busy, .activeProcesses, .inventoryUnavailable, .unavailable:
+                    return
+                default: break
+                }
+            } else {
+                accounts.launchError = "Sign-out could not complete. Some credentials may already be removed. \(error is ProviderLogout.Failure ? error.localizedDescription : "Check local credential access and retry.")"
+            }
             signOutFailedProvider = providerID
-            accounts.launchError = "Sign-out could not complete. Some credentials may already be removed. \(error is ProviderLogout.Failure ? error.localizedDescription : "Check local credential access and retry.")"
             replacement = LocalProviderAuth.unknown.status(for: provider)
         }
         let results = ProviderCatalog.all.map { $0.id == providerID ? replacement : status(for: $0.id) }

@@ -7,8 +7,8 @@ directory. Kimi and Codex credentials are used only for HTTPS requests to the
 corresponding provider endpoints documented in the architecture. Claude
 credentials also provide subscription quota status; Qwen credentials are used
 for local auth detection. Explicit Sign out
-removes the monitored native credentials and cached identity without launching
-provider commands; see [Accounts](business/accounts.md) for exact stores and
+uses native `codex logout` for Codex after a current-user process preflight;
+other providers remove monitored credentials locally without launching their CLI; see [Accounts](business/accounts.md) for exact stores and
 limitations. Ordinary status polling does not remove credentials. Tokens are
 not logged or shown in the UI.
 

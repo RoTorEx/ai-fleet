@@ -31,6 +31,10 @@ struct CodexAccountUsageReader {
     var calendar = Calendar.autoupdatingCurrent
 
     func read(fetchedAt: Date = Date()) throws -> CodexAccountUsage {
+        try CodexCredentialAccess.perform { try readExclusively(fetchedAt: fetchedAt) }
+    }
+
+    private func readExclusively(fetchedAt: Date) throws -> CodexAccountUsage {
         guard let executableURL else { throw CodexAccountUsageReaderError.codexUnavailable }
 
         let process = Process()
@@ -41,6 +45,9 @@ struct CodexAccountUsageReader {
 
         process.executableURL = executableURL
         process.arguments = ["app-server"]
+        var environment = ProcessInfo.processInfo.environment
+        for key in ProviderConnection.global("codex").overrideKeys { environment.removeValue(forKey: key) }
+        process.environment = environment
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = FileHandle.nullDevice

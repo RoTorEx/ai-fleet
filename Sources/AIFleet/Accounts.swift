@@ -124,6 +124,10 @@ final class AccountStore: ObservableObject {
     @Published private(set) var accounts: [FleetAccount]
     @Published private(set) var selections: [String: String]
     @Published var launchError: String?
+    @Published private(set) var codexSigningIn = false
+    private var codexLoginOperation: CodexAuthenticationOperation?
+
+    func cancelCodexSignIn() { codexLoginOperation?.cancel() }
     private let defaults: UserDefaults
     private let home: URL
     private var nextBadge: Int
@@ -239,13 +243,17 @@ final class AccountStore: ObservableObject {
     }
 
     func signInGlobally(_ providerID: String) {
-        guard StatusService.shared.signingOutProvider == nil else { return }
+        guard StatusService.shared.signingOutProvider == nil, !codexSigningIn else { return }
         guard let provider = ProviderCatalog.definition(for: providerID),
               let executable = ProviderCatalog.executableURL(for: provider) else {
             launchError = "Provider CLI is not installed."
             return
         }
         launchError = nil
+        if providerID == "codex" {
+            startCodexSignIn(executable: executable)
+            return
+        }
         let geminiLogin = providerID == "gemini" ? GeminiLoginSnapshot.read(home: home) : nil
         let command = AccountLaunch.command(connection: .global(providerID), executable: executable,
                                             directory: home, login: true,
@@ -256,6 +264,26 @@ final class AccountStore: ObservableObject {
         script.executeAndReturnError(&error)
         if error != nil { launchError = "Could not open Terminal. Check macOS Automation permission for AI Fleet." }
         // Login is asynchronous. Only a subsequent native status check changes the observed account.
+    }
+
+    func startCodexSignIn(executable: URL,
+                          inventory: @escaping @Sendable () throws -> [Int32] = { try CodexProcessInventory().runningPIDs() }) {
+        guard !codexSigningIn, StatusService.shared.signingOutProvider == nil else { return }
+        launchError = nil
+        let operation = CodexAuthenticationOperation()
+        codexLoginOperation = operation
+        codexSigningIn = true
+        Task { [self] in
+            let error = await Task.detached(priority: .userInitiated) { () -> String? in
+                do { try operation.run(.login, executable: executable, inventory: inventory); return nil }
+                catch { return error.localizedDescription }
+            }.value
+            codexLoginOperation = nil
+            codexSigningIn = false
+            launchError = error
+            // Verify native success; a failed attempt must not claim a new identity.
+            if error == nil { StatusService.shared.refresh() }
+        }
     }
 
     func detach(_ providerID: String, from accountID: String) {

@@ -43,7 +43,9 @@ final class ProviderLogoutTests: XCTestCase {
             try write(#"{"active":"test@example.test","old":["other@example.test"]}"#, ".gemini/google_accounts.json", home: home)
             try write(#"{"kimiApiKey":"fixture","otherSetting":true}"#, "Library/Application Support/AI Fleet/config.json", home: home)
             try write("history", ".codex/sessions/session.jsonl", home: home)
-            let logout = ProviderLogout(home: home, environment: [:], removeClaudeKeychain: { XCTFail("Wrong provider") })
+            let logout = ProviderLogout(home: home, environment: [:], removeClaudeKeychain: { XCTFail("Wrong provider") }, signOutCodex: {
+                try FileManager.default.removeItem(at: home.appendingPathComponent(".codex/auth.json"))
+            })
             try logout.signOut(provider.id)
             for path in provider.credentialPaths {
                 XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(path).path))
@@ -111,7 +113,9 @@ final class ProviderLogoutTests: XCTestCase {
         await fulfillment(of: [started], timeout: 2)
         service.refresh() // This cancels the original check but must retain its lifetime.
         let finished = Task { await service.signOutGlobally("codex", accounts: accounts,
-            logout: ProviderLogout(home: home, environment: [:], removeClaudeKeychain: {})) }
+            logout: ProviderLogout(home: home, environment: [:], removeClaudeKeychain: {}, signOutCodex: {
+                try FileManager.default.removeItem(at: auth)
+            })) }
         // Yield until logout owns the refresh gate, without starting any real provider.
         while service.signingOutProvider == nil { await Task.yield() }
         service.refresh()

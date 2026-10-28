@@ -39,6 +39,10 @@ struct AIFleetMenuView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             summarySection
+            if accounts.codexSigningIn {
+                CodexSignInProgress(accounts: accounts)
+                    .padding(.horizontal, 16).padding(.top, 8)
+            }
             if let error = accounts.launchError {
                 Text(error).font(.caption).foregroundColor(FleetPalette.danger)
                     .padding(.horizontal, 16).padding(.top, 8)
@@ -295,11 +299,11 @@ struct ProviderLimitRow: View {
                         Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
                             Task { await service.signOutGlobally(status.providerID) }
                         }
-                        .help("Removes this provider's local global login without starting its CLI. Running agents may retain credentials in memory.")
+                        .help(status.providerID == "codex" ? "Uses native Codex logout after checking for running sessions. Finish and exit Codex sessions before changing accounts." : "Removes this provider's local global login. Running agents may retain credentials in memory.")
                     }
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(service.signingOutProvider != nil)
+                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn)
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
             if !status.limitWindows.isEmpty {

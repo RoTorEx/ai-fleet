@@ -50,7 +50,7 @@ subscription charges.
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
   badges. Each provider uses one standard global native CLI login. The row’s
-  ellipsis menu exposes Sign in and, on the active signed-in row, Sign out. Sign out clears the monitored native credentials locally without launching the provider CLI; Sign in changes that global login through
+  ellipsis menu exposes Sign in and, on the active signed-in row, Sign out. Codex Sign out uses native `codex logout`; other providers clear monitored native credentials locally. Codex login/logout first blocks while any current-user Codex process is running, preserving existing sessions and explaining exit/resume recovery. Sign in changes the global login through
   the provider’s native browser/SSO flow. No isolated session launch or manual
   working-account selection is exposed. Native email determines the current
   badge; duplicate email labels remain ambiguous. Current authenticated rows

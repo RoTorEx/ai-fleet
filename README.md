@@ -94,12 +94,21 @@ to renew access; AI Fleet does not rewrite Google tokens. See [Gemini integratio
 Each account/provider association has a compact row such as **Codex (α)**.
 **→** marks the detected global login; other accounts are gray without quota.
 Hover the badge to immediately see only email and plan. The **…** menu contains
-**Sign in…** and, on the active signed-in row, **Sign out**. Complete native login in Terminal and the provider’s browser
-or SSO flow to change its standard global login. This affects ordinary CLI
-commands; an already-running process may retain cached credentials until refresh.
-**Sign out** removes the monitored local global login without starting the
-provider CLI, clears its displayed quota, and preserves settings, history, and
-other providers. The same action is available in Settings → Accounts. It does
+**Sign in…** and, on the active signed-in row, **Sign out**. Login changes the
+standard provider account through its native browser/SSO flow. Other providers
+open this flow in Terminal; existing processes can retain their previous login.
+**Codex Sign in** opens its native browser flow directly, with progress and
+**Cancel sign-in** in AI Fleet. **Codex Sign out** uses native `codex logout`.
+Both first check for running Codex CLI and IDE/desktop connections. If any are
+found, Fleet keeps the existing login and lists their PIDs: finish their work,
+exit those Codex processes, retry, then reopen saved chats with `codex resume`.
+Changing a global account cannot safely retarget already-running conversations.
+Fleet never kills agents or clears session history. Account-statistics reads
+cannot overlap these operations; if one is running, wait and retry.
+
+For other providers, **Sign out** removes the monitored local global login
+without starting their CLI, clears displayed quota, and preserves settings,
+history, and other providers. The same action is available in Settings → Accounts. It does
 not revoke server sessions or clear credentials already held by running agents.
 External API keys and stores outside AI Fleet's readers are outside this action;
 see [Accounts](business/accounts.md) for supported stores and limitations.

@@ -32,6 +32,7 @@ struct AccountsSettingsView: View {
             else if let account = store.accounts.first(where: { $0.id == selectedID }) {
                 AccountEditor(account: account).id(account.id)
             }
+            if store.codexSigningIn { CodexSignInProgress(accounts: store) }
             if let error = store.launchError {
                 Text(error).font(.caption).foregroundColor(.red)
             }
@@ -175,8 +176,23 @@ private struct AccountEditor: View {
             Spacer(minLength: 0)
         }
         .font(.caption)
-        .disabled(!ProviderCatalog.isInstalled(provider) || service.signingOutProvider != nil)
+        .disabled(!ProviderCatalog.isInstalled(provider) || service.signingOutProvider != nil || store.codexSigningIn)
         .help(account.tooltip(for: connection, status: service.status(for: connection)))
     }
     private func save() { store.update(account.id, name: name, email: email) }
+}
+
+struct CodexSignInProgress: View {
+    @ObservedObject var accounts: AccountStore
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Complete Codex sign-in in your browser…")
+                .font(.caption)
+            Button("Cancel sign-in") { accounts.cancelCodexSignIn() }
+                .font(.caption)
+        }
+        .accessibilityElement(children: .contain)
+    }
 }

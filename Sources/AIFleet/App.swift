@@ -74,6 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        AccountStore.shared.cancelCodexSignIn()
+    }
+
     func openSettings(anchorFrame: NSRect? = nil) {
         NSApplication.shared.activate(ignoringOtherApps: true)
         StatusService.shared.refresh()

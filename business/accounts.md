@@ -7,34 +7,66 @@ Claude, Codex, Kimi, Qwen, and Gemini. Labels are app metadata, not credentials.
 ## Login and interface
 
 Each provider has one current standard global CLI login. The row’s **…** menu
-contains **Sign in…**, which launches the provider’s native login in
-Terminal: Claude `auth login`, Codex/Kimi `login`, Qwen’s interactive CLI, and
-Gemini’s native login or `/auth login` dialog when already configured.
-It unsets inherited provider directory and API/account overrides and uses the
-native default location. No project chooser, isolated session launch, manual
-Use action, or credential swapping is exposed. The account is chosen in the
-provider’s browser/SSO flow; the badge does not force that flow’s email.
-Completing login changes the standard provider credentials used by ordinary
-CLI commands. Already-running processes may retain cached credentials until
-they refresh or authenticate again; AI Fleet does not control their lifetime.
-The active signed-in row also offers **Sign out** in the menu and Settings.
-Sign-out removes the monitored global local credentials without launching any
-provider CLI, and immediately clears that provider's identity and quota from all
-badges. It waits for in-flight refreshes before deletion so native token renewal
-cannot restore a removed credential. Other providers, account labels, legacy
-isolated stores, settings, and session history are preserved. Failures are shown
-without claiming signed-out status; a partial failure can require retrying.
+contains **Sign in…**. Codex uses native `codex login` directly from AI Fleet,
+opens the system browser, and shows pending/cancel controls in both Accounts and
+Usage. Other providers launch native login in Terminal: Claude `auth login`,
+Kimi `login`, Qwen’s interactive CLI, and Gemini’s native login or `/auth login`
+dialog when already configured. Inherited provider directory and API/account
+overrides are removed so native global defaults apply. The account is chosen
+in the browser/SSO flow; a badge does not force an email. No project chooser,
+isolated session launch, manual Use action, or credential swapping is exposed.
+
+Codex's shared cached credentials can change while an existing CLI, IDE or
+app-server process still holds the previous identity. On subsequent refresh,
+Codex may reject that process with the account-changed token error. Repeating
+login does not retarget its already-running conversations. AI Fleet previously
+allowed this transition without checking processes and deleted `auth.json`
+directly on sign-out; those were app-side gaps, even though native Codex also
+reports the same failure without AI Fleet. The user's October 28 incident
+showed this error after account switching and a successful fresh request after
+old processes exited. That supports the stale-process explanation, without
+establishing the exact order of every overnight failure.
+
+Before either Codex login or logout, Fleet checks current-user process command
+names (never arguments/environment/terminal content). Any running `codex`,
+including CLI and IDE/desktop app-server processes, blocks the operation with
+PIDs and recovery instructions. Inability to inspect processes also blocks it.
+Detection is conservative: custom-home and idle processes count too because
+command names cannot establish credential scope. Finish tasks, exit the affected
+Codex terminals and close IDE/desktop Codex connections, retry login, then use
+`codex resume` to reopen saved conversations. Fleet never kills agents, sends
+text to them, or promises that their auth can change live. Processes started
+externally after the preflight and external login tools remain outside Fleet's
+control; do not start new sessions until the browser flow finishes.
+
+Codex sign-out runs native `codex logout`, leaving file/keyring cleanup and
+revocation to the CLI. Other providers retain local monitored credential
+removal without launching their CLI. Status polling and Codex statistics never
+start logout. Fleet's Codex login/logout and account-statistics app-server reads
+share a nonblocking exclusive gate. A busy gate refuses the change before any
+credential mutation and preserves displayed identity/quota. New account reads
+skip while native auth is running. This covers both manual/open-window and
+daily statistics paths. Login allows 600 seconds for browser/SSO completion;
+logout allows 30 seconds. These are app operation deadlines, not provider
+limits. Cancel targets only the owned login child. Timeout/failure/cancel never
+claims successful authentication, and the next explicit attempt remains usable.
+Native success triggers a fresh provider check; a failed request remains distinct
+from merely having credential files. No model request is made to test login.
+
+The active signed-in row offers **Sign out** in Usage and Settings. Local
+sign-out waits for in-flight provider refreshes before removal. A refused Codex
+preflight keeps prior status and credentials; other failures retain explicit
+retry/error states without claiming signed-out status. Other providers, labels,
+legacy isolated stores, settings, and session history are preserved.
 
 Claude removes the native `Claude Code-credentials` Keychain item,
 `~/.claude/.credentials.json`, and only `oauthAccount` in `~/.claude.json`.
-Codex, Kimi, Qwen, and Gemini remove the file-backed credentials monitored by
-AI Fleet; Gemini also clears its cached active Google account, and Kimi clears
-AI Fleet's fallback API key. An inherited `KIMI_API_KEY` blocks sign-out until
-removed and the app restarted. Redirected credential paths are rejected.
-External API keys, credential helpers, encrypted/keychain-only stores outside
-these readers, and tokens already held by running agents are outside this
-local sign-out. It does not revoke server sessions or stop running agents.
-Selective per-session login is deferred until requested.
+Kimi, Qwen, and Gemini remove monitored file-backed credentials; Gemini also
+clears its cached active Google account, and Kimi clears Fleet's fallback API
+key. An inherited `KIMI_API_KEY` blocks sign-out until removed and the app
+restarted. Redirected credential paths are rejected. External API keys and
+stores outside these integrations remain outside local sign-out. Selective
+per-session login is deferred.
 
 Status checks read only one native default connection per provider, regardless
 of the number of registered identities. A reported email matches a unique label
@@ -108,5 +140,8 @@ GlobalAccountsTests covers observed login overriding legacy manual selection,
 case-insensitive matching, new-email discovery, ambiguous labels, restart and
 association removal, no quota leakage, native login commands, and preservation
 of legacy credential files. Scoped reader/command compatibility tests remain.
-Real corporate browser/SSO login requires the user’s authentication and is not
+CodexAuthenticationTests protects process detection, fail-closed preflight,
+non-launch/non-mutation on refusal, native command/environment selection,
+statistics/auth exclusion, preserved status after refusal, pending/cancel,
+failure/timeout/retry and saved history. Real corporate browser/SSO login requires the user’s authentication and is not
 established by fixtures; development checks do not change live provider login.

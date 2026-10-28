@@ -184,7 +184,14 @@ receive no current row; the provider summary retains the actual native status.
   Source reference: https://github.com/steipete/CodexBar/blob/main/docs/claude.md.
 - Qwen quota retrieval is unsupported. Login and quota errors remain separate
   in both the menu and Settings; opening either surface requests a fresh check.
-- Local sign-out: `ProviderLogout.swift` deletes only the monitored global
+- Codex authentication: `CodexAuthentication.swift` provides a current-user
+  command-name process inventory and a nonblocking credential-consumer gate.
+  AccountStore runs native browser login with pending/cancel state; ProviderLogout
+  delegates Codex logout to that CLI. Running Codex processes or failed inventory
+  refuse mutation. CodexAccountUsageReader holds the same gate for the full
+  app-server lifetime and removes inherited account/home overrides. Native auth
+  output is discarded; only generic failures and PID-only refusal are displayed.
+- Local sign-out: `ProviderLogout.swift` delegates Codex to native logout and otherwise deletes only the monitored global
   credential stores and cached identity fields. Claude uses Security.framework
   to delete and verify its native Keychain item, without executing its CLI.
   `StatusService` serializes refresh lifetimes, blocks new refreshes/sign-in

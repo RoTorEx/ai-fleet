@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Refuse Codex account changes while CLI or IDE/desktop Codex processes are
+  running, preserving their login and showing PID/exit/resume recovery guidance.
+  Use native Codex browser login with pending/cancel controls and native logout
+  instead of deleting auth.json. Serialize account-statistics app-server reads
+  with auth changes, remove inherited account overrides, and preserve displayed
+  identity/quota when a change is refused.
+
 ### Added
 
 - Add Kimi and Qwen local token history to Statistics, including cache categories,

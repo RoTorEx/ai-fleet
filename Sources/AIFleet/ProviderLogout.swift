@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-/// Removes the monitored native login without starting a provider process.
+/// Uses native Codex logout; other providers remove only their monitored local login.
 struct ProviderLogout {
     var home = FileManager.default.homeDirectoryForCurrentUser
     var environment = ProcessInfo.processInfo.environment
@@ -14,6 +14,10 @@ struct ProviderLogout {
         guard SecItemCopyMatching(query as CFDictionary, &unused) == errSecItemNotFound else {
             throw Failure.keychain
         }
+    }
+
+    var signOutCodex: () throws -> Void = {
+        try CodexAuthenticationOperation().run(.logout, timeout: 30)
     }
 
     enum Failure: LocalizedError {
@@ -46,6 +50,11 @@ struct ProviderLogout {
             }
             json.removeValue(forKey: key)
             return (url, try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]))
+        }
+        if providerID == "codex" {
+            // The native CLI owns file/keyring cleanup and token revocation.
+            try signOutCodex()
+            return
         }
         if providerID == "claude" { try removeClaudeKeychain() }
         for path in files {
