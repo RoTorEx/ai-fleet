@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Replace color-name and mixed-state legend rows with Capacity, Access and Marks.
+  Describe capacity as Enough/Low/Critical and render both arrows from one
+  rotated vector with equal lengths. Remove generic "sign in again" suffixes.
+- Show the monitoring lifecycle (Active/Paused) in Status instead of Idle;
+  preserve transient operations and errors, and keep successful version checks
+  from replacing the monitor state.
+
 ## [1.3.5] - 2026-10-28
 
 ### Fixed

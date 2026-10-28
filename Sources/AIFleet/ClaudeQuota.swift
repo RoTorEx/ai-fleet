@@ -29,9 +29,9 @@ struct ClaudeQuotaCredential {
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         if let oauth = json?["claudeAiOauth"] as? [String: Any],
            let expires = oauth["expiresAt"] as? Double, expires / 1000 <= now.timeIntervalSince1970 {
-            return Resolution(credential: nil, detail: "Limits access expired · sign in again")
+            return Resolution(credential: nil, detail: "Limits access expired")
         }
-        return Resolution(credential: nil, detail: "Limits access unavailable · sign in again")
+        return Resolution(credential: nil, detail: "Limits access unavailable")
     }
 
     static func read(snapshot: ClaudeAuthSnapshot, profile: ClaudeProfile? = nil) -> ClaudeQuotaCredential? {
@@ -51,7 +51,7 @@ struct ClaudeQuotaCredential {
                 return Resolution(credential: nil, detail: "Limits account mismatch · check login")
             }
         }
-        var failure = Resolution(credential: nil, detail: "Limits access unavailable · sign in again")
+        var failure = Resolution(credential: nil, detail: "Limits access unavailable")
         if let data = try? Data(contentsOf: directory.appendingPathComponent(".credentials.json")) {
             let result = decodeResolution(data)
             if result.credential != nil { return result }

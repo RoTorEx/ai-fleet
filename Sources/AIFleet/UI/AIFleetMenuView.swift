@@ -103,7 +103,8 @@ struct AIFleetMenuView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     summaryValue(operationStatus.title, color: operationStatus.failed ? FleetPalette.warning : FleetPalette.value)
                     if let detail = operationStatus.detail {
-                        Text(detail).font(.system(size: 11)).foregroundColor(FleetPalette.warning)
+                        Text(detail).font(.system(size: 11))
+                            .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.muted)
                             .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                     }
                 }
@@ -152,7 +153,7 @@ struct AIFleetMenuView: View {
             "Signing out \(ProviderCatalog.definition(for: $0)?.name ?? $0)…"
         } ?? (accounts.codexSigningIn ? "Signing in Codex…" : nil)
         return MenuOperationStatus.resolve(update: updater.state, refreshing: service.isRefreshing || codexProfiles.refreshing,
-                                            signingIn: signing)
+                                            signingIn: signing, monitoring: service.isMonitoring)
     }
 
     private var lastUpdateText: String {
@@ -237,13 +238,12 @@ struct ProviderLimitRow: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text((entry.isCurrentCLI ?? entry.isSelected) ? "→" : " ")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(color).frame(width: 14)
+                    FleetMark(kind: .current)
+                        .opacity((entry.isCurrentCLI ?? entry.isSelected) ? 1 : 0)
+                        .foregroundColor(color)
                         .accessibilityLabel((entry.isCurrentCLI ?? entry.isSelected) ? "\(status.name) account \(entry.account.badge), current" : "")
-                    Text(isLowest ? "↓" : " ")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(color).frame(width: 14)
+                    FleetMark(kind: .lowest).opacity(isLowest ? 1 : 0)
+                        .foregroundColor(color)
                     Text(presentation.marker)
                         .font(.system(size: 14, weight: .medium, design: .monospaced))
                         .foregroundColor(color).frame(width: 14)
@@ -436,38 +436,55 @@ struct LimitWindowLine: View {
     }
 }
 
+/// Both marks use one vector rotated in a square, so their arrow lengths match.
+struct FleetMark: View {
+    enum Kind { case current, lowest }
+    let kind: Kind
+    var body: some View {
+        Image(systemName: "arrow.right")
+            .font(.system(size: 13, weight: .medium))
+            .rotationEffect(.degrees(kind == .lowest ? 90 : 0))
+            .frame(width: 14, height: 14)
+    }
+}
+
 struct LegendSection: View {
     var body: some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 4, verticalSpacing: 4) {
             GridRow {
-                Text("Color:")
+                Text("Capacity:")
                     .foregroundColor(FleetPalette.label)
                 HStack(spacing: 4) {
-                    Text("normal ≥26%")
+                    Text("Enough ≥26%")
                         .foregroundColor(FleetPalette.value)
                     Text("·")
                         .foregroundColor(FleetPalette.muted)
-                    Text("orange 11-25%")
+                    Text("Low 11–25%")
                         .foregroundColor(FleetPalette.warning)
                     Text("·")
                         .foregroundColor(FleetPalette.muted)
-                    Text("red ≤10%")
+                    Text("Critical ≤10%")
                         .foregroundColor(FleetPalette.danger)
                 }
             }
 
             GridRow {
-                Text("Limits:").foregroundColor(FleetPalette.label)
-                Text("○ loaded · × sign in · ? unavailable")
-                    .foregroundColor(FleetPalette.value)
+                Text("Access:").foregroundColor(FleetPalette.label)
+                HStack(spacing: 4) {
+                    Text("○ ready").foregroundColor(FleetPalette.value)
+                    Text("· × sign in ·").foregroundColor(FleetPalette.value)
+                    Text("? unavailable").foregroundColor(FleetPalette.muted)
+                }
             }
             GridRow {
-                Text("Current:").foregroundColor(FleetPalette.label)
-                Text("→ · gray unavailable").foregroundColor(FleetPalette.value)
-            }
-            GridRow {
-                Text("Lowest:").foregroundColor(FleetPalette.label)
-                Text("↓ lowest remaining").foregroundColor(FleetPalette.value)
+                Text("Marks:").foregroundColor(FleetPalette.label)
+                HStack(spacing: 6) {
+                    FleetMark(kind: .current)
+                    Text("current")
+                    Spacer().frame(width: 8)
+                    FleetMark(kind: .lowest)
+                    Text("lowest remaining")
+                }.foregroundColor(FleetPalette.value)
             }
         }
         .font(.system(size: 10.5, weight: .medium))

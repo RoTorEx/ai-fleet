@@ -6,11 +6,11 @@ import XCTest
 final class AccountProviderPresentationTests: XCTestCase {
     func testMenuAvailabilityAndLoginAreDifferentStates() {
         let signedInWithoutLimits = ProviderStatus(id: "claude", name: "Claude", state: .offline,
-            detail: "Limits access expired · sign in again", lastUpdated: Date(), authentication: .signedIn)
+            detail: "Limits access expired", lastUpdated: Date(), authentication: .signedIn)
         let unavailable = MenuConnectionState(status: signedInWithoutLimits)
         XCTAssertFalse(unavailable.available)
         XCTAssertEqual(unavailable.marker, "?")
-        XCTAssertEqual(unavailable.detail, "Limits access expired · sign in again")
+        XCTAssertEqual(unavailable.detail, "Limits access expired")
         let signedOut = ProviderStatus(id: "codex", name: "Codex", state: .noKey, detail: "Sign in required", lastUpdated: nil)
         XCTAssertEqual(MenuConnectionState(status: signedOut).marker, "×")
         let exhausted = status("work@example.test", remaining: 0)
@@ -22,7 +22,11 @@ final class AccountProviderPresentationTests: XCTestCase {
     }
 
     func testMenuStatusDescribesApplicationOperationsAndKeepsUpdateFailureVisible() {
-        XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: false).title, "Idle")
+        XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: false).title, "Active")
+        XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: false, monitoring: false).title, "Paused")
+        let checked = MenuOperationStatus.resolve(update: .upToDate("1.3.5"), refreshing: false)
+        XCTAssertEqual(checked.title, "Active", "An update result must not replace the monitoring state")
+        XCTAssertEqual(checked.detail, "Latest version installed")
         XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: true).title, "Updating limits…")
         XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: true, signingIn: "Signing in Codex (β)…").title,
                        "Signing in Codex (β)…")

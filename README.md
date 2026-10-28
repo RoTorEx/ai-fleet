@@ -105,8 +105,10 @@ account's saved Codex login.
 The menu shows each account's remaining 5h/7d limits. A circle means current
 limits are loaded, × requests sign-in, and ? with a gray row means limits are
 unavailable, even if the CLI has a configured login. The row explains why.
-The header separates application Status, last Checked time, and Limits loaded.
-→ marks Current and ↓ marks Lowest. **Statistics → Codex →
+Status shows whether AI Fleet monitoring is Active or Paused, with operations
+and errors shown while relevant. Checked is the last check and Limits counts
+loaded measurements. The legend separates Capacity (Enough/Low/Critical), Access
+(ready/sign in/unavailable), and Marks (→ current, ↓ lowest remaining). **Statistics → Codex →
 Accounts** compares tokens and quotas under the same account letters for `7d`,
 `30d`, `90d` and `All`. These account totals come from provider-reported dates;
 shared local model history and cost estimates are not split between accounts.

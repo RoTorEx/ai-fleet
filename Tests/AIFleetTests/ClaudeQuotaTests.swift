@@ -7,7 +7,7 @@ final class ClaudeQuotaTests: XCTestCase {
         let expired = ClaudeQuotaCredential.decodeResolution(
             Data(#"{"claudeAiOauth":{"accessToken":"fixture","expiresAt":99000,"scopes":["user:profile"]}}"#.utf8), now: now)
         XCTAssertNil(expired.credential)
-        XCTAssertEqual(expired.detail, "Limits access expired · sign in again")
+        XCTAssertEqual(expired.detail, "Limits access expired")
         let valid = ClaudeQuotaCredential.decodeResolution(
             Data(#"{"claudeAiOauth":{"accessToken":"fixture","expiresAt":101000,"scopes":["user:profile"]}}"#.utf8), now: now)
         XCTAssertNotNil(valid.credential)

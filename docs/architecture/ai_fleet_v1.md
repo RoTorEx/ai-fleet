@@ -123,9 +123,9 @@ receive no current row; the provider summary retains the actual native status.
   current limit availability independently of configured authentication.
   Each row reports its own missing-limit reason, login progress and errors.
   Ellipsis actions preserve actual login state and per-account Codex isolation.
-  Badge hover shows email/plan. `MenuOperationStatus` owns the top operation
-  status and update errors; Checked shows the last check and Limits counts
-  current measurements. The legend uses Color, Limits, Current and Lowest.
+  Badge hover shows email/plan. `MenuOperationStatus` combines the actual monitoring lifecycle
+  (Active/Paused) with transient operations and update errors; Checked shows the last check and Limits counts
+  current measurements. The legend uses Capacity, Access and Marks, with shared rotated vector arrows.
   Commands remain compact; native popover clipping owns the corners around a
   plain system background. Long connection lists use a measured bounded scroll
   area; short lists retain natural height. [Accounts](../../business/accounts.md)

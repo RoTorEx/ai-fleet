@@ -99,17 +99,26 @@ Authentication and limit measurement remain independent internally. Menu markers
 communicate measurement availability: ○ current limits loaded (including 0%),
 × sign-in required, ? limits unavailable or unknown. Any connection without
 current limits is gray, even if its CLI reports a configured login; a missing
-measurement never looks ready. The concise Current legend explains → and gray;
-Lowest explains ↓. Email/plan hover and login actions retain actual authentication
+measurement never looks ready. The compact legend has three independent rows: Capacity names the remaining
+allowance bands (Enough ≥26%, Low 11–25%, Critical ≤10%); Access names connector
+availability (○ ready, × sign in, ? unavailable); Marks explains → current and
+↓ lowest remaining. Unavailable access is visually muted without a separate
+"gray" label attached to an arrow. Both arrows use the same vector rotated 90°
+in equal square frames, in the rows and in the legend. Email/plan hover and login actions retain actual authentication
 state. Account-specific errors cannot borrow another account's limits or tokens.
 Old shared session history is not split by badge.
 
-The top Status row describes application operations: checking/downloading/installing
-an update, authentication of a named account, refreshing limits, or Idle. Provider
+The top Status reflects AI Fleet's monitoring lifecycle: Active while periodic
+monitoring is enabled, Paused after monitoring stops. Checking/downloading/installing
+an update, authentication of a named account, and refreshing limits temporarily
+show their operation state. A successful version check returns to Active/Paused
+with a secondary confirmation rather than replacing the monitor state. Provider
 measurement problems belong to their own rows and never become an unscoped app
 error. Checked names the last provider check; Limits counts current measurements.
 Update errors appear once in Status, including the failing stage, with Retry update
 as the command. Account authentication errors remain under their named provider.
+Expired or missing access is described without the generic "sign in again"
+suffix; the account's existing Sign in action remains available.
 
 ## Storage and preservation
 

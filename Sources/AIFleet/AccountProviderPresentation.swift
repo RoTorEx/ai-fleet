@@ -25,7 +25,8 @@ struct MenuOperationStatus {
     var detail: String? = nil
     var failed = false
 
-    static func resolve(update: UpdateService.State, refreshing: Bool, signingIn: String? = nil) -> Self {
+    static func resolve(update: UpdateService.State, refreshing: Bool, signingIn: String? = nil,
+                        monitoring: Bool = true) -> Self {
         switch update {
         case .checking: return Self(title: "Checking for updates…")
         case .downloading(let version): return Self(title: "Downloading v\(version)…")
@@ -34,8 +35,9 @@ struct MenuOperationStatus {
         case .idle, .upToDate:
             if let signingIn { return Self(title: signingIn) }
             if refreshing { return Self(title: "Updating limits…") }
-            if case .upToDate = update { return Self(title: "Up to date") }
-            return Self(title: "Idle")
+            let detail: String?
+            if case .upToDate = update { detail = "Latest version installed" } else { detail = nil }
+            return Self(title: monitoring ? "Active" : "Paused", detail: detail)
         }
     }
 }

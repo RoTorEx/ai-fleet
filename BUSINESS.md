@@ -68,7 +68,7 @@ subscription charges.
   Management stays in Settings → Accounts with one account editor and an
   existing/new account choice when connecting a provider. Small parenthesized
   badges follow the provider name; the ellipsis exposes account login actions.
-  Hover shows email and plan. The Color/Limits/Current/Lowest legend remains
+  Hover shows email and plan. The Capacity/Access/Marks legend remains
   visible, and ↓ marks the exact lowest positive current quota connection.
   Legacy isolated files and metadata remain preserved. See
   [Accounts](business/accounts.md) for matching, ordering and storage rules.
@@ -201,7 +201,7 @@ subscription charges.
   the summary. Quota availability counts current measurements independently of
   login, and authentication progress/errors belong to the affected account row.
   Current measured limits use ○; missing limits use ? and gray even when a CLI
-  login is configured. The top Status describes app operations and update errors;
+  login is configured. The top Status reflects Active/Paused monitoring and transient operations or update errors;
   Checked and Limits replace Refresh and Quota. See Accounts for the full contract.
 - Remaining-quota color states in the compact menu are red at `10%` or below,
   orange from `11%` through `25%` inclusive, and normal at `26%` or above.

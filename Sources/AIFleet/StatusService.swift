@@ -16,6 +16,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var lastError: String?
     @Published private(set) var isRefreshing = false
+    @Published private(set) var isMonitoring = false
     private var refreshID: UUID?
     @Published var notificationStatusText = "Checking"
     @Published var notificationsEnabled = false
@@ -154,6 +155,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     func start() {
+        isMonitoring = true
         if notificationsAvailable {
             configureNotifications()
         }
@@ -194,6 +196,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     func stop() {
+        isMonitoring = false
         timer?.invalidate()
         timer = nil
         task?.cancel()
