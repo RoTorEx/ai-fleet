@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.11] - 2026-10-31
+
 ### Fixed
 
 - Present a switch blocked by running Codex processes as a compact neutral notice
