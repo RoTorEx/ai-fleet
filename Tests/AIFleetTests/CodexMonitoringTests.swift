@@ -5,6 +5,55 @@ import XCTest
 
 final class CodexMonitoringTests: XCTestCase {
     @MainActor
+    func testBlockedSwitchPreservesCredentialsAndScopesCompactNoticeToTargetAccount() throws {
+        let root = try root()
+        let suite = "blocked-switch-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let accounts = AccountStore(defaults: defaults, homeDirectory: root)
+        let work = accounts.add(name: "Work", email: "work@example.test")
+        let personal = accounts.add(name: "Personal", email: "personal@example.test")
+        defaults.set(work.id, forKey: "codex.activeAccountID")
+        let store = CodexMonitoringStore(defaults: defaults, root: root.appendingPathComponent("profiles"))
+        let profile = store.ensureProfile(for: personal)
+        let saved = try store.directory(for: profile)
+        let shared = root.appendingPathComponent("shared")
+        func auth(_ email: String) throws -> Data {
+            let claims = try JSONSerialization.data(withJSONObject: ["email": email]).base64EncodedString()
+            return try JSONSerialization.data(withJSONObject: ["tokens": ["account_id": email,
+                "access_token": "fixture", "id_token": "x.\(claims).y"]])
+        }
+        let current = try auth(work.email), incoming = try auth(personal.email)
+        for (directory, data) in [(shared, current), (saved, incoming)] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: directory.appendingPathComponent("auth.json"))
+        }
+        store.switchAccount(personal, sharedDirectory: shared, inventory: { [42, 73] })
+        XCTAssertEqual(store.switchBlockedProcessIDs, [42, 73])
+        XCTAssertEqual(store.errorProfileID, profile.id)
+        XCTAssertEqual(store.activeAccountID, work.id)
+        XCTAssertEqual(defaults.string(forKey: "codex.activeAccountID"), work.id)
+        XCTAssertEqual(try Data(contentsOf: shared.appendingPathComponent("auth.json")), current)
+        XCTAssertEqual(try Data(contentsOf: saved.appendingPathComponent("auth.json")), incoming)
+        func height(for account: FleetAccount) -> CGFloat {
+            let host = NSHostingController(rootView:
+                CodexAccountAuthenticationStatus(store: store, accounts: accounts, accountID: account.id)
+                    .frame(width: 260))
+            host.view.layoutSubtreeIfNeeded()
+            return host.view.fittingSize.height
+        }
+        XCTAssertEqual(height(for: work), 0, accuracy: 1)
+        XCTAssertGreaterThan(height(for: personal), 20)
+        XCTAssertLessThan(height(for: personal), 90, "Process details must be collapsed initially")
+
+        // A subsequent failure must not keep the previous process-block classification.
+        let unsaved = accounts.add(email: "unsaved@example.test")
+        store.switchAccount(unsaved, sharedDirectory: shared, inventory: { [] })
+        XCTAssertNil(store.switchBlockedProcessIDs)
+        XCTAssertNotNil(store.error)
+    }
+
+    @MainActor
     func testAuthenticationProgressAndFailureStayWithTheirAccount() async throws {
         let root = try root()
         let suite = "auth-row-\(UUID().uuidString)"

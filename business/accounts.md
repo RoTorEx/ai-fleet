@@ -41,6 +41,11 @@ Codex Save current login retains the current authorization without another
 browser login. Switch to this account saves the outgoing account and replaces
 only the standard auth.json, preserving the shared history/config/state. Running
 Codex processes, including its shared daemon, block switching before any write.
+This refusal is a neutral, account-scoped notice: switching is unavailable while
+Codex is running and the current login is preserved. Details are collapsed by
+default and reveal the running PIDs and safe retry/resume instructions. Ordinary
+authentication failures remain errors; refusing a switch does not invalidate
+the account's measured limits or stop any agent.
 Fleet never creates a terminal or an agent session and never kills existing tasks.
 Native browser sign-in is still available for genuinely missing saved credentials.
 

@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Present a switch blocked by running Codex processes as a compact neutral notice
+  with expandable details, preserving the process guard and current account limits.
+
 ## [1.3.10] - 2026-10-28
 
 ### Fixed

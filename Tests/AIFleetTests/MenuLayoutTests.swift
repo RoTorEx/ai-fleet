@@ -5,6 +5,49 @@ import XCTest
 
 final class MenuLayoutTests: XCTestCase {
     @MainActor
+    func testBlockedSwitchDetailsExpandAndCollapseInBothAppearances() async throws {
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let state = SwitchNoticeState()
+            let host = NSHostingController(rootView: LiveSwitchNotice(state: state)
+                .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))
+            let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 280, height: 100),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: appearance)
+            window.contentViewController = host
+            window.orderFrontRegardless()
+            defer { window.orderOut(nil); window.contentViewController = nil }
+            var collapsedHeight: CGFloat = 0
+            for expanded in [false, true, false] {
+                state.expanded = expanded
+                for _ in 0..<10 {
+                    host.view.layoutSubtreeIfNeeded()
+                    try await Task.sleep(nanoseconds: 10_000_000)
+                }
+                let size = host.view.fittingSize
+                XCTAssertEqual(size.width, 280, accuracy: 1)
+                if expanded {
+                    XCTAssertGreaterThan(size.height, collapsedHeight + 60)
+                } else if collapsedHeight == 0 {
+                    collapsedHeight = size.height
+                    XCTAssertLessThan(collapsedHeight, 100)
+                } else {
+                    XCTAssertEqual(size.height, collapsedHeight, accuracy: 1)
+                }
+                if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"] {
+                    window.setContentSize(size)
+                    host.view.layoutSubtreeIfNeeded()
+                    if let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
+                        host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+                        let name = "switch-notice-\(appearance.rawValue)-\(expanded ? "expanded" : "collapsed").png"
+                        try bitmap.representation(using: .png, properties: [:])?.write(to:
+                            URL(fileURLWithPath: directory).appendingPathComponent(name))
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
     func testCurrentAndLowestMarksHaveEqualRenderedArrowLengths() throws {
         func inkSize(_ kind: FleetMark.Kind, size: CGFloat) throws -> CGSize {
             let renderer = ImageRenderer(content: FleetMark(kind: kind, size: size).foregroundColor(.black))
@@ -96,6 +139,20 @@ final class MenuLayoutTests: XCTestCase {
         rows.count = 4
         settle()
         XCTAssertEqual(live.view.fittingSize.height, 184, accuracy: 1)
+    }
+}
+
+private final class SwitchNoticeState: ObservableObject {
+    @Published var expanded = false
+}
+
+private struct LiveSwitchNotice: View {
+    @ObservedObject var state: SwitchNoticeState
+    var body: some View {
+        CodexSwitchBlockedNotice(label: "Codex (α)", processIDs: [2158, 2184, 2902, 3457, 4331, 7834],
+                                 isExpanded: $state.expanded)
+            .padding(10).frame(width: 280)
+            .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 

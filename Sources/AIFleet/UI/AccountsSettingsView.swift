@@ -194,6 +194,7 @@ struct CodexAccountAuthenticationStatus: View {
     @ObservedObject var store: CodexMonitoringStore
     @ObservedObject var accounts: AccountStore
     var accountID: String? = nil
+    @State private var showsSwitchDetails = false
 
     private func matches(_ id: String?) -> Bool {
         guard let accountID else { return true }
@@ -205,20 +206,52 @@ struct CodexAccountAuthenticationStatus: View {
         return badge.isEmpty ? "Codex" : "Codex (\(badge))"
     }
     var body: some View {
-        if let id = store.authenticatingID, matches(id) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    ProgressView().controlSize(.small)
-                    Text(store.authenticationAction == .logout ? "\(label(id)): signing out…" : "\(label(id)): complete sign-in in your browser…")
-                        .font(.caption).fixedSize(horizontal: false, vertical: true)
+        Group {
+            if let id = store.authenticatingID, matches(id) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        ProgressView().controlSize(.small)
+                        Text(store.authenticationAction == .logout ? "\(label(id)): signing out…" : "\(label(id)): complete sign-in in your browser…")
+                            .font(.caption).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button("Cancel") { store.cancelAuthentication() }.font(.caption).buttonStyle(.link)
                 }
-                Button("Cancel") { store.cancelAuthentication() }.font(.caption).buttonStyle(.link)
+            }
+            if let error = store.error, matches(store.errorProfileID) {
+                if let pids = store.switchBlockedProcessIDs {
+                    CodexSwitchBlockedNotice(label: label(store.errorProfileID), processIDs: pids,
+                                             isExpanded: $showsSwitchDetails)
+                } else {
+                    Text("\(label(store.errorProfileID)): \(error)").font(.caption).foregroundColor(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
-        if let error = store.error, matches(store.errorProfileID) {
-            Text("\(label(store.errorProfileID)): \(error)").font(.caption).foregroundColor(.red)
+        // A new action must not inherit the previous notice's expanded details.
+        .onChange(of: store.error) { _ in showsSwitchDetails = false }
+    }
+}
+
+struct CodexSwitchBlockedNotice: View {
+    let label: String
+    let processIDs: [Int32]
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(label): switching unavailable while Codex is running. Current login preserved.")
                 .fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup("Details", isExpanded: $isExpanded) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Finish the running tasks, exit Codex in those terminals and close Codex IDE/desktop connections, then retry. Reopen saved conversations with codex resume after switching. AI Fleet has not stopped any agent.")
+                    Text("Running PIDs: \(processIDs.map(String.init).joined(separator: ", "))")
+                        .textSelection(.enabled)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .font(.caption)
+        .foregroundColor(.secondary)
     }
 }
 

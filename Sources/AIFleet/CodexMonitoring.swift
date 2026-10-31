@@ -25,7 +25,10 @@ final class CodexMonitoringStore: ObservableObject {
     @Published private(set) var authenticationAction: CodexAuthenticationOperation.Action?
     @Published private(set) var errorProfileID: String?
     @Published private(set) var activeAccountID: String?
-    @Published var error: String?
+    @Published private(set) var switchBlockedProcessIDs: [Int32]?
+    @Published var error: String? {
+        didSet { switchBlockedProcessIDs = nil }
+    }
     private let defaults: UserDefaults
     private let root: URL
     private var operation: CodexAuthenticationOperation?
@@ -157,14 +160,16 @@ final class CodexMonitoringStore: ObservableObject {
         } catch { errorProfileID = profile(for: account)?.id; self.error = error.localizedDescription }
     }
 
-    func switchAccount(_ account: FleetAccount) {
+    func switchAccount(_ account: FleetAccount,
+                       sharedDirectory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex"),
+                       inventory: () throws -> [Int32] = { try CodexProcessInventory().runningPIDs() }) {
         guard !refreshing, authenticatingID == nil else { return }
         do {
             guard let profile = profile(for: account) else { throw CodexCredentialSwitch.Failure.missingLogin }
             let incoming = try directory(for: profile)
-            let shared = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
+            let shared = sharedDirectory
             try CodexCredentialAccess.perform {
-                try CodexCredentialSwitch.activate(incoming: incoming, expectedEmail: account.email, shared: shared) { email in
+                try CodexCredentialSwitch.activate(incoming: incoming, expectedEmail: account.email, shared: shared, inventory: inventory) { email in
                     let matches = AccountStore.shared.accounts.filter { $0.email.caseInsensitiveCompare(email) == .orderedSame }
                     guard matches.count == 1, let previous = matches.first,
                           let saved = self.profile(for: previous) else { return nil }
@@ -179,6 +184,9 @@ final class CodexMonitoringStore: ObservableObject {
         } catch {
             errorProfileID = profile(for: account)?.id
             self.error = error.localizedDescription
+            if case CodexAuthenticationError.activeProcesses(let pids) = error {
+                switchBlockedProcessIDs = pids
+            }
         }
     }
 
