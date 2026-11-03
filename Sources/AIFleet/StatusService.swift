@@ -206,7 +206,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     func refresh() {
-        guard signingOutProvider == nil else { return }
+        guard signingOutProvider == nil, !ProviderLaunchStore.shared.busy else { return }
         let previous = task
         previous?.cancel()
         let id = UUID()
@@ -227,9 +227,39 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             }
             guard !Task.isCancelled else { return }
             applyGlobalStatuses(results, accounts: AccountStore.shared)
+            let privateConnections = ProviderLaunchStore.shared.profiles.compactMap { profile -> (ProviderConnection, ProviderConnection)? in
+                guard let source = ProviderLaunchStore.shared.connection(profile, accounts: AccountStore.shared.accounts),
+                      let original = AccountStore.shared.accounts.first(where: { $0.id == profile.accountID })?.connection(for: profile.providerID) else { return nil }
+                return (source, original)
+            }
+            for (connection, original) in privateConnections {
+                let result = await checkConnection(connection)
+                guard !Task.isCancelled else { return }
+                let expected = AccountStore.shared.accounts.first { $0.connection(for: connection.providerID)?.id == connection.id }?.email
+                applyScopedStatus(result, connection: connection, expectedEmail: expected, presentation: original)
+            }
             CodexMonitoringStore.shared.observeSharedLogin(codex, accounts: AccountStore.shared.accounts)
             processDrainNotifications()
         }
+    }
+
+    func joinRefreshBeforeAccountAuth() async {
+        task?.cancel()
+        await task?.value
+    }
+
+    func applyScopedStatus(_ result: ProviderStatus, connection: ProviderConnection, expectedEmail: String?,
+                           presentation: ProviderConnection? = nil) {
+        let presented = presentation ?? connection
+        let displayed: ProviderStatus
+        if let email = result.account?.email, let expectedEmail, !expectedEmail.isEmpty,
+           email.caseInsensitiveCompare(expectedEmail) != .orderedSame {
+            displayed = presented.status(from: ProviderStatus(id: connection.providerID, name: result.name,
+                state: .offline, detail: "Account mismatch · check native sign-in", lastUpdated: result.lastUpdated,
+                authentication: .unknown, quotaState: .unavailable))
+        } else { displayed = presented.status(from: result) }
+        subscriptions.removeAll { $0.id == presented.statusID }
+        subscriptions.append(displayed)
     }
 
     func signOutGlobally(_ providerID: String, accounts suppliedAccounts: AccountStore? = nil,
@@ -270,6 +300,11 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     func applyGlobalStatuses(_ results: [ProviderStatus], accounts: AccountStore) {
+        let scopedIDs = Set(ProviderLaunchStore.shared.profiles.compactMap { profile -> String? in
+            guard !profile.native else { return nil }
+            return accounts.accounts.first { $0.id == profile.accountID }?.connection(for: profile.providerID)?.statusID
+        })
+        let retainedScoped = subscriptions.filter { scopedIDs.contains($0.id) }
         var owners: [String: String] = [:]
         for result in results {
             owners[result.providerID] = accounts.globalAccount(for: result)
@@ -289,6 +324,10 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                     providerID: connection.providerID, authentication: ambiguous ? .unknown : .signInRequired, quotaState: .unknown))
             }
         }
+        for status in retainedScoped {
+            subscriptions.removeAll { $0.id == status.id }
+            subscriptions.append(status)
+        }
         codex = results.first { $0.providerID == "codex" } ?? Self.initialStatus(for: ProviderCatalog.codex)
         kimi = results.first { $0.providerID == "kimi" } ?? Self.initialStatus(for: ProviderCatalog.kimi)
         claude = results.first { $0.providerID == "claude" } ?? Self.initialStatus(for: ProviderCatalog.claude)
@@ -306,7 +345,9 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let result: ProviderStatus
         switch provider.id {
         case "gemini":
-            result = await GeminiQuota.check()
+            result = await GeminiQuota.check(home: connection.configDirectory.map {
+                URL(fileURLWithPath: $0).deletingLastPathComponent()
+            } ?? FileManager.default.homeDirectoryForCurrentUser)
         case "claude":
             result = await Self.checkClaudeProfile(connection.claudeProfile, executableURL: ProviderCatalog.executableURL(for: provider))
         case "codex": result = await checkCodex(connection: connection)

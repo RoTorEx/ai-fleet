@@ -103,7 +103,7 @@ sessions keep their current authorization. **Sign out** clears only the selected
 account's saved Codex login, and is refused while its Fleet sessions are running.
 
 Use **Save current login** to retain an already authenticated Codex account.
-**Use for next Codex launch** selects the account for your next ordinary `codex`
+**Switch** selects the account for your next ordinary `codex`
 or `codex resume` command, including in the same terminal. Existing sessions keep
 their accounts and do not need to stop. After the first installation of command
 integration, run `rehash` once in terminals already open; later account changes
@@ -135,8 +135,12 @@ Accounts** compares tokens and quotas under the same account letters for `7d`,
 shared local model history and cost estimates are not split between accounts.
 A wrong browser email is reported instead of showing another account's quota.
 
-Claude keeps its current standard login and appears under the associated account.
-Other provider integrations retain their existing login behavior. Provider visibility
+Claude, Kimi, Qwen and Gemini use the same **Switch** behavior: the next ordinary
+provider command uses the selected account; running sessions keep their accounts.
+Sign in is separate. New profiles need their own native login. Gemini and Qwen may
+complete that login on the first CLI launch. Explicit directory/API-key/remote
+invocations keep their native scope. See [Provider switching](business/provider-switching.md)
+for adapter boundaries and verification coverage. Provider visibility
 hides rows and statistics tabs without deleting logins or metadata. Hover an
 account badge to see its email and plan. Removing an account preserves credential
 files and history; sign out first when credentials should also be cleared.

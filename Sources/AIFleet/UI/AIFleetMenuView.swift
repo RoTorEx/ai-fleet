@@ -11,6 +11,7 @@ struct AIFleetMenuView: View {
     @ObservedObject private var updater = UpdateService.shared
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
+    @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
 
     private var connections: [MenuAccountConnection] {
         sortedAccountProviderRows(ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
@@ -237,6 +238,7 @@ struct ProviderLimitRow: View {
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
+    @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
     @State private var isBadgeHovered = false
     private var status: ProviderStatus { entry.status }
     private var presentation: MenuConnectionState { MenuConnectionState(status: status) }
@@ -274,9 +276,21 @@ struct ProviderLimitRow: View {
                         Divider()
                     }
                     if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) != nil {
-                        Button("Use for next Codex launch") { codexProfiles.switchAccount(entry.account) }
+                        Button("Switch") { codexProfiles.switchAccount(entry.account) }
                             .disabled(codexProfiles.refreshing)
                             .help("The next codex command uses this account. Running sessions keep their current accounts.")
+                        Divider()
+                    }
+                    if !entry.usesAccountLogin {
+                        Button("Switch") {
+                            if entry.account.badge.isEmpty {
+                                SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
+                            } else {
+                                providerLaunch.switchAccount(entry.account, providerID: status.providerID,
+                                    global: service.status(for: status.providerID))
+                            }
+                        }.disabled(providerLaunch.busy)
+                        .help("Applies to the next launch. Running agents keep their current accounts.")
                         Divider()
                     }
                     Button(entry.usesAccountLogin && codexProfiles.profile(for: entry.account) == nil ? "Connect separate login…" : "Sign in…") {
@@ -286,10 +300,10 @@ struct ProviderLimitRow: View {
                                 openSettings()
                             } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
                         }
-                        else { accounts.signInGlobally(status.providerID, accountID: entry.account.id) }
+                        else { providerLaunch.signIn(entry.account, providerID: status.providerID) }
                     }
                     .disabled(entry.usesAccountLogin && codexProfiles.refreshing)
-                    .help("Sign in to this account. Existing Codex terminal sessions keep their current login.")
+                    .help("Sign in to this account. Existing terminal sessions keep their current login.")
                     if entry.usesAccountLogin {
                         if let profile = codexProfiles.profile(for: entry.account), status.authentication == .signedIn {
                             Button("Sign out", role: .destructive) { codexProfiles.signOut(profile) }
@@ -297,12 +311,12 @@ struct ProviderLimitRow: View {
                         }
                     } else if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
                         Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
-                            Task { await service.signOutGlobally(status.providerID) }
+                            providerLaunch.signOut(entry.account, providerID: status.providerID)
                         }
                     }
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
+                .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
             if !status.limitWindows.isEmpty {
@@ -341,6 +355,11 @@ struct ProviderLimitRow: View {
             if entry.usesAccountLogin {
                 CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
                     .padding(.leading, 52)
+            }
+            if providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == status.providerID,
+               let message = providerLaunch.message {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
             }
             if accounts.launchProviderID == status.providerID &&
                 (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {

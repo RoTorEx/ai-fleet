@@ -50,10 +50,11 @@ subscription charges.
   stay distinct from missing login. Model-specific and paid extra usage are
   outside this integration.
 - Gemini uses native file-backed Google OAuth and the CLI’s Code Assist model
-  quota endpoint. Its email/plan and quota belong to the global login; API/Vertex
+  quota endpoint. Its email/plan and quota belong to the measured login home; API/Vertex
   and encrypted OAuth monitoring are unsupported. A refresh token or cached
   email cannot establish signed-in status: expired/unconfirmed credentials read
-  Sign in required with ?, a gray row, no active arrow and no availability count.
+  Sign in required with ?, a gray row and no availability count. A selected
+  next-launch default remains separate from authentication state.
   Only successful server identity verification confirms auth; explicit credential
   rejection uses ×. Token renewal stays with the native CLI. [Gemini](business/gemini.md) owns its auth, endpoint, model-bucket,
   request-gating and error rules.
@@ -61,14 +62,16 @@ subscription charges.
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
   badges. Menu rows sort by tool name, then strictly by Greek badge within each tool.
-  The → marker identifies the default account for the next Codex command after
+  Switch always selects the account for the next launch of that provider.
+  The → marker identifies the default account for the next provider command after
   terminal integration, or the standard credential account before setup. Selection
   changes only the launch preference; running sessions retain their accounts.
   Shared credential replacement remains a guarded internal recovery path. Fleet
   never creates terminals or agent sessions. Independent saved Codex logins retain their
   own quota and normal colors. Signing into one does not switch running sessions
-  or change their shared CLI authorization. Other providers retain their global
-  native login; changing shared Codex authorization is blocked while Codex runs. Explicit,
+  or change their shared CLI authorization. Claude, Kimi, Qwen and Gemini use account-specific launch profiles under the
+  [universal Switch contract](business/provider-switching.md); native browser login
+  remains separate. Shared Codex credential replacement stays blocked while Codex runs. Explicit,
   confirmed Stop/Force Quit controls are available in Agents → Processes,
   independently of account selection.
   Management stays in Settings → Accounts with one account editor and an
@@ -251,6 +254,8 @@ subscription charges.
 - Gemini model quota and native OAuth: `Sources/AIFleet/GeminiQuota.swift`
 - Local login detection: `Sources/AIFleet/LocalProviderAuth.swift`
 - Shared accounts, provider connections, and launch: `Sources/AIFleet/Accounts.swift`
+- Next-launch provider selection and isolation: `Sources/AIFleet/ProviderTerminalLaunch.swift`
+  and [Provider switching](business/provider-switching.md)
 - Claude configuration/Keychain selectors: `Sources/AIFleet/ClaudeProfiles.swift`
 - Account management inside Settings: `Sources/AIFleet/UI/AccountsSettingsView.swift`
 - Refresh preferences: `Sources/AIFleet/AppSettings.swift`

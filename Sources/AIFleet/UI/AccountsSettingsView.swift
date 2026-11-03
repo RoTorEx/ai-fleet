@@ -4,6 +4,7 @@ import SwiftUI
 struct AccountsSettingsView: View {
     @ObservedObject private var store = AccountStore.shared
     @ObservedObject private var codex = CodexMonitoringStore.shared
+    @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
@@ -25,7 +26,7 @@ struct AccountsSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Each letter identifies one account. Connect each provider once per account.")
+            Text("Switch selects the account for the next command. Running agents keep their accounts. After first installing command integration, run rehash once in already open terminals.")
                 .font(.callout).foregroundColor(.secondary)
             if !isAdding {
                 HStack {
@@ -100,7 +101,7 @@ struct AccountsSettingsView: View {
         store.attachGlobal(providerID, to: account.id)
         selectedID = account.id
         if providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
-        else { store.signInGlobally(providerID, accountID: account.id) }
+        else { providerLaunch.signIn(account, providerID: providerID) }
         isAdding = false
         email = ""; name = ""
         service.refresh()
@@ -120,6 +121,7 @@ private struct AccountEditor: View {
     let account: FleetAccount
     @ObservedObject private var store = AccountStore.shared
     @ObservedObject private var codex = CodexMonitoringStore.shared
+    @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @State private var name: String
@@ -152,7 +154,7 @@ private struct AccountEditor: View {
                     HStack {
                         Button("Sign in…") {
                             if connection.providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
-                            else { store.signInGlobally(connection.providerID, accountID: account.id) }
+                            else { providerLaunch.signIn(account, providerID: connection.providerID) }
                         }
                         if connection.providerID == "codex" {
                             if codex.profile(for: account) == nil,
@@ -160,18 +162,28 @@ private struct AccountEditor: View {
                                 Button("Save current login") { codex.saveCurrentLogin(account) }
                             }
                             if codex.profile(for: account) != nil {
-                                Button("Use for next Codex launch") { codex.switchAccount(account) }
+                                Button("Switch") { codex.switchAccount(account) }
                                     .help("The next codex command uses this account without changing running sessions.")
                             }
                             if let profile = codex.profile(for: account), status?.authentication == .signedIn {
                                 Button("Sign out", role: .destructive) { codex.signOut(profile) }
                             }
-                        } else if status?.authentication == .signedIn {
-                            Button("Sign out", role: .destructive) { Task { await service.signOutGlobally(connection.providerID) } }
+                        } else {
+                            Button("Switch") {
+                                providerLaunch.switchAccount(account, providerID: connection.providerID,
+                                    global: service.status(for: connection.providerID))
+                            }
+                            if status?.authentication == .signedIn {
+                                Button("Sign out", role: .destructive) { providerLaunch.signOut(account, providerID: connection.providerID) }
+                            }
                         }
                     }
-                    .disabled(codex.authenticatingID != nil || service.signingOutProvider != nil ||
+                    .disabled(providerLaunch.busy || codex.authenticatingID != nil || service.signingOutProvider != nil ||
                               (connection.providerID == "codex" && codex.refreshing))
+                }
+                if providerLaunch.messageAccountID == account.id, providerLaunch.messageProviderID == connection.providerID,
+                   let message = providerLaunch.message {
+                    Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if connection.providerID == "codex", codex.profile(for: account) == nil {
                     Text("This account uses the shared terminal login. Connect a separate login once to retain access when the terminal account changes.")
@@ -180,12 +192,13 @@ private struct AccountEditor: View {
                 Divider()
             }
             Button("Remove account") {
-                guard !codex.refreshing, codex.authenticatingID == nil else { return }
+                guard !providerLaunch.busy, !codex.refreshing, codex.authenticatingID == nil else { return }
                 guard codex.forgetAccount(account) else { return }
+                do { try providerLaunch.forget(account.id) } catch { return }
                 store.remove(account.id)
                 service.refresh()
             }
-            .disabled(codex.refreshing || codex.authenticatingID != nil)
+            .disabled(providerLaunch.busy || codex.refreshing || codex.authenticatingID != nil)
             .help("Forget account metadata; preserve credentials and session history.")
         }.font(.callout)
     }

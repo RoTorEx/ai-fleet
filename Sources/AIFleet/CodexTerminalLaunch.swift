@@ -178,6 +178,18 @@ enum CodexTerminalLaunch {
 
     static func checkPath(_ url: URL) throws {
         guard url.resolvingSymlinksInPath().path == url.standardizedFileURL.path else { throw Failure.redirectedPath }
+        // Foundation may leave dangling links unresolved. Inspect each existing component too.
+        var component = URL(fileURLWithPath: "/")
+        for name in url.standardizedFileURL.pathComponents.dropFirst() {
+            component.appendPathComponent(name)
+            var info = stat()
+            if lstat(component.path, &info) != 0 {
+                guard errno == ENOENT else { throw Failure.preparationFailed }
+                break
+            }
+            if info.st_mode & S_IFMT == S_IFLNK,
+               !FileManager.default.fileExists(atPath: component.path) { throw Failure.redirectedPath }
+        }
     }
 
     static func atomicWrite(_ data: Data, to url: URL, mode: Int) throws {

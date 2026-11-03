@@ -8,6 +8,11 @@ struct AIFleetApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
+        if CommandLine.arguments.dropFirst().first == "--fleet-provider" {
+            let args = Array(CommandLine.arguments.dropFirst(2))
+            guard let provider = args.first, ProviderTerminalLaunch.providers.contains(provider) else { exit(1) }
+            ProviderTerminalLaunch.run(provider, arguments: Array(args.dropFirst()))
+        }
         if CommandLine.arguments.dropFirst().first == "--fleet-codex" {
             CodexTerminalLaunch.run(arguments: Array(CommandLine.arguments.dropFirst(2)))
         }
@@ -46,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
+        ProviderLaunchStore.shared.installCommandIntegration()
         StatusService.shared.start()
         UsageAnalyticsService.shared.startDailyRefreshSchedule()
         CodexMonitoringStore.shared.synchronizeAccounts(AccountStore.shared)

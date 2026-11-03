@@ -1,13 +1,14 @@
 # Gemini CLI integration
 
-Gemini uses the same global-login and account-badge rules as other providers.
+Gemini follows the [provider-independent Switch contract](provider-switching.md).
+A selected private account uses GEMINI_CLI_HOME as the parent of its .gemini
+credential directory; existing native sessions keep their original home.
 Installation detection looks for `gemini`; global native data is `~/.gemini`.
-The first Sign in starts its interactive CLI. An already configured login starts
-`gemini --prompt-interactive '/auth login'`, opening its native authentication
-dialog without a model prompt. The user chooses Sign in with Google and completes
-the provider’s flow. Native managed settings are respected. Inherited directory,
-API-key, ADC and auth-mode overrides are removed; corporate Google Cloud project
-environment settings remain available to the native Terminal workflow.
+Sign in explains how to complete native authentication on the first ordinary
+`gemini` command after Switch. The user chooses Sign in with Google in that
+profile and completes the provider's flow. Fleet does not open a terminal or
+start a model request. Native managed settings remain respected; explicit
+directory/API authentication overrides retain their intentional native scope.
 
 ## Credentials and identity
 
@@ -19,12 +20,15 @@ environment settings remain available to the native Terminal workflow.
   arbitrary JSON is not login. Malformed/unreadable data is unknown. Expired
   access without refresh requires sign-in. A refresh token alone, including an
   expired access token with refresh available, is **unknown**, not signed in.
-  Unconfirmed Google login reads `Sign in required`, stays gray, has no active
-  arrow, and cannot count as an available provider. Confirmed missing/rejected
+  Unconfirmed Google login reads `Sign in required`, stays gray,
+  and cannot count as an available provider. The default-launch arrow is separate
+  from confirmed login. Confirmed missing/rejected
   login uses ×; unconfirmed login uses ?. Native renewal remains possible but
   does not prove access until the server identity check succeeds. AI Fleet never performs Google token refresh. Explicit local Sign out removes
   `oauth_creds.json` and clears only `active` in `google_accounts.json`; ordinary
-  monitoring does not rewrite these files. Encrypted OAuth/Keychain storage is outside this file reader;
+  monitoring does not rewrite these files. Private-profile Sign out removes its
+  OAuth credentials; its retained account hint cannot establish authentication.
+  Encrypted OAuth/Keychain storage is outside this file reader;
   a cached active account without readable credentials remains unknown.
 - `google_accounts.json` → `active` is a native display hint; `old` is ignored.
   OAuth userinfo verifies actual email before retrieving quota. If that request

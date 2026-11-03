@@ -30,28 +30,18 @@ uniquely matching account until its independent login is connected. Once a saved
 login is attached, its state controls that account, including explicit sign-out.
 [Codex authorization](codex-profiles.md) owns isolation and storage details.
 
-Claude and the other provider integrations retain their standard global CLI
-login. Their Sign in uses the provider's browser/SSO flow in Terminal. The badge
-names the account the provider belongs to; it does not route prompts or choose an
-email in the browser. The default launch account shows → (the standard account before terminal integration). Independently measured accounts retain
-normal colors and their own limits without that arrow. Rows sort by tool name,
-then strictly by Greek badge. Selection never reorders them.
+All providers use the same Switch action and [next-launch contract](provider-switching.md).
+The action changes only that provider's default command account. Running agents
+continue under their existing credentials. New launches use native isolated homes;
+Sign in remains a separate action and never silently changes the default. The
+→ mark means default for the next launch, falling back to observed native identity
+before integration. Independently measured accounts keep their own colors/limits.
+Rows sort by tool name, then strictly by Greek badge.
 
-Codex Save current login retains the current authorization without another
-browser login. Use for next Codex launch is the default account-switch action.
-It changes a launch preference, including while Codex tasks or background servers
-are running. Existing processes retain their own credential homes; the next
-ordinary codex/resume command reads the new selection in the same terminal.
-One initial rehash activates the installed command shim in terminals already open.
-The → mark identifies this default launch account once configured, falling back to
-the native credential identity beforehand. Account-specific login errors remain
-separate from this selection. See [Codex authorization](codex-profiles.md) for the
-command routing, shared history and credential boundaries.
-
-The old shared-credential replacement remains internal for recovery and is still
-blocked by active Codex processes. Its refusal stays a neutral account-scoped
-notice with collapsed details. It cannot invalidate measured limits or stop agents.
-No account selection launches a terminal or starts a conversation.
+Codex Save current login retains existing authorization without repeating browser
+login. Its adapter and guarded internal recovery path are documented in
+[Codex authorization](codex-profiles.md). Switching through the UI never invokes
+the old shared-file replacement or requires stopping background processes.
 
 The menu's Limits summary counts connections with current reported quota, not
 signed-in accounts. A signed-in provider without a measurement is excluded;
@@ -110,7 +100,7 @@ current limits is gray, even if its CLI reports a configured login; a missing
 measurement never looks ready. The compact legend has three independent rows: Capacity names the remaining
 allowance bands (Enough ≥26%, Low 11–25%, Critical ≤10%); Access names connector
 availability (○ ready, × sign in, ? unavailable); Marks explains → default and
-↓ lowest remaining. Default describes the account for the next ordinary Codex launch after terminal integration, not the identity of existing processes. Other providers retain their standard credential marker. Unavailable access is visually muted without a separate
+↓ lowest remaining. Default describes the account for the next ordinary provider command after terminal integration, not the identity of existing processes. Unavailable access is visually muted without a separate
 "gray" label attached to an arrow. Both arrows use the same vector rotated 90°
 in equal square frames, in the rows and in the legend. Legend marks match the
 legend's text size; provider-row marks retain their larger row size.
@@ -163,8 +153,9 @@ suffix; the account's existing Sign in action remains available.
   stale quota, gray rows, no Lowest/count/alerts, and no account token attribution.
   They survive restart but are discarded when identity metadata changes or the
   account is forgotten. No credentials are copied or reconstructed.
-- Alerts are evaluated only for the current global row, with connection and
-  reported account/organization scope. Inactive associations have no quota.
+- Alerts retain the existing global-provider scope, with connection and
+  reported account/organization identity. Independently measured profiles may
+  display quotas without becoming that global notification source.
 - The Codex Usage dashboard keeps the standard global scope. Its Accounts view
   compares independent monitoring profiles using only provider-reported totals;
   old common local history is not attributed to them.

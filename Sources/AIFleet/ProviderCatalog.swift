@@ -86,7 +86,7 @@ private enum ProviderInstallDetector {
             for executableName in executableNames {
                 let url = directory.appendingPathComponent(executableName)
                 if fileManager.isExecutableFile(atPath: url.path) &&
-                    !(executableName == "codex" && CodexTerminalLaunch.isShim(url)) {
+                    !(executableName == "codex" && CodexTerminalLaunch.isShim(url)) && !ProviderTerminalLaunch.isShim(url) {
                     return url
                 }
             }

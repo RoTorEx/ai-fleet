@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Standardize Switch across Codex, Claude, Kimi, Qwen and Gemini: each provider's
+  next ordinary command uses the selected account; running agents keep their own
+  credential homes. Native sign-in remains separate from account selection.
+- Monitor independent provider profiles separately and reject mismatched reported
+  identities instead of attributing another account's quota.
+- Reject dangling credential links as well as redirects to existing files.
+
 ### Added
 
 - Select the account used by the next ordinary Codex command without changing
