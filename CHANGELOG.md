@@ -6,18 +6,20 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Restore leading provider arrows (connected and lowest remaining) and unavailable
+  crosses, remove vertical rules, and indent quota/reset details beneath names.
+
 - Use compact General/Accounts tabs and grouped account connectors with separate
   add/remove actions, verified terminal-login import and explicit reimport after removal.
 - Require matching provider identity for Switch and command launch; add Kimi browser
   device login that validates the server email before saving private credentials.
 - Keep enabled providers visible without a CLI/login, show unavailable quota dashes,
-  align full-height provider column rules and use a short line-based legend.
+  align quota rows and use a short line-based legend.
 - Use monochrome agent states, current-request elapsed Working time and a moving
   strip; distinguish Ready from Idle and show bound last-message time separately.
 - Rename the menu footer to Last refresh: time.
 
-- Mark selected accounts with a small checkmark beside each provider name, with
-  meaning in the legend. Remove Default/Next launch text and repeated location
+- Remove Default/Next launch text and repeated location
   suffixes from agent titles. Center header symbols within fixed hit targets and
   remove the Refresh/options keyboard-focus highlight.
 - Omit every zero countdown component and align compact menu fonts, symbols and

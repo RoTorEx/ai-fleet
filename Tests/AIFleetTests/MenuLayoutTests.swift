@@ -186,7 +186,7 @@ final class MenuLayoutTests: XCTestCase {
             XCTAssertGreaterThan(maxX, minX)
             return CGFloat(max(maxX - minX + 1, maxY - minY + 1)) / 4
         }
-        let check = try longestEdge("checkmark")
+        let check = try longestEdge("arrow.right")
         XCTAssertEqual(try longestEdge("arrow.down"), check, accuracy: 1)
         XCTAssertEqual(try longestEdge("xmark"), check, accuracy: 1)
     }

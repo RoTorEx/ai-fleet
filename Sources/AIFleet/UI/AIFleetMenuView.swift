@@ -108,12 +108,9 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, isLowest: entry.isSelected && entry.status.id == lowestProvider?.id, openSettings: openSettings)
+                ProviderLimitRow(entry: entry, isLowest: entry.status.id == lowestProvider?.id, openSettings: openSettings)
             }
 
-        }.overlay(alignment: .leading) {
-            Rectangle().fill(Color(nsColor: .separatorColor)).frame(width: 0.5)
-                .offset(x: 80).allowsHitTesting(false)
         }
     }
 
@@ -156,8 +153,8 @@ struct AIFleetMenuView: View {
             Text("\(providers.filter(\.hasCurrentQuota).count)/\(providers.count) — measured limits / connections")
             Divider()
             Text("Provider accounts").bold()
-            Text("✓ Account selected for new sessions")
-            Text("× Limits unavailable; dashes mean no measurement")
+            Text("→ Connected")
+            Text("× Unavailable; dashes mean no measurement")
             Text("↓ Lowest positive remaining limit")
             Divider()
             Text("Remaining limits").bold()
@@ -266,17 +263,16 @@ struct ProviderLimitRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .center, spacing: 8) {
+                HStack(spacing: 4) {
+                    FleetInlineSymbol(systemName: status.authentication == .signedIn ? "arrow.right" : "xmark")
+                        .accessibilityLabel(status.authentication == .signedIn ? "Connected" : "Unavailable")
+                    if isLowest {
+                        FleetInlineSymbol(systemName: "arrow.down")
+                            .accessibilityLabel("Lowest positive remaining limit")
+                    }
+                }.foregroundColor(color).frame(width: 28, alignment: .leading)
                 Text(status.name + (entry.account.badge.isEmpty ? "" : " (\(entry.account.badge))"))
-                    .font(FleetUI.menuHeading).foregroundColor(color).lineLimit(1).frame(width: 80, alignment: .leading)
-                if entry.isCurrentCLI ?? entry.isSelected {
-                    FleetInlineSymbol(systemName: "checkmark").foregroundStyle(.secondary)
-                        .accessibilityLabel("Selected account for new sessions")
-                }
-                if !presentation.available {
-                    FleetInlineSymbol(systemName: "xmark").foregroundStyle(.secondary)
-                        .accessibilityLabel("Limits unavailable")
-                }
-                if isLowest { FleetInlineSymbol(systemName: "arrow.down").foregroundColor(color) }
+                    .font(FleetUI.menuHeading).foregroundColor(color).lineLimit(1)
                 Spacer(minLength: 0)
                 Menu {
                     AccountConnectionActions(account: entry.account, connection: entry.connection, status: status,
@@ -300,7 +296,7 @@ struct ProviderLimitRow: View {
                         }
                     }
                 }
-                .padding(.leading, 0)
+                .padding(.leading, 44)
             } else {
                 ForEach(quotaPlaceholderLabels(for: status), id: \.self) { label in
                     HStack(spacing: 15) {
@@ -313,17 +309,17 @@ struct ProviderLimitRow: View {
                             Text("—")
                         }
                         Spacer(minLength: 0)
-                    }.font(FleetUI.menuBody).foregroundStyle(.secondary).frame(height: 18)
+                    }.font(FleetUI.menuBody).foregroundStyle(.secondary).frame(height: 18).padding(.leading, 44)
                 }
             }
             if presentation.available, let notice = status.quotaNotice {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
-                    .lineLimit(2).padding(.leading, 88)
+                    .lineLimit(2).padding(.leading, 44)
             }
             if entry.usesAccountLogin {
                 CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
-                    .padding(.leading, 88)
+                    .padding(.leading, 44)
             }
             if providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == status.providerID,
                let message = providerLaunch.message {
@@ -335,16 +331,16 @@ struct ProviderLimitRow: View {
                             .buttonStyle(.plain).font(.caption2)
                             .accessibilityLabel("Dismiss account message")
                     }
-                }.padding(.leading, 88)
+                }.padding(.leading, 44)
             }
             if accounts.launchProviderID == status.providerID &&
                 (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {
                 if accounts.codexSigningIn && status.providerID == "codex" && entry.isCurrentCLI == true {
-                    CodexSignInProgress(accounts: accounts).padding(.leading, 88)
+                    CodexSignInProgress(accounts: accounts).padding(.leading, 44)
                 }
                 if let error = accounts.launchError {
                     Text("Sign-in: \(error)").font(.caption).foregroundColor(FleetPalette.danger)
-                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 88)
+                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 44)
                 }
             }
         }

@@ -40,12 +40,12 @@ Account actions show exactly one authentication command: Sign out when signed in
 otherwise Sign in. Switch follows it. Saving a native Codex login remains available
 when an independent saved login is absent; Switch stays disabled until connected.
 Provider names retain Greek badges in parentheses. Account identities appear only
-in the hover/click legend. All account-action buttons use a small key, separated
-from provider-adjacent selection text. A vertical divider after the provider name
-introduces a small checkmark, which marks the selected account independently for
-each tool. Its meaning lives in the legend; no Default/Next launch text is shown. The key at the right carries no selection status;
-only the small lowest-positive-quota down arrow remains. No leading status gutter
-or account-name hover popup competes with the names.
+in the hover/click legend. All account-action buttons use a small key at the right.
+A compact leading gutter shows → for a connected provider and × when unavailable;
+↓ additionally marks the lowest positive remaining quota independently of launch
+selection. There are no provider status circles, checkmarks or vertical rules.
+Provider names follow the gutter; quota/reset rows indent a further 8 points,
+like a nested list. Account-name hover popups do not compete with the names.
 
 The legend separates monitoring/counts, accounts, remaining limits, reset times
 and live agents. Reset date hover changes the same fixed cell to a clock and
@@ -67,8 +67,8 @@ target. Quit remains in application options. Provider visibility affects the mai
 menu only; Statistics keeps its independent selection. Enabled providers remain
 visible even without an installed CLI or a login. Unavailable connections use ×
 and quota/reset dashes, with known 5h/7d periods only where supported. They do not
-show a sign-in paragraph or invent percentages. Names/limits use a shared left
-column; a full-height vertical rule precedes the clock/date column for every row.
+show a sign-in paragraph or invent percentages. Quota labels, percentages and reset times align consistently within the indented
+rows.
 
 Accounts lists independent account blocks, each with its own provider connectors.
 Add/remove account and add/remove provider are distinct actions. Removal confirms
