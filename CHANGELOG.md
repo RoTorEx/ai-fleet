@@ -8,11 +8,13 @@ Tracks real product and release progress.
 
 - Redesign the local menu with instant opening, one compact status header, top
   options, expanded Agents below providers, and Processes behind menu controls. Move
-  version/check metadata into options; keep Refresh in the header and remove Update.
+  version/check metadata to the main footer; keep Refresh in the header and remove Update.
 - Reorganize Settings into General, Accounts, Providers and Notifications with
   shared spacing/type hierarchy. Show one authentication action followed by Switch.
-- Use opaque native hover cards for account/legend help and swap reset dates for
-  countdowns in the same cell. Compare different provider action-button icons.
+- Use an arrow-free 320-point panel with adaptive system blur. Keep Greek account
+  badges, use key actions consistently, and move account mapping into the legend.
+- Keep reset countdowns stable while hovering, with days/hours/minutes/seconds.
+  Add an explicit outside-click dismissal preference and compact options.
 - Combine selected providers in one Statistics view labeled Local usage · This
   Mac. Filters affect all metrics/tables/activity independently of menu visibility.
   Promote thousands of millions to billions and bold book comparisons in token help.

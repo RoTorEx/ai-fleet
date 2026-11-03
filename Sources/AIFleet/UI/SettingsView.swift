@@ -87,6 +87,8 @@ struct SettingsView: View {
 
     private var generalSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
+            Toggle("Close menu when clicking outside", isOn: $settings.closeMenuOnOutsideClick)
+
             settingsRow("Menu shortcut") {
                 HotkeyRecorder(settings: settings)
             }

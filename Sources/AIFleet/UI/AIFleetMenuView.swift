@@ -49,11 +49,16 @@ struct AIFleetMenuView: View {
                 AgentsView(service: agents, back: {}, embedded: true)
             }
 
+            HStack {
+                Text(lastCheckText)
+                Spacer(minLength: 4)
+                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development")
+            }.font(.system(size: 9)).foregroundStyle(.secondary).padding(.top, 10)
         }
         .font(FleetUI.body)
         .padding(FleetUI.spacing)
-        .frame(width: 400)
-        .background(FleetPalette.background)
+        .frame(width: 320)
+        .background(Color.primary.opacity(0.025))
     }
 
     private var applicationMenu: some View {
@@ -67,12 +72,7 @@ struct AIFleetMenuView: View {
                     option("Processes", icon: "cpu", action: openProcesses)
                     Divider().padding(.vertical, 6)
                     option("Quit", icon: "power") { NSApplication.shared.terminate(nil) }
-                    Divider().padding(.vertical, 6)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(lastCheckText)
-                        Text("AI Fleet \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development")")
-                    }.font(FleetUI.caption).foregroundStyle(.secondary).padding(.top, 4)
-                }.padding(FleetUI.spacing).frame(width: 250)
+                }.padding(12).frame(width: 190)
 
             }
     }
@@ -81,7 +81,7 @@ struct AIFleetMenuView: View {
         Button { showsOptions = false; action() } label: {
             Label(title, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 7).contentShape(Rectangle())
-        }.buttonStyle(.plain).font(FleetUI.body).focusable(false)
+        }.buttonStyle(.plain).font(.system(size: 12)).focusable(false)
     }
 
     private var lastCheckText: String {
@@ -117,7 +117,7 @@ struct AIFleetMenuView: View {
                     service.refresh(); codexProfiles.refresh(force: true); agents?.refresh(force: true)
                 } label: {
                     Image(systemName: "arrow.clockwise").font(.system(size: 13)).frame(width: 30, height: 30)
-                }.buttonStyle(.plain).help("Refresh providers and agents (⌘R)").accessibilityLabel("Refresh (Command-R)")
+                }.buttonStyle(.plain).help("Refresh (⌘R)").accessibilityLabel("Refresh (Command-R)")
                 applicationMenu
             }
             if let detail = operationStatus.detail {
@@ -128,20 +128,27 @@ struct AIFleetMenuView: View {
     }
 
     private var completeLegend: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Menu guide").font(FleetUI.title)
-            Text("Status & quota measurements").font(FleetUI.body).bold()
-            Text("Green means monitoring is active; gray means paused; orange means an action needs attention. (3/3) means limits were measured for 3 of 3 provider-account connections. It does not count running sessions or signed-in accounts. A measured 0% still counts.")
-            LegendSection().fixedSize(horizontal: false, vertical: true)
-            Text("Accounts").font(FleetUI.body).bold()
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Legend").font(FleetUI.title)
+            Text("Monitoring").bold()
+            Text("Green: active · Gray: paused · Orange: attention needed. The count shows connections with measured limits, including 0%, out of all displayed connections.")
+            Divider()
+            Text("Accounts & selection").bold()
             ForEach(accounts.visibleAccounts) { account in
-                Text("\(account.badge) · \(account.name)\n\(account.email)")
+                Text("(\(account.badge)) · \(account.name)\n\(account.email)")
             }
-            Text("The account name beside a provider identifies its login. → selects the next command's account; existing agents keep theirs. ↓ is the lowest positive measured quota. The account button opens Sign in or Sign out, then Switch.")
-            Text("Reset time & live agents").font(FleetUI.body).bold()
-            Text("Hover a reset date: ↻ changes to a clock and shows total hours:minutes:seconds. Agents are live local iTerm2 sessions, grouped by location. Click a location to collapse it, or a session to jump. Moving rings/stripes mean working, not percent complete. Orange needs your attention; gray is idle or unknown. Use the filter icon for All, Needs you, Working, Idle or Unknown. ⌘R refreshes; ⌘A returns here from Processes.")
+            Text("Default applies to the next command; running agents keep their accounts. The key opens account actions. ↓ marks the lowest positive remaining limit.")
+            Divider()
+            Text("Remaining limits").bold()
+            Text("Normal: 26–100% · Orange: 11–25% · Red: 0–10%. Sign in means a login is required; unavailable means limits could not be measured.")
+            Divider()
+            Text("Reset times").bold()
+            Text("Hover a date to see days, hours, minutes and seconds. The reset symbol becomes a clock. Not reported means the provider supplied no usable reset date.")
+            Divider()
+            Text("Live agents").bold()
+            Text("Local sessions grouped by location. Click a location to collapse it, or a session to jump. Moving rings mean working; orange needs you; gray means idle or unknown. The filter button selects which states appear.")
         }.font(FleetUI.caption).foregroundStyle(.secondary)
-            .frame(width: 330, alignment: .leading).padding(FleetUI.spacing)
+            .frame(width: 290, alignment: .leading).padding(FleetUI.spacing)
     }
 
     private var operationStatus: MenuOperationStatus {
@@ -213,56 +220,25 @@ struct ProviderLimitRow: View {
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
-    @State private var isBadgeHovered = false
     private var status: ProviderStatus { entry.status }
     private var presentation: MenuConnectionState { MenuConnectionState(status: status) }
     private var color: Color { presentation.available ? rowColor(for: status) : FleetPalette.muted }
 
-    private var actionIcon: String {
-        switch status.providerID {
-        case "claude": return "key.horizontal"
-        case "codex": return entry.account.badge == "α" ? "rectangle.3.group" : "switch.2"
-        case "kimi": return "person.crop.square"
-        case "qwen": return "square.stack"
-        default: return "slider.horizontal.3"
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    FleetMark(kind: .current, size: 11)
-                        .opacity((entry.isCurrentCLI ?? entry.isSelected) ? 1 : 0)
-                        .foregroundColor(color)
-                        .accessibilityLabel((entry.isCurrentCLI ?? entry.isSelected) ? "\(status.name) account \(entry.account.badge), current" : "")
-                    FleetMark(kind: .lowest, size: 11).opacity(isLowest ? 1 : 0)
-                        .foregroundColor(color)
-                    Text(presentation.marker)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(color).frame(width: 11)
-                }
-                Text(status.name)
+                Text(status.name + (entry.account.badge.isEmpty ? "" : " (\(entry.account.badge))"))
                     .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
-                if !entry.account.badge.isEmpty {
-                Text(entry.account.name)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(color)
-                    .onHover { isBadgeHovered = $0 }
-                    .instantPopover(isPresented: $isBadgeHovered) {
-                        Text(entry.account.tooltip(for: entry.connection, status: status))
-                            .font(FleetUI.caption).foregroundStyle(.primary)
-                            .frame(width: 240, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true).padding(FleetUI.spacing)
-                    }
-                    .accessibilityHint(Text(entry.account.tooltip(for: entry.connection, status: status)))
-                    .accessibilityLabel("\(status.name) account \(entry.account.badge)")
+                Spacer(minLength: 4)
+                if entry.isCurrentCLI ?? entry.isSelected {
+                    Text("Default").font(.system(size: 9)).foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 8)
+                if isLowest { FleetMark(kind: .lowest, size: 9).foregroundColor(color) }
+                Divider().frame(height: 12)
                 Menu {
                     AccountConnectionActions(account: entry.account, connection: entry.connection, status: status,
                                              isCurrentCLI: entry.isCurrentCLI == true, openSettings: openSettings)
-                } label: { Image(systemName: actionIcon).font(.system(size: 11)).frame(width: 28, height: 28) }
+                } label: { Image(systemName: "key.horizontal").font(.system(size: 11)).frame(width: 28, height: 28) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
@@ -281,21 +257,21 @@ struct ProviderLimitRow: View {
                         }
                     }
                 }
-                .padding(.leading, 39)
+                .padding(.leading, 0)
             } else {
                 Text(presentation.detail)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(color).fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 39)
+                    .padding(.leading, 0)
             }
             if let notice = status.quotaNotice {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
-                    .lineLimit(2).padding(.leading, 39)
+                    .lineLimit(2).padding(.leading, 0)
             }
             if entry.usesAccountLogin {
                 CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
-                    .padding(.leading, 39)
+                    .padding(.leading, 0)
             }
             if providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == status.providerID,
                let message = providerLaunch.message {
@@ -307,16 +283,16 @@ struct ProviderLimitRow: View {
                             .buttonStyle(.plain).font(.caption2)
                             .accessibilityLabel("Dismiss account message")
                     }
-                }.padding(.leading, 39)
+                }.padding(.leading, 0)
             }
             if accounts.launchProviderID == status.providerID &&
                 (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {
                 if accounts.codexSigningIn && status.providerID == "codex" && entry.isCurrentCLI == true {
-                    CodexSignInProgress(accounts: accounts).padding(.leading, 39)
+                    CodexSignInProgress(accounts: accounts).padding(.leading, 0)
                 }
                 if let error = accounts.launchError {
                     Text("Sign-in: \(error)").font(.caption).foregroundColor(FleetPalette.danger)
-                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 39)
+                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 0)
                 }
             }
         }
@@ -387,7 +363,7 @@ struct LimitWindowLine: View {
         if blockingWindow != nil {
             return "-"
         }
-        return window.resetAt.map(formatResetTime) ?? "unknown"
+        return window.resetAt.map(formatResetTime) ?? "Not reported"
     }
 
     private var resetColor: Color {

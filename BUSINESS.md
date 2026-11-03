@@ -200,8 +200,10 @@ before attempting a download.
   agents grouped by compact location paths. Its only header contains status,
   measured/total count, the complete guide, Refresh and options. Routine refreshing
   does not flash the Active label. Options contains Statistics, Settings, Processes,
-  Quit, Last checked, then version. Legend/account help uses opaque native hover
-  panels. Reset dates change to a clock and total HH:MM:SS in the same cell.
+  then Quit. Last checked and version share the bottom main-menu row. The compact
+  arrow-free panel uses system blur. The legend owns account mapping; provider
+  rows retain Greek badges and key actions. Reset dates change to a clock and
+  days/hours/minutes/seconds in a fixed cell without shifting adjacent rows.
   Settings separates General, Accounts, Providers and Notifications. Local API
   estimates and identity-bound provider reports are separate; remote tokens are
   never multiplied by local rates. [Interface](business/interface.md) owns details.

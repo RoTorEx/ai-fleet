@@ -2,46 +2,48 @@
 
 The menu opens immediately, without a growing/fading popover animation. Settings,
 Statistics and child help/options popovers also open without window animation.
-Hover transitions inside a reset cell remain separate and respect Reduced Motion.
+Reset hover swaps content without animation or a change in cell geometry.
 
 ## Menu
 
 One compact header contains the monitoring dot/status, measured/total connection
 count, the guide (i), Refresh, and the options button. There is no separate
 Providers/Lowest summary block. Routine quota refresh keeps Active stable.
-Agents is expanded below the provider connections in the same 400-point menu.
+Agents is expanded below the provider connections in the same 320-point menu.
+The arrow-free borderless panel uses adaptive system blur, rounded corners and
+instant presentation. Session titles use smaller text; the separate colored
+provider label stays at the right of the title row when a title or model truncates. Explicit provider
+annotations are removed from titles without removing provider words in task text.
 All location groups start open and collapse independently. Paths use their last
 two components; the home directory is ~ and a direct child is ~/project.
 The separate filter icon contains All/Needs you/Working/Idle/Unknown.
 Command-R refreshes providers and agents; Command-A returns from Processes.
 
-The options panel contains Statistics, Settings, Processes, then Quit, followed
-by Last checked and version as its final secondary line. Refresh is a header
-button, not an options entry. Every option row has a full-width hit area and
-larger vertical padding. Icons can be small without making targets hard to hit.
-Update is not a visible command.
+The compact options panel contains Statistics, Settings, Processes, then Quit.
+Last checked sits at the bottom left of the main menu, with version at the right.
+Refresh stays beside options in the header. Update is not a visible command.
 
 Account actions show exactly one authentication command: Sign out when signed in,
 otherwise Sign in. Switch follows it. Saving a native Codex login remains available
 when an independent saved login is absent; Switch stays disabled until connected.
-Provider rows use readable account names; Greek badge/email mappings remain in
-the guide. The local review intentionally uses different small action icons
-(Claude key, Codex alpha grouped cards, Codex beta switches, other variants)
-so the user can compare them. These icons are not authentication indicators.
+Provider names retain Greek badges in parentheses. Account identities appear only
+in the hover/click legend. All account-action buttons use a small key, separated
+from trailing status text by a vertical divider. Default labels future launches;
+only the small lowest-positive-quota down arrow remains. No leading status gutter
+or account-name hover popup competes with the names.
 
-The info button reveals the legend on hover or click. Account name hover shows
-email/plan in an opaque native child popover, never an overlay drawn behind later
-rows. The same reset cell changes from absolute date to a live countdown on hover;
-↻ changes to a clock. All countdowns use total HH:MM:SS, even across days.
-Missing/blocked dates do not invent a timer, and expired dates read Reset due.
-The guide explains status, connection-count meaning, quota colors/access/marks,
-account identities, reset times, live agent states, animations and filters.
+The legend separates monitoring/counts, accounts, remaining limits, reset times
+and live agents. Reset date hover changes the same fixed cell to a clock and
+`Dd HHh MMm SSs`, with a permanent baseline and no layout animation. Missing dates
+read Not reported, never an invented reset time; expired dates read Reset due.
 
 ## Settings
 
 A sidebar separates General (shortcut and refresh schedule), Accounts (identity,
 login and future-launch selection), Providers (menu visibility), and Notifications
-(thresholds and system permission controls). Version/check metadata stays in options; account and visibility forms remain separate.
+(thresholds and system permission controls). General explicitly controls closing the menu on outside clicks (enabled by default).
+The preference applies immediately to both local and global mouse events; Escape
+and the menu-bar toggle continue to close it. Account and visibility forms remain separate.
 
 The shared hierarchy uses 15-point section titles, 13-point body text and 11-point
 secondary text, with 16-point outer padding. Existing analytical numbers retain

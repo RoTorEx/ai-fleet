@@ -135,7 +135,7 @@ struct AgentsView: View {
             }
         }
         .frame(width: embedded ? nil : 520)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(embedded ? Color.clear : Color(nsColor: .windowBackgroundColor))
         .onChange(of: section) { section in
             if section == "Processes" { service.stop() } else { service.start() }
         }
@@ -199,21 +199,23 @@ private struct AgentSessionRow: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
-                        Text(session.title).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
+                        Text(agentSessionDisplayTitle(session.title, provider: session.provider)).font(.system(size: 11, weight: .medium)).foregroundStyle(.primary)
                             .lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 3)
                         if jumping { ProgressView().controlSize(.mini) }
-                        else if let updated = session.updatedAt {
-                            Text(Date(timeIntervalSince1970: updated), style: .relative)
-                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
-                        }
+                        Text(session.provider.capitalized).font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(tint).fixedSize().layoutPriority(1)
                     }
                     HStack(spacing: 5) {
-                        Text(session.provider.capitalized).foregroundStyle(tint)
-                        if let model = session.model { Text("· \(model)").lineLimit(1) }
+                        if let model = session.model { Text(model).lineLimit(1).truncationMode(.middle) }
                         Spacer(minLength: 4)
+                        if let updated = session.updatedAt {
+                            Text(Date(timeIntervalSince1970: updated), style: .relative)
+                                .font(.system(size: 9, design: .monospaced)).lineLimit(1)
+                        }
                         Text(session.location == nil ? "Unlinked" : (stale ? "Stale" : session.state))
-                            .foregroundStyle(statusColor).lineLimit(1)
+                            .foregroundStyle(statusColor).lineLimit(1).fixedSize()
+
                     }.font(.system(size: 10)).foregroundStyle(.secondary)
                     AgentActivityLine(color: tint, active: session.isWorking && !stale)
                         .frame(height: 2)
@@ -329,4 +331,18 @@ private enum AgentColors {
         let hash = id.utf8.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1) }
         return colors[Int(hash % UInt64(colors.count))]
     }
+}
+
+/// Remove explicit UI annotations without deleting provider names from task text.
+func agentSessionDisplayTitle(_ title: String, provider: String) -> String {
+    var result = title
+    for label in [provider, provider + " Code"] {
+        let suffix = " (" + label + ")"
+        if result.lowercased().hasSuffix(suffix.lowercased()) { result = String(result.dropLast(suffix.count)) }
+        for separator in [" · ", " | ", ": "] {
+            let prefix = label + separator
+            if result.lowercased().hasPrefix(prefix.lowercased()) { result = String(result.dropFirst(prefix.count)) }
+        }
+    }
+    return result.isEmpty ? title : result
 }

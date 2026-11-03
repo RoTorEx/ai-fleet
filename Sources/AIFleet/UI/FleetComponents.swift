@@ -88,34 +88,34 @@ struct ResetCountdownView: View {
     let resetAt: Date?
     let dateText: String
     @State private var hovered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: hovered && resetAt != nil ? "clock" : "arrow.clockwise")
-                .font(.system(size: 10)).frame(width: 11).opacity(dateText == "-" ? 0 : 1)
-            ZStack(alignment: .leading) {
-                Text(dateText).opacity(hovered && resetAt != nil ? 0 : 1)
-                    .rotation3DEffect(.degrees(hovered && resetAt != nil && !reduceMotion ? -90 : 0), axis: (x: 1, y: 0, z: 0))
-                if hovered, let resetAt {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(Self.remaining(until: resetAt, now: context.date)).monospacedDigit()
-                    }.transition(.opacity)
-                }
-            }
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            ResetTimeCell(dateText: dateText, countdown: resetAt.map { Self.remaining(until: $0, now: context.date) }, hovered: hovered)
         }
-
-        .frame(width: 144, height: 18, alignment: .leading)
+        .frame(width: 160, height: 18, alignment: .leading)
+        .alignmentGuide(.firstTextBaseline) { _ in 13 }
         .contentShape(Rectangle())
-        .onHover { value in
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.16)) { hovered = value }
-        }
+        .onHover { hovered = $0 }
         .accessibilityLabel(resetAt.map { "\(dateText), \(Self.remaining(until: $0))" } ?? dateText)
     }
 
     static func remaining(until date: Date, now: Date = Date()) -> String {
         let seconds = max(0, Int(ceil(date.timeIntervalSince(now))))
         guard seconds > 0 else { return "Reset due" }
-        return String(format: "%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)
+        return String(format: "%dd %02dh %02dm %02ds", seconds / 86400, (seconds % 86400) / 3600, (seconds % 3600) / 60, seconds % 60)
+    }
+}
+
+struct ResetTimeCell: View {
+    let dateText: String
+    let countdown: String?
+    let hovered: Bool
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: hovered && countdown != nil ? "clock" : "arrow.clockwise")
+                .font(.system(size: 10)).frame(width: 11).opacity(dateText == "-" ? 0 : 1)
+            Text(hovered ? (countdown ?? dateText) : dateText).monospacedDigit().lineLimit(1)
+        }.frame(width: 160, height: 18, alignment: .leading)
+            .alignmentGuide(.firstTextBaseline) { _ in 13 }
     }
 }

@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
+import Combine
 
 @MainActor
 final class FleetMenuScreen: ObservableObject {
@@ -31,9 +32,10 @@ private struct FleetMenuRoot: View {
 }
 
 @MainActor
-final class StatusBarController: NSObject, NSPopoverDelegate {
+final class StatusBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: 18)
-    private let popover = NSPopover()
+    private let panel = FleetMenuPanel()
+    private var sizeObservation: AnyCancellable?
     private let openSettings: (NSRect?) -> Void
     private let openStatistics: (NSRect?) -> Void
     private var globalClickMonitor: Any?
@@ -90,24 +92,41 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         let hostingController = NSHostingController(rootView: content)
         hostingController.sizingOptions = [.preferredContentSize]
 
-        popover.animates = false
-        // .applicationDefined: we control closing (toggle, outside click, Escape).
-        // .transient closes on focus stealing, which kills the popover while
-        // the user keeps working in another app.
-        popover.behavior = .applicationDefined
-        popover.contentViewController = hostingController
-        popover.delegate = self
+        let backdrop = NSVisualEffectView()
+        backdrop.material = .popover
+        backdrop.blendingMode = .behindWindow
+        backdrop.state = .active
+        backdrop.wantsLayer = true
+        backdrop.layer?.cornerRadius = 12
+        backdrop.layer?.masksToBounds = true
+        panel.contentView = backdrop
+        let hosted = hostingController.view
+        hosted.translatesAutoresizingMaskIntoConstraints = false
+        backdrop.addSubview(hosted)
+        NSLayoutConstraint.activate([
+            hosted.leadingAnchor.constraint(equalTo: backdrop.leadingAnchor),
+            hosted.trailingAnchor.constraint(equalTo: backdrop.trailingAnchor),
+            hosted.topAnchor.constraint(equalTo: backdrop.topAnchor),
+            hosted.bottomAnchor.constraint(equalTo: backdrop.bottomAnchor)
+        ])
+        sizeObservation = hostingController.publisher(for: \.preferredContentSize)
+            .sink { [weak self] size in
+                DispatchQueue.main.async { self?.resizePanel(to: size) }
+            }
+        // Retain the controller for SwiftUI's content-size observation.
+        panel.hostingController = hostingController
+
     }
 
     func togglePopover() {
-        if popover.isShown {
+        if panel.isVisible {
             closePopover()
         } else {
             showPopover()
         }
     }
 
-    func popoverDidClose(_ notification: Notification) {
+    private func didCloseMenu() {
         statusItem.button?.highlight(false)
         stopClickMonitor()
         agents.stop()
@@ -122,7 +141,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         agents.start()
         // Jump transfers focus to iTerm2. The same shortcut brings the menu back.
         NSApplication.shared.activate(ignoringOtherApps: true)
-        popover.contentViewController?.view.window?.makeKey()
+        panel.makeKey()
     }
 
     @objc private func statusItemClicked() {
@@ -133,9 +152,10 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         guard let button = statusItem.button else {
             return
         }
-        // Activate so the popover becomes key and its buttons receive clicks.
+        // Activate so the panel becomes key and its buttons receive clicks.
         NSApplication.shared.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        resizePanel(to: panel.hostingController?.preferredContentSize ?? NSSize(width: 320, height: 400))
+        panel.makeKeyAndOrderFront(nil)
         button.highlight(true)
         StatusService.shared.refresh()
         if !screen.showsAgents { agents.start() }
@@ -146,18 +166,14 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     }
 
     func closePopoverIfNeeded() {
-        if popover.isShown {
+        if panel.isVisible {
             closePopover()
         }
     }
 
     private func closePopover(immediately: Bool = false) {
-        let wasAnimated = popover.animates
-        if immediately { popover.animates = false }
-        popover.performClose(nil)
-        if immediately { popover.animates = wasAnimated }
-        statusItem.button?.highlight(false)
-        stopClickMonitor()
+        panel.orderOut(nil)
+        didCloseMenu()
     }
 
     private func startClickMonitor() {
@@ -166,7 +182,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.closePopover()
+                if AppSettings.shared.closeMenuOnOutsideClick { self?.closePopover() }
             }
         }
 
@@ -197,7 +213,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
                 return nil
             }
 
-            if event.type.isMouseDown,
+            if AppSettings.shared.closeMenuOnOutsideClick, event.type.isMouseDown,
                !self.isEventInsidePopover(event),
                !self.isEventInsideStatusButton(event),
                !self.isEventInsideCompanionWindow(event) {
@@ -221,9 +237,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     }
 
     private func isEventInsidePopover(_ event: NSEvent) -> Bool {
-        guard let popoverWindow = popover.contentViewController?.view.window else {
-            return false
-        }
+        let popoverWindow = panel
         return event.window === popoverWindow || event.window?.identifier?.rawValue == "ai-fleet-child-popover"
     }
 
@@ -244,8 +258,18 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         return identifier == "ai-fleet-settings"
     }
 
+    private func resizePanel(to contentSize: NSSize) {
+        guard contentSize.width > 0, contentSize.height > 0,
+              let button = statusItem.button, let window = button.window else { return }
+        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        let visible = window.screen?.visibleFrame ?? NSScreen.main!.visibleFrame
+        let size = NSSize(width: min(contentSize.width, visible.width), height: min(contentSize.height, visible.height - 8))
+        let x = min(max(visible.minX + 4, anchor.midX - size.width / 2), visible.maxX - size.width - 4)
+        panel.setFrame(NSRect(x: x, y: anchor.minY - size.height - 5, width: size.width, height: size.height), display: true, animate: false)
+    }
+
     private var popoverScreenFrame: NSRect? {
-        popover.contentViewController?.view.window?.frame
+        panel.frame
     }
 
 }
@@ -253,5 +277,25 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
 private extension NSEvent.EventType {
     var isMouseDown: Bool {
         self == .leftMouseDown || self == .rightMouseDown || self == .otherMouseDown
+    }
+}
+
+/// An arrow-free, instantly presented menu using the system's adaptive material.
+final class FleetMenuPanel: NSPanel {
+    var hostingController: NSViewController?
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+    init() {
+        super.init(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+        identifier = NSUserInterfaceItemIdentifier("ai-fleet-menu")
+        title = "AI Fleet"
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        level = .popUpMenu
+        animationBehavior = .none
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
 }

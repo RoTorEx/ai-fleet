@@ -5,6 +5,33 @@ import XCTest
 
 final class MenuLayoutTests: XCTestCase {
     @MainActor
+    func testResetHoverKeepsBaselineAndFollowingRowStable() throws {
+        for scheme in [ColorScheme.light, .dark] {
+            var sizes: [CGSize] = []
+            for hovered in [false, true, false] {
+                let view = VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("5h  100%")
+                        ResetTimeCell(dateText: "9 Nov at 18:54", countdown: "6d 03h 04m 05s", hovered: hovered)
+                    }
+                    Text("Following provider")
+                }.font(.system(size: 11)).environment(\.colorScheme, scheme)
+                let renderer = ImageRenderer(content: view)
+                let image = try XCTUnwrap(renderer.cgImage)
+                sizes.append(CGSize(width: image.width, height: image.height))
+            }
+            XCTAssertEqual(sizes[0], sizes[1])
+            XCTAssertEqual(sizes[0], sizes[2])
+        }
+    }
+
+    func testSessionTitleRemovesAnnotationsButPreservesTaskWords() {
+        XCTAssertEqual(agentSessionDisplayTitle("Codex · Fix login (codex)", provider: "codex"), "Fix login")
+        XCTAssertEqual(agentSessionDisplayTitle("Fix Codex login", provider: "codex"), "Fix Codex login")
+        XCTAssertEqual(agentSessionDisplayTitle("Claude Code | Review", provider: "claude"), "Review")
+    }
+
+    @MainActor
     func testNativeHelpOpensWithoutWindowAnimationAndClosesInBothAppearances() async throws {
         let previous = NSApplication.shared.appearance
         defer { NSApplication.shared.appearance = previous }
@@ -100,7 +127,7 @@ final class MenuLayoutTests: XCTestCase {
     }
 
     @MainActor
-    func testMenuFitsNativePopoverInBothAppearances() async throws {
+    func testMenuFitsCompactPanelInBothAppearances() async throws {
         let previousAppearance = NSApplication.shared.appearance
         defer { NSApplication.shared.appearance = previousAppearance }
         let anchor = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 100, height: 40),
@@ -119,18 +146,20 @@ final class MenuLayoutTests: XCTestCase {
                     .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))
             host.sizingOptions = [.preferredContentSize]
             host.view.appearance = NSAppearance(named: appearance)
-            let popover = NSPopover()
-            popover.animates = false
-            popover.appearance = NSAppearance(named: appearance)
-            popover.contentViewController = host
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
-            defer { popover.performClose(nil) }
+            let panel = FleetMenuPanel()
+            panel.appearance = NSAppearance(named: appearance)
+            panel.contentViewController = host
+            panel.setContentSize(host.view.fittingSize)
+            panel.orderFrontRegardless()
+            defer { panel.orderOut(nil) }
             for _ in 0..<30 {
                 host.view.layoutSubtreeIfNeeded()
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
-            XCTAssertTrue(popover.isShown)
-            XCTAssertEqual(host.view.fittingSize.width, 400, accuracy: 1)
+            XCTAssertTrue(panel.isVisible)
+            XCTAssertEqual(panel.animationBehavior, .none)
+            XCTAssertTrue(panel.styleMask.contains(.borderless))
+            XCTAssertEqual(host.view.fittingSize.width, 320, accuracy: 1)
             XCTAssertGreaterThan(host.view.fittingSize.height, 150)
             if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
                let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
@@ -139,7 +168,7 @@ final class MenuLayoutTests: XCTestCase {
                 try bitmap.representation(using: .png, properties: [:])?.write(to:
                     URL(fileURLWithPath: directory).appendingPathComponent("native-menu-\(appearance.rawValue).png"))
             }
-            popover.performClose(nil)
+            panel.orderOut(nil)
         }
     }
 
