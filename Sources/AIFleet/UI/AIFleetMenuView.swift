@@ -7,6 +7,7 @@ struct AIFleetMenuView: View {
     var openAgents: () -> Void = {}
     var openProcesses: () -> Void = {}
     var agents: AgentSessionsService? = nil
+    var availableScreenHeight: CGFloat = NSScreen.main?.visibleFrame.height ?? 800
 
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
@@ -34,36 +35,51 @@ struct AIFleetMenuView: View {
 
     @State private var showsLegend = false
     @State private var showsOptions = false
+    @State private var chromeHeights: [String: CGFloat] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            summarySection
-            Divider().padding(.top, 6).padding(.bottom, 10)
-            if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
-                MenuRowsViewport(maxHeight: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 240))) {
-                    providerRows
-                }
-            } else { providerRows }
+            VStack(alignment: .leading, spacing: 0) {
+                summarySection
+                Divider().padding(.top, 6).padding(.bottom, 10)
+                if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
+                    MenuRowsViewport(maxHeight: min(340, max(180, availableScreenHeight - 240))) {
+                        providerRows
+                    }
+                } else { providerRows }
+                if agents != nil { Divider().padding(.top, 10).padding(.bottom, 4) }
+            }.background(GeometryReader { geometry in
+                Color.clear.preference(key: MenuChromeHeightKey.self, value: ["top": geometry.size.height])
+            })
             if let agents {
-                Divider().padding(.top, 10).padding(.bottom, 4)
-                AgentsView(service: agents, back: {}, embedded: true)
+                AgentsView(service: agents, back: {}, embedded: true, maxListHeight: agentsListHeight)
             }
 
             HStack {
                 Text(lastCheckText)
                 Spacer(minLength: 4)
                 Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development")
-            }.font(.system(size: 9)).foregroundStyle(.secondary).padding(.top, 10)
+            }.font(FleetUI.menuSecondary).foregroundStyle(.secondary).padding(.top, 10)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: MenuChromeHeightKey.self, value: ["footer": geometry.size.height])
+                })
         }
-        .font(FleetUI.body)
+        .font(FleetUI.menuBody)
         .padding(FleetUI.spacing)
         .frame(width: 320)
         .background(Color.primary.opacity(0.025))
+        .onPreferenceChange(MenuChromeHeightKey.self) { chromeHeights = $0 }
+    }
+
+    private var agentsListHeight: CGFloat {
+        MenuHeightBudget.agentsViewport(screenHeight: availableScreenHeight,
+            fixedHeight: (chromeHeights["top"] ?? 210) + (chromeHeights["footer"] ?? 22)
+                + FleetUI.spacing * 2 + FleetUI.menuControlSize + 12)
     }
 
     private var applicationMenu: some View {
         Button { showsOptions.toggle() } label: {
-            Image(systemName: "ellipsis").font(.system(size: 14, weight: .semibold)).frame(width: 30, height: 30).contentShape(Rectangle())
+            Image(systemName: "ellipsis").font(FleetUI.menuIcon).frame(width: FleetUI.menuControlSize, height: FleetUI.menuControlSize).contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel("Application options")
             .instantPopover(isPresented: $showsOptions) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -107,8 +123,8 @@ struct AIFleetMenuView: View {
                 Text("(\(providers.filter(\.hasCurrentQuota).count)/\(providers.count))")
                     .font(FleetUI.caption).foregroundStyle(.secondary).monospacedDigit()
                 Button { showsLegend.toggle() } label: {
-                    Image(systemName: "info.circle").font(.system(size: 12)).frame(width: 28, height: 28)
-                }.buttonStyle(.plain).foregroundStyle(.secondary)
+                    Image(systemName: "info.circle").font(FleetUI.menuIcon).frame(width: FleetUI.menuControlSize, height: FleetUI.menuControlSize)
+                }.buttonStyle(.plain).focusable(false).foregroundStyle(.secondary)
                     .accessibilityLabel("Legend for status, accounts, limits and agents")
                     .onHover { showsLegend = $0 }
                     .instantPopover(isPresented: $showsLegend) { completeLegend }
@@ -116,7 +132,7 @@ struct AIFleetMenuView: View {
                 Button {
                     service.refresh(); codexProfiles.refresh(force: true); agents?.refresh(force: true)
                 } label: {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 13)).frame(width: 30, height: 30)
+                    Image(systemName: "arrow.clockwise").font(FleetUI.menuIcon).frame(width: FleetUI.menuControlSize, height: FleetUI.menuControlSize)
                 }.buttonStyle(.plain).help("Refresh (⌘R)").accessibilityLabel("Refresh (Command-R)")
                 applicationMenu
             }
@@ -137,7 +153,7 @@ struct AIFleetMenuView: View {
             ForEach(accounts.visibleAccounts) { account in
                 Text("(\(account.badge)) · \(account.name)\n\(account.email)")
             }
-            Text("Default applies to the next command; running agents keep their accounts. The key opens account actions. ↓ marks the lowest positive remaining limit.")
+            Text("Next launch marks the selected account for each tool: Claude and Codex can each have their own. Running agents keep their accounts and appear below; this label does not identify their login. The key only opens account actions. ↓ marks the lowest positive remaining limit.")
             Divider()
             Text("Remaining limits").bold()
             Text("Normal: 26–100% · Orange: 11–25% · Red: 0–10%. Sign in means a login is required; unavailable means limits could not be measured.")
@@ -146,7 +162,7 @@ struct AIFleetMenuView: View {
             Text("Hover a date to see days, hours, minutes and seconds. The reset symbol becomes a clock. Not reported means the provider supplied no usable reset date.")
             Divider()
             Text("Live agents").bold()
-            Text("Local sessions grouped by location. Click a location to collapse it, or a session to jump. Moving rings mean working; orange needs you; gray means idle or unknown. The filter button selects which states appear.")
+            Text("Local sessions grouped by location. Click a location to collapse it, or a session to jump. One colored icon with text shows state: blue working, green new reply, orange needs you, red blocked, gray idle or unknown. The filter button selects which states appear.")
         }.font(FleetUI.caption).foregroundStyle(.secondary)
             .frame(width: 290, alignment: .leading).padding(FleetUI.spacing)
     }
@@ -226,19 +242,19 @@ struct ProviderLimitRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
                 Text(status.name + (entry.account.badge.isEmpty ? "" : " (\(entry.account.badge))"))
-                    .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
-                Spacer(minLength: 4)
+                    .font(FleetUI.menuHeading).foregroundColor(color).lineLimit(1)
                 if entry.isCurrentCLI ?? entry.isSelected {
-                    Text("Default").font(.system(size: 9)).foregroundStyle(.secondary)
+                    Divider().frame(height: 12)
+                    Text("Next launch").font(FleetUI.menuSecondary).foregroundStyle(.secondary).fixedSize()
                 }
                 if isLowest { FleetMark(kind: .lowest, size: 9).foregroundColor(color) }
-                Divider().frame(height: 12)
+                Spacer(minLength: 0)
                 Menu {
                     AccountConnectionActions(account: entry.account, connection: entry.connection, status: status,
                                              isCurrentCLI: entry.isCurrentCLI == true, openSettings: openSettings)
-                } label: { Image(systemName: "key.horizontal").font(.system(size: 11)).frame(width: 28, height: 28) }
+                } label: { Image(systemName: "key.horizontal").font(FleetUI.menuIcon).frame(width: FleetUI.menuControlSize, height: FleetUI.menuControlSize) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
@@ -260,7 +276,7 @@ struct ProviderLimitRow: View {
                 .padding(.leading, 0)
             } else {
                 Text(presentation.detail)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(FleetUI.menuBody)
                     .foregroundColor(color).fixedSize(horizontal: false, vertical: true)
                     .padding(.leading, 0)
             }
@@ -315,7 +331,7 @@ struct LimitWindowLine: View {
             }
 
             Text(windowValueText)
-                .font(limitWindowFont)
+                .font(limitWindowFont).monospacedDigit()
                 .foregroundColor(windowColor)
                 .frame(width: 40, alignment: .leading)
 
@@ -328,7 +344,7 @@ struct LimitWindowLine: View {
     }
 
     private var limitWindowFont: Font {
-        .system(size: 11, weight: .medium)
+        FleetUI.menuBody
     }
 
     private var blockingWindow: ProviderLimitWindow? {
@@ -481,4 +497,18 @@ private func rowColor(for status: ProviderStatus) -> Color {
 
 private func formatResetTime(_ date: Date) -> String {
     date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+}
+
+/// Total menu growth stops at three quarters of the available screen height.
+enum MenuHeightBudget {
+    static func agentsViewport(screenHeight: CGFloat, fixedHeight: CGFloat) -> CGFloat {
+        max(0, screenHeight * 0.75 - fixedHeight)
+    }
+}
+
+private struct MenuChromeHeightKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
+    }
 }

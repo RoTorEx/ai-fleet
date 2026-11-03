@@ -4,6 +4,46 @@ import XCTest
 @testable import AIFleet
 
 final class MenuLayoutTests: XCTestCase {
+    func testAgentStateColorsAndUnavailableObservationsDoNotClaimWork() {
+        for (state, tone) in [("Working", AgentSessionStatus.Tone.working), ("New reply", .success),
+                              ("Approval", .attention), ("Question", .attention), ("Blocked", .blocked),
+                              ("Untracked", .quiet), ("Unknown", .quiet)] {
+            let presentation = AgentSessionStatus(state: state, stale: false, linked: true)
+            XCTAssertEqual(presentation.title, state)
+            XCTAssertEqual(presentation.tone, tone)
+        }
+        XCTAssertEqual(AgentSessionStatus(state: "Working", stale: true, linked: true).title, "Stale")
+        XCTAssertEqual(AgentSessionStatus(state: "Working", stale: false, linked: false).tone, .quiet)
+        XCTAssertEqual(AgentSessionStatus(state: "Working", stale: false, linked: true, jumping: true).title, "Opening…")
+    }
+
+    @MainActor
+    func testAgentListCapsTotalHeightAndShrinksAfterRowsAreRemoved() {
+        for screenHeight: CGFloat in [600, 900] {
+            let rows = Rows()
+            let fixedHeight: CGFloat = 210
+            let host = NSHostingController(rootView: BudgetedRows(rows: rows, screenHeight: screenHeight, fixedHeight: fixedHeight))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 450),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.contentViewController = host
+            defer { window.contentViewController = nil }
+            var compactHeight: CGFloat = 0
+            for count in [2, 30, 2] {
+                rows.count = count
+                for _ in 0..<10 {
+                    host.view.layoutSubtreeIfNeeded()
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+                }
+                let height = host.view.fittingSize.height
+                XCTAssertLessThanOrEqual(height, screenHeight * 0.75 + 1)
+                if count == 30 { XCTAssertEqual(height, screenHeight * 0.75, accuracy: 1) }
+                else if compactHeight == 0 { compactHeight = height }
+                else { XCTAssertEqual(height, compactHeight, accuracy: 1) }
+            }
+        }
+        XCTAssertEqual(MenuHeightBudget.agentsViewport(screenHeight: 400, fixedHeight: 400), 0)
+    }
+
     @MainActor
     func testResetHoverKeepsBaselineAndFollowingRowStable() throws {
         for scheme in [ColorScheme.light, .dark] {
@@ -242,5 +282,23 @@ private struct LiveRows: View {
         }
         .frame(width: 354)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct BudgetedRows: View {
+    @ObservedObject var rows: Rows
+    let screenHeight: CGFloat
+    let fixedHeight: CGFloat
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("Providers and fixed controls").frame(height: fixedHeight)
+            MenuRowsViewport(maxHeight: MenuHeightBudget.agentsViewport(screenHeight: screenHeight, fixedHeight: fixedHeight)) {
+                VStack(spacing: 4) {
+                    ForEach(0..<rows.count, id: \.self) { index in
+                        Text("Agent \(index)").frame(height: 40)
+                    }
+                }
+            }
+        }.frame(width: 320).fixedSize(horizontal: false, vertical: true)
     }
 }

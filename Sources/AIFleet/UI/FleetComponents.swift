@@ -6,6 +6,12 @@ enum FleetUI {
     static let title = Font.system(size: 15, weight: .semibold)
     static let body = Font.system(size: 13)
     static let caption = Font.system(size: 11)
+    // Compact menu typography: one family, three roles, shared control geometry.
+    static let menuHeading = Font.system(size: 12, weight: .medium)
+    static let menuBody = Font.system(size: 11)
+    static let menuSecondary = Font.system(size: 10)
+    static let menuIcon = Font.system(size: 11)
+    static let menuControlSize: CGFloat = 28
 }
 
 extension View {
@@ -102,7 +108,9 @@ struct ResetCountdownView: View {
     static func remaining(until date: Date, now: Date = Date()) -> String {
         let seconds = max(0, Int(ceil(date.timeIntervalSince(now))))
         guard seconds > 0 else { return "Reset due" }
-        return String(format: "%dd %02dh %02dm %02ds", seconds / 86400, (seconds % 86400) / 3600, (seconds % 3600) / 60, seconds % 60)
+        let parts = [(seconds / 86400, "d"), ((seconds % 86400) / 3600, "h"),
+                     ((seconds % 3600) / 60, "m"), (seconds % 60, "s")]
+        return parts.filter { $0.0 > 0 }.map { "\($0.0)\($0.1)" }.joined(separator: " ")
     }
 }
 
@@ -113,7 +121,7 @@ struct ResetTimeCell: View {
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: hovered && countdown != nil ? "clock" : "arrow.clockwise")
-                .font(.system(size: 10)).frame(width: 11).opacity(dateText == "-" ? 0 : 1)
+                .font(FleetUI.menuIcon).frame(width: 12).opacity(dateText == "-" ? 0 : 1)
             Text(hovered ? (countdown ?? dateText) : dateText).monospacedDigit().lineLimit(1)
         }.frame(width: 160, height: 18, alignment: .leading)
             .alignmentGuide(.firstTextBaseline) { _ in 13 }

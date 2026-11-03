@@ -6,6 +6,15 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Replace ambiguous Default labels with Next launch beside each provider name;
+  selections apply independently per tool and are separate from key actions.
+- Omit every zero countdown component and align compact menu fonts, symbols and
+  action targets using shared typography and centered provider headers. Keep the
+  agent provider label on the second line to give session titles more room.
+- Replace duplicated agent activity decorations with one colored status label;
+  remove the leading spinner and bottom activity strip. Limit menu growth to
+  three quarters of the available display height, scrolling only the agents list.
+
 - Redesign the local menu with instant opening, one compact status header, top
   options, expanded Agents below providers, and Processes behind menu controls. Move
   version/check metadata to the main footer; keep Refresh in the header and remove Update.

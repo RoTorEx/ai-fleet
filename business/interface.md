@@ -12,8 +12,19 @@ Providers/Lowest summary block. Routine quota refresh keeps Active stable.
 Agents is expanded below the provider connections in the same 320-point menu.
 The arrow-free borderless panel uses adaptive system blur, rounded corners and
 instant presentation. Session titles use smaller text; the separate colored
-provider label stays at the right of the title row when a title or model truncates. Explicit provider
+provider label stays at the start of the second row when a title or model truncates.
+The first row reserves its full width for the session title. One static status
+icon plus its text appears on the second row: working blue, new reply green,
+approval/question orange, blocked red, idle/unknown/stale/unlinked gray. Opening
+a pane temporarily uses this same status slot. Separate orbit spinners, leading
+state circles and bottom activity strips are removed; provider labels retain
+provider colors independently of session state. Explicit provider
 annotations are removed from titles without removing provider words in task text.
+The menu grows to at most 75% of the available screen height, then the agents
+list scrolls while providers, the Agents header and footer remain fixed. The list
+budget subtracts measured fixed sections and uses the menu-bar item's screen;
+errors belong inside the same viewport. Shrinking or collapsing the list reduces
+the menu height again.
 All location groups start open and collapse independently. Paths use their last
 two components; the home directory is ~ and a direct child is ~/project.
 The separate filter icon contains All/Needs you/Working/Idle/Unknown.
@@ -28,13 +39,17 @@ otherwise Sign in. Switch follows it. Saving a native Codex login remains availa
 when an independent saved login is absent; Switch stays disabled until connected.
 Provider names retain Greek badges in parentheses. Account identities appear only
 in the hover/click legend. All account-action buttons use a small key, separated
-from trailing status text by a vertical divider. Default labels future launches;
+from provider-adjacent selection text. A vertical divider after the provider name
+introduces Next launch, which marks the selected account independently for each
+tool. The key at the right carries no selection status;
 only the small lowest-positive-quota down arrow remains. No leading status gutter
 or account-name hover popup competes with the names.
 
 The legend separates monitoring/counts, accounts, remaining limits, reset times
 and live agents. Reset date hover changes the same fixed cell to a clock and
-`Dd HHh MMm SSs`, with a permanent baseline and no layout animation. Missing dates
+nonzero day/hour/minute/second parts (for example, `23h 24m 26s` or `1h 5s`),
+with no zero components or leading zero padding. A permanent baseline prevents
+layout changes on hover. Missing dates
 read Not reported, never an invented reset time; expired dates read Reset due.
 
 ## Settings
@@ -45,8 +60,12 @@ login and future-launch selection), Providers (menu visibility), and Notificatio
 The preference applies immediately to both local and global mouse events; Escape
 and the menu-bar toggle continue to close it. Account and visibility forms remain separate.
 
-The shared hierarchy uses 15-point section titles, 13-point body text and 11-point
-secondary text, with 16-point outer padding. Existing analytical numbers retain
+The shared window hierarchy uses 15-point section titles, 13-point body text and
+11-point secondary text, with 16-point outer padding. The compact menu uses
+12-point medium section/provider headings, 11-point regular content and 10-point
+secondary labels. Its action symbols share an 11-point regular font, centered
+inside 28-point targets; provider header text/status/actions align by center.
+Selection text sits with the provider identity, not beside the key. Existing analytical numbers retain
 their larger metric hierarchy and tabular digits. Row actions, form controls and
 secondary data align to shared content edges rather than floating overlays.
 

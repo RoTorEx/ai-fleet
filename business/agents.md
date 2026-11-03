@@ -11,16 +11,20 @@ The existing configured global shortcut is preserved.
 
 The compact colorful view follows the user's IMG_1195.MP4 reference: project
 headings, collapsible groups, stable session rows, provider/model when known,
-explicit status, last-event time, rotating working indicators and indeterminate
-activity stripes. All/Needs you/Working/Idle/Unknown filters support larger lists.
-Reduced Motion disables repeating animation. Percent completion and parent/child
+one colored icon/text status on the second line with provider/model. Titles use
+all of the first line. Blue means working, green a new reply, orange approval or
+a question, red blocked, gray idle/unknown/stale/unlinked. There are no separate
+spinners or activity strips. Last-event time stays in row hover details alongside
+location and request. All/Needs you/Working/Idle/Unknown filters support larger
+lists. The agents viewport scrolls once the whole menu reaches 75% of available
+screen height, leaving fixed controls in place. Percent completion and parent/child
 relationships are never guessed from a directory or title.
 
 Click opens the exact existing iTerm2 window/tab/split and leaves the overview
 open. Session Jump never sends text, approvals, stop commands or tab closure.
 The separate Processes section offers explicit process termination as described below.
 Command-A returns to Providers. Escape, outside click or the global toggle closes the
-menu. Ambiguous/exited links report an error rather than choosing a similar title.
+menu (outside-click dismissal can be disabled in General). Ambiguous/exited links report an error rather than choosing a similar title.
 Opening a pane does not prove the user read its response.
 
 ## Ownership and data
@@ -63,7 +67,7 @@ bounded in-flight work and drop/reap helpers. Scans never overlap in Swift. A
 pending scan after 15 seconds is marked stale; an unconfirmed Jump after 8 seconds
 becomes retryable. Those deadlines bound UI uncertainty rather than establish
 process death. Replies must match request ID and connection generation. Failed
-scans retain and mark the last snapshot stale; activity animations stop.
+scans retain and mark the last snapshot stale; no stale row claims active work.
 
 Inherited Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe

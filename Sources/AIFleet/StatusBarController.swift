@@ -5,6 +5,7 @@ import Combine
 
 @MainActor
 final class FleetMenuScreen: ObservableObject {
+    @Published var availableScreenHeight = NSScreen.main?.visibleFrame.height ?? 800
     @Published var showsAgents = false
     @Published var agentsSection = "Sessions"
 }
@@ -23,7 +24,7 @@ private struct FleetMenuRoot: View {
             if screen.showsAgents {
                 AgentsView(service: agents, back: toggleAgents, section: $screen.agentsSection)
             } else {
-                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics, openAgents: toggleAgents, openProcesses: openProcesses, agents: agents)
+                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics, openAgents: toggleAgents, openProcesses: openProcesses, agents: agents, availableScreenHeight: screen.availableScreenHeight)
                     .environmentObject(service)
                     .environmentObject(AppSettings.shared)
             }
@@ -152,6 +153,7 @@ final class StatusBarController: NSObject {
         guard let button = statusItem.button else {
             return
         }
+        screen.availableScreenHeight = button.window?.screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? 800
         // Activate so the panel becomes key and its buttons receive clicks.
         NSApplication.shared.activate(ignoringOtherApps: true)
         resizePanel(to: panel.hostingController?.preferredContentSize ?? NSSize(width: 320, height: 400))
