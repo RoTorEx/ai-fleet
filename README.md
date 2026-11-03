@@ -28,7 +28,7 @@ Agents is expanded below provider connections. Use its filter icon and click a
 location to collapse its sessions. **Command-A** returns here from Processes.
 The overview stays expanded after Jump transfers focus to iTerm2.
 The colorful list groups live Codex/Claude sessions by project, with filters,
-collapsible groups and one colored status per row. The list scrolls when the
+collapsible groups and one monochrome status per row, an elapsed Working timer and a moving activity strip. The list scrolls when the
 menu reaches three quarters of available screen height. Click a row
 to open its exact iTerm2 window/tab/split; the overview stays open. Escape or an
 outside click closes it (configurable in General). The engine ships inside the app; no separate Hub CLI or

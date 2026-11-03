@@ -22,78 +22,68 @@ struct SettingsView: View {
     @State private var newThresholdText = "10"
     @State private var isAddingThreshold = false
 
-    private let sections: [(String, String, String)] = [
-        ("general", "General", "slider.horizontal.3"),
-        ("accounts", "Accounts", "person.crop.circle"),
-        ("providers", "Providers", "square.stack.3d.up"),
-        ("notifications", "Notifications", "bell")
-    ]
-
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("AI Fleet").font(FleetUI.title).padding(.bottom, 18)
-                ForEach(sections, id: \.0) { section in
-                    Button { navigation.tab = section.0 } label: {
-                        Label(section.1, systemImage: section.2)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(9)
-                            .background(navigation.tab == section.0 ? Color.accentColor.opacity(0.12) : .clear,
-                                        in: RoundedRectangle(cornerRadius: 7))
-                    }.buttonStyle(.plain)
+        TabView(selection: $navigation.tab) {
+            settingsPage {
+                VStack(alignment: .leading, spacing: 18) {
+                    generalSettings
+                    Divider()
+                    providerSettings
+                    Divider()
+                    statisticsSettings
+                    Divider()
+                    notificationSettings
                 }
-                Spacer()
-            }.padding(FleetUI.spacing).frame(width: 166)
-                .background(Color.primary.opacity(0.025))
-            Divider()
-            VStack(alignment: .leading, spacing: FleetUI.spacing) {
-                Text(sections.first { $0.0 == navigation.tab }?.1 ?? "General").font(FleetUI.title)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: FleetUI.spacing) {
-                        switch navigation.tab {
-                        case "accounts": AccountsSettingsView()
-                        case "providers": providerSettings
-                        case "notifications": notificationSettings
-                        default: generalSettings
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
-                }
-                Divider()
-                HStack {
-                    Spacer()
-                    Button("Quit AI Fleet") { NSApplication.shared.terminate(nil) }
-                        .buttonStyle(.plain).font(FleetUI.caption).foregroundStyle(.secondary).keyboardShortcut("q")
-                }
-
-            }.padding(FleetUI.spacing).frame(maxWidth: .infinity, alignment: .leading)
+            }.tabItem { Text("General") }.tag("general")
+            settingsPage { AccountsSettingsView() }.tabItem { Text("Accounts") }.tag("accounts")
         }
-        .font(FleetUI.body)
-        .frame(width: 660, height: 620)
-        .onAppear { service.refreshNotificationSettings(); service.refresh() }
+        .font(FleetUI.body).padding(12).frame(width: 560, height: 410)
+        .onAppear {
+            if navigation.tab != "accounts" { navigation.tab = "general" }
+            service.refreshNotificationSettings(); service.refresh()
+        }
+    }
+
+    private func settingsPage<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ScrollView {
+            content().frame(maxWidth: .infinity, alignment: .leading).padding(16)
+        }
     }
 
     private var providerSettings: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Choose which providers appear in the menu and Statistics. Hiding a provider preserves its accounts and history.")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Providers").font(FleetUI.title)
+            Text("Show providers in the menu. Statistics has its own selection.")
                 .font(FleetUI.caption).foregroundStyle(.secondary)
-            ForEach(ProviderCatalog.all) { provider in
-                Toggle(provider.name, isOn: Binding(
-                    get: { settings.isEnabled(provider.id) },
-                    set: { settings.setEnabled($0, for: provider.id); service.refresh() }
-                )).toggleStyle(.switch)
-                Divider()
+            ForEach(ProviderCatalog.all.sorted { $0.name < $1.name }) { provider in
+                settingsRow(provider.name) {
+                    Toggle("Show in menu", isOn: Binding(
+                        get: { settings.isEnabled(provider.id) },
+                        set: { settings.setEnabled($0, for: provider.id); service.refresh() }
+                    )).toggleStyle(.checkbox)
+                }
             }
         }
     }
 
     private var generalSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Toggle("Close menu when clicking outside", isOn: $settings.closeMenuOnOutsideClick)
+            Text("Menu").font(FleetUI.title)
+            settingsRow("Outside click") {
+                Toggle("Close menu", isOn: $settings.closeMenuOnOutsideClick).toggleStyle(.checkbox)
+            }
 
             settingsRow("Menu shortcut") {
                 HotkeyRecorder(settings: settings)
             }
 
-            settingsRow("Statistics") {
+        }
+    }
+
+    private var statisticsSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Statistics").font(FleetUI.title)
+            settingsRow("Schedule") {
                 VStack(alignment: .leading, spacing: 7) {
                     Toggle("Refresh daily", isOn: $settings.analyticsAutoRefreshEnabled)
                         .font(.system(size: 13, weight: .medium))
@@ -107,7 +97,7 @@ struct SettingsView: View {
                             selection: analyticsRefreshTimeBinding,
                             displayedComponents: .hourAndMinute
                         )
-                        .labelsHidden()
+                        .labelsHidden().frame(width: 100)
                         .disabled(!settings.analyticsAutoRefreshEnabled)
                     }
 
@@ -122,7 +112,8 @@ struct SettingsView: View {
 
     private var notificationSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
-            settingsRow("Notifications") {
+            Text("Notifications").font(FleetUI.title)
+            settingsRow("Thresholds") {
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(settings.notificationThresholds, id: \.self) { threshold in
@@ -172,11 +163,11 @@ struct SettingsView: View {
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .top, spacing: 12) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(FleetUI.body)
                 .foregroundColor(.secondary)
-                .frame(width: 100, alignment: .leading)
+                .frame(width: 126, alignment: .leading)
             content()
         }
     }

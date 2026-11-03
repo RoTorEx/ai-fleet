@@ -158,6 +158,8 @@ final class StatusBarController: NSObject {
         NSApplication.shared.activate(ignoringOtherApps: true)
         resizePanel(to: panel.hostingController?.preferredContentSize ?? NSSize(width: 320, height: 400))
         panel.makeKeyAndOrderFront(nil)
+        // Keep automatic initial focus off native menu buttons; Tab still navigates.
+        panel.makeFirstResponder(nil)
         button.highlight(true)
         StatusService.shared.refresh()
         if !screen.showsAgents { agents.start() }

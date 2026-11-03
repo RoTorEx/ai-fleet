@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import Foundation
 
@@ -11,10 +12,12 @@ struct ProviderLaunchProfile: Codable, Equatable {
 /// Provider adapters keep Switch semantics identical without replacing live credentials.
 enum ProviderTerminalLaunch {
     enum Failure: LocalizedError {
-        case missingCLI(String), invalidProfile, commandConflict(String)
+        case missingCLI(String), invalidProfile, commandConflict(String), identityUnverified, identityUnsupported
         var errorDescription: String? {
             switch self {
             case .missingCLI(let name): return "The native \(name) CLI is not installed or could not be found."
+            case .identityUnsupported: return "This build cannot verify Qwen account ownership. Remove its provider connection in AI Fleet → Accounts to clear named routing; native credentials and running sessions are preserved."
+            case .identityUnverified: return "The selected account identity could not be verified. Open AI Fleet → Accounts and refresh or sign in again. No agent was launched."
             case .invalidProfile: return "The selected provider account profile is invalid. Reconnect it in Settings → Accounts."
             case .commandConflict(let name): return "The \(name) command path belongs to another tool. No executable was replaced."
             }
@@ -47,6 +50,20 @@ enum ProviderTerminalLaunch {
     static func selectionURL(_ providerID: String, home: URL) throws -> URL {
         guard providers.contains(providerID) else { throw Failure.invalidProfile }
         return CodexTerminalLaunch.support(home: home).appendingPathComponent("ProviderLaunch/\(providerID).json")
+    }
+
+    static func kimiDeviceID(directory: URL) throws -> String {
+        let file = directory.appendingPathComponent("device_id")
+        try CodexTerminalLaunch.checkPath(file)
+        if FileManager.default.fileExists(atPath: file.path) {
+            let value = try String(contentsOf: file).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty, value.count <= 128, !value.contains("\n"), !value.contains("\r") else { throw Failure.invalidProfile }
+            return value
+        }
+        let value = UUID().uuidString
+        try Data(value.utf8).write(to: file, options: .withoutOverwriting)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        return value
     }
 
     static func read(_ providerID: String, home: URL) throws -> ProviderLaunchProfile? {
@@ -192,13 +209,11 @@ enum ProviderTerminalLaunch {
             }
             if let profile = plan.profile, let directory = plan.directory {
                 try prepare(profile, home: home)
-                if providerID == "claude", profile.native, !profile.email.isEmpty,
-                   let result = LocalCommandReader.read(executableURL: plan.executable, arguments: ["auth", "status"],
-                                                         environment: plan.environment), result.exitCode == 0,
-                   let object = try JSONSerialization.jsonObject(with: result.data) as? [String: Any],
-                   let email = object["email"] as? String,
-                   email.caseInsensitiveCompare(profile.email) != .orderedSame {
-                    throw Failure.invalidProfile
+                let authCommand = ["login", "logout"].contains(arguments.first ?? "") ||
+                    arguments.prefix(2).elementsEqual(["auth", "login"]) || arguments.prefix(2).elementsEqual(["auth", "logout"])
+                let informational = arguments == ["--version"] || arguments == ["--help"] || arguments == ["-h"] || (providerID == "kimi" && arguments == ["-V"])
+                if !authCommand && !informational {
+                    try ProviderIdentityGate.validate(profile, directory: directory, executable: plan.executable, environment: plan.environment)
                 }
                 if arguments.first == "logout" || arguments.first == "login" || arguments.prefix(2).elementsEqual(["auth", "logout"]) || arguments.prefix(2).elementsEqual(["auth", "login"]) {
                     try CodexCredentialSwitch.checkLegacyConsumers(directory)
@@ -229,6 +244,7 @@ final class ProviderLaunchStore: ObservableObject {
     @Published private(set) var busy = false
     private let defaults: UserDefaults
     private let home: URL
+    private var loginTask: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard, home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.defaults = defaults; self.home = home
@@ -277,14 +293,22 @@ final class ProviderLaunchStore: ObservableObject {
     func signIn(_ account: FleetAccount, providerID: String) {
         guard !busy else { return }
         messageAccountID = account.id; messageProviderID = providerID
+        if providerID == "qwen" {
+            message = "Qwen email verification is unavailable in this build. Named-account sign-in and Switch cannot be confirmed. Configure Qwen in its native CLI instead."
+            return
+        }
         do {
             let profile = ProviderLaunchProfile(providerID: providerID, accountID: account.id, email: account.email, native: false)
             let directory = try ProviderTerminalLaunch.directory(profile, home: home)
             try CodexCredentialSwitch.checkLegacyConsumers(directory)
             try ProviderTerminalLaunch.validateCredentialPaths(profile, home: home)
             try ProviderTerminalLaunch.prepare(profile, home: home)
+            if providerID == "kimi" {
+                startKimiLogin(account, profile: profile, directory: directory)
+                return
+            }
             guard ["claude", "kimi"].contains(providerID) else {
-                message = "Complete native sign-in on the first \(providerID) launch after Switch. Existing sessions and their logins are unchanged."
+                message = "Sign in using the native \(providerID) command in your terminal, then refresh terminal logins in Accounts. A verified email is required before Switch. Existing sessions are unchanged."
                 return
             }
             guard let executable = ProviderCatalog.executableURL(for: ProviderCatalog.definition(for: providerID)!) else {
@@ -307,6 +331,40 @@ final class ProviderLaunchStore: ObservableObject {
                 StatusService.shared.refresh()
             }
         } catch { message = error.localizedDescription }
+    }
+
+    func cancelSignIn() { loginTask?.cancel() }
+
+    private func startKimiLogin(_ account: FleetAccount, profile: ProviderLaunchProfile, directory: URL) {
+        busy = true
+        message = "Complete Kimi sign-in in your browser using \(account.email)."
+        loginTask = Task {
+            let session = URLSession(configuration: .ephemeral, delegate: ProviderLoginRedirectGuard(), delegateQueue: nil)
+            defer { session.invalidateAndCancel(); busy = false; loginTask = nil }
+            do {
+                await StatusService.shared.joinRefreshBeforeAccountAuth()
+                let deviceID = try ProviderTerminalLaunch.kimiDeviceID(directory: directory)
+                let token = try await KimiAccountLogin.authenticate(expectedEmail: account.email, session: session,
+                    headers: ["X-Msh-Platform": "kimi_code_cli", "X-Msh-Device-Id": deviceID, "User-Agent": "AI-Fleet/1.3"]) { url, code in
+                    self.message = "Complete Kimi sign-in in your browser. Verification code: \(code). Expected email: \(account.email)."
+                    NSWorkspace.shared.open(url)
+                }
+                try Task.checkCancellation()
+                try CodexCredentialSwitch.checkLegacyConsumers(directory)
+                try ProviderTerminalLaunch.validateCredentialPaths(profile, home: home)
+                let credentials = directory.appendingPathComponent("credentials")
+                try FileManager.default.createDirectory(at: credentials, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                let encoder = JSONEncoder(); encoder.keyEncodingStrategy = .convertToSnakeCase
+                let destination = credentials.appendingPathComponent("kimi-code.json")
+                try encoder.encode(token).write(to: destination, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+                profiles.removeAll { $0.providerID == "kimi" && $0.accountID == account.id }
+                profiles.append(profile); save()
+                message = nil
+                StatusService.shared.refresh()
+            } catch is CancellationError { message = "Kimi sign-in canceled. Existing logins are unchanged." }
+            catch { message = error.localizedDescription }
+        }
     }
 
     func signOut(_ account: FleetAccount, providerID: String) {
@@ -351,14 +409,14 @@ final class ProviderLaunchStore: ObservableObject {
         } catch { message = error.localizedDescription }
     }
 
-    func forget(_ accountID: String) throws {
-        for (providerID, selectedID) in selected where selectedID == accountID {
+    func forget(_ accountID: String, providerID onlyProviderID: String? = nil) throws {
+        for (providerID, selectedID) in selected where selectedID == accountID && (onlyProviderID == nil || providerID == onlyProviderID) {
             let file = try ProviderTerminalLaunch.selectionURL(providerID, home: home)
             try CodexTerminalLaunch.checkPath(file)
             if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
             selected.removeValue(forKey: providerID)
         }
-        profiles.removeAll { $0.accountID == accountID }; save()
+        profiles.removeAll { $0.accountID == accountID && (onlyProviderID == nil || $0.providerID == onlyProviderID) }; save()
     }
 
     private func save() {

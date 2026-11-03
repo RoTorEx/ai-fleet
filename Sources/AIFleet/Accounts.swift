@@ -67,7 +67,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
         switch providerID {
         case "claude": return ClaudeProfile.authOverrideKeys
         case "codex": return [selector, "CODEX_SQLITE_HOME", "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"]
-        case "kimi": return [selector, "KIMI_SHARE_DIR", "KIMI_API_KEY", "KIMI_BASE_URL", "KIMI_MODEL_NAME"]
+        case "kimi": return [selector, "KIMI_SHARE_DIR", "KIMI_API_KEY", "KIMI_BASE_URL", "KIMI_CODE_API_KEY", "KIMI_CODE_BASE_URL", "KIMI_CODE_OAUTH_HOST", "KIMI_OAUTH_HOST", "KIMI_MODEL_NAME"]
         case "qwen": return [selector, "QWEN_RUNTIME_DIR", "QWEN_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"]
         case "gemini": return [selector, "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI",
                                "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_GENAI_USE_GCA", "GEMINI_DEFAULT_AUTH_TYPE"]
@@ -133,11 +133,13 @@ final class AccountStore: ObservableObject {
 
     func cancelCodexSignIn() { codexLoginOperation?.cancel() }
     private let defaults: UserDefaults
+    private var dismissedImports: Set<String>
     private let home: URL
     private var nextBadge: Int
 
     init(defaults: UserDefaults = .standard, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.defaults = defaults
+        dismissedImports = Set(defaults.stringArray(forKey: "fleet.dismissedImports") ?? [])
         home = homeDirectory
         var loaded = defaults.data(forKey: "fleet.accounts")
             .flatMap { try? JSONDecoder().decode([FleetAccount].self, from: $0) }
@@ -248,12 +250,14 @@ final class AccountStore: ObservableObject {
     func globalAccount(for status: ProviderStatus) -> String? {
         let email = status.account?.email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if email.isEmpty {
-            return accounts.first { $0.connection(for: status.providerID)?.isNativeDefault == true }?.id
+            return accounts.first { $0.email.isEmpty && $0.connection(for: status.providerID)?.isNativeDefault == true }?.id
         }
+        guard !dismissedImports.contains(importKey(status.providerID, email)) else { return nil }
         let matches = accounts.filter { $0.email.trimmingCharacters(in: .whitespacesAndNewlines)
             .caseInsensitiveCompare(email) == .orderedSame }
         guard matches.count <= 1 else { return nil }
         if let match = matches.first {
+            guard match.connection(for: status.providerID)?.configDirectory == nil else { return nil }
             attachGlobal(status.providerID, to: match.id)
             return match.id
         }
@@ -316,10 +320,28 @@ final class AccountStore: ObservableObject {
         }
     }
 
+    private func importKey(_ providerID: String, _ email: String) -> String {
+        providerID + ":" + email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+    private func suppressImport(_ providerID: String, email: String) {
+        guard !email.isEmpty else { return }
+        dismissedImports.insert(importKey(providerID, email))
+        defaults.set(Array(dismissedImports).sorted(), forKey: "fleet.dismissedImports")
+    }
+    func importNative(_ status: ProviderStatus) {
+        guard status.authentication == .signedIn, let email = status.account?.email, !email.isEmpty else { return }
+        dismissedImports.remove(importKey(status.providerID, email))
+        defaults.set(Array(dismissedImports).sorted(), forKey: "fleet.dismissedImports")
+        _ = globalAccount(for: status)
+    }
     func detach(_ providerID: String, from accountID: String) {
         guard let index = accounts.firstIndex(where: { $0.id == accountID }),
-              accounts[index].connection(for: providerID).map({ !$0.isNativeDefault }) == true else { return }
+              let connection = accounts[index].connection(for: providerID) else { return }
+        suppressImport(providerID, email: accounts[index].email)
         accounts[index].connections.removeAll { $0.providerID == providerID }
+        if connection.isNativeDefault, accountID != FleetAccount.defaultID,
+           let native = accounts.firstIndex(where: { $0.id == FleetAccount.defaultID }),
+           accounts[native].connection(for: providerID) == nil { accounts[native].connections.append(connection) }
         repairSelection(providerID)
         save()
     }
@@ -333,7 +355,17 @@ final class AccountStore: ObservableObject {
         save()
     }
     func remove(_ id: String) {
-        guard id != FleetAccount.defaultID, let account = accounts.first(where: { $0.id == id }) else { return }
+        guard let account = accounts.first(where: { $0.id == id }), id != FleetAccount.defaultID || !account.email.isEmpty else { return }
+        if id == FleetAccount.defaultID {
+            for connection in account.connections { suppressImport(connection.providerID, email: account.email) }
+            let retained = account.connections.filter(\.isNativeDefault)
+            accounts.removeAll { $0.id == id }
+            accounts.insert(FleetAccount(id: FleetAccount.defaultID, badgeIndex: -1, name: "Default", email: "", connections: retained), at: 0)
+            for provider in ProviderCatalog.all { repairSelection(provider.id) }
+            save()
+            return
+        }
+        for connection in account.connections { suppressImport(connection.providerID, email: account.email) }
         let defaultsToKeep = account.connections.filter { $0.isNativeDefault }
         accounts.removeAll { $0.id == id }
         for connection in defaultsToKeep {
@@ -390,5 +422,14 @@ enum CodexProfileIdentity {
         return ProviderAccountIdentity(email: claims["email"] as? String ?? profile?["email"] as? String,
                                        organizationID: accountID ?? details?["chatgpt_account_id"] as? String,
                                        organizationName: nil, subscriptionType: details?["chatgpt_plan_type"] as? String)
+    }
+}
+
+enum AccountIdentityMatch: Equatable {
+    case verified, unavailable, different
+    static func assess(expected: String, observed: String?) -> Self {
+        let expected = expected.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !expected.isEmpty, let observed = observed?.trimmingCharacters(in: .whitespacesAndNewlines), !observed.isEmpty else { return .unavailable }
+        return expected.caseInsensitiveCompare(observed) == .orderedSame ? .verified : .different
     }
 }

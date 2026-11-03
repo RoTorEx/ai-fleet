@@ -9,12 +9,32 @@ final class MenuLayoutTests: XCTestCase {
                               ("Approval", .attention), ("Question", .attention), ("Blocked", .blocked),
                               ("Untracked", .quiet), ("Unknown", .quiet)] {
             let presentation = AgentSessionStatus(state: state, stale: false, linked: true)
-            XCTAssertEqual(presentation.title, state)
+            XCTAssertEqual(presentation.title, ["New reply": "Ready", "Blocked": "Error", "Untracked": "Idle"][state] ?? state)
             XCTAssertEqual(presentation.tone, tone)
         }
         XCTAssertEqual(AgentSessionStatus(state: "Working", stale: true, linked: true).title, "Stale")
         XCTAssertEqual(AgentSessionStatus(state: "Working", stale: false, linked: false).tone, .quiet)
         XCTAssertEqual(AgentSessionStatus(state: "Working", stale: false, linked: true, jumping: true).title, "Opening…")
+    }
+
+    @MainActor
+    func testHeaderSymbolsAreCenteredWithinTheirClickTargets() throws {
+        for symbol in ["arrow.clockwise", "ellipsis", "info.circle", "key.horizontal"] {
+            let renderer = ImageRenderer(content: FleetMenuIcon(systemName: symbol).foregroundColor(.black))
+            renderer.scale = 4
+            let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
+            var minX = bitmap.pixelsWide, minY = bitmap.pixelsHigh, maxX = -1, maxY = -1
+            for y in 0..<bitmap.pixelsHigh {
+                for x in 0..<bitmap.pixelsWide where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.2 {
+                    minX = min(minX, x); maxX = max(maxX, x)
+                    minY = min(minY, y); maxY = max(maxY, y)
+                }
+            }
+            XCTAssertGreaterThan(maxX, minX)
+            XCTAssertGreaterThan(maxY, minY)
+            XCTAssertEqual(Double(minX + maxX + 1) / 2, Double(bitmap.pixelsWide) / 2, accuracy: 4, symbol)
+            XCTAssertEqual(Double(minY + maxY + 1) / 2, Double(bitmap.pixelsHigh) / 2, accuracy: 4, symbol)
+        }
     }
 
     @MainActor
@@ -72,6 +92,11 @@ final class MenuLayoutTests: XCTestCase {
         XCTAssertEqual(agentSessionDisplayTitle("⠦ Review changes", provider: "claude"), "Review changes")
         XCTAssertEqual(agentSessionDisplayTitle("Fix ⠦ parsing", provider: "codex"), "Fix ⠦ parsing")
         XCTAssertEqual(agentSessionDisplayTitle("⋮operators", provider: "codex"), "⋮operators")
+        XCTAssertEqual(agentSessionDisplayTitle("Review changes | Thira", provider: "codex", project: "/work/corporate/Thira"), "Review changes")
+        XCTAssertEqual(agentSessionDisplayTitle("Review | corporate/Thira", provider: "codex", project: "/work/corporate/Thira"), "Review")
+        XCTAssertEqual(agentSessionDisplayTitle("Explain permissions | user", provider: "codex", project: "/Users/user"), "Explain permissions")
+        XCTAssertEqual(agentSessionDisplayTitle("Compare A | B", provider: "codex", project: "/work/Thira"), "Compare A | B")
+        XCTAssertEqual(agentSessionDisplayTitle("Fix Thira routing", provider: "codex", project: "/work/Thira"), "Fix Thira routing")
         XCTAssertEqual(agentSessionDisplayTitle("Claude Code | Review", provider: "claude"), "Review")
     }
 
@@ -146,9 +171,9 @@ final class MenuLayoutTests: XCTestCase {
     }
 
     @MainActor
-    func testCurrentAndLowestMarksHaveEqualRenderedArrowLengths() throws {
-        func inkSize(_ kind: FleetMark.Kind, size: CGFloat) throws -> CGSize {
-            let renderer = ImageRenderer(content: FleetMark(kind: kind, size: size).foregroundColor(.black))
+    func testInlineMarksHaveMatchingRenderedSizes() throws {
+        func longestEdge(_ symbol: String) throws -> CGFloat {
+            let renderer = ImageRenderer(content: FleetInlineSymbol(systemName: symbol).foregroundColor(.black))
             renderer.scale = 4
             let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
             var minX = bitmap.pixelsWide, minY = bitmap.pixelsHigh, maxX = -1, maxY = -1
@@ -159,15 +184,11 @@ final class MenuLayoutTests: XCTestCase {
                 }
             }
             XCTAssertGreaterThan(maxX, minX)
-            XCTAssertGreaterThan(maxY, minY)
-            return CGSize(width: maxX - minX + 1, height: maxY - minY + 1)
+            return CGFloat(max(maxX - minX + 1, maxY - minY + 1)) / 4
         }
-        for size: CGFloat in [10.5, 13] {
-            let current = try inkSize(.current, size: size)
-            let lowest = try inkSize(.lowest, size: size)
-            XCTAssertEqual(current.width, lowest.height, accuracy: 1, "Arrow lengths must match after rotation")
-            XCTAssertEqual(current.height, lowest.width, accuracy: 1, "Arrowhead spans must match after rotation")
-        }
+        let check = try longestEdge("checkmark")
+        XCTAssertEqual(try longestEdge("arrow.down"), check, accuracy: 1)
+        XCTAssertEqual(try longestEdge("xmark"), check, accuracy: 1)
     }
 
     @MainActor

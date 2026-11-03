@@ -256,6 +256,11 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
            email.caseInsensitiveCompare(expectedEmail) != .orderedSame {
             displayed = presented.status(from: ProviderStatus(id: connection.providerID, name: result.name,
                 state: .offline, detail: "Account mismatch · check native sign-in", lastUpdated: result.lastUpdated,
+                account: result.account, authentication: .unknown, quotaState: .unavailable))
+        } else if result.authentication == .signedIn, let expectedEmail, !expectedEmail.isEmpty,
+                  AccountIdentityMatch.assess(expected: expectedEmail, observed: result.account?.email) != .verified {
+            displayed = presented.status(from: ProviderStatus(id: connection.providerID, name: result.name,
+                state: .offline, detail: "Identity not verified · refresh or sign in again", lastUpdated: result.lastUpdated,
                 authentication: .unknown, quotaState: .unavailable))
         } else { displayed = presented.status(from: result) }
         subscriptions.removeAll { $0.id == presented.statusID }
@@ -634,6 +639,17 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Unavailable", lastUpdated: Date())
             }
             let decoded = try decoder.decode(KimiCodeUsageResponse.self, from: data)
+            var identityRequest = request
+            identityRequest.url = URL(string: "https://api.kimi.com/coding/v1/me")!
+            let identity: ProviderAccountIdentity?
+            if let (identityData, identityResponse) = try? await session.data(for: identityRequest),
+               let http = identityResponse as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+               let object = try? JSONSerialization.jsonObject(with: identityData) as? [String: Any],
+               let email = object["email"] as? String, !email.isEmpty {
+                identity = ProviderAccountIdentity(email: email, organizationID: object["user_id"] as? String,
+                    organizationName: nil, subscriptionType: object["user_level_name"] as? String)
+            } else { identity = nil }
+
 
             var candidates: [LimitCandidate] = []
             if let usage = decoded.usage,
@@ -665,7 +681,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 remainingPercent: selected.remaining,
                 windowLabel: selected.label,
                 resetAt: selected.resetAt,
-                limitWindows: candidates.map(\.providerWindow)
+                limitWindows: candidates.map(\.providerWindow), account: identity
             )
         } catch {
             return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Offline", lastUpdated: Date())

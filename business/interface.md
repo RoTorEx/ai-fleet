@@ -13,25 +13,27 @@ Agents is expanded below the provider connections in the same 320-point menu.
 The arrow-free borderless panel uses adaptive system blur, rounded corners and
 instant presentation. Session titles use smaller text; the separate colored
 provider label stays at the start of the second row when a title or model truncates.
-The first row reserves its full width for the session title. One static status
-icon plus its text appears on the second row: working blue, new reply green,
-approval/question orange, blocked red, idle/unknown/stale/unlinked gray. Opening
-a pane temporarily uses this same status slot. Separate orbit spinners, leading
-state circles and bottom activity strips are removed; provider labels retain
-provider colors independently of session state. Explicit provider
-annotations are removed from titles without removing provider words in task text.
-The menu grows to at most 75% of the available screen height, then the agents
-list scrolls while providers, the Agents header and footer remain fixed. The list
-budget subtracts measured fixed sections and uses the menu-bar item's screen;
-errors belong inside the same viewport. Shrinking or collapsing the list reduces
-the menu height again.
+The first row reserves its full width for the session title. The second row shows
+provider/model and one monochrome state label. Working includes elapsed turn time
+in parentheses and a moving gray strip beneath the row (static with Reduced
+Motion). The timer uses explicit elapsed work from the validated terminal, then the bound
+provider's current request timestamp; without either, ≥ denotes continuous
+observed duration, reset when monitoring stops. Polls and
+assistant messages do not reset that observed clock. Idle maps opened/untracked
+idle observations; Ready maps a newly completed reply not opened since arrival.
+Opening is not proof of reading. Question/Approval preserve required input, Error
+maps an agent-reported blocker, and Unknown/Stale/Unlinked remain explicit.
+The last-message line uses bound provider-log time, never polling time or process
+creation time; unavailable times are dashes. Source titles and logs are retained.
+The menu grows to at most 75% of available screen height, then only agents scroll.
+Measured fixed sections, the Agents header and footer remain in place.
 All location groups start open and collapse independently. Paths use their last
 two components; the home directory is ~ and a direct child is ~/project.
-The separate filter icon contains All/Needs you/Working/Idle/Unknown.
+The separate filter icon includes Working, Idle, Ready, Question, Error and Unknown.
 Command-R refreshes providers and agents; Command-A returns from Processes.
 
 The compact options panel contains Statistics, Settings, Processes, then Quit.
-Last checked sits at the bottom left of the main menu, with version at the right.
+Last refresh: HH:MM:SS sits at the bottom left of the main menu, with version at the right.
 Refresh stays beside options in the header. Update is not a visible command.
 
 Account actions show exactly one authentication command: Sign out when signed in,
@@ -40,8 +42,8 @@ when an independent saved login is absent; Switch stays disabled until connected
 Provider names retain Greek badges in parentheses. Account identities appear only
 in the hover/click legend. All account-action buttons use a small key, separated
 from provider-adjacent selection text. A vertical divider after the provider name
-introduces Next launch, which marks the selected account independently for each
-tool. The key at the right carries no selection status;
+introduces a small checkmark, which marks the selected account independently for
+each tool. Its meaning lives in the legend; no Default/Next launch text is shown. The key at the right carries no selection status;
 only the small lowest-positive-quota down arrow remains. No leading status gutter
 or account-name hover popup competes with the names.
 
@@ -54,20 +56,38 @@ read Not reported, never an invented reset time; expired dates read Reset due.
 
 ## Settings
 
-A sidebar separates General (shortcut and refresh schedule), Accounts (identity,
-login and future-launch selection), Providers (menu visibility), and Notifications
-(thresholds and system permission controls). General explicitly controls closing the menu on outside clicks (enabled by default).
-The preference applies immediately to both local and global mouse events; Escape
-and the menu-bar toggle continue to close it. Account and visibility forms remain separate.
+Two native tabs, General and Accounts, fit a compact 560 × 410-point window.
+Application options and Command-comma open the same window, avoiding the separate
+SwiftUI Settings-scene presentation. Window section titles use 15-point semibold
+text; form labels/body use 13-point regular text and secondary notes use 11-point.
+General groups menu behavior/shortcut, alphabetic providers, Statistics schedule
+and Notifications with shared label/control columns. Content scrolls; there is no
+repeated page heading, sidebar or Quit command. Native tabs use their entire hit
+target. Quit remains in application options. Provider visibility affects the main
+menu only; Statistics keeps its independent selection. Enabled providers remain
+visible even without an installed CLI or a login. Unavailable connections use ×
+and quota/reset dashes, with known 5h/7d periods only where supported. They do not
+show a sign-in paragraph or invent percentages. Names/limits use a shared left
+column; a full-height vertical rule precedes the clock/date column for every row.
 
-The shared window hierarchy uses 15-point section titles, 13-point body text and
-11-point secondary text, with 16-point outer padding. The compact menu uses
-12-point medium section/provider headings, 11-point regular content and 10-point
-secondary labels. Its action symbols share an 11-point regular font, centered
-inside 28-point targets; provider header text/status/actions align by center.
-Selection text sits with the provider identity, not beside the key. Existing analytical numbers retain
-their larger metric hierarchy and tabular digits. Row actions, form controls and
-secondary data align to shared content edges rather than floating overlays.
+Accounts lists independent account blocks, each with its own provider connectors.
+Add/remove account and add/remove provider are distinct actions. Removal confirms
+that credentials, logs and running processes survive. Explicitly removed native
+bindings stay removed until Import login is requested. Terminal identities with a
+confirmed email import automatically to the unique matching account; different
+emails create distinct accounts. Pending private homes never borrow a native
+home's identity or quota. Unknown identity is unverified and Switch is disabled.
+A command launch rechecks named provider identity rather than trusting an earlier
+UI choice. Kimi browser login checks /me against the expected email before writing
+private credentials; denial, cancellation, mismatch and unavailable identity do
+not overwrite them. Unsupported native login flows explain terminal login and
+refresh rather than offering a circular Switch-then-sign-in instruction.
+
+The legend uses short separate lines for every mark, state and unit, with grouped
+headings and separators; account emails get their own line. Only the Agents block is monochrome. Provider quota colors, the monitoring
+status dot, and normal system control accents retain their original colors. Shared compact typography remains 12-point headings, 11-point body,
+10-point secondary data and centered 12-point symbols in 28-point click targets.
+
 
 ## Statistics
 

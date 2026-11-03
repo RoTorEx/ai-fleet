@@ -111,3 +111,34 @@ Primary contracts:
 The installed Claude, Kimi and Gemini entry points were inspected. Gemini's
 getGlobalGeminiDir appends .gemini to its environment-selected parent; treating
 GEMINI_CLI_HOME as the credential directory itself would monitor the wrong login.
+
+## Account identity and import
+
+Accounts is a list of independent identity blocks, each containing its providers.
+Verified native email observations import into exactly one matching account;
+unknown identities never attach to named accounts, and private homes cannot borrow
+native quota by matching a typed email. Removed bindings are suppressed across
+refresh/restart until explicit reimport. Removal preserves credential/history files.
+
+Switch in the UI requires confirmed matching identity. Named Claude/Kimi/Gemini
+commands recheck the selected credential home's identity before exec; mismatch,
+missing identity or an unavailable identity endpoint refuses a new launch without
+interrupting existing sessions. Claude uses auth status; Kimi and Gemini use their
+authenticated user endpoints. Qwen's local auth-only reader cannot confirm email,
+so named-account launch is unavailable rather than guessed. Informational and
+login/logout commands retain their native routes. Token expiry/network failure
+may require refreshing or signing in through Accounts before launching again.
+Codex retains its existing email/workspace validation.
+
+Kimi device login follows the installed native CLI's client ID, device-authorization
+and token endpoints, then GET https://api.kimi.com/coding/v1/me. Credentials are
+written only after the returned email matches, under the private profile home with
+0600 file permissions. A persistent private device_id is shared by login, token
+refresh and the native CLI. Named profiles clear Kimi API/OAuth host overrides. Browser URLs are restricted to Kimi HTTPS hosts and token
+requests refuse redirects. No real login is performed by fixture tests. First-time
+native model setup remains the provider CLI's responsibility.
+
+Qwen authentication is configured per upstream model provider, and its former free
+OAuth route is discontinued. The current integration does not establish an email
+owner for those credentials; Accounts states this explicitly rather than asking
+for repeated logins. Source: [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).

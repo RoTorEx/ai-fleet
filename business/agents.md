@@ -9,18 +9,19 @@ components (home is ~). Processes lives under application options and returns
 to the unified menu with Command-A. There is no separate Agents navigation step.
 The existing configured global shortcut is preserved.
 
-The compact colorful view follows the user's IMG_1195.MP4 reference: project
-headings, collapsible groups, stable session rows, provider/model when known,
-one colored icon/text status on the second line with provider/model. Titles use
-all of the first line. Blue means working, green a new reply, orange approval or
-a question, red blocked, gray idle/unknown/stale/unlinked. There are no separate
-spinners or activity strips. Leading terminal braille/vertical-ellipsis activity
-glyphs followed by whitespace are removed from display titles only; source titles
-and glyphs inside task text stay intact. Last-event time stays in row hover details alongside
-location and request. All/Needs you/Working/Idle/Unknown filters support larger
-lists. The agents viewport scrolls once the whole menu reaches 75% of available
-screen height, leaving fixed controls in place. Percent completion and parent/child
-relationships are never guessed from a directory or title.
+The compact monochrome view uses project headings, collapsible groups and stable
+session rows. The full first line is the task title; provider/model and the state
+share the second. Working includes elapsed request time in parentheses and a
+moving strip beneath the row; Reduced Motion makes the strip static. The explicit timer in validated terminal output takes precedence over bound
+request timestamps. With neither available, ≥ means continuously observed work duration only. Repeated
+snapshots do not reset the clock; ending work, hiding monitoring or changing
+process identity resets the fallback. Last message uses provider-log time or —.
+Idle covers opened/untracked idle states; Ready means a newly completed reply has
+not been opened since it arrived, without claiming to prove reading. Question,
+Approval, Error (reported blocker), Unknown, Stale and Unlinked remain distinct.
+Source activity glyphs and repeated trailing group paths are stripped only from
+the display title. The list scrolls once the full menu reaches 75% of available
+screen height. Completion percentages and process relationships are not guessed.
 
 Click opens the exact existing iTerm2 window/tab/split and leaves the overview
 open. Session Jump never sends text, approvals, stop commands or tab closure.
@@ -100,3 +101,13 @@ Credentials, history and terminal tabs remain intact. Interrupted in-flight work
 may need resuming. No process is stopped automatically during account selection.
 CodexProcessesTests covers ownership, PID replacement and real SIGTERM/SIGKILL
 against only task-owned fixture processes.
+
+### Current Codex metadata
+
+The Fleet adapter reads only process-open writable Codex transcripts under the
+canonical native sessions root. It accepts headers up to 1 MiB because current
+session metadata includes longer base instructions, excludes explicitly declared
+subagent transcripts, and requires exactly one remaining primary transcript.
+Multiple primary candidates stay unknown; cwd, modification time and model names
+never choose a conversation. PID/start identity is revalidated after the read.
+The inherited parser consumes at most a 1 MiB tail. Pinned vendor code is unchanged.

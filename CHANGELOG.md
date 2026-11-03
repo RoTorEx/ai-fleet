@@ -6,20 +6,31 @@ Tracks real product and release progress.
 
 ### Changed
 
-- Replace ambiguous Default labels with Next launch beside each provider name;
-  selections apply independently per tool and are separate from key actions.
+- Use compact General/Accounts tabs and grouped account connectors with separate
+  add/remove actions, verified terminal-login import and explicit reimport after removal.
+- Require matching provider identity for Switch and command launch; add Kimi browser
+  device login that validates the server email before saving private credentials.
+- Keep enabled providers visible without a CLI/login, show unavailable quota dashes,
+  align full-height provider column rules and use a short line-based legend.
+- Use monochrome agent states, current-request elapsed Working time and a moving
+  strip; distinguish Ready from Idle and show bound last-message time separately.
+- Rename the menu footer to Last refresh: time.
+
+- Mark selected accounts with a small checkmark beside each provider name, with
+  meaning in the legend. Remove Default/Next launch text and repeated location
+  suffixes from agent titles. Center header symbols within fixed hit targets and
+  remove the Refresh/options keyboard-focus highlight.
 - Omit every zero countdown component and align compact menu fonts, symbols and
   action targets using shared typography and centered provider headers. Keep the
   agent provider label on the second line to give session titles more room.
-- Replace duplicated agent activity decorations with one colored status label;
-  remove the leading spinner and bottom activity strip. Limit menu growth to
-  three quarters of the available display height, scrolling only the agents list.
+- Keep one state label per agent and remove the leading spinner. Limit menu growth
+  to three quarters of the available display height, scrolling only the agents list.
 
 - Redesign the local menu with instant opening, one compact status header, top
   options, expanded Agents below providers, and Processes behind menu controls. Move
   version/check metadata to the main footer; keep Refresh in the header and remove Update.
-- Reorganize Settings into General, Accounts, Providers and Notifications with
-  shared spacing/type hierarchy. Show one authentication action followed by Switch.
+- Organize Settings into General and Accounts with shared spacing/type hierarchy.
+  Show one authentication action followed by Switch.
 - Use an arrow-free 320-point panel with adaptive system blur. Keep Greek account
   badges, use key actions consistently, and move account mapping into the legend.
 - Keep reset countdowns stable while hovering, with days/hours/minutes/seconds.
@@ -35,6 +46,10 @@ Tracks real product and release progress.
 - Match default and lowest arrows to the visible size of neighboring access symbols.
 
 ### Fixed
+
+- Read current Codex message timestamps from the unique process-bound primary
+  transcript, supporting larger headers, helper transcripts and response items.
+- Route Cmd-comma to the same compact Settings window as the menu action.
 
 - Attribute Codex tokens to structured per-turn model names, including GPT-6.1,
   rather than prompt mentions or an old default. Rebuild old per-file caches,

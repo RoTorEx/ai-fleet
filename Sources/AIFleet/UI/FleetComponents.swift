@@ -14,7 +14,31 @@ enum FleetUI {
     static let menuControlSize: CGFloat = 28
 }
 
+/// Fit the symbol independently of font baselines, then center it in its hit area.
+struct FleetMenuIcon: View {
+    let systemName: String
+    var body: some View {
+        FleetInlineSymbol(systemName: systemName)
+            .frame(width: FleetUI.menuControlSize, height: FleetUI.menuControlSize, alignment: .center)
+            .contentShape(Rectangle())
+    }
+}
+
+struct FleetInlineSymbol: View {
+    let systemName: String
+    var body: some View {
+        Image(systemName: systemName).resizable().scaledToFit()
+            .frame(width: 12, height: 12, alignment: .center)
+    }
+}
+
 extension View {
+    @ViewBuilder
+    func quietMenuFocus() -> some View {
+        if #available(macOS 14, *) { focusEffectDisabled() }
+        else { focusable(false) }
+    }
+
     func instantPopover<Content: View>(isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Content) -> some View {
         popover(isPresented: isPresented, arrowEdge: .top) {
             content().background(Color(nsColor: .windowBackgroundColor))
@@ -79,7 +103,8 @@ struct AccountConnectionActions: View {
                 } else { launch.switchAccount(account, providerID: connection.providerID,
                                               global: service.status(for: connection.providerID)) }
             }
-            .disabled(isCodex && codex.profile(for: account) == nil)
+            .disabled((isCodex && codex.profile(for: account) == nil) ||
+                AccountIdentityMatch.assess(expected: account.email, observed: status?.account?.email) != .verified)
             .help("Choose this account for the next command. Running agents keep their accounts.")
             if isCodex, codex.profile(for: account) == nil, isCurrentCLI {
                 Button("Save current login") { codex.saveCurrentLogin(account) }
@@ -120,8 +145,7 @@ struct ResetTimeCell: View {
     let hovered: Bool
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: hovered && countdown != nil ? "clock" : "arrow.clockwise")
-                .font(FleetUI.menuIcon).frame(width: 12).opacity(dateText == "-" ? 0 : 1)
+            FleetInlineSymbol(systemName: hovered && countdown != nil ? "clock" : "arrow.clockwise").opacity(dateText == "-" ? 0 : 1)
             Text(hovered ? (countdown ?? dateText) : dateText).monospacedDigit().lineLimit(1)
         }.frame(width: 160, height: 18, alignment: .leading)
             .alignmentGuide(.firstTextBaseline) { _ in 13 }

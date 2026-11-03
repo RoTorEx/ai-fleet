@@ -36,6 +36,11 @@ struct AIFleetApp: App {
     var body: some Scene {
         Settings {
             SettingsView()
+        }.commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { appDelegate.openSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }
@@ -45,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var settingsWindowController: SettingsWindowController?
     private var statisticsWindowController: StatisticsWindowController?
+    private var settingsShortcutMonitor: Any?
     private var toggleHotKey: GlobalHotKey?
     private var hotkeyObserver: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
@@ -97,6 +103,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         .store(in: &cancellables)
         registerToggleHotKey()
+        // Consume Cmd-comma before SwiftUI's separate Settings scene handles it.
+        settingsShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 43,
+               event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
+                self?.openSettings()
+                return nil
+            }
+            return event
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -104,11 +119,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let settingsShortcutMonitor { NSEvent.removeMonitor(settingsShortcutMonitor) }
         AccountStore.shared.cancelCodexSignIn()
         CodexMonitoringStore.shared.stop()
     }
 
     func openSettings(anchorFrame: NSRect? = nil) {
+        statusBarController?.closePopoverIfNeeded()
         NSApplication.shared.activate(ignoringOtherApps: true)
         StatusService.shared.refresh()
 

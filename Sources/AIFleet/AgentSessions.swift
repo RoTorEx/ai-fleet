@@ -24,6 +24,9 @@ struct AgentSession: Decodable, Identifiable, Equatable {
     let request: String?
     let answer: String?
     let updatedAt: Double?
+    let requestedAt: Double?
+    let workingStartedAt: Double?
+    let lastMessageAt: Double?
 
     var needsYou: Bool { ["Approval", "Question", "Blocked"].contains(state) }
     var isWorking: Bool { state == "Working" }
@@ -129,6 +132,7 @@ final class AgentSessionsService: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var jumpingID: String?
     @Published private(set) var selectedID: String?
+    private var workObservations = AgentWorkObservations()
     private var transport: AgentTransport?
     private var timer: Timer?
     private var generation = UUID()
@@ -159,6 +163,7 @@ final class AgentSessionsService: ObservableObject {
 
     func stop() {
         isVisible = false
+        workObservations.reset()
         timer?.invalidate()
         timer = nil
         generation = UUID()
@@ -222,6 +227,10 @@ final class AgentSessionsService: ObservableObject {
         }
     }
 
+    func workClock(for session: AgentSession) -> AgentWorkClock? {
+        workObservations.clock(for: session)
+    }
+
     func jump(to session: AgentSession) {
         guard session.location != nil, pendingJump == nil, isVisible else { return }
         selectedID = session.id
@@ -252,6 +261,7 @@ final class AgentSessionsService: ObservableObject {
             isLoading = false
             error = reply.error
             if let sessions = reply.sessions, reply.error == nil {
+                workObservations.update(sessions, now: Date())
                 if self.sessions != sessions { self.sessions = sessions }
                 observedAt = reply.observedAt.map(Date.init(timeIntervalSince1970:))
             }
@@ -260,5 +270,34 @@ final class AgentSessionsService: ObservableObject {
             jumpingID = nil
             jumpError = reply.error
         }
+    }
+}
+
+struct AgentWorkClock: Equatable {
+    let startedAt: Date
+    let exact: Bool
+    func elapsed(at now: Date) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(startedAt)))
+        let parts = [(seconds / 86400, "d"), ((seconds % 86400) / 3600, "h"),
+                     ((seconds % 3600) / 60, "m"), (seconds % 60, "s")]
+        let duration = parts.filter { $0.0 > 0 }.map { "\($0.0)\($0.1)" }.joined(separator: " ")
+        return (exact ? "" : "≥") + (duration.isEmpty ? "0s" : duration)
+    }
+}
+
+struct AgentWorkObservations {
+    private var starts: [String: Date] = [:]
+    mutating func reset() { starts.removeAll() }
+    mutating func update(_ sessions: [AgentSession], now: Date) {
+        let working = Set(sessions.filter(\.isWorking).map(\.id))
+        starts = starts.filter { working.contains($0.key) }
+        for session in sessions where session.isWorking && starts[session.id] == nil { starts[session.id] = now }
+    }
+    func clock(for session: AgentSession) -> AgentWorkClock? {
+        guard session.isWorking, let observed = starts[session.id] else { return nil }
+        if let requestedAt = session.workingStartedAt ?? session.requestedAt, requestedAt <= Date().timeIntervalSince1970 {
+            return AgentWorkClock(startedAt: Date(timeIntervalSince1970: requestedAt), exact: true)
+        }
+        return AgentWorkClock(startedAt: observed, exact: false)
     }
 }
