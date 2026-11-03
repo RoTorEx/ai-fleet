@@ -262,5 +262,11 @@ func agentSessionDisplayTitle(_ title: String, provider: String) -> String {
             if result.lowercased().hasPrefix(prefix.lowercased()) { result = String(result.dropFirst(prefix.count)) }
         }
     }
+    // Terminal activity prefixes are decoration, not part of the task name.
+    if let scalar = result.unicodeScalars.first,
+       ((0x2800...0x28FF).contains(scalar.value) || scalar.value == 0x22EE),
+       result.dropFirst().first?.isWhitespace == true {
+        result = String(result.dropFirst()).trimmingCharacters(in: .whitespaces)
+    }
     return result.isEmpty ? title : result
 }

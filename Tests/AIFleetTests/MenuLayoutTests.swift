@@ -68,6 +68,10 @@ final class MenuLayoutTests: XCTestCase {
     func testSessionTitleRemovesAnnotationsButPreservesTaskWords() {
         XCTAssertEqual(agentSessionDisplayTitle("Codex · Fix login (codex)", provider: "codex"), "Fix login")
         XCTAssertEqual(agentSessionDisplayTitle("Fix Codex login", provider: "codex"), "Fix Codex login")
+        XCTAssertEqual(agentSessionDisplayTitle("⋮ Explain permissions", provider: "codex"), "Explain permissions")
+        XCTAssertEqual(agentSessionDisplayTitle("⠦ Review changes", provider: "claude"), "Review changes")
+        XCTAssertEqual(agentSessionDisplayTitle("Fix ⠦ parsing", provider: "codex"), "Fix ⠦ parsing")
+        XCTAssertEqual(agentSessionDisplayTitle("⋮operators", provider: "codex"), "⋮operators")
         XCTAssertEqual(agentSessionDisplayTitle("Claude Code | Review", provider: "claude"), "Review")
     }
 

@@ -14,7 +14,9 @@ headings, collapsible groups, stable session rows, provider/model when known,
 one colored icon/text status on the second line with provider/model. Titles use
 all of the first line. Blue means working, green a new reply, orange approval or
 a question, red blocked, gray idle/unknown/stale/unlinked. There are no separate
-spinners or activity strips. Last-event time stays in row hover details alongside
+spinners or activity strips. Leading terminal braille/vertical-ellipsis activity
+glyphs followed by whitespace are removed from display titles only; source titles
+and glyphs inside task text stay intact. Last-event time stays in row hover details alongside
 location and request. All/Needs you/Working/Idle/Unknown filters support larger
 lists. The agents viewport scrolls once the whole menu reaches 75% of available
 screen height, leaving fixed controls in place. Percent completion and parent/child
