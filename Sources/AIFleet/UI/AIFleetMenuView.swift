@@ -345,21 +345,21 @@ struct ProviderLimitRow: View {
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
                     .lineLimit(2).padding(.leading, 52)
             }
-            if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil,
-               status.hasCurrentQuota || !status.limitWindows.isEmpty {
-                Text(status.hasCurrentQuota ? "Linked to terminal login" : status.detail)
-                    .font(.system(size: 10.5)).foregroundColor(FleetPalette.muted)
-                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
-                    .help("Connect a separate login to keep this account available when the terminal login changes.")
-            }
             if entry.usesAccountLogin {
                 CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
                     .padding(.leading, 52)
             }
             if providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == status.providerID,
                let message = providerLaunch.message {
-                Text(message).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
+                HStack(alignment: .top, spacing: 5) {
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !providerLaunch.busy {
+                        Button { providerLaunch.dismissMessage() } label: { Image(systemName: "xmark") }
+                            .buttonStyle(.plain).font(.caption2)
+                            .accessibilityLabel("Dismiss account message")
+                    }
+                }.padding(.leading, 52)
             }
             if accounts.launchProviderID == status.providerID &&
                 (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {
@@ -487,12 +487,12 @@ struct LimitWindowLine: View {
 struct FleetMark: View {
     enum Kind { case current, lowest }
     let kind: Kind
-    var size: CGFloat = 13
+    var size: CGFloat = 14
     var body: some View {
         Image(systemName: "arrow.right")
-            .font(.system(size: size, weight: .medium))
+            .font(.system(size: size * 0.7, weight: .medium))
             .rotationEffect(.degrees(kind == .lowest ? 90 : 0))
-            .frame(width: size + 1, height: size + 1)
+            .frame(width: size, height: size)
     }
 }
 

@@ -4,6 +4,14 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Publish Apple Silicon builds only; stop building Intel release archives and
+  explain the supported architecture before installer downloads.
+- Remove permanent selected-account and terminal-setup messages from menu rows.
+  Successful provider actions leave no banner; other-provider feedback is dismissible.
+- Match default and lowest arrows to the visible size of neighboring access symbols.
+
 ## [1.3.12] - 2026-11-03
 
 ### Changed

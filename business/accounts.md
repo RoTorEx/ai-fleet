@@ -103,7 +103,12 @@ availability (○ ready, × sign in, ? unavailable); Marks explains → default 
 ↓ lowest remaining. Default describes the account for the next ordinary provider command after terminal integration, not the identity of existing processes. Unavailable access is visually muted without a separate
 "gray" label attached to an arrow. Both arrows use the same vector rotated 90°
 in equal square frames, in the rows and in the legend. Legend marks match the
-legend's text size; provider-row marks retain their larger row size.
+adjacent access symbols' visible size. SF Symbol arrows use 70% of the access
+symbol font size to match their visible ink, retaining equal layout cells and
+baseline alignment. The default mark alone indicates a successful selection;
+no permanent selected-account or command-setup notice appears below a menu row.
+One-time terminal setup guidance belongs in Settings → Accounts. Completed
+successful actions leave no banner; non-Codex action feedback can be dismissed.
 Email/plan hover and login actions retain actual authentication
 state. Account-specific errors cannot borrow another account's limits or tokens.
 Old shared session history is not split by badge.

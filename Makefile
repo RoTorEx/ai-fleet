@@ -75,7 +75,7 @@ release-publish: bundle-app
 	printf '%s\n' "$(VERSION)" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$$' || { echo "ERROR: invalid VERSION=$(VERSION)" >&2; exit 1; }; \
 	plist_version="$$($(MAKE) --no-print-directory -s version-value)"; \
 	test "$(VERSION)" = "$$plist_version" || { echo "ERROR: VERSION=$(VERSION) does not match Info.plist $$plist_version" >&2; exit 1; }; \
-	case "$$(uname -m)" in arm64) arch=aarch64 ;; x86_64) arch=x86_64 ;; *) echo "ERROR: unsupported architecture $$(uname -m)" >&2; exit 1 ;; esac; \
+	case "$$(uname -m)" in arm64) arch=aarch64 ;; *) echo "ERROR: public releases support Apple Silicon Macs only." >&2; exit 1 ;; esac; \
 	release_dir="$(DIST_DIR)/release"; \
 	archive="$(APP_NAME)-v$(VERSION)-macos-$$arch.zip"; \
 	mkdir -p "$$release_dir"; \

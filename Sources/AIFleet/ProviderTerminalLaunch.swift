@@ -241,6 +241,8 @@ final class ProviderLaunchStore: ObservableObject {
         profiles.first { $0.providerID == providerID && $0.accountID == accountID }
     }
 
+    func dismissMessage() { message = nil }
+
     func installCommandIntegration() {
         for provider in ProviderTerminalLaunch.providers {
             do { try ProviderTerminalLaunch.installShim(provider, home: home, application: Bundle.main.bundleURL) }
@@ -268,7 +270,7 @@ final class ProviderLaunchStore: ObservableObject {
             if existing == nil { profiles.append(profile) }
             selected[providerID] = account.id
             save()
-            message = "Default for the next \(providerID) launch. Running agents keep their accounts."
+            message = nil
         } catch { message = error.localizedDescription }
     }
 
@@ -301,7 +303,7 @@ final class ProviderLaunchStore: ObservableObject {
                     profiles.removeAll { $0.providerID == providerID && $0.accountID == account.id }
                     profiles.append(profile); save()
                 }
-                message = result?.exitCode == 0 ? "Sign-in finished. Use Switch to choose this account for new launches." : "Sign-in did not complete. Retry native browser sign-in."
+                message = result?.exitCode == 0 ? nil : "Sign-in did not complete. Retry native browser sign-in."
                 StatusService.shared.refresh()
             }
         } catch { message = error.localizedDescription }
@@ -309,6 +311,7 @@ final class ProviderLaunchStore: ObservableObject {
 
     func signOut(_ account: FleetAccount, providerID: String) {
         guard !busy else { return }
+        message = nil
         messageAccountID = account.id; messageProviderID = providerID
         guard let profile = profile(providerID, accountID: account.id), !profile.native else {
             Task { await StatusService.shared.signOutGlobally(providerID) }
@@ -342,7 +345,7 @@ final class ProviderLaunchStore: ObservableObject {
                         return nil
                     } catch { return error.localizedDescription }
                 }.value
-                busy = false; message = result ?? "This account's local login was cleared. Other account homes were retained."
+                busy = false; message = result
                 StatusService.shared.refresh()
             }
         } catch { message = error.localizedDescription }

@@ -183,7 +183,14 @@ private struct AccountEditor: View {
                 }
                 if providerLaunch.messageAccountID == account.id, providerLaunch.messageProviderID == connection.providerID,
                    let message = providerLaunch.message {
-                    Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .top, spacing: 5) {
+                        Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        if !providerLaunch.busy {
+                            Button { providerLaunch.dismissMessage() } label: { Image(systemName: "xmark") }
+                                .buttonStyle(.plain).font(.caption2)
+                                .accessibilityLabel("Dismiss account message")
+                        }
+                    }
                 }
                 if connection.providerID == "codex", codex.profile(for: account) == nil {
                     Text("This account uses the shared terminal login. Connect a separate login once to retain access when the terminal account changes.")
@@ -221,16 +228,6 @@ struct CodexAccountAuthenticationStatus: View {
     }
     var body: some View {
         Group {
-            if let accountID, store.nextLaunchAccountID == accountID {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Next codex launch · running sessions keep their accounts")
-                    if store.terminalSetupNotice {
-                        Text("One-time setup for terminals already open: run rehash. No terminal restart is needed.")
-                    }
-                }
-                .font(.caption).foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
             if let id = store.authenticatingID, matches(id) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {

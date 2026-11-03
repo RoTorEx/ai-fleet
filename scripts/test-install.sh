@@ -39,4 +39,19 @@ printf '%s\n' "$output" \
         exit 1
     }
 
+cat > "$test_root/bin/uname" <<'EOF'
+#!/usr/bin/env sh
+printf '%s\n' x86_64
+EOF
+if output=$(PATH="$test_root/bin:$PATH" sh "$repo_root/scripts/install.sh" \
+    --install-dir "$test_root/install" 2>&1); then
+    echo 'ERROR: installer accepted an unsupported Intel Mac' >&2
+    exit 1
+fi
+printf '%s\n' "$output" | grep -Fq 'Apple Silicon Macs only' || {
+    printf '%s\n' "$output" >&2
+    echo 'ERROR: Intel installer did not explain the unsupported architecture' >&2
+    exit 1
+}
+
 echo 'Installer flow test passed.'

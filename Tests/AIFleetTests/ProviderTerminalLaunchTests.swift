@@ -94,12 +94,18 @@ final class ProviderTerminalLaunchTests: XCTestCase {
         store.switchAccount(first, providerID: "claude", global: global, environment: ["PATH": bin.path])
         store.switchAccount(second, providerID: "kimi", global: global, environment: ["PATH": bin.path])
         XCTAssertEqual(store.selected, ["claude": first.id, "kimi": second.id])
+        XCTAssertNil(store.message, "A successful Switch is indicated by the default mark, without a persistent notice")
         let restored = ProviderLaunchStore(defaults: defaults, home: root)
         XCTAssertEqual(restored.selected, store.selected)
         try restored.forget(first.id)
         XCTAssertEqual(restored.selected, ["kimi": second.id])
         XCTAssertNil(try ProviderTerminalLaunch.read("claude", home: root))
         XCTAssertEqual(try ProviderTerminalLaunch.read("kimi", home: root)?.accountID, second.id)
+        try Data("another tool".utf8).write(to: root.appendingPathComponent(".local/bin/claude"))
+        restored.switchAccount(first, providerID: "claude", global: global, environment: ["PATH": bin.path])
+        XCTAssertNotNil(restored.message, "A refused action still explains its failure")
+        restored.dismissMessage()
+        XCTAssertNil(restored.message)
     }
 
     func testCredentialRedirectsAndExistingCommandsAreRejectedWithoutReplacingThem() throws {

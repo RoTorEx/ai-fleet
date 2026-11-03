@@ -5,6 +5,10 @@ provider quotas and reviewing Codex, Claude Code, Kimi and Qwen usage. It is inf
 not proxy prompts, bill users, or claim that API-equivalent estimates are actual
 subscription charges.
 
+Public releases support Apple Silicon Macs only. The release workflow builds and
+publishes one aarch64 archive and checksum; the terminal installer rejects Intel
+before attempting a download.
+
 ## Actors and flows
 
 - The developer switches Usage/Agents with Command-A in the open menu, reviews

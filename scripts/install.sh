@@ -49,7 +49,7 @@ done
 
 case "$(uname -m)" in
     arm64) architecture=aarch64 ;;
-    x86_64) architecture=x86_64 ;;
+    x86_64) fail "AI Fleet releases support Apple Silicon Macs only." ;;
     *) fail "unsupported Mac architecture: $(uname -m)" ;;
 esac
 

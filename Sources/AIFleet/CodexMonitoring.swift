@@ -26,7 +26,6 @@ final class CodexMonitoringStore: ObservableObject {
     @Published private(set) var errorProfileID: String?
     @Published private(set) var activeAccountID: String?
     @Published private(set) var nextLaunchAccountID: String?
-    @Published private(set) var terminalSetupNotice = false
     @Published private(set) var switchBlockedProcessIDs: [Int32]?
     @Published var error: String? {
         didSet { switchBlockedProcessIDs = nil }
@@ -70,7 +69,6 @@ final class CodexMonitoringStore: ObservableObject {
             .filter { UUID(uuidString: $0.id) != nil && ids.insert($0.id.uppercased()).inserted }
         activeAccountID = defaults.string(forKey: "codex.activeAccountID")
         nextLaunchAccountID = defaults.string(forKey: CodexTerminalLaunch.selectionKey)
-        terminalSetupNotice = nextLaunchAccountID != nil
     }
 
     func directory(for profile: CodexMonitoringProfile) throws -> URL {
@@ -190,11 +188,9 @@ final class CodexMonitoringStore: ObservableObject {
             let selection = CodexLaunchSelection(accountID: account.id, profileID: profile.id,
                                                  email: account.email, workspaceID: chosenIdentity.accountID,
                                                  usesStandardHome: usesStandard)
-            let installed = CodexTerminalLaunch.isShim(home.appendingPathComponent(".local/bin/codex"))
             try CodexTerminalLaunch.choose(selection, home: home, application: Bundle.main.bundleURL)
             nextLaunchAccountID = account.id
             defaults.set(account.id, forKey: CodexTerminalLaunch.selectionKey)
-            terminalSetupNotice = !installed
             error = nil
             errorProfileID = nil
         } catch {

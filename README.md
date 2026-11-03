@@ -19,6 +19,7 @@ No dock icon. AI Fleet monitors and opens native sign-in for each provider’s g
 ## Requirements
 
 - macOS 13 (Ventura) or later
+- Apple Silicon Mac for public releases
 - Swift 5.9 or later
 
 ## Agents
@@ -234,8 +235,8 @@ Choose **Quit** from the menu.
 
 Published versions are available from
 [GitHub Releases](https://github.com/RoTorEx/ai-fleet/releases). Each release
-contains native macOS application ZIPs for Apple Silicon and Intel plus SHA-256
-checksums. The application is ad-hoc signed; it is not currently notarized by
+contains a native macOS application ZIP for Apple Silicon plus its SHA-256
+checksum. The application is ad-hoc signed; it is not currently notarized by
 Apple.
 
 Install or update the latest release from Terminal without `sudo`:
