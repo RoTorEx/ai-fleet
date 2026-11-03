@@ -274,8 +274,9 @@ struct ProviderLimitRow: View {
                         Divider()
                     }
                     if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) != nil {
-                        Button("Switch to this account") { codexProfiles.switchAccount(entry.account) }
+                        Button("Use for next Codex launch") { codexProfiles.switchAccount(entry.account) }
                             .disabled(codexProfiles.refreshing)
+                            .help("The next codex command uses this account. Running sessions keep their current accounts.")
                         Divider()
                     }
                     Button(entry.usesAccountLogin && codexProfiles.profile(for: entry.account) == nil ? "Connect separate login…" : "Sign in…") {
@@ -508,7 +509,7 @@ struct LegendSection: View {
                 Text("Marks:").foregroundColor(FleetPalette.label)
                 HStack(spacing: 6) {
                     FleetMark(kind: .current, size: 10.5)
-                    Text("current")
+                    Text("default")
                     Spacer().frame(width: 8)
                     FleetMark(kind: .lowest, size: 10.5)
                     Text("lowest remaining")

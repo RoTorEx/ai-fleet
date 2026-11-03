@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Select the account used by the next ordinary Codex command without changing
+  existing session credentials or stopping background processes. Preserve shared
+  history/settings through a native CLI shim; existing terminals need rehash once.
+- Manage Codex processes in Agents: current-user sessions, background servers and
+  helpers, confirmed Stop/Force Quit, background-only stop and verified process exit.
+
+
 ## [1.3.11] - 2026-10-31
 
 ### Fixed

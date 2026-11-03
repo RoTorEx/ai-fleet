@@ -28,7 +28,7 @@ final class CodexMonitoringTests: XCTestCase {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try data.write(to: directory.appendingPathComponent("auth.json"))
         }
-        store.switchAccount(personal, sharedDirectory: shared, inventory: { [42, 73] })
+        store.replaceSharedLogin(personal, sharedDirectory: shared, inventory: { [42, 73] })
         XCTAssertEqual(store.switchBlockedProcessIDs, [42, 73])
         XCTAssertEqual(store.errorProfileID, profile.id)
         XCTAssertEqual(store.activeAccountID, work.id)
@@ -48,7 +48,7 @@ final class CodexMonitoringTests: XCTestCase {
 
         // A subsequent failure must not keep the previous process-block classification.
         let unsaved = accounts.add(email: "unsaved@example.test")
-        store.switchAccount(unsaved, sharedDirectory: shared, inventory: { [] })
+        store.replaceSharedLogin(unsaved, sharedDirectory: shared, inventory: { [] })
         XCTAssertNil(store.switchBlockedProcessIDs)
         XCTAssertNotNil(store.error)
     }

@@ -15,7 +15,8 @@ Reduced Motion disables repeating animation. Percent completion and parent/child
 relationships are never guessed from a directory or title.
 
 Click opens the exact existing iTerm2 window/tab/split and leaves the overview
-open. No agent receives text, approvals, start/stop commands or tab closure.
+open. Session Jump never sends text, approvals, stop commands or tab closure.
+The separate Processes section offers explicit process termination as described below.
 Command-A returns to Usage. Escape, outside click or the global toggle closes the
 menu. Ambiguous/exited links report an error rather than choosing a similar title.
 Opening a pane does not prove the user read its response.
@@ -67,3 +68,27 @@ exclusion, state precedence and provider binding. Swift tests exercise real pipe
 framing, grouping, failed Jump, missing engine and light/dark layout. Release
 smoke checks require the helper/license in both architecture archives. Installed
 checks cover shortcuts, live Jump, menu retention and helper cleanup.
+
+## Process controls
+
+Agents has Sessions and Processes sections. Processes lists only the current
+user's exact Codex and codex-code-mode-host executables, including background
+servers and updaters left after closing terminals. Native libproc discovery uses
+executable paths, UID, controlling-terminal presence and microsecond start identity;
+no prompts, environment or command-line arguments are collected. The visible list
+refreshes every 3 seconds to show exits/restarts promptly without a permanent scan.
+The timer stops when this section disappears.
+
+Each row offers Stop (SIGTERM) and Force Quit (SIGKILL), with confirmation naming
+the selected PIDs and the effect on conversations/tools. Stop all background
+processes snapshots only the visible background rows and uses SIGTERM; it never
+escalates automatically. Before every signal the UID, executable, PID and start
+identity are re-read. PID reuse, another owner, an exited process, and Fleet itself
+are refused. Actual exit is observed for up to 2 seconds (ten 200-ms checks); a
+survivor remains visible with an explicit Force Quit choice. Unknown observation
+never claims successful exit. A client may restart its daemon; the next inventory
+shows that new process rather than chasing and terminating it automatically.
+Credentials, history and terminal tabs remain intact. Interrupted in-flight work
+may need resuming. No process is stopped automatically during account selection.
+CodexProcessesTests covers ownership, PID replacement and real SIGTERM/SIGKILL
+against only task-owned fixture processes.

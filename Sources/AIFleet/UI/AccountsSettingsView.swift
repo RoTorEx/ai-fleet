@@ -160,7 +160,8 @@ private struct AccountEditor: View {
                                 Button("Save current login") { codex.saveCurrentLogin(account) }
                             }
                             if codex.profile(for: account) != nil {
-                                Button("Switch to this account") { codex.switchAccount(account) }
+                                Button("Use for next Codex launch") { codex.switchAccount(account) }
+                                    .help("The next codex command uses this account without changing running sessions.")
                             }
                             if let profile = codex.profile(for: account), status?.authentication == .signedIn {
                                 Button("Sign out", role: .destructive) { codex.signOut(profile) }
@@ -180,7 +181,7 @@ private struct AccountEditor: View {
             }
             Button("Remove account") {
                 guard !codex.refreshing, codex.authenticatingID == nil else { return }
-                codex.forgetAccount(account)
+                guard codex.forgetAccount(account) else { return }
                 store.remove(account.id)
                 service.refresh()
             }
@@ -207,6 +208,16 @@ struct CodexAccountAuthenticationStatus: View {
     }
     var body: some View {
         Group {
+            if let accountID, store.nextLaunchAccountID == accountID {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Next codex launch · running sessions keep their accounts")
+                    if store.terminalSetupNotice {
+                        Text("One-time setup for terminals already open: run rehash. No terminal restart is needed.")
+                    }
+                }
+                .font(.caption).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             if let id = store.authenticatingID, matches(id) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
@@ -243,7 +254,7 @@ struct CodexSwitchBlockedNotice: View {
                 .fixedSize(horizontal: false, vertical: true)
             DisclosureGroup("Details", isExpanded: $isExpanded) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Finish the running tasks, exit Codex in those terminals and close Codex IDE/desktop connections, then retry. Reopen saved conversations with codex resume after switching. AI Fleet has not stopped any agent.")
+                    Text("Open Agents → Processes to review and stop remaining Codex processes, then retry. Reopen saved conversations with codex resume. Selecting a default account for new launches does not require stopping these processes.")
                     Text("Running PIDs: \(processIDs.map(String.init).joined(separator: ", "))")
                         .textSelection(.enabled)
                 }

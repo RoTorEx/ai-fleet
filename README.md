@@ -102,12 +102,26 @@ to retain each account's remaining quota while using another. Running terminal
 sessions keep their current authorization. **Sign out** clears only the selected
 account's saved Codex login, and is refused while its Fleet sessions are running.
 
-Use **Save current login** to retain an already authenticated Codex account
-without signing in again. **Switch to this account** activates a saved account
-by changing only the credential file; history, settings and skills remain in the
-standard Codex home. Accounts stay in Greek order. No terminal or agent session
-is created. Switching is refused while Codex processes or its background server
-are running: changing the file cannot retarget their in-memory identity.
+Use **Save current login** to retain an already authenticated Codex account.
+**Use for next Codex launch** selects the account for your next ordinary `codex`
+or `codex resume` command, including in the same terminal. Existing sessions keep
+their accounts and do not need to stop. After the first installation of command
+integration, run `rehash` once in terminals already open; later account changes
+need no extra command. The shim lives at `~/.local/bin/codex`, which must precede
+the native CLI in PATH. New terminals use it automatically with that PATH order.
+The original CLI installation remains intact and receives normal updates.
+
+New interactive launches do not attach to the old shared daemon. Credentials stay
+account-specific while history, settings, instructions and skills remain shared.
+Explicit CODEX_HOME/remote invocations and server-management commands retain their
+native scope. Fleet never opens a terminal or starts a conversation for you.
+To remove command integration, delete only the Fleet-owned `~/.local/bin/codex`
+shim and run `rehash`; saved accounts, history and native credentials remain.
+
+**Agents → Processes** lists Codex sessions, background servers and helpers. Use
+**Stop**, **Force Quit**, or **Stop all background processes…** after reviewing
+the confirmation. The app verifies process identity and checks exit. Account
+selection itself does not terminate anything.
 
 The menu shows each account's remaining 5h/7d limits. A circle means current
 limits are loaded, × requests sign-in, and ? with a gray row means limits are
@@ -115,7 +129,7 @@ unavailable, even if the CLI has a configured login. The row explains why.
 Status shows whether AI Fleet monitoring is Active or Paused, with operations
 and errors shown while relevant. Checked is the last check and Limits counts
 loaded measurements. The legend separates Capacity (Enough/Low/Critical), Access
-(ready/sign in/unavailable), and Marks (→ current, ↓ lowest remaining). **Statistics → Codex →
+(ready/sign in/unavailable), and Marks (→ default, ↓ lowest remaining). **Statistics → Codex →
 Accounts** compares tokens and quotas under the same account letters for `7d`,
 `30d`, `90d` and `All`. These account totals come from provider-reported dates;
 shared local model history and cost estimates are not split between accounts.

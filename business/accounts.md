@@ -33,21 +33,25 @@ login is attached, its state controls that account, including explicit sign-out.
 Claude and the other provider integrations retain their standard global CLI
 login. Their Sign in uses the provider's browser/SSO flow in Terminal. The badge
 names the account the provider belongs to; it does not route prompts or choose an
-email in the browser. The current standard account shows →. Independently measured accounts retain
+email in the browser. The default launch account shows → (the standard account before terminal integration). Independently measured accounts retain
 normal colors and their own limits without that arrow. Rows sort by tool name,
 then strictly by Greek badge. Selection never reorders them.
 
 Codex Save current login retains the current authorization without another
-browser login. Switch to this account saves the outgoing account and replaces
-only the standard auth.json, preserving the shared history/config/state. Running
-Codex processes, including its shared daemon, block switching before any write.
-This refusal is a neutral, account-scoped notice: switching is unavailable while
-Codex is running and the current login is preserved. Details are collapsed by
-default and reveal the running PIDs and safe retry/resume instructions. Ordinary
-authentication failures remain errors; refusing a switch does not invalidate
-the account's measured limits or stop any agent.
-Fleet never creates a terminal or an agent session and never kills existing tasks.
-Native browser sign-in is still available for genuinely missing saved credentials.
+browser login. Use for next Codex launch is the default account-switch action.
+It changes a launch preference, including while Codex tasks or background servers
+are running. Existing processes retain their own credential homes; the next
+ordinary codex/resume command reads the new selection in the same terminal.
+One initial rehash activates the installed command shim in terminals already open.
+The → mark identifies this default launch account once configured, falling back to
+the native credential identity beforehand. Account-specific login errors remain
+separate from this selection. See [Codex authorization](codex-profiles.md) for the
+command routing, shared history and credential boundaries.
+
+The old shared-credential replacement remains internal for recovery and is still
+blocked by active Codex processes. Its refusal stays a neutral account-scoped
+notice with collapsed details. It cannot invalidate measured limits or stop agents.
+No account selection launches a terminal or starts a conversation.
 
 The menu's Limits summary counts connections with current reported quota, not
 signed-in accounts. A signed-in provider without a measurement is excluded;
@@ -71,7 +75,7 @@ establishing the exact order of every overnight failure.
 
 Changes to the shared CLI login remain protected internally by a conservative
 current-user Codex process check. Account-specific browser logins do not change
-that shared login and do not require terminating existing agents. Fleet never kills agents, creates terminals or launches tasks. The active
+that shared login and do not require terminating existing agents. Fleet never terminates a process as a side effect of account selection. Explicit process controls in Agents are separate and require confirmation. The active
 account's standard home is the only refresh consumer for its credential bundle;
 its saved copy is checkpointed rather than polled in parallel.
 Login/logout and account-usage reads are exclusive within each credential home;
@@ -105,9 +109,8 @@ communicate measurement availability: ○ current limits loaded (including 0%),
 current limits is gray, even if its CLI reports a configured login; a missing
 measurement never looks ready. The compact legend has three independent rows: Capacity names the remaining
 allowance bands (Enough ≥26%, Low 11–25%, Critical ≤10%); Access names connector
-availability (○ ready, × sign in, ? unavailable); Marks explains → current and
-↓ lowest remaining. Current describes the standard credential account, not a claim that running
-processes have adopted a newly written file. Unavailable access is visually muted without a separate
+availability (○ ready, × sign in, ? unavailable); Marks explains → default and
+↓ lowest remaining. Default describes the account for the next ordinary Codex launch after terminal integration, not the identity of existing processes. Other providers retain their standard credential marker. Unavailable access is visually muted without a separate
 "gray" label attached to an arrow. Both arrows use the same vector rotated 90°
 in equal square frames, in the rows and in the legend. Legend marks match the
 legend's text size; provider-row marks retain their larger row size.
@@ -141,7 +144,7 @@ suffix; the account's existing Sign in action remains available.
   command generation remain covered by compatibility tests for recovery.
 - Native selectors are `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME`, and
   `QWEN_HOME`, plus Gemini’s `GEMINI_CLI_HOME`; global login removes inherited values without writing shell
-  startup files or bypassing native policies. AI Explicit Codex save/switch preserves outgoing credentials and activates incoming credentials without deleting history.
+  startup files or bypassing native policies. Explicit Codex save retains credentials; selecting a default updates only the next-launch preference.
 - Claude’s native Keychain service is `Claude Code-credentials`. Native auth
   status and OAuth quota checks retain the existing hashed account/credential
   cache keys, cooldowns, no-redirect requests, and token secrecy. Polling rules
@@ -151,8 +154,9 @@ suffix; the account's existing Sign in action remains available.
   proof of authorization. Keychain-only/ephemeral storage remains outside this
   reader. Kimi retains native credential refresh and balance fallback. Qwen
   retains local OAuth detection and explicitly unsupported quota.
-- `codex.activeAccountID` tracks which saved account currently owns the shared
-  credentials. Rejected launch-selection metadata is no longer used.
+- `codex.activeAccountID` tracks the saved checkpoint of the standard credentials.
+  `codex.nextLaunchAccountID` mirrors the account selected in CodexLaunch/default.json;
+  it never claims that already running processes changed identity.
 - `codex.sharedLimitSnapshots` retains only confirmed numeric windows, email and
   measurement time for a uniquely matched shared-login account. After a global
   account change, these remain explicitly historical: unknown authentication,

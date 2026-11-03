@@ -8,7 +8,7 @@ enum CodexAuthenticationError: LocalizedError {
         case .busy:
             return "Codex statistics or sign-in is still running. Wait for it to finish and retry. Your login was not changed."
         case .activeProcesses(let pids):
-            return "Codex is still running (PIDs: \(pids.map(String.init).joined(separator: ", "))). Changing the shared login can break these sessions. Finish their tasks, exit Codex in those terminals and close Codex IDE/desktop connections, then retry. After signing in, reopen saved conversations with codex resume. AI Fleet has not changed your login or stopped any agent."
+            return "Codex is still running (PIDs: \(pids.map(String.init).joined(separator: ", "))). To change this account's login, review and stop its remaining processes in Agents → Processes, then retry. Selecting a default for new launches does not require stopping anything. Reopen saved conversations with codex resume. Your login was not changed."
         case .inventoryUnavailable:
             return "Could not check running Codex processes. Login was not changed. Retry after checking local process access."
         case .unavailable:

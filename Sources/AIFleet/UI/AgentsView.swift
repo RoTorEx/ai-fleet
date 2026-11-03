@@ -6,6 +6,7 @@ struct AgentsView: View {
     let back: () -> Void
     @State private var filter = "All"
     @State private var collapsed = Set<String>()
+    @State private var section = "Sessions"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let filters = ["All", "Needs you", "Working", "Idle", "Unknown"]
 
@@ -29,93 +30,109 @@ struct AgentsView: View {
                 Text("\(service.sessions.count)").font(.system(size: 11, weight: .bold, design: .rounded))
                     .padding(.horizontal, 7).padding(.vertical, 3).background(.quaternary, in: Capsule())
                 Spacer()
-                if service.isLoading { ProgressView().controlSize(.small) }
-                Button { service.refresh(force: true) } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
+                if section == "Sessions" {
+                    if service.isLoading { ProgressView().controlSize(.small) }
+                    Button { service.refresh(force: true) } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
+                }
                 Button(action: back) {
                     HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Usage"); Text("⌘A").foregroundStyle(.secondary) }
                 }.buttonStyle(.plain).help("Return to the main menu (⌘A)")
             }.padding(.horizontal, 16).padding(.top, 15).padding(.bottom, 10)
 
-            HStack(spacing: 4) {
-                ForEach(filters, id: \.self) { item in
-                    Button { filter = item } label: {
-                        Text(item).font(.system(size: 10.5, weight: .medium))
-                            .padding(.horizontal, 8).padding(.vertical, 5)
-                            .foregroundStyle(filter == item ? Color.primary : Color.secondary)
-                            .background(filter == item ? Color.primary.opacity(0.09) : Color.clear, in: Capsule())
-                    }.buttonStyle(.plain)
+            Picker("View", selection: $section) {
+                Text("Sessions").tag("Sessions")
+                Text("Processes").tag("Processes")
+            }.pickerStyle(.segmented).padding(.horizontal, 14).padding(.bottom, 10)
+
+            if section == "Processes" {
+                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
+                    CodexProcessesView()
                 }
-                Spacer(minLength: 0)
-            }.padding(.horizontal, 12).padding(.bottom, 9)
-            Divider()
-
-            if let error = service.error {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-            } else if !service.sessions.isEmpty, service.sessions.allSatisfy({ $0.location == nil }) {
-                Text(service.sessions.first?.linkReason ?? "No confirmed iTerm2 links. Check Automation permission in System Settings.")
-                    .font(.caption).foregroundStyle(.orange).lineLimit(3)
-                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
-                VStack(alignment: .leading, spacing: 3) {
-                    if visible.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: service.isLoading ? "antenna.radiowaves.left.and.right" : "terminal")
-                                .font(.system(size: 28)).foregroundStyle(.secondary)
-                            Text(service.isLoading ? "Finding live sessions…" : emptyTitle).font(.headline)
-                            Text(service.sessions.isEmpty ? "Open Codex or Claude in iTerm2.\nYour usual launch commands stay the same." : "Choose another filter to see more sessions.")
-                                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        }.frame(maxWidth: .infinity).padding(.vertical, 55)
+            } else {
+                HStack(spacing: 4) {
+                    ForEach(filters, id: \.self) { item in
+                        Button { filter = item } label: {
+                            Text(item).font(.system(size: 10.5, weight: .medium))
+                                .padding(.horizontal, 8).padding(.vertical, 5)
+                                .foregroundStyle(filter == item ? Color.primary : Color.secondary)
+                                .background(filter == item ? Color.primary.opacity(0.09) : Color.clear, in: Capsule())
+                        }.buttonStyle(.plain)
                     }
-                    ForEach(AgentGroup.make(visible)) { group in
-                        Button {
-                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                                if !collapsed.insert(group.id).inserted { collapsed.remove(group.id) }
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down").font(.system(size: 8, weight: .bold))
-                                Image(systemName: "folder")
-                                Text(group.name).lineLimit(1).truncationMode(.middle)
-                                Text("\(group.sessions.count)").foregroundStyle(.tertiary)
-                                Spacer()
-                            }.font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 9).padding(.top, 11).padding(.bottom, 4)
-                                .contentShape(Rectangle())
-                        }.buttonStyle(.plain).help(group.id)
-                        if !collapsed.contains(group.id) {
-                            ForEach(group.sessions) { session in
-                                AgentSessionRow(session: session,
-                                    selected: service.selectedID == session.id,
-                                    jumping: service.jumpingID == session.id,
-                                    stale: service.isStale,
-                                    canJump: service.jumpingID == nil) {
-                                    service.jump(to: session)
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 12).padding(.bottom, 9)
+                Divider()
+
+                if let error = service.error {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                } else if !service.sessions.isEmpty, service.sessions.allSatisfy({ $0.location == nil }) {
+                    Text(service.sessions.first?.linkReason ?? "No confirmed iTerm2 links. Check Automation permission in System Settings.")
+                        .font(.caption).foregroundStyle(.orange).lineLimit(3)
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if visible.isEmpty {
+                            VStack(spacing: 10) {
+                                Image(systemName: service.isLoading ? "antenna.radiowaves.left.and.right" : "terminal")
+                                    .font(.system(size: 28)).foregroundStyle(.secondary)
+                                Text(service.isLoading ? "Finding live sessions…" : emptyTitle).font(.headline)
+                                Text(service.sessions.isEmpty ? "Open Codex or Claude in iTerm2.\nYour usual launch commands stay the same." : "Choose another filter to see more sessions.")
+                                    .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            }.frame(maxWidth: .infinity).padding(.vertical, 55)
+                        }
+                        ForEach(AgentGroup.make(visible)) { group in
+                            Button {
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                    if !collapsed.insert(group.id).inserted { collapsed.remove(group.id) }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down").font(.system(size: 8, weight: .bold))
+                                    Image(systemName: "folder")
+                                    Text(group.name).lineLimit(1).truncationMode(.middle)
+                                    Text("\(group.sessions.count)").foregroundStyle(.tertiary)
+                                    Spacer()
+                                }.font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
+                                    .padding(.horizontal, 9).padding(.top, 11).padding(.bottom, 4)
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.plain).help(group.id)
+                            if !collapsed.contains(group.id) {
+                                ForEach(group.sessions) { session in
+                                    AgentSessionRow(session: session,
+                                        selected: service.selectedID == session.id,
+                                        jumping: service.jumpingID == session.id,
+                                        stale: service.isStale,
+                                        canJump: service.jumpingID == nil) {
+                                        service.jump(to: session)
+                                    }
                                 }
                             }
                         }
-                    }
-                }.padding(.horizontal, 9).padding(.bottom, 12)
-            }
+                    }.padding(.horizontal, 9).padding(.bottom, 12)
+                }
 
-            Divider()
-            if let error = service.jumpError {
-                Text(error).font(.caption).foregroundStyle(.orange)
-                    .padding(.horizontal, 14).padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                if let error = service.jumpError {
+                    Text(error).font(.caption).foregroundStyle(.orange)
+                        .padding(.horizontal, 14).padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                HStack(spacing: 7) {
+                    Circle().fill(service.isStale ? Color.orange : Color.green).frame(width: 5, height: 5)
+                    Text(service.isStale ? "Stale · refresh to verify" : (service.isLoading ? "Connecting to iTerm2…" : "Live · local iTerm2 sessions"))
+                    Spacer()
+                    Text("Click to jump · Esc to close")
+                }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 11)
             }
-            HStack(spacing: 7) {
-                Circle().fill(service.isStale ? Color.orange : Color.green).frame(width: 5, height: 5)
-                Text(service.isStale ? "Stale · refresh to verify" : (service.isLoading ? "Connecting to iTerm2…" : "Live · local iTerm2 sessions"))
-                Spacer()
-                Text("Click to jump · Esc to close")
-            }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 11)
         }
         .frame(width: 520)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onChange(of: section) { section in
+            if section == "Processes" { service.stop() } else { service.start() }
+        }
     }
 
     private var emptyTitle: String { service.sessions.isEmpty ? "No linked agents yet" : "No sessions in this filter" }

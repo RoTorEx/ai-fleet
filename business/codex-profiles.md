@@ -2,14 +2,50 @@
 
 ## Outcome and boundaries
 
-Users can keep multiple Codex accounts signed in and compare their remaining
-subscription quota and account-reported token usage without changing credentials
-used by running CLI/IDE/desktop sessions. Account switching changes only the standard credential file; Fleet never opens
-terminals, starts agent conversations, or creates project/session homes.
-Switch to this account activates a saved login in the existing standard home,
-retaining its configuration, skills and conversation history.
-The existing native login remains readable and protected by its running-process
-preflight. Profiles do not route prompts or pool subscription allowances.
+Users can keep multiple Codex accounts signed in and select which account the next
+ordinary `codex` command uses. Selecting an account never replaces standard
+credentials, stops a process, or retargets an existing conversation. A terminal
+already open needs one initial `rehash` after command integration is installed;
+subsequent selections apply on the next command without reopening the terminal.
+Fleet never creates terminals or starts conversations. Native shared-credential
+replacement remains an internal recovery path guarded by running-process checks.
+
+The command integration is a Fleet-owned `~/.local/bin/codex` shim invoking the
+installed app's terminal entry point. It reads the atomically written
+`~/Library/Application Support/AI Fleet/CodexLaunch/default.json` on every launch.
+That file contains account/profile/workspace IDs, email and whether the existing
+standard home owns this account; it contains no credential. A conflicting executable
+or redirected installation path is refused rather than replaced. Native executable
+discovery skips the Fleet shim and tracks package-manager updates. The app's own
+quota/login readers always use native Codex rather than the shim.
+
+New interactive launches use `--no-daemon`, file credential storage and the selected
+workspace ID, so an existing background server cannot impose its account. `resume`
+and `fork` use the same selection; history remains shared. Explicit CODEX_HOME,
+CODEX_SQLITE_HOME, access-token and remote-server invocations retain their native
+scope. Server control, agents/queue, installation, help and version commands retain
+native behavior. `codex agents` describes the native shared server, not all isolated
+processes; Fleet's Agents view remains the local session overview.
+
+For the account already owning the standard login, new commands retain that home:
+Fleet never creates a second refresh consumer from its saved checkpoint. Other
+accounts use their own saved credential homes. Only credentials remain isolated;
+config, global instructions, rules, skills, plugin assets, packages, session rollouts,
+history, session index, shared memory files and session locks reference the existing
+standard home. SQLite state uses the standard home through both environment and
+an explicit sqlite_home override. Existing profile assets replaced by these links
+are preserved under `.fleet-before-shared/`; unrelated files and auth.json are
+untouched. Link preparation is repeatable and rolls back its own partial changes.
+Only the exact standard config link is accepted by the profile path validator;
+redirected credential files/directories remain refused. Standard config changes
+therefore apply to subsequent launches without copying stale configuration.
+
+A session marker follows the terminal entry point's PID through exec. Login/logout
+refuses while that account has registered live sessions; selecting another account
+remains allowed. Stale markers are removed on later launches. Provider quota
+selection does not migrate running requests or establish cross-account resumability;
+that full live transition remains a separate user check. Account-wide tokens never
+borrow the shared local history's model/cost accounting.
 
 Each saved login has an accountID linking it to the existing FleetAccount and
 its Greek badge. The label is internal legacy metadata, not another account.
@@ -21,7 +57,7 @@ standard CLI login are never presented as additional user accounts.
 
 A uniquely matching standard CLI login can provide read-only quota when no
 independent login is attached. Its old numeric usage cache has no account identity
-and is never assigned to a badge; account token totals require the saved login. Credentials are copied only by explicit save/switch and active-account checkpointing. Shared fallback rows disclose their dependence on the terminal login and offer
+and is never assigned to a badge; account token totals require the saved login. Credentials are copied only by explicit save, guarded internal replacement and active-account checkpointing. Shared fallback rows disclose their dependence on the terminal login and offer
 Connect separate login. Confirmed shared numeric measurements may be retained
 as explicitly stale history after the shared login changes; they never count as
 fresh quota or preserve the expired login. After an independent login is
@@ -45,22 +81,23 @@ The profile root and directories use mode 0700; successful auth files are
 restricted to mode 0600. Native login/logout and app-server reads set CODEX_HOME
 to exactly that profile and explicitly select file credential storage. Inherited
 CODEX_HOME, CODEX_SQLITE_HOME, API-key and access-token overrides are removed.
-Config/history are never copied. Credential save/switch is explicitly supported as described below.
+Shared config/history references are prepared only for terminal integration, with originals retained. Credential checkpointing remains explicit as described below.
 Redirected profile directories, auth.json and config.toml paths are refused.
 Invalid or repeated UUID metadata is ignored; no supplied path is trusted.
 
 Each credential home has its own exclusive consumer lock. Account-usage reads
 and auth changes within one home cannot overlap; other homes remain usable.
 Browser login uses an additional cross-profile lock because native login shares
-a localhost callback port. Switching the standard login is guarded by the global
+a localhost callback port. The internal recovery action replacing the standard login is guarded by the global
 credential lock and two current-user Codex process checks. A running CLI or daemon
 blocks the write; Fleet does not stop processes or claim that file replacement
 retargets them. Native login/logout for an active account uses the same preflight.
 
 Save current login copies the current verified-format credential bundle into the
-matching saved account without signing out or opening a browser. A switch saves
+matching saved account without signing out or opening a browser. The recovery-only shared-login replacement saves
 the outgoing bundle first, then atomically replaces only standard auth.json with
-the selected account's bundle using mode 0600. Redirected paths, wrong identities,
+the selected account's bundle using mode 0600. Normal account selection never uses
+this path. Redirected paths, wrong identities,
 unknown outgoing owners, explicit non-file credential stores and concurrent
 external file changes fail closed. Standard config/history/state are untouched.
 While active, only the standard home is measured/refreshed. Its saved copy is a

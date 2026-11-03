@@ -25,9 +25,11 @@ enum CodexCredentialSwitch {
         guard FileManager.default.fileExists(atPath: directory.path) else { return }
         for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) where file.pathExtension == "pid" {
             try check(file)
-            guard let pid = Int32(try String(contentsOf: file).trimmingCharacters(in: .whitespacesAndNewlines)), pid > 1 else {
+            let lines = try String(contentsOf: file).split(whereSeparator: { $0.isNewline })
+            guard let first = lines.first, let pid = Int32(first), pid > 1, lines.count <= 2 else {
                 throw CodexAuthenticationError.inventoryUnavailable
             }
+            if lines.count == 2, let current = CodexProcessControl.startIdentity(pid), current != String(lines[1]) { continue }
             if kill(pid, 0) == 0 || errno == EPERM { throw CodexAuthenticationError.activeProcesses([pid]) }
         }
     }

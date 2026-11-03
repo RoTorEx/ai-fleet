@@ -7,6 +7,27 @@ import SwiftUI
 struct AIFleetApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+    init() {
+        if CommandLine.arguments.dropFirst().first == "--fleet-codex" {
+            CodexTerminalLaunch.run(arguments: Array(CommandLine.arguments.dropFirst(2)))
+        }
+        if CommandLine.arguments.dropFirst().first == "--fleet-select-codex" {
+            let arguments = Array(CommandLine.arguments.dropFirst(2))
+            guard arguments.count == 1,
+                  let account = AccountStore.shared.accounts.first(where: { $0.id == arguments[0] }) else {
+                FileHandle.standardError.write(Data("Choose an existing AI Fleet account UUID.\n".utf8))
+                exit(1)
+            }
+            let store = CodexMonitoringStore.shared
+            store.switchAccount(account)
+            if let error = store.error {
+                FileHandle.standardError.write(Data("AI Fleet: \(error)\n".utf8)); exit(1)
+            }
+            print("Next Codex launch: \(account.name). Running sessions were not changed.")
+            exit(0)
+        }
+    }
+
     var body: some Scene {
         Settings {
             SettingsView()

@@ -25,6 +25,8 @@ final class CodexMonitoringStore: ObservableObject {
     @Published private(set) var authenticationAction: CodexAuthenticationOperation.Action?
     @Published private(set) var errorProfileID: String?
     @Published private(set) var activeAccountID: String?
+    @Published private(set) var nextLaunchAccountID: String?
+    @Published private(set) var terminalSetupNotice = false
     @Published private(set) var switchBlockedProcessIDs: [Int32]?
     @Published var error: String? {
         didSet { switchBlockedProcessIDs = nil }
@@ -67,13 +69,16 @@ final class CodexMonitoringStore: ObservableObject {
             .flatMap { try? JSONDecoder().decode([CodexMonitoringProfile].self, from: $0) } ?? [])
             .filter { UUID(uuidString: $0.id) != nil && ids.insert($0.id.uppercased()).inserted }
         activeAccountID = defaults.string(forKey: "codex.activeAccountID")
+        nextLaunchAccountID = defaults.string(forKey: CodexTerminalLaunch.selectionKey)
+        terminalSetupNotice = nextLaunchAccountID != nil
     }
 
     func directory(for profile: CodexMonitoringProfile) throws -> URL {
         guard UUID(uuidString: profile.id) != nil else { throw CodexAuthenticationError.failed }
         let directory = root.appendingPathComponent(profile.id, isDirectory: true)
         for url in [directory, directory.appendingPathComponent("auth.json"), directory.appendingPathComponent("config.toml")] {
-            guard url.resolvingSymlinksInPath().path == url.standardizedFileURL.path else {
+            guard url.resolvingSymlinksInPath().path == url.standardizedFileURL.path ||
+                    CodexTerminalLaunch.isSharedConfig(url) else {
                 throw ProviderLogout.Failure.unsafePath
             }
         }
@@ -122,10 +127,21 @@ final class CodexMonitoringStore: ObservableObject {
         if changed { save() }
     }
 
-    func forgetAccount(_ account: FleetAccount) {
+    @discardableResult
+    func forgetAccount(_ account: FleetAccount) -> Bool {
+        if nextLaunchAccountID == account.id {
+            do {
+                let url = CodexTerminalLaunch.selectionURL(home: FileManager.default.homeDirectoryForCurrentUser)
+                try CodexTerminalLaunch.checkPath(url)
+                if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+                nextLaunchAccountID = nil
+                defaults.removeObject(forKey: CodexTerminalLaunch.selectionKey)
+            } catch { self.error = error.localizedDescription; return false }
+        }
         if let profile = profile(for: account) { remove(profile) }
         sharedSnapshots.removeValue(forKey: account.id)
         saveSnapshots()
+        return true
     }
 
     func observeSharedLogin(_ status: ProviderStatus, accounts: [FleetAccount]) {
@@ -160,7 +176,35 @@ final class CodexMonitoringStore: ObservableObject {
         } catch { errorProfileID = profile(for: account)?.id; self.error = error.localizedDescription }
     }
 
-    func switchAccount(_ account: FleetAccount,
+    func switchAccount(_ account: FleetAccount) {
+        guard !refreshing, authenticatingID == nil else { return }
+        do {
+            guard let profile = profile(for: account) else { throw CodexCredentialSwitch.Failure.missingLogin }
+            let home = FileManager.default.homeDirectoryForCurrentUser
+            let shared = home.appendingPathComponent(".codex/auth.json")
+            let identity = try? CodexCredentialSwitch.identity(at: shared)
+            let usesStandard = activeAccountID == account.id &&
+                identity?.email.caseInsensitiveCompare(account.email) == .orderedSame
+            let directory = usesStandard ? home.appendingPathComponent(".codex") : try self.directory(for: profile)
+            let chosenIdentity = try CodexCredentialSwitch.identity(at: directory.appendingPathComponent("auth.json"))
+            let selection = CodexLaunchSelection(accountID: account.id, profileID: profile.id,
+                                                 email: account.email, workspaceID: chosenIdentity.accountID,
+                                                 usesStandardHome: usesStandard)
+            let installed = CodexTerminalLaunch.isShim(home.appendingPathComponent(".local/bin/codex"))
+            try CodexTerminalLaunch.choose(selection, home: home, application: Bundle.main.bundleURL)
+            nextLaunchAccountID = account.id
+            defaults.set(account.id, forKey: CodexTerminalLaunch.selectionKey)
+            terminalSetupNotice = !installed
+            error = nil
+            errorProfileID = nil
+        } catch {
+            errorProfileID = profile(for: account)?.id
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Recovery-only shared credential replacement; the UI selects future launches instead.
+    func replaceSharedLogin(_ account: FleetAccount,
                        sharedDirectory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex"),
                        inventory: () throws -> [Int32] = { try CodexProcessInventory().runningPIDs() }) {
         guard !refreshing, authenticatingID == nil else { return }
