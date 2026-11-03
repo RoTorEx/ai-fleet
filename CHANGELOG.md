@@ -6,6 +6,9 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Reduce leading provider marks to 10 points and replace the connected arrow with
+  the lowest-remaining arrow instead of showing both.
+
 - Restore leading provider arrows (connected and lowest remaining) and unavailable
   crosses, remove vertical rules, and indent quota/reset details beneath names.
 

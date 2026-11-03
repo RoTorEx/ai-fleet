@@ -42,8 +42,9 @@ when an independent saved login is absent; Switch stays disabled until connected
 Provider names retain Greek badges in parentheses. Account identities appear only
 in the hover/click legend. All account-action buttons use a small key at the right.
 A compact leading gutter shows → for a connected provider and × when unavailable;
-↓ additionally marks the lowest positive remaining quota independently of launch
-selection. There are no provider status circles, checkmarks or vertical rules.
+↓ replaces → for the lowest positive remaining quota independently of launch
+selection. Each row has one 10-point mark; reset and action icons retain their
+12-point size. There are no provider status circles, checkmarks or vertical rules.
 Provider names follow the gutter; quota/reset rows indent a further 8 points,
 like a nested list. Account-name hover popups do not compete with the names.
 

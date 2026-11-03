@@ -26,9 +26,10 @@ struct FleetMenuIcon: View {
 
 struct FleetInlineSymbol: View {
     let systemName: String
+    var size: CGFloat = 12
     var body: some View {
         Image(systemName: systemName).resizable().scaledToFit()
-            .frame(width: 12, height: 12, alignment: .center)
+            .frame(width: size, height: size, alignment: .center)
     }
 }
 

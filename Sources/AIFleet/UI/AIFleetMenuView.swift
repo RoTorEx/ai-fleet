@@ -263,14 +263,9 @@ struct ProviderLimitRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .center, spacing: 8) {
-                HStack(spacing: 4) {
-                    FleetInlineSymbol(systemName: status.authentication == .signedIn ? "arrow.right" : "xmark")
-                        .accessibilityLabel(status.authentication == .signedIn ? "Connected" : "Unavailable")
-                    if isLowest {
-                        FleetInlineSymbol(systemName: "arrow.down")
-                            .accessibilityLabel("Lowest positive remaining limit")
-                    }
-                }.foregroundColor(color).frame(width: 28, alignment: .leading)
+                FleetInlineSymbol(systemName: isLowest ? "arrow.down" : status.authentication == .signedIn ? "arrow.right" : "xmark", size: 10)
+                    .accessibilityLabel(isLowest ? "Lowest positive remaining limit" : status.authentication == .signedIn ? "Connected" : "Unavailable")
+                    .foregroundColor(color).frame(width: 28, alignment: .leading)
                 Text(status.name + (entry.account.badge.isEmpty ? "" : " (\(entry.account.badge))"))
                     .font(FleetUI.menuHeading).foregroundColor(color).lineLimit(1)
                 Spacer(minLength: 0)
