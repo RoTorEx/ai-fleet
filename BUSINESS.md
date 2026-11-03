@@ -202,7 +202,7 @@ before attempting a download.
   does not flash the Active label. Options contains Statistics, Settings, Processes,
   then Quit. Last refresh and version share the bottom main-menu row. The compact
   arrow-free panel uses system blur. The legend owns account mapping; provider
-  rows retain Greek badges and key actions. Reset dates change to a clock and
+  rows retain Greek badges and open account actions from the name. Reset dates change to a clock and
   days/hours/minutes/seconds in a fixed cell without shifting adjacent rows.
   Settings uses compact General and Accounts tabs. General groups provider visibility,
   menu controls, statistics scheduling and notifications. Local API

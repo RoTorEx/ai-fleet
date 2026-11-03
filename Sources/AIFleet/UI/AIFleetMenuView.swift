@@ -41,13 +41,13 @@ struct AIFleetMenuView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 summarySection
-                Divider().padding(.top, 6).padding(.bottom, 10)
+                Divider().padding(.vertical, 8)
                 if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
                     MenuRowsViewport(maxHeight: min(340, max(180, availableScreenHeight - 240))) {
                         providerRows
                     }
                 } else { providerRows }
-                if agents != nil { Divider().padding(.top, 10).padding(.bottom, 4) }
+                if agents != nil { Divider().padding(.vertical, 8) }
             }.background(GeometryReader { geometry in
                 Color.clear.preference(key: MenuChromeHeightKey.self, value: ["top": geometry.size.height])
             })
@@ -59,7 +59,7 @@ struct AIFleetMenuView: View {
                 Text(lastCheckText)
                 Spacer(minLength: 4)
                 Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development")
-            }.font(FleetUI.menuSecondary).foregroundStyle(.secondary).padding(.top, 10)
+            }.font(FleetUI.menuSecondary).foregroundStyle(.secondary).padding(.top, 8)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: MenuChromeHeightKey.self, value: ["footer": geometry.size.height])
                 })
@@ -74,7 +74,7 @@ struct AIFleetMenuView: View {
     private var agentsListHeight: CGFloat {
         MenuHeightBudget.agentsViewport(screenHeight: availableScreenHeight,
             fixedHeight: (chromeHeights["top"] ?? 210) + (chromeHeights["footer"] ?? 22)
-                + FleetUI.spacing * 2 + FleetUI.menuControlSize + 12)
+                + FleetUI.spacing * 2 + FleetUI.menuControlSize)
     }
 
     private var applicationMenu: some View {
@@ -249,6 +249,7 @@ struct MenuAccountConnection: Identifiable {
 }
 
 struct ProviderLimitRow: View {
+    @State private var showsActions = false
     let entry: MenuAccountConnection
     let isLowest: Bool
     let openSettings: () -> Void
@@ -262,20 +263,28 @@ struct ProviderLimitRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .center, spacing: 8) {
-                FleetInlineSymbol(systemName: isLowest ? "arrow.down" : status.authentication == .signedIn ? "arrow.right" : "xmark", size: 10)
-                    .accessibilityLabel(isLowest ? "Lowest positive remaining limit" : status.authentication == .signedIn ? "Connected" : "Unavailable")
-                    .foregroundColor(color).frame(width: 28, alignment: .leading)
-                Text(status.name + (entry.account.badge.isEmpty ? "" : " (\(entry.account.badge))"))
-                    .font(FleetUI.menuHeading).foregroundColor(color).lineLimit(1)
-                Spacer(minLength: 0)
-                Menu {
+            Button { showsActions.toggle() } label: {
+                HStack(alignment: .center, spacing: 4) {
+                    FleetInlineSymbol(systemName: isLowest ? "arrow.down" : status.authentication == .signedIn ? "arrow.right" : "xmark", size: 6)
+                        .accessibilityLabel(isLowest ? "Lowest positive remaining limit" : status.authentication == .signedIn ? "Connected" : "Unavailable")
+                        .frame(width: 8, alignment: .center)
+                    Text(status.name + (entry.account.badge.isEmpty ? "" : " (\(entry.account.badge))"))
+                        .font(FleetUI.menuHeading).lineLimit(1)
+                    Spacer(minLength: 0)
+                }.foregroundColor(color)
+                    .frame(maxWidth: .infinity, minHeight: FleetUI.menuControlSize, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).quietMenuFocus()
+            .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
+            .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
+            .instantPopover(isPresented: $showsActions) {
+                VStack(alignment: .leading, spacing: 12) {
                     AccountConnectionActions(account: entry.account, connection: entry.connection, status: status,
-                                             isCurrentCLI: entry.isCurrentCLI == true, openSettings: openSettings)
-                } label: { FleetMenuIcon(systemName: "key.horizontal") }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().quietMenuFocus()
-                .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
-                .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
+                        isCurrentCLI: entry.isCurrentCLI == true, openSettings: openSettings,
+                        onAction: { showsActions = false })
+                }.font(FleetUI.menuBody).buttonStyle(.plain)
+                    .frame(width: 160, alignment: .leading).padding(12)
             }
             if presentation.available, !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
@@ -291,7 +300,7 @@ struct ProviderLimitRow: View {
                         }
                     }
                 }
-                .padding(.leading, 44)
+                .padding(.leading, 20)
             } else {
                 ForEach(quotaPlaceholderLabels(for: status), id: \.self) { label in
                     HStack(spacing: 15) {
@@ -304,17 +313,17 @@ struct ProviderLimitRow: View {
                             Text("—")
                         }
                         Spacer(minLength: 0)
-                    }.font(FleetUI.menuBody).foregroundStyle(.secondary).frame(height: 18).padding(.leading, 44)
+                    }.font(FleetUI.menuBody).foregroundStyle(.secondary).frame(height: 18).padding(.leading, 20)
                 }
             }
             if presentation.available, let notice = status.quotaNotice {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
-                    .lineLimit(2).padding(.leading, 44)
+                    .lineLimit(2).padding(.leading, 20)
             }
             if entry.usesAccountLogin {
                 CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
-                    .padding(.leading, 44)
+                    .padding(.leading, 20)
             }
             if providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == status.providerID,
                let message = providerLaunch.message {
@@ -326,19 +335,19 @@ struct ProviderLimitRow: View {
                             .buttonStyle(.plain).font(.caption2)
                             .accessibilityLabel("Dismiss account message")
                     }
-                }.padding(.leading, 44)
+                }.padding(.leading, 20)
             }
             if accounts.launchProviderID == status.providerID &&
                 (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {
                 if accounts.codexSigningIn && status.providerID == "codex" && entry.isCurrentCLI == true {
-                    CodexSignInProgress(accounts: accounts).padding(.leading, 44)
+                    CodexSignInProgress(accounts: accounts).padding(.leading, 20)
                 }
                 if let error = accounts.launchError {
                     Text("Sign-in: \(error)").font(.caption).foregroundColor(FleetPalette.danger)
-                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 44)
+                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 20)
                 }
             }
-        }
+        }.saturation(0.55)
     }
 }
 

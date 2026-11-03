@@ -40,12 +40,17 @@ Account actions show exactly one authentication command: Sign out when signed in
 otherwise Sign in. Switch follows it. Saving a native Codex login remains available
 when an independent saved login is absent; Switch stays disabled until connected.
 Provider names retain Greek badges in parentheses. Account identities appear only
-in the hover/click legend. All account-action buttons use a small key at the right.
+in the hover/click legend. Clicking the provider name/header opens its Sign in/Sign out and Switch menu;
+there is no separate key button. A plain custom header preserves the exact icon
+size and provider colors; actions open in a compact popover and close on selection. The entire header is a 28-point-high hit target.
+Monitoring, provider and Agents headers share this height; main sections share
+16-point outer insets and 8-point spacing around separators.
 A compact leading gutter shows → for a connected provider and × when unavailable;
 ↓ replaces → for the lowest positive remaining quota independently of launch
-selection. Each row has one 10-point mark; reset and action icons retain their
+selection. Each row has one 6-point mark; reset and action icons retain their
 12-point size. There are no provider status circles, checkmarks or vertical rules.
-Provider names follow the gutter; quota/reset rows indent a further 8 points,
+An 8-point gutter and 4-point gap place the name close to its mark.
+Quota/reset rows indent a further 8 points from the name,
 like a nested list. Account-name hover popups do not compete with the names.
 
 The legend separates monitoring/counts, accounts, remaining limits, reset times
@@ -85,7 +90,7 @@ not overwrite them. Unsupported native login flows explain terminal login and
 refresh rather than offering a circular Switch-then-sign-in instruction.
 
 The legend uses short separate lines for every mark, state and unit, with grouped
-headings and separators; account emails get their own line. Only the Agents block is monochrome. Provider quota colors, the monitoring
+headings and separators; account emails get their own line. Only the Agents block is monochrome. Provider row colors use muted saturation. Provider quota colors, the monitoring
 status dot, and normal system control accents retain their original colors. Shared compact typography remains 12-point headings, 11-point body,
 10-point secondary data and centered 12-point symbols in 28-point click targets.
 

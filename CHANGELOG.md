@@ -6,8 +6,12 @@ Tracks real product and release progress.
 
 ### Changed
 
-- Reduce leading provider marks to 10 points and replace the connected arrow with
-  the lowest-remaining arrow instead of showing both.
+- Open account actions from the provider header, remove key buttons, reduce
+  status marks to 6 points, preserve muted provider colors and align compact
+  provider/agent content margins.
+
+- Replace the connected arrow with the lowest-remaining arrow instead of showing
+  both.
 
 - Restore leading provider arrows (connected and lowest remaining) and unavailable
   crosses, remove vertical rules, and indent quota/reset details beneath names.
@@ -37,7 +41,7 @@ Tracks real product and release progress.
 - Organize Settings into General and Accounts with shared spacing/type hierarchy.
   Show one authentication action followed by Switch.
 - Use an arrow-free 320-point panel with adaptive system blur. Keep Greek account
-  badges, use key actions consistently, and move account mapping into the legend.
+  badges, open account actions from provider names, and move account mapping into the legend.
 - Keep reset countdowns stable while hovering, with days/hours/minutes/seconds.
   Add an explicit outside-click dismissal preference and compact options.
 - Combine selected providers in one Statistics view labeled Local usage · This

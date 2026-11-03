@@ -39,7 +39,7 @@ struct AgentsView: View {
                     Text("\(visible.count)").font(FleetUI.menuSecondary).foregroundStyle(.secondary)
                     Spacer()
                     filterMenu
-                }.padding(.vertical, 6)
+                }.frame(height: FleetUI.menuControlSize)
             } else {
                 HStack(spacing: 9) {
                     Image(systemName: "waveform.path.ecg").foregroundStyle(.green)

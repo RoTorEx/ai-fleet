@@ -74,6 +74,7 @@ struct AccountConnectionActions: View {
     let status: ProviderStatus?
     var isCurrentCLI = false
     var openSettings: () -> Void = {}
+    var onAction: () -> Void = {}
     @ObservedObject private var codex = CodexMonitoringStore.shared
     @ObservedObject private var launch = ProviderLaunchStore.shared
     @ObservedObject private var service = StatusService.shared
@@ -84,6 +85,7 @@ struct AccountConnectionActions: View {
         Group {
             if status?.authentication == .signedIn {
                 Button("Sign out", role: .destructive) {
+                    onAction()
                     if isCodex {
                         if let profile = codex.profile(for: account) { codex.signOut(profile) }
                         else { Task { await service.signOutGlobally("codex") } }
@@ -91,6 +93,7 @@ struct AccountConnectionActions: View {
                 }
             } else {
                 Button("Sign in…") {
+                    onAction()
                     if account.badge.isEmpty {
                         SettingsNavigation.shared.addAccount(for: connection.providerID); openSettings()
                     } else if isCodex { codex.signIn(codex.ensureProfile(for: account)) }
@@ -98,6 +101,7 @@ struct AccountConnectionActions: View {
                 }
             }
             Button("Switch") {
+                onAction()
                 if isCodex { codex.switchAccount(account) }
                 else if account.badge.isEmpty {
                     SettingsNavigation.shared.addAccount(for: connection.providerID); openSettings()
@@ -108,7 +112,7 @@ struct AccountConnectionActions: View {
                 AccountIdentityMatch.assess(expected: account.email, observed: status?.account?.email) != .verified)
             .help("Choose this account for the next command. Running agents keep their accounts.")
             if isCodex, codex.profile(for: account) == nil, isCurrentCLI {
-                Button("Save current login") { codex.saveCurrentLogin(account) }
+                Button("Save current login") { onAction(); codex.saveCurrentLogin(account) }
             }
         }
         .disabled(launch.busy || codex.authenticatingID != nil || service.signingOutProvider != nil ||
