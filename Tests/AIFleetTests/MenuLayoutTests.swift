@@ -5,6 +5,33 @@ import XCTest
 
 final class MenuLayoutTests: XCTestCase {
     @MainActor
+    func testNativeHelpOpensWithoutWindowAnimationAndClosesInBothAppearances() async throws {
+        let previous = NSApplication.shared.appearance
+        defer { NSApplication.shared.appearance = previous }
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            NSApplication.shared.appearance = NSAppearance(named: appearance)
+            let state = HelpPopoverState()
+            let host = NSHostingController(rootView: LiveHelpPopover(state: state))
+            let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 100, height: 50),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.contentViewController = host
+            window.orderFrontRegardless()
+            defer { state.shown = false; window.orderOut(nil); window.contentViewController = nil }
+            for _ in 0..<10 { try await Task.sleep(nanoseconds: 10_000_000) }
+            state.shown = true
+            for _ in 0..<15 { try await Task.sleep(nanoseconds: 10_000_000) }
+            let child = try XCTUnwrap(NSApplication.shared.windows.first {
+                $0.identifier?.rawValue == "ai-fleet-child-popover" && $0.isVisible
+            })
+            XCTAssertEqual(child.animationBehavior, .none)
+            XCTAssertGreaterThan(child.frame.width, 200)
+            state.shown = false
+            for _ in 0..<15 { try await Task.sleep(nanoseconds: 10_000_000) }
+            XCTAssertFalse(child.isVisible)
+        }
+    }
+
+    @MainActor
     func testBlockedSwitchDetailsExpandAndCollapseInBothAppearances() async throws {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let state = SwitchNoticeState()
@@ -103,8 +130,8 @@ final class MenuLayoutTests: XCTestCase {
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
             XCTAssertTrue(popover.isShown)
-            XCTAssertEqual(host.view.fittingSize.width, 354, accuracy: 1)
-            XCTAssertGreaterThan(host.view.fittingSize.height, 250)
+            XCTAssertEqual(host.view.fittingSize.width, 400, accuracy: 1)
+            XCTAssertGreaterThan(host.view.fittingSize.height, 150)
             if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
                let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
                 // Preview menu content without depending on screen-recording access or display geometry.
@@ -139,6 +166,20 @@ final class MenuLayoutTests: XCTestCase {
         rows.count = 4
         settle()
         XCTAssertEqual(live.view.fittingSize.height, 184, accuracy: 1)
+    }
+}
+
+private final class HelpPopoverState: ObservableObject {
+    @Published var shown = false
+}
+
+private struct LiveHelpPopover: View {
+    @ObservedObject var state: HelpPopoverState
+    var body: some View {
+        Text("Account").frame(width: 100, height: 50)
+            .instantPopover(isPresented: $state.shown) {
+                Text("Account subscription information").frame(width: 220).padding(16)
+            }
     }
 }
 

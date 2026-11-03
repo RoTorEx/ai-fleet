@@ -161,6 +161,7 @@ private final class StatisticsWindowController: NSWindowController {
         window.contentViewController = hostingController
         window.minSize = NSSize(width: 820, height: 600)
         window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
         super.init(window: window)
     }
 
@@ -231,6 +232,7 @@ private final class SettingsWindowController: NSWindowController {
         window.identifier = NSUserInterfaceItemIdentifier("ai-fleet-settings")
         window.contentViewController = hostingController
         window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
         super.init(window: window)
     }
 

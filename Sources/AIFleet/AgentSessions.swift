@@ -33,6 +33,14 @@ struct AgentSession: Decodable, Identifiable, Equatable {
     }
 }
 
+func compactAgentLocation(_ path: String, home: String = NSHomeDirectory()) -> String {
+    let normalized = URL(fileURLWithPath: path).standardizedFileURL.path
+    if normalized == URL(fileURLWithPath: home).standardizedFileURL.path { return "~" }
+    let url = URL(fileURLWithPath: normalized)
+    if url.deletingLastPathComponent().path == home { return "~/" + url.lastPathComponent }
+    return url.pathComponents.filter { $0 != "/" }.suffix(2).joined(separator: "/")
+}
+
 struct AgentGroup: Identifiable {
     let id: String
     let name: String

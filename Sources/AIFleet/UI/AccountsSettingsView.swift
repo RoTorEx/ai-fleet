@@ -26,8 +26,12 @@ struct AccountsSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Switch selects the account for the next command. Running agents keep their accounts. After first installing command integration, run rehash once in already open terminals.")
-                .font(.callout).foregroundColor(.secondary)
+            Text("Connect your accounts, then use Switch for future launches.")
+                .font(FleetUI.caption).foregroundColor(.secondary)
+            DisclosureGroup("Terminal setup") {
+                Text("After first installing command integration, run rehash once in already open terminals. Running agents keep their accounts.")
+                    .font(FleetUI.caption).foregroundStyle(.secondary)
+            }
             if !isAdding {
                 HStack {
                     if !store.visibleAccounts.isEmpty {
@@ -48,14 +52,7 @@ struct AccountsSettingsView: View {
             else if let selected { AccountEditor(account: selected).id(selected.id) }
             CodexAccountAuthenticationStatus(store: codex, accounts: store)
             if let error = store.launchError { Text(error).font(.caption).foregroundColor(.red) }
-            DisclosureGroup("Provider visibility") {
-                ForEach(ProviderCatalog.all) { provider in
-                    Toggle("Show \(provider.name)", isOn: Binding(
-                        get: { settings.isEnabled(provider.id) },
-                        set: { settings.setEnabled($0, for: provider.id); service.refresh() }
-                    ))
-                }
-            }.font(.callout)
+
         }
         .onAppear { codex.synchronizeAccounts(store); consumeAddRequest(); service.refresh() }
         .onChange(of: navigation.addingProviderID) { _ in consumeAddRequest() }
@@ -145,41 +142,19 @@ private struct AccountEditor: View {
             ForEach(account.connections.filter { settings.isEnabled($0.providerID) }) { connection in
                 let status = connection.providerID == "codex" ? codex.status(for: account, global: service.codex, accounts: store.visibleAccounts)
                     : service.status(for: connection)
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("\(ProviderCatalog.definition(for: connection.providerID)?.name ?? connection.providerID) (\(account.badge))").bold()
                         Spacer()
-                        Text(status?.detail ?? "Checking…").font(.caption).foregroundColor(.secondary)
+                        Text(status?.detail ?? "Checking…").font(FleetUI.caption).foregroundColor(.secondary)
+                            .lineLimit(2).multilineTextAlignment(.trailing).frame(maxWidth: 180, alignment: .trailing)
                     }
-                    HStack {
-                        Button("Sign in…") {
-                            if connection.providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
-                            else { providerLaunch.signIn(account, providerID: connection.providerID) }
-                        }
-                        if connection.providerID == "codex" {
-                            if codex.profile(for: account) == nil,
-                               service.codex.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame {
-                                Button("Save current login") { codex.saveCurrentLogin(account) }
-                            }
-                            if codex.profile(for: account) != nil {
-                                Button("Switch") { codex.switchAccount(account) }
-                                    .help("The next codex command uses this account without changing running sessions.")
-                            }
-                            if let profile = codex.profile(for: account), status?.authentication == .signedIn {
-                                Button("Sign out", role: .destructive) { codex.signOut(profile) }
-                            }
-                        } else {
-                            Button("Switch") {
-                                providerLaunch.switchAccount(account, providerID: connection.providerID,
-                                    global: service.status(for: connection.providerID))
-                            }
-                            if status?.authentication == .signedIn {
-                                Button("Sign out", role: .destructive) { providerLaunch.signOut(account, providerID: connection.providerID) }
-                            }
-                        }
-                    }
-                    .disabled(providerLaunch.busy || codex.authenticatingID != nil || service.signingOutProvider != nil ||
-                              (connection.providerID == "codex" && codex.refreshing))
+                    VStack(alignment: .leading, spacing: 8) {
+                        AccountConnectionActions(account: account, connection: connection, status: status,
+                            isCurrentCLI: service.status(for: connection.providerID).account?.email?.caseInsensitiveCompare(account.email) == .orderedSame)
+                    }.buttonStyle(.bordered).controlSize(.small)
+
                 }
                 if providerLaunch.messageAccountID == account.id, providerLaunch.messageProviderID == connection.providerID,
                    let message = providerLaunch.message {
@@ -196,7 +171,9 @@ private struct AccountEditor: View {
                     Text("This account uses the shared terminal login. Connect a separate login once to retain access when the terminal account changes.")
                         .font(.caption).foregroundColor(.secondary)
                 }
-                Divider()
+                }
+                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
             }
             Button("Remove account") {
                 guard !providerLaunch.busy, !codex.refreshing, codex.authenticatingID == nil else { return }
@@ -207,7 +184,7 @@ private struct AccountEditor: View {
             }
             .disabled(providerLaunch.busy || codex.refreshing || codex.authenticatingID != nil)
             .help("Forget account metadata; preserve credentials and session history.")
-        }.font(.callout)
+        }.font(FleetUI.body)
     }
 }
 

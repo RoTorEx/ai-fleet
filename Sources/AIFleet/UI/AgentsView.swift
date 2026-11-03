@@ -6,7 +6,12 @@ struct AgentsView: View {
     let back: () -> Void
     @State private var filter = "All"
     @State private var collapsed = Set<String>()
-    @State private var section = "Sessions"
+    @Binding var section: String
+    let embedded: Bool
+
+    init(service: AgentSessionsService, back: @escaping () -> Void, section: Binding<String> = .constant("Sessions"), embedded: Bool = false) {
+        self.service = service; self.back = back; self._section = section; self.embedded = embedded
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let filters = ["All", "Needs you", "Working", "Idle", "Unknown"]
 
@@ -24,45 +29,42 @@ struct AgentsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 9) {
-                Image(systemName: "waveform.path.ecg").foregroundStyle(.green)
-                Text("Agents").font(.system(size: 15, weight: .semibold))
-                Text("\(service.sessions.count)").font(.system(size: 11, weight: .bold, design: .rounded))
-                    .padding(.horizontal, 7).padding(.vertical, 3).background(.quaternary, in: Capsule())
-                Spacer()
-                if section == "Sessions" {
-                    if service.isLoading { ProgressView().controlSize(.small) }
-                    Button { service.refresh(force: true) } label: { Image(systemName: "arrow.clockwise") }
-                        .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
-                }
-                Button(action: back) {
-                    HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Usage"); Text("⌘A").foregroundStyle(.secondary) }
-                }.buttonStyle(.plain).help("Return to the main menu (⌘A)")
-            }.padding(.horizontal, 16).padding(.top, 15).padding(.bottom, 10)
-
-            Picker("View", selection: $section) {
-                Text("Sessions").tag("Sessions")
-                Text("Processes").tag("Processes")
-            }.pickerStyle(.segmented).padding(.horizontal, 14).padding(.bottom, 10)
-
+            if embedded {
+                HStack(spacing: 6) {
+                    Text("Agents").font(.system(size: 13, weight: .semibold))
+                    Text("\(visible.count)").font(FleetUI.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    filterMenu
+                }.padding(.vertical, 6)
+            } else {
+                HStack(spacing: 9) {
+                    Image(systemName: "waveform.path.ecg").foregroundStyle(.green)
+                    Text(section == "Processes" ? "Processes" : "Agents").font(FleetUI.title)
+                    if section == "Sessions" {
+                        Text("\(service.sessions.count)").font(FleetUI.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if section == "Sessions" {
+                        if service.isLoading { ProgressView().controlSize(.small) }
+                        Button { service.refresh(force: true) } label: { Image(systemName: "arrow.clockwise") }
+                            .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
+                    }
+                    Menu {
+                        Button("Overview") { back() }
+                        Button("Processes") { section = "Processes" }
+                    } label: { Image(systemName: "ellipsis").frame(width: 24, height: 24) }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                        .accessibilityLabel("Agent view options")
+                    Button(action: back) {
+                        HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Overview"); Text("⌘A").foregroundStyle(.secondary) }
+                    }.buttonStyle(.plain).help("Return to the main menu (⌘A)")
+                }.padding(.horizontal, 16).padding(.top, 15).padding(.bottom, 10)
+            }
             if section == "Processes" {
-                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
+                MenuRowsViewport(maxHeight: embedded ? min(400, max(180, (NSScreen.main?.visibleFrame.height ?? 800) - 350)) : 550) {
                     CodexProcessesView()
                 }
             } else {
-                HStack(spacing: 4) {
-                    ForEach(filters, id: \.self) { item in
-                        Button { filter = item } label: {
-                            Text(item).font(.system(size: 10.5, weight: .medium))
-                                .padding(.horizontal, 8).padding(.vertical, 5)
-                                .foregroundStyle(filter == item ? Color.primary : Color.secondary)
-                                .background(filter == item ? Color.primary.opacity(0.09) : Color.clear, in: Capsule())
-                        }.buttonStyle(.plain)
-                    }
-                    Spacer(minLength: 0)
-                }.padding(.horizontal, 12).padding(.bottom, 9)
-                Divider()
-
                 if let error = service.error {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -73,7 +75,7 @@ struct AgentsView: View {
                         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
+                MenuRowsViewport(maxHeight: embedded ? min(400, max(180, (NSScreen.main?.visibleFrame.height ?? 800) - 350)) : 550) {
                     VStack(alignment: .leading, spacing: 3) {
                         if visible.isEmpty {
                             VStack(spacing: 10) {
@@ -82,7 +84,7 @@ struct AgentsView: View {
                                 Text(service.isLoading ? "Finding live sessions…" : emptyTitle).font(.headline)
                                 Text(service.sessions.isEmpty ? "Open Codex or Claude in iTerm2.\nYour usual launch commands stay the same." : "Choose another filter to see more sessions.")
                                     .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            }.frame(maxWidth: .infinity).padding(.vertical, 55)
+                            }.frame(maxWidth: .infinity).padding(.vertical, embedded ? 16 : 55)
                         }
                         ForEach(AgentGroup.make(visible)) { group in
                             Button {
@@ -93,11 +95,11 @@ struct AgentsView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down").font(.system(size: 8, weight: .bold))
                                     Image(systemName: "folder")
-                                    Text(group.name).lineLimit(1).truncationMode(.middle)
+                                    Text(compactAgentLocation(group.id)).lineLimit(1).truncationMode(.middle)
                                     Text("\(group.sessions.count)").foregroundStyle(.tertiary)
                                     Spacer()
                                 }.font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
-                                    .padding(.horizontal, 9).padding(.top, 11).padding(.bottom, 4)
+                                    .padding(.horizontal, embedded ? 0 : 9).padding(.top, 6).padding(.bottom, 3)
                                     .contentShape(Rectangle())
                             }.buttonStyle(.plain).help(group.id)
                             if !collapsed.contains(group.id) {
@@ -112,27 +114,45 @@ struct AgentsView: View {
                                 }
                             }
                         }
-                    }.padding(.horizontal, 9).padding(.bottom, 12)
+                    }.padding(.horizontal, embedded ? 0 : 9).padding(.bottom, 6)
                 }
 
-                Divider()
                 if let error = service.jumpError {
-                    Text(error).font(.caption).foregroundStyle(.orange)
-                        .padding(.horizontal, 14).padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
+                    Text(error).font(FleetUI.caption).foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 6)
                 }
-                HStack(spacing: 7) {
-                    Circle().fill(service.isStale ? Color.orange : Color.green).frame(width: 5, height: 5)
-                    Text(service.isStale ? "Stale · refresh to verify" : (service.isLoading ? "Connecting to iTerm2…" : "Live · local iTerm2 sessions"))
-                    Spacer()
-                    Text("Click to jump · Esc to close")
-                }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 11)
+                if !embedded {
+                    Divider()
+                    HStack(spacing: 7) {
+                        Circle().fill(service.isStale ? Color.orange : Color.green).frame(width: 5, height: 5)
+                        Text(service.isStale ? "Stale · refresh to verify" : (service.isLoading ? "Connecting to iTerm2…" : "Live · local iTerm2 sessions"))
+                        Spacer()
+                        Text("Click to jump · Esc to close")
+                    }.font(FleetUI.caption).foregroundStyle(.secondary)
+                        .padding(.horizontal, FleetUI.spacing).padding(.vertical, 8)
+                }
+
             }
         }
-        .frame(width: 520)
+        .frame(width: embedded ? nil : 520)
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: section) { section in
             if section == "Processes" { service.stop() } else { service.start() }
         }
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            ForEach(filters, id: \.self) { item in
+                Button { filter = item } label: {
+                    if filter == item { Label(item, systemImage: "checkmark") } else { Text(item) }
+                }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle").font(.system(size: 13)).frame(width: 28, height: 28)
+                .foregroundStyle(filter == "All" ? Color.secondary : Color.accentColor)
+        }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .accessibilityLabel("Filter agents: \(filter)").help("Agent filter: \(filter)")
     }
 
     private var emptyTitle: String { service.sessions.isEmpty ? "No linked agents yet" : "No sessions in this filter" }

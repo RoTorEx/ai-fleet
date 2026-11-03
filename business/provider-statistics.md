@@ -1,10 +1,11 @@
 # Kimi and Qwen Statistics
 
 Statistics reads retained local accounting history independently of login and
-quota monitoring. Each provider has input/cache/output cards, model and daily
-tables, periods, and Activity. Days use the computer's time zone, from local
+quota monitoring. The unified Statistics view combines selected providers in input/cache/output
+cards, model and daily tables, periods, and Activity. Its inclusion filters are
+independent of main-menu provider visibility. Days use the computer's time zone, from local
 midnight to the next local midnight, including daylight-saving transitions.
-Opening Statistics and switching periods or tabs uses cached aggregates;
+Opening Statistics and switching periods or provider filters uses cached aggregates;
 manual and scheduled refreshes scan metadata and parse only changed files.
 
 ## Sources and accounting
@@ -33,8 +34,8 @@ manual and scheduled refreshes scan metadata and parse only changed files.
 
 Full paths identify files: every Kimi agent has the same `wire.jsonl` filename.
 Do not deduplicate these by basename. Overlapping discovery roots resolve to
-one physical file. Provider histories are separated before aggregation; they
-must never enter Codex totals. New optional snapshot fields preserve older
+one physical file. Provider histories remain separate in storage; combined local aggregation
+namespaces model identities and never rewrites a provider cache or uses account totals. New optional snapshot fields preserve older
 Codex/Claude snapshots and the separate Kimi quota snapshot. Snapshot updates
 for account usage or quota state preserve all provider histories.
 

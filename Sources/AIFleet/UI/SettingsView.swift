@@ -22,22 +22,66 @@ struct SettingsView: View {
     @State private var newThresholdText = "10"
     @State private var isAddingThreshold = false
 
+    private let sections: [(String, String, String)] = [
+        ("general", "General", "slider.horizontal.3"),
+        ("accounts", "Accounts", "person.crop.circle"),
+        ("providers", "Providers", "square.stack.3d.up"),
+        ("notifications", "Notifications", "bell")
+    ]
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Picker("Settings", selection: $navigation.tab) {
-                Text("General").tag("general")
-                Text("Accounts").tag("accounts")
-            }.pickerStyle(.segmented)
-            ScrollView {
-                if navigation.tab == "accounts" { AccountsSettingsView() }
-                else { generalSettings }
-            }
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("AI Fleet").font(FleetUI.title).padding(.bottom, 18)
+                ForEach(sections, id: \.0) { section in
+                    Button { navigation.tab = section.0 } label: {
+                        Label(section.1, systemImage: section.2)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(9)
+                            .background(navigation.tab == section.0 ? Color.accentColor.opacity(0.12) : .clear,
+                                        in: RoundedRectangle(cornerRadius: 7))
+                    }.buttonStyle(.plain)
+                }
+                Spacer()
+            }.padding(FleetUI.spacing).frame(width: 166)
+                .background(Color.primary.opacity(0.025))
+            Divider()
+            VStack(alignment: .leading, spacing: FleetUI.spacing) {
+                Text(sections.first { $0.0 == navigation.tab }?.1 ?? "General").font(FleetUI.title)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: FleetUI.spacing) {
+                        switch navigation.tab {
+                        case "accounts": AccountsSettingsView()
+                        case "providers": providerSettings
+                        case "notifications": notificationSettings
+                        default: generalSettings
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
+                }
+                Divider()
+                HStack {
+                    Spacer()
+                    Button("Quit AI Fleet") { NSApplication.shared.terminate(nil) }
+                        .buttonStyle(.plain).font(FleetUI.caption).foregroundStyle(.secondary).keyboardShortcut("q")
+                }
+
+            }.padding(FleetUI.spacing).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(20)
-        .frame(width: 500, height: 640)
-        .onAppear {
-            service.refreshNotificationSettings()
-            service.refresh()
+        .font(FleetUI.body)
+        .frame(width: 660, height: 620)
+        .onAppear { service.refreshNotificationSettings(); service.refresh() }
+    }
+
+    private var providerSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Choose which providers appear in the menu and Statistics. Hiding a provider preserves its accounts and history.")
+                .font(FleetUI.caption).foregroundStyle(.secondary)
+            ForEach(ProviderCatalog.all) { provider in
+                Toggle(provider.name, isOn: Binding(
+                    get: { settings.isEnabled(provider.id) },
+                    set: { settings.setEnabled($0, for: provider.id); service.refresh() }
+                )).toggleStyle(.switch)
+                Divider()
+            }
         }
     }
 
@@ -47,13 +91,42 @@ struct SettingsView: View {
                 HotkeyRecorder(settings: settings)
             }
 
+            settingsRow("Statistics") {
+                VStack(alignment: .leading, spacing: 7) {
+                    Toggle("Refresh daily", isOn: $settings.analyticsAutoRefreshEnabled)
+                        .font(.system(size: 13, weight: .medium))
+
+                    HStack(spacing: 8) {
+                        Text("Local time")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        DatePicker(
+                            "",
+                            selection: analyticsRefreshTimeBinding,
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                        .disabled(!settings.analyticsAutoRefreshEnabled)
+                    }
+
+                    Text("Runs quietly in the background and reuses unchanged session files.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var notificationSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
             settingsRow("Notifications") {
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(settings.notificationThresholds, id: \.self) { threshold in
                             HStack(spacing: 8) {
                                 Text("\(threshold)% remaining")
-                                    .font(.system(size: 11.5, weight: .medium))
+                                    .font(.system(size: 13, weight: .medium))
                                     .frame(width: 96, alignment: .leading)
                                 Button {
                                     settings.removeNotificationThreshold(threshold)
@@ -71,48 +144,23 @@ struct SettingsView: View {
                     addThresholdControl
 
                     Text("Alerts fire when remaining quota crosses a threshold.")
-                        .font(.system(size: 10.5))
+                        .font(.system(size: 11))
                         .foregroundColor(.secondary)
 
                     HStack(spacing: 8) {
                         Text(service.notificationStatusText)
-                            .font(.system(size: 10.5, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(service.notificationsEnabled ? .secondary : .red)
                         Button("Test") {
                             service.refreshNotificationSettings()
                             service.sendTestNotification()
                         }
-                        .font(.system(size: 10.5, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         Button("System") {
                             openNotificationSettings()
                         }
-                        .font(.system(size: 10.5, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                     }
-                }
-            }
-
-            settingsRow("Statistics") {
-                VStack(alignment: .leading, spacing: 7) {
-                    Toggle("Refresh daily", isOn: $settings.analyticsAutoRefreshEnabled)
-                        .font(.system(size: 11.5, weight: .medium))
-
-                    HStack(spacing: 8) {
-                        Text("Local time")
-                            .font(.system(size: 10.5))
-                            .foregroundColor(.secondary)
-                        DatePicker(
-                            "",
-                            selection: analyticsRefreshTimeBinding,
-                            displayedComponents: .hourAndMinute
-                        )
-                        .labelsHidden()
-                        .disabled(!settings.analyticsAutoRefreshEnabled)
-                    }
-
-                    Text("Runs quietly in the background and reuses unchanged session files.")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -124,9 +172,9 @@ struct SettingsView: View {
     ) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.secondary)
-                .frame(width: 110, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
             content()
         }
     }
@@ -160,13 +208,13 @@ struct SettingsView: View {
             if isAddingThreshold {
                 HStack(spacing: 8) {
                     TextField("Percent", text: $newThresholdText)
-                        .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .frame(width: 72)
                         .onSubmit(addThresholdFromInput)
 
                     Text("% remaining")
-                        .font(.system(size: 10.5))
+                        .font(.system(size: 11))
                         .foregroundColor(.secondary)
 
                     Button(action: addThresholdFromInput) {
@@ -216,7 +264,7 @@ struct HotkeyRecorder: View {
     var body: some View {
         Button(action: toggleRecording) {
             Text(recording ? "Type shortcut…" : settings.hotkey.displayString)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(

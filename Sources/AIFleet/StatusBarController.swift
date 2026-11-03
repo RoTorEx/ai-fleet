@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class FleetMenuScreen: ObservableObject {
     @Published var showsAgents = false
+    @Published var agentsSection = "Sessions"
 }
 
 private struct FleetMenuRoot: View {
@@ -14,13 +15,14 @@ private struct FleetMenuRoot: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
     let toggleAgents: () -> Void
+    let openProcesses: () -> Void
 
     var body: some View {
         Group {
             if screen.showsAgents {
-                AgentsView(service: agents, back: toggleAgents)
+                AgentsView(service: agents, back: toggleAgents, section: $screen.agentsSection)
             } else {
-                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics, openAgents: toggleAgents)
+                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics, openAgents: toggleAgents, openProcesses: openProcesses, agents: agents)
                     .environmentObject(service)
                     .environmentObject(AppSettings.shared)
             }
@@ -78,12 +80,17 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
                     self?.openStatistics(anchorFrame)
                 }
             },
-            toggleAgents: { [weak self] in self?.toggleAgents() }
+            toggleAgents: { [weak self] in self?.toggleAgents() },
+            openProcesses: { [weak self] in
+                self?.screen.agentsSection = "Processes"
+                self?.screen.showsAgents = true
+                self?.agents.stop()
+            }
         )
         let hostingController = NSHostingController(rootView: content)
         hostingController.sizingOptions = [.preferredContentSize]
 
-        popover.animates = true
+        popover.animates = false
         // .applicationDefined: we control closing (toggle, outside click, Escape).
         // .transient closes on focus stealing, which kills the popover while
         // the user keeps working in another app.
@@ -110,8 +117,9 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     }
 
     func toggleAgents() {
-        screen.showsAgents.toggle()
-        if screen.showsAgents { agents.start() } else { agents.stop() }
+        screen.showsAgents = false
+        screen.agentsSection = "Sessions"
+        agents.start()
         // Jump transfers focus to iTerm2. The same shortcut brings the menu back.
         NSApplication.shared.activate(ignoringOtherApps: true)
         popover.contentViewController?.view.window?.makeKey()
@@ -125,12 +133,12 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         guard let button = statusItem.button else {
             return
         }
-        StatusService.shared.refresh()
-
         // Activate so the popover becomes key and its buttons receive clicks.
         NSApplication.shared.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         button.highlight(true)
+        StatusService.shared.refresh()
+        if !screen.showsAgents { agents.start() }
         startClickMonitor()
         agentsHotKey = GlobalHotKey(keyCode: UInt32(kVK_ANSI_A), modifiers: UInt32(cmdKey), id: 2) { [weak self] in
             self?.toggleAgents()
@@ -170,7 +178,15 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
             }
 
             if event.type == .keyDown, event.keyCode == UInt16(kVK_Escape) {
+                if event.window?.identifier?.rawValue == "ai-fleet-child-popover" { return event }
                 self.closePopover()
+                return nil
+            }
+
+            if !self.screen.showsAgents, event.type == .keyDown,
+               event.keyCode == UInt16(kVK_ANSI_R),
+               event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
+                StatusService.shared.refresh(); CodexMonitoringStore.shared.refresh(force: true); self.agents.refresh(force: true)
                 return nil
             }
 
@@ -208,7 +224,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         guard let popoverWindow = popover.contentViewController?.view.window else {
             return false
         }
-        return event.window === popoverWindow
+        return event.window === popoverWindow || event.window?.identifier?.rawValue == "ai-fleet-child-popover"
     }
 
     private func isEventInsideStatusButton(_ event: NSEvent) -> Bool {

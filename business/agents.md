@@ -2,10 +2,12 @@
 
 ## Workflow
 
-The configured global shortcut opens AI Fleet. Agents sits after Refresh now and
-before Statistics. Command-A toggles Usage/Agents while the menu is open, also
-after Jump transfers focus to iTerm2. The temporary Command-A registration is
-removed on close. The existing configured global shortcut is preserved.
+The configured global shortcut opens the unified menu with Agents already
+expanded below provider connections. A separate filter icon contains session
+states; location groups collapse independently and show the last two path
+components (home is ~). Processes lives under application options and returns
+to the unified menu with Command-A. There is no separate Agents navigation step.
+The existing configured global shortcut is preserved.
 
 The compact colorful view follows the user's IMG_1195.MP4 reference: project
 headings, collapsible groups, stable session rows, provider/model when known,
@@ -17,7 +19,7 @@ relationships are never guessed from a directory or title.
 Click opens the exact existing iTerm2 window/tab/split and leaves the overview
 open. Session Jump never sends text, approvals, stop commands or tab closure.
 The separate Processes section offers explicit process termination as described below.
-Command-A returns to Usage. Escape, outside click or the global toggle closes the
+Command-A returns to Providers. Escape, outside click or the global toggle closes the
 menu. Ambiguous/exited links report an error rather than choosing a similar title.
 Opening a pane does not prove the user read its response.
 
@@ -56,7 +58,7 @@ warmed worker, so it never waits behind a status scan. At most two JXA helpers a
 needed regardless of session count.
 
 Visible Agents keeps updating after loss of keyboard focus; the standalone TUI's
-60-second user-idle sleep does not apply here. Usage/close sends EOF; workers finish
+60-second user-idle sleep does not apply here. Providers/close sends EOF; workers finish
 bounded in-flight work and drop/reap helpers. Scans never overlap in Swift. A
 pending scan after 15 seconds is marked stale; an unconfirmed Jump after 8 seconds
 becomes retryable. Those deadlines bound UI uncertainty rather than establish
@@ -66,12 +68,12 @@ scans retain and mark the last snapshot stale; activity animations stop.
 Inherited Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe
 framing, grouping, failed Jump, missing engine and light/dark layout. Release
-smoke checks require the helper/license in both architecture archives. Installed
+smoke checks require the helper/license in the Apple Silicon archive. Installed
 checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls
 
-Agents has Sessions and Processes sections. Processes lists only the current
+Agents exposes Sessions and Processes through its view menu. Processes lists only the current
 user's exact Codex and codex-code-mode-host executables, including background
 servers and updaters left after closing terminals. Native libproc discovery uses
 executable paths, UID, controlling-terminal presence and microsecond start identity;

@@ -372,7 +372,7 @@ final class StatisticsBehaviorTests: XCTestCase {
 
     func testStatisticsNumbersUseSpacesForGroupingAndDotsForDecimals() {
         XCTAssertEqual(groupedInteger(73_938), "73 938")
-        XCTAssertEqual(compactCount(11_803_040_000), "11 803.04M")
+        XCTAssertEqual(compactCount(11_803_040_000), "11.80B")
         XCTAssertEqual(compactCount(37_910_000), "37.91M")
         XCTAssertEqual(billionsCount(11_803_040_000), "11.80B")
         XCTAssertEqual(millionsCount(383_530_000), "383.53M")

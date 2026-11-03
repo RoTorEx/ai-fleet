@@ -6,11 +6,29 @@ Tracks real product and release progress.
 
 ### Changed
 
+- Redesign the local menu with instant opening, one compact status header, top
+  options, expanded Agents below providers, and Processes behind menu controls. Move
+  version/check metadata into options; keep Refresh in the header and remove Update.
+- Reorganize Settings into General, Accounts, Providers and Notifications with
+  shared spacing/type hierarchy. Show one authentication action followed by Switch.
+- Use opaque native hover cards for account/legend help and swap reset dates for
+  countdowns in the same cell. Compare different provider action-button icons.
+- Combine selected providers in one Statistics view labeled Local usage · This
+  Mac. Filters affect all metrics/tables/activity independently of menu visibility.
+  Promote thousands of millions to billions and bold book comparisons in token help.
+
 - Publish Apple Silicon builds only; stop building Intel release archives and
   explain the supported architecture before installer downloads.
 - Remove permanent selected-account and terminal-setup messages from menu rows.
   Successful provider actions leave no banner; other-provider feedback is dismissible.
 - Match default and lowest arrows to the visible size of neighboring access symbols.
+
+### Fixed
+
+- Attribute Codex tokens to structured per-turn model names, including GPT-6.1,
+  rather than prompt mentions or an old default. Rebuild old per-file caches,
+  skip repeated cumulative snapshots, and leave unverified model prices unavailable.
+- Remove the blue focus ring from Statistics provider filters.
 
 ## [1.3.12] - 2026-11-03
 
