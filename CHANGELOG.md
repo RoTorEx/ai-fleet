@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.3.12] - 2026-11-03
+
 ### Changed
 
 - Standardize Switch across Codex, Claude, Kimi, Qwen and Gemini: each provider's
