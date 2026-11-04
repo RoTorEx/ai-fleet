@@ -5,9 +5,6 @@ struct AIFleetMenuView: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
     var openAgents: () -> Void = {}
-    var openProcesses: () -> Void = {}
-    var agents: AgentSessionsService? = nil
-    var availableScreenHeight: CGFloat = NSScreen.main?.visibleFrame.height ?? 800
 
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
@@ -18,7 +15,7 @@ struct AIFleetMenuView: View {
 
     private var connections: [MenuAccountConnection] {
         sortedAccountProviderRows(ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
-            guard settings.isEnabled(provider.id) else { return [] }
+            guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider) else { return [] }
             return accountProviderRows(accounts: accounts.accounts, providerID: provider.id,
                 global: service.status(for: provider.id), statusForConnection: service.status(for:), codex: codexProfiles)
         })
@@ -33,158 +30,121 @@ struct AIFleetMenuView: View {
             .min { ($0.remainingPercent ?? 101) < ($1.remainingPercent ?? 101) }
     }
 
-    @State private var showsLegend = false
-    @State private var showsOptions = false
-    @State private var chromeHeights: [String: CGFloat] = [:]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            summarySection
+
+            FleetDivider()
+                .padding(.top, 11)
+                .padding(.bottom, 8)
+
+            if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
+                MenuRowsViewport(maxHeight: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 350))) {
+                    providerRows
+                }
+            } else {
+                providerRows
+            }
+
+            LegendSection()
+                .padding(.horizontal, 16)
+                .padding(.top, 11)
+
+            FleetDivider()
+                .padding(.top, 12)
+                .padding(.bottom, 9)
+
             VStack(alignment: .leading, spacing: 0) {
-                summarySection
-                Divider().padding(.vertical, 8)
-                if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
-                    MenuRowsViewport(maxHeight: min(340, max(180, availableScreenHeight - 240))) {
-                        providerRows
-                    }
-                } else { providerRows }
-                if agents != nil { Divider().padding(.vertical, 8) }
-            }.background(GeometryReader { geometry in
-                Color.clear.preference(key: MenuChromeHeightKey.self, value: ["top": geometry.size.height])
-            })
-            if let agents {
-                AgentsView(service: agents, back: {}, embedded: true, maxListHeight: agentsListHeight)
-            }
+                ActionButton(title: "Refresh now", shortcut: "⌘R", keyEquivalent: "r", modifiers: .command) {
+                    service.refresh(); codexProfiles.refresh(force: true)
+                }
 
-            HStack {
-                Text(lastCheckText)
-                Spacer(minLength: 4)
-                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development")
-            }.font(FleetUI.menuSecondary).foregroundStyle(.secondary).padding(.top, 8)
-                .background(GeometryReader { geometry in
-                    Color.clear.preference(key: MenuChromeHeightKey.self, value: ["footer": geometry.size.height])
-                })
+                ActionButton(title: "Agents", shortcut: "⌘A", keyEquivalent: nil) {
+                    openAgents()
+                }
+
+                ActionButton(title: "Statistics…", shortcut: "", keyEquivalent: nil) {
+                    openStatistics()
+                }
+
+                ActionButton(title: "Settings…", shortcut: "", keyEquivalent: nil) {
+                    openSettings()
+                }
+
+                ActionButton(title: updater.actionTitle, shortcut: "", keyEquivalent: nil) {
+                    updater.update()
+                }.disabled(updater.isBusy)
+
+                ActionButton(title: "Quit", shortcut: "⌘Q", keyEquivalent: "q", modifiers: .command) {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
+            .padding(.horizontal, 16)
+
         }
-        .font(FleetUI.menuBody)
-        .padding(FleetUI.spacing)
-        .frame(width: 320)
-        .background(Color.primary.opacity(0.025))
-        .onPreferenceChange(MenuChromeHeightKey.self) { chromeHeights = $0 }
-    }
-
-    private var agentsListHeight: CGFloat {
-        MenuHeightBudget.agentsViewport(screenHeight: availableScreenHeight,
-            fixedHeight: (chromeHeights["top"] ?? 210) + (chromeHeights["footer"] ?? 22)
-                + FleetUI.spacing * 2 + FleetUI.menuControlSize)
-    }
-
-    private var applicationMenu: some View {
-        Button { showsOptions.toggle() } label: {
-            FleetMenuIcon(systemName: "ellipsis").contentShape(Rectangle())
-        }.buttonStyle(.plain).focusable(false).accessibilityLabel("Application options")
-            .instantPopover(isPresented: $showsOptions) {
-                VStack(alignment: .leading, spacing: 2) {
-                    option("Statistics…", icon: "chart.bar", action: openStatistics)
-                    option("Settings…", icon: "gearshape", action: openSettings)
-                    option("Processes", icon: "cpu", action: openProcesses)
-                    Divider().padding(.vertical, 6)
-                    option("Quit", icon: "power") { NSApplication.shared.terminate(nil) }
-                }.padding(12).frame(width: 190)
-
-            }
-    }
-
-    private func option(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button { showsOptions = false; action() } label: {
-            Label(title, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 7).contentShape(Rectangle())
-        }.buttonStyle(.plain).font(.system(size: 12)).focusable(false)
-    }
-
-    private var lastCheckText: String {
-        guard let date = (providers.compactMap(\.lastUpdated) + [agents?.observedAt].compactMap { $0 }).max() else { return "Last refresh: —" }
-        return "Last refresh: " + date.formatted(date: .omitted, time: .standard)
+        .padding(.vertical, 14)
+        .frame(width: 354)
+        .background(FleetPalette.background)
     }
 
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, isLowest: entry.status.id == lowestProvider?.id, openSettings: openSettings)
+                ProviderLimitRow(entry: entry, isLowest: entry.isSelected && entry.status.id == lowestProvider?.id, openSettings: openSettings)
             }
 
         }
+        .padding(.horizontal, 16)
     }
 
     private var summarySection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 5) {
-                Circle().fill(operationStatus.failed ? Color.orange : service.isMonitoring ? Color.green : Color.secondary)
-                    .frame(width: 6, height: 6)
-                Text(operationStatus.title).font(FleetUI.caption).foregroundStyle(.secondary).lineLimit(1)
-                Text("(\(providers.filter(\.hasCurrentQuota).count)/\(providers.count))")
-                    .font(FleetUI.caption).foregroundStyle(.secondary).monospacedDigit()
-                Button { showsLegend.toggle() } label: {
-                    FleetMenuIcon(systemName: "info.circle")
-                }.buttonStyle(.plain).focusable(false).foregroundStyle(.secondary)
-                    .accessibilityLabel("Legend for status, accounts, limits and agents")
-                    .onHover { showsLegend = $0 }
-                    .instantPopover(isPresented: $showsLegend) { completeLegend }
-                Spacer(minLength: 3)
-                Button {
-                    service.refresh(); codexProfiles.refresh(force: true); agents?.refresh(force: true)
-                } label: {
-                    FleetMenuIcon(systemName: "arrow.clockwise")
-                }.buttonStyle(.plain).focusable(false).help("Refresh (⌘R)").accessibilityLabel("Refresh (Command-R)")
-                applicationMenu
-            }
-            if let detail = operationStatus.detail {
-                Text(detail).font(FleetUI.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var completeLegend: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("Legend").font(FleetUI.menuHeading)
-            Text("Monitoring").bold()
-            Text("● Monitoring active").foregroundStyle(.green)
-            Text("○ Monitoring paused")
-            Text("● Needs attention").foregroundStyle(.orange)
-            Text("\(providers.filter(\.hasCurrentQuota).count)/\(providers.count) — measured limits / connections")
-            Divider()
-            Text("Provider accounts").bold()
-            Text("→ Connected")
-            Text("× Unavailable; dashes mean no measurement")
-            Text("↓ Lowest positive remaining limit")
-            Divider()
-            Text("Remaining limits").bold()
-            Text("26–100% — enough").foregroundStyle(.primary)
-            Text("11–25% — low").foregroundStyle(.orange)
-            Text("0–10% — critical").foregroundStyle(.red)
-            ForEach(accounts.visibleAccounts) { account in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("(\(account.badge)) \(account.name)")
-                    Text(account.email).foregroundStyle(.secondary)
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 6, verticalSpacing: 7) {
+            GridRow {
+                summaryLabel("Status")
+                VStack(alignment: .leading, spacing: 3) {
+                    summaryValue(operationStatus.title, color: operationStatus.failed ? FleetPalette.warning : FleetPalette.value)
+                    if let detail = operationStatus.detail {
+                        Text(detail).font(.system(size: 11))
+                            .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.muted)
+                            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    }
                 }
             }
-            Divider()
-            Text("Reset times").bold()
-            Text("Hover a date to see time remaining.")
-            Text("d — days    h — hours    m — minutes    s — seconds")
-            Text("Not reported — no reset date from the provider")
-            Divider()
-            Text("Agents").bold()
-            Text("Working — processing the current request")
-            Text("Idle — waiting for input")
-            Text("Ready — new reply, pane not opened since it arrived")
-            Text("Question / Approval — needs your input")
-            Text("Error — agent reported a blocker")
-            Text("Unknown — no confirmed state")
-            Text("Timer from the terminal or current request.")
-            Text("≥ — observed duration only.")
-            Text("Last message uses the provider log timestamp when available.")
-        }.font(FleetUI.menuSecondary).foregroundStyle(.secondary)
-            .frame(width: 300, alignment: .leading).padding(12)
+            GridRow {
+                summaryLabel("Checked")
+                summaryValue(lastUpdateText)
+            }
+            GridRow {
+                summaryLabel("Lowest")
+                summaryValue(
+                    lowestRemainingText,
+                    color: lowestProvider.map(rowColor(for:)) ?? FleetPalette.value
+                )
+            }
+            GridRow {
+                summaryLabel("Limits")
+                summaryValue(quotaAvailabilityText(providers))
+            }
+            GridRow {
+                summaryLabel("Version")
+                summaryValue(versionText)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func summaryLabel(_ text: String) -> some View {
+        Text("\(text):")
+            .font(.system(size: 12.5, weight: .semibold))
+            .foregroundColor(FleetPalette.label)
+    }
+
+    private func summaryValue(_ text: String, color: Color = FleetPalette.value) -> some View {
+        Text(text)
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundColor(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
     }
 
     private var operationStatus: MenuOperationStatus {
@@ -201,11 +161,34 @@ struct AIFleetMenuView: View {
         } else {
             signing = accounts.codexSigningIn ? "Signing in Codex…" : nil
         }
-        return MenuOperationStatus.resolve(update: updater.state, refreshing: false,
+        return MenuOperationStatus.resolve(update: updater.state, refreshing: service.isRefreshing || codexProfiles.refreshing,
                                             signingIn: signing, monitoring: service.isMonitoring)
     }
 
+    private var lastUpdateText: String {
+        guard let updated = providers.compactMap(\.lastUpdated).max() else {
+            return "waiting"
+        }
+        return updated.formatted(date: .omitted, time: .standard)
+    }
 
+    private var lowestRemainingText: String {
+        if let provider = lowestProvider {
+            let badge = connections.first { $0.status.id == provider.id }?.account.badge ?? "?"
+            return "\(provider.name) (\(badge)) · \(limitText(for: provider))"
+        }
+        let hasData = providers.contains { $0.remainingPercent != nil }
+        return hasData ? "-" : "waiting"
+    }
+
+    private var versionText: String {
+        guard let version = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String else {
+            return "development build"
+        }
+        return version
+    }
 }
 
 struct MenuRowsViewport<Content: View>: View {
@@ -249,7 +232,6 @@ struct MenuAccountConnection: Identifiable {
 }
 
 struct ProviderLimitRow: View {
-    @State private var showsActions = false
     let entry: MenuAccountConnection
     let isLowest: Bool
     let openSettings: () -> Void
@@ -257,36 +239,87 @@ struct ProviderLimitRow: View {
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
+    @State private var isBadgeHovered = false
     private var status: ProviderStatus { entry.status }
     private var presentation: MenuConnectionState { MenuConnectionState(status: status) }
     private var color: Color { presentation.available ? rowColor(for: status) : FleetPalette.muted }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Button { showsActions.toggle() } label: {
-                HStack(alignment: .center, spacing: 4) {
-                    FleetInlineSymbol(systemName: isLowest ? "arrow.down" : status.authentication == .signedIn ? "arrow.right" : "xmark", size: 6)
-                        .accessibilityLabel(isLowest ? "Lowest positive remaining limit" : status.authentication == .signedIn ? "Connected" : "Unavailable")
-                        .frame(width: 8, alignment: .center)
-                    Text(status.name + (entry.account.badge.isEmpty ? "" : " (\(entry.account.badge))"))
-                        .font(FleetUI.menuHeading).lineLimit(1)
-                    Spacer(minLength: 0)
-                }.foregroundColor(color)
-                    .frame(maxWidth: .infinity, minHeight: FleetUI.menuControlSize, alignment: .leading)
-                    .contentShape(Rectangle())
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    FleetMark(kind: .current)
+                        .opacity((entry.isCurrentCLI ?? entry.isSelected) ? 1 : 0)
+                        .foregroundColor(color)
+                        .accessibilityLabel((entry.isCurrentCLI ?? entry.isSelected) ? "\(status.name) account \(entry.account.badge), current" : "")
+                    FleetMark(kind: .lowest).opacity(isLowest ? 1 : 0)
+                        .foregroundColor(color)
+                    Text(presentation.marker)
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundColor(color).frame(width: 14)
+                }
+                Text(status.name)
+                    .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
+                if !entry.account.badge.isEmpty {
+                Text("(\(entry.account.badge))")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(color)
+                    .onHover { isBadgeHovered = $0 }
+                    .accessibilityHint(Text(entry.account.tooltip(for: entry.connection, status: status)))
+                    .accessibilityLabel("\(status.name) account \(entry.account.badge)")
+                }
+                Spacer(minLength: 8)
+                Menu {
+                    if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil, entry.isCurrentCLI == true {
+                        Button("Save current login") { codexProfiles.saveCurrentLogin(entry.account) }
+                            .disabled(codexProfiles.refreshing)
+                        Divider()
+                    }
+                    if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) != nil {
+                        Button("Switch") { codexProfiles.switchAccount(entry.account) }
+                            .disabled(codexProfiles.refreshing)
+                            .help("The next codex command uses this account. Running sessions keep their current accounts.")
+                        Divider()
+                    }
+                    if !entry.usesAccountLogin {
+                        Button("Switch") {
+                            if entry.account.badge.isEmpty {
+                                SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
+                            } else {
+                                providerLaunch.switchAccount(entry.account, providerID: status.providerID,
+                                    global: service.status(for: status.providerID))
+                            }
+                        }.disabled(providerLaunch.busy)
+                        .help("Applies to the next launch. Running agents keep their current accounts.")
+                        Divider()
+                    }
+                    Button(entry.usesAccountLogin && codexProfiles.profile(for: entry.account) == nil ? "Connect separate login…" : "Sign in…") {
+                        if entry.usesAccountLogin {
+                            if entry.account.badge.isEmpty {
+                                SettingsNavigation.shared.addAccount(for: "codex")
+                                openSettings()
+                            } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
+                        }
+                        else { providerLaunch.signIn(entry.account, providerID: status.providerID) }
+                    }
+                    .disabled(entry.usesAccountLogin && codexProfiles.refreshing)
+                    .help("Sign in to this account. Existing terminal sessions keep their current login.")
+                    if entry.usesAccountLogin {
+                        if let profile = codexProfiles.profile(for: entry.account), status.authentication == .signedIn {
+                            Button("Sign out", role: .destructive) { codexProfiles.signOut(profile) }
+                                .disabled(codexProfiles.refreshing)
+                        }
+                    } else if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
+                        Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
+                            providerLaunch.signOut(entry.account, providerID: status.providerID)
+                        }
+                    }
+                } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
+                .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
-            .buttonStyle(.plain).quietMenuFocus()
-            .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
-            .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
-            .instantPopover(isPresented: $showsActions) {
-                VStack(alignment: .leading, spacing: 12) {
-                    AccountConnectionActions(account: entry.account, connection: entry.connection, status: status,
-                        isCurrentCLI: entry.isCurrentCLI == true, openSettings: openSettings,
-                        onAction: { showsActions = false })
-                }.font(FleetUI.menuBody).buttonStyle(.plain)
-                    .frame(width: 160, alignment: .leading).padding(12)
-            }
-            if presentation.available, !status.limitWindows.isEmpty {
+            if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(status.limitWindows) { window in
                         if status.providerID == "gemini" {
@@ -300,54 +333,64 @@ struct ProviderLimitRow: View {
                         }
                     }
                 }
-                .padding(.leading, 20)
+                .padding(.leading, 52)
             } else {
-                ForEach(quotaPlaceholderLabels(for: status), id: \.self) { label in
-                    HStack(spacing: 15) {
-                        HStack(spacing: 7) {
-                            Text(label).frame(width: 26, alignment: .leading)
-                            Text("—").frame(width: 40, alignment: .leading)
-                        }.frame(width: 73, alignment: .leading)
-                        HStack(spacing: 5) {
-                            Image(systemName: "clock").frame(width: 12).hidden()
-                            Text("—")
-                        }
-                        Spacer(minLength: 0)
-                    }.font(FleetUI.menuBody).foregroundStyle(.secondary).frame(height: 18).padding(.leading, 20)
-                }
+                Text(presentation.detail)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(color).fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 52)
             }
-            if presentation.available, let notice = status.quotaNotice {
+            if let notice = status.quotaNotice {
                 Text(notice).font(.system(size: 10.5))
                     .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
-                    .lineLimit(2).padding(.leading, 20)
+                    .lineLimit(2).padding(.leading, 52)
+            }
+            if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil,
+               status.hasCurrentQuota || !status.limitWindows.isEmpty {
+                Text(status.hasCurrentQuota ? "Linked to terminal login" : status.detail)
+                    .font(.system(size: 10.5)).foregroundColor(FleetPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
+                    .help("Connect a separate login to keep this account available when the terminal login changes.")
             }
             if entry.usesAccountLogin {
                 CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
-                    .padding(.leading, 20)
+                    .padding(.leading, 52)
             }
             if providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == status.providerID,
                let message = providerLaunch.message {
-                HStack(alignment: .top, spacing: 5) {
-                    Text(message).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if !providerLaunch.busy {
-                        Button { providerLaunch.dismissMessage() } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.plain).font(.caption2)
-                            .accessibilityLabel("Dismiss account message")
-                    }
-                }.padding(.leading, 20)
+                Text(message).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
             }
             if accounts.launchProviderID == status.providerID &&
                 (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {
                 if accounts.codexSigningIn && status.providerID == "codex" && entry.isCurrentCLI == true {
-                    CodexSignInProgress(accounts: accounts).padding(.leading, 20)
+                    CodexSignInProgress(accounts: accounts).padding(.leading, 52)
                 }
                 if let error = accounts.launchError {
                     Text("Sign-in: \(error)").font(.caption).foregroundColor(FleetPalette.danger)
-                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 20)
+                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
                 }
             }
-        }.saturation(0.55)
+        }
+        .overlay(alignment: .topLeading) {
+            if isBadgeHovered {
+                let tooltip = entry.account.tooltip(for: entry.connection, status: status)
+                if !tooltip.isEmpty {
+                    Text(tooltip)
+                        .font(.system(size: 11))
+                        .foregroundColor(FleetPalette.value)
+                        .frame(maxWidth: 240, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: true)
+                        .padding(8)
+                        .background(FleetPalette.background, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(FleetPalette.border))
+                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                        .offset(x: 52, y: 22)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .zIndex(isBadgeHovered ? 1 : 0)
     }
 }
 
@@ -358,8 +401,7 @@ struct LimitWindowLine: View {
     var showsLabel = true
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 15) {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
             if showsLabel {
                 Text(window.label)
                     .font(limitWindowFont)
@@ -368,21 +410,22 @@ struct LimitWindowLine: View {
             }
 
             Text(windowValueText)
-                .font(limitWindowFont).monospacedDigit()
+                .font(limitWindowFont)
                 .foregroundColor(windowColor)
                 .frame(width: 40, alignment: .leading)
 
-            }.frame(width: 73, alignment: .leading)
-            ResetCountdownView(resetAt: blockingWindow == nil ? window.resetAt : nil,
-                               dateText: resetText)
-                .font(limitWindowFont).foregroundColor(resetColor)
+            Text(resetText)
+                .font(limitWindowFont)
+                .foregroundColor(resetColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
 
             Spacer(minLength: 0)
         }
     }
 
     private var limitWindowFont: Font {
-        FleetUI.menuBody
+        .system(size: 11, weight: .medium, design: .monospaced)
     }
 
     private var blockingWindow: ProviderLimitWindow? {
@@ -417,7 +460,7 @@ struct LimitWindowLine: View {
         if blockingWindow != nil {
             return "-"
         }
-        return window.resetAt.map(formatResetTime) ?? "Not reported"
+        return "↻ \(window.resetAt.map(formatResetTime) ?? "unknown")"
     }
 
     private var resetColor: Color {
@@ -437,6 +480,132 @@ struct LimitWindowLine: View {
             return FleetPalette.warning
         }
         return FleetPalette.value
+    }
+}
+
+/// Both marks use one vector rotated in a square, so their arrow lengths match.
+struct FleetMark: View {
+    enum Kind { case current, lowest }
+    let kind: Kind
+    var size: CGFloat = 13
+    var body: some View {
+        Image(systemName: "arrow.right")
+            .font(.system(size: size, weight: .medium))
+            .rotationEffect(.degrees(kind == .lowest ? 90 : 0))
+            .frame(width: size + 1, height: size + 1)
+    }
+}
+
+struct LegendSection: View {
+    var body: some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 4, verticalSpacing: 4) {
+            GridRow {
+                Text("Capacity:")
+                    .foregroundColor(FleetPalette.label)
+                HStack(spacing: 4) {
+                    Text("Enough ≥26%")
+                        .foregroundColor(FleetPalette.value)
+                    Text("·")
+                        .foregroundColor(FleetPalette.muted)
+                    Text("Low 11–25%")
+                        .foregroundColor(FleetPalette.warning)
+                    Text("·")
+                        .foregroundColor(FleetPalette.muted)
+                    Text("Critical ≤10%")
+                        .foregroundColor(FleetPalette.danger)
+                }
+            }
+
+            GridRow {
+                Text("Access:").foregroundColor(FleetPalette.label)
+                HStack(spacing: 4) {
+                    Text("○ ready").foregroundColor(FleetPalette.value)
+                    Text("· × sign in ·").foregroundColor(FleetPalette.value)
+                    Text("? unavailable").foregroundColor(FleetPalette.muted)
+                }
+            }
+            GridRow {
+                Text("Marks:").foregroundColor(FleetPalette.label)
+                HStack(spacing: 6) {
+                    FleetMark(kind: .current, size: 10.5)
+                    Text("default")
+                    Spacer().frame(width: 8)
+                    FleetMark(kind: .lowest, size: 10.5)
+                    Text("lowest remaining")
+                }.foregroundColor(FleetPalette.value)
+            }
+        }
+        .font(.system(size: 10.5, weight: .medium))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+    }
+}
+
+struct FleetDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(FleetPalette.divider)
+            .frame(height: 1)
+            .padding(.horizontal, 16)
+    }
+}
+
+struct ActionButton: View {
+    let title: String
+    let shortcut: String
+    let keyEquivalent: KeyEquivalent?
+    let modifiers: EventModifiers
+    let action: () -> Void
+    @State private var isHovered = false
+
+    init(
+        title: String,
+        shortcut: String,
+        keyEquivalent: KeyEquivalent? = nil,
+        modifiers: EventModifiers = [],
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.shortcut = shortcut
+        self.keyEquivalent = keyEquivalent
+        self.modifiers = modifiers
+        self.action = action
+    }
+
+    var body: some View {
+        if let keyEquivalent {
+            button
+                .keyboardShortcut(keyEquivalent, modifiers: modifiers)
+        } else {
+            button
+        }
+    }
+
+    private var button: some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundColor(isHovered ? FleetPalette.hoverCommand : FleetPalette.command)
+                Spacer()
+                Text(shortcut)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(FleetPalette.muted)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(isHovered ? 0.10 : 0))
+        )
+        .padding(.horizontal, -8)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 
@@ -477,18 +646,4 @@ private func rowColor(for status: ProviderStatus) -> Color {
 
 private func formatResetTime(_ date: Date) -> String {
     date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-}
-
-/// Total menu growth stops at three quarters of the available screen height.
-enum MenuHeightBudget {
-    static func agentsViewport(screenHeight: CGFloat, fixedHeight: CGFloat) -> CGFloat {
-        max(0, screenHeight * 0.75 - fixedHeight)
-    }
-}
-
-private struct MenuChromeHeightKey: PreferenceKey {
-    static var defaultValue: [String: CGFloat] = [:]
-    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
-    }
 }

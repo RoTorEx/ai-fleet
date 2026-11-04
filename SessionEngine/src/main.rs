@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 #[path = "../vendor/activity.rs"]
 mod activity;
-mod codex_metadata;
 #[path = "../vendor/command.rs"]
 mod command;
 #[path = "../vendor/content.rs"]
@@ -65,8 +64,6 @@ fn row(session: &model::Session, progress: &activity::Progress) -> Value {
         "request": progress.request,
         "answer": progress.last_message,
         "updatedAt": timestamp(progress.updated_at),
-        "requestedAt": if progress.native_metadata { timestamp(progress.requested_at) } else { None },
-        "lastMessageAt": if progress.native_metadata { timestamp(progress.updated_at) } else { None },
     })
 }
 
@@ -99,116 +96,6 @@ fn apply(
     }
 }
 
-/// Display-only timing from the same panes and PID/start checks as the pinned reader.
-fn read_activity(
-    sessions: &[model::Session],
-    terminal: &mut iterm::Client,
-) -> anyhow::Result<(activity::Snapshot, HashMap<String, SystemTime>)> {
-    let table = process::scan()?;
-    let valid: Vec<_> = sessions
-        .iter()
-        .filter(|s| {
-            s.location
-                .as_ref()
-                .is_some_and(|p| model::valid_identity(s, p, &table))
-        })
-        .collect();
-    let panes: Vec<_> = valid.iter().filter_map(|s| s.location.clone()).collect();
-    let observed = terminal.observe(&panes)?;
-    let claude: Vec<_> = valid
-        .iter()
-        .copied()
-        .filter(|s| s.provider == process::Provider::Claude)
-        .collect();
-    let mut metadata = crate::session_data::read(&claude);
-    metadata.extend(codex_metadata::read(&valid));
-    // Reject identity reuse during the file read.
-    let after = process::scan()?;
-    metadata.retain(|id, _| {
-        valid.iter().any(|s| {
-            &s.id == id
-                && after
-                    .iter()
-                    .any(|p| p.pid == s.pid && p.started == s.started)
-        })
-    });
-    let now = SystemTime::now();
-    let working_starts = valid
-        .iter()
-        .enumerate()
-        .filter_map(|(index, session)| {
-            if !after
-                .iter()
-                .any(|p| p.pid == session.pid && p.started == session.started)
-            {
-                return None;
-            }
-            let text = observed.texts.get(index)?.as_deref()?;
-            if activity::Observation::parse(text, session.provider).state
-                != activity::State::Working
-            {
-                return None;
-            }
-            let elapsed = working_elapsed(text)?;
-            now.checked_sub(elapsed)
-                .map(|start| (session.id.clone(), start))
-        })
-        .collect();
-    let sessions = sessions
-        .iter()
-        .map(|s| {
-            let text = valid
-                .iter()
-                .position(|v| v.id == s.id)
-                .and_then(|i| observed.texts.get(i))
-                .and_then(|s| s.as_deref());
-            (
-                s.id.clone(),
-                text.map(|text| activity::Observation::parse(text, s.provider)),
-            )
-        })
-        .collect();
-    Ok((
-        activity::Snapshot {
-            sessions,
-            focused: observed.focused,
-            metadata,
-        },
-        working_starts,
-    ))
-}
-
-fn working_elapsed(text: &str) -> Option<Duration> {
-    let line =
-        text.lines().rev().take(24).find(|line| {
-            line.contains("esc to interrupt") || line.contains("ctrl+c to interrupt")
-        })?;
-    let duration = line.rsplit_once('(')?.1.split(['•', '·']).next()?.trim();
-    let mut number = String::new();
-    let mut seconds = 0u64;
-    let mut parts = 0;
-    for c in duration.chars() {
-        if c.is_ascii_digit() {
-            number.push(c);
-        } else if c.is_whitespace() {
-            continue;
-        } else {
-            let factor = match c {
-                'd' => 86400,
-                'h' => 3600,
-                'm' => 60,
-                's' => 1,
-                _ => return None,
-            };
-            let value: u64 = number.parse().ok()?;
-            seconds = seconds.checked_add(value.checked_mul(factor)?)?;
-            number.clear();
-            parts += 1;
-        }
-    }
-    (parts > 0 && number.is_empty()).then(|| Duration::from_secs(seconds))
-}
-
 fn main() {
     let output = Arc::new(Mutex::new(std::io::stdout()));
     let sessions = Arc::new(Mutex::new(Vec::<model::Session>::new()));
@@ -220,7 +107,6 @@ fn main() {
         thread::spawn(move || {
             let mut collector = model::Collector::new(30);
             let mut states = HashMap::<String, activity::Progress>::new();
-            let mut working_starts = HashMap::<String, SystemTime>::new();
             let mut last_activity: Option<Instant> = None;
             for request in scan_rx {
                 let result = (|| -> anyhow::Result<Value> {
@@ -232,18 +118,15 @@ fn main() {
                         || changed
                         || last_activity.is_none_or(|t| t.elapsed() >= Duration::from_secs(5))
                     {
-                        let (snapshot, starts) = read_activity(&found, &mut collector.terminal)?;
-                        working_starts = starts;
-                        apply(snapshot, &found, &mut states);
+                        apply(
+                            activity::read(&found, &mut collector.terminal)?,
+                            &found,
+                            &mut states,
+                        );
                         last_activity = Some(Instant::now());
                     }
                     Ok(
-                        json!({"kind": "snapshot", "sessions": found.iter().map(|s| {
-                            let progress = states.entry(s.id.clone()).or_default();
-                            let mut value = row(s, progress);
-                            value["workingStartedAt"] = if progress.label() == "Working" { json!(timestamp(working_starts.get(&s.id).copied())) } else { Value::Null };
-                            value
-                        }).collect::<Vec<_>>(),
+                        json!({"kind": "snapshot", "sessions": found.iter().map(|s| row(s, states.entry(s.id.clone()).or_default())).collect::<Vec<_>>(),
                         "observedAt": timestamp(Some(SystemTime::now()))}),
                     )
                 })();
@@ -317,27 +200,6 @@ fn main() {
 mod bridge_tests {
     use super::*;
     #[test]
-    fn working_clock_reads_only_explicit_live_status_durations() {
-        assert_eq!(
-            working_elapsed("• Working (12m 5s • esc to interrupt)"),
-            Some(Duration::from_secs(725))
-        );
-        assert_eq!(
-            working_elapsed("Working (1h 2m 3s · esc to interrupt)"),
-            Some(Duration::from_secs(3723))
-        );
-        assert_eq!(
-            working_elapsed("Working (0s • esc to interrupt)"),
-            Some(Duration::ZERO)
-        );
-        assert_eq!(working_elapsed("Worked for 12m 5s"), None);
-        assert_eq!(working_elapsed("A response mentions 12m 5s"), None);
-        assert_eq!(
-            working_elapsed("Working (unknown • esc to interrupt)"),
-            None
-        );
-    }
-    #[test]
     fn malformed_requests_cannot_become_jumps_and_rows_keep_unknown_state() {
         assert!(serde_json::from_str::<Request>(r#"{"command":"jump","sessionID":"1"}"#).is_err());
         let session = model::Session {
@@ -355,15 +217,6 @@ mod bridge_tests {
         assert_eq!(value["state"], "Unknown");
         assert!(value["location"].is_null());
         assert!(value["updatedAt"].is_null());
-        assert!(value["requestedAt"].is_null());
-        assert!(value["lastMessageAt"].is_null());
-        let mut observed = activity::Progress::default();
-        observed.updated_at = Some(UNIX_EPOCH + Duration::from_secs(60));
-        observed.requested_at = Some(UNIX_EPOCH + Duration::from_secs(30));
-        assert!(row(&session, &observed)["lastMessageAt"].is_null());
-        observed.native_metadata = true;
-        assert_eq!(row(&session, &observed)["requestedAt"], json!(30.0));
-        assert_eq!(row(&session, &observed)["lastMessageAt"], json!(60.0));
         assert!(value.get("percent").is_none());
     }
 }

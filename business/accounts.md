@@ -97,29 +97,26 @@ Authentication and limit measurement remain independent internally. Menu markers
 communicate measurement availability: ○ current limits loaded (including 0%),
 × sign-in required, ? limits unavailable or unknown. Any connection without
 current limits is gray, even if its CLI reports a configured login; a missing
-measurement never looks ready. The hover legend behind the info button has three independent rows: Capacity names the remaining
+measurement never looks ready. The compact legend has three independent rows: Capacity names the remaining
 allowance bands (Enough ≥26%, Low 11–25%, Critical ≤10%); Access names connector
 availability (○ ready, × sign in, ? unavailable); Marks explains → default and
 ↓ lowest remaining. Default describes the account for the next ordinary provider command after terminal integration, not the identity of existing processes. Unavailable access is visually muted without a separate
 "gray" label attached to an arrow. Both arrows use the same vector rotated 90°
 in equal square frames, in the rows and in the legend. Legend marks match the
-adjacent access symbols' visible size. SF Symbol arrows use 70% of the access
-symbol font size to match their visible ink, retaining equal layout cells and
-baseline alignment. The default mark alone indicates a successful selection;
-no permanent selected-account or command-setup notice appears below a menu row.
-One-time terminal setup guidance belongs in Settings → Accounts. Completed
-successful actions leave no banner; non-Codex action feedback can be dismissed.
+legend's text size; provider-row marks retain their larger row size.
 Email/plan hover and login actions retain actual authentication
 state. Account-specific errors cannot borrow another account's limits or tokens.
 Old shared session history is not split by badge.
 
 The top Status reflects AI Fleet's monitoring lifecycle: Active while periodic
 monitoring is enabled, Paused after monitoring stops. Checking/downloading/installing
-an update, authentication of a named account, temporarily shows its operation state. Routine limit refresh keeps Active stable. A successful version check returns to Active/Paused
+an update, authentication of a named account, and refreshing limits temporarily
+show their operation state. A successful version check returns to Active/Paused
 with a secondary confirmation rather than replacing the monitor state. Provider
 measurement problems belong to their own rows and never become an unscoped app
-error. Last checked appears in the options footer; Providers counts current measurements.
-The updater remains an internal compatibility path; the menu has no Update command. Account authentication errors remain under their named provider.
+error. Checked names the last provider check; Limits counts current measurements.
+Update errors appear once in Status, including the failing stage, with Retry update
+as the command. Account authentication errors remain under their named provider.
 Expired or missing access is described without the generic "sign in again"
 suffix; the account's existing Sign in action remains available.
 
@@ -159,9 +156,9 @@ suffix; the account's existing Sign in action remains available.
 - Alerts retain the existing global-provider scope, with connection and
   reported account/organization identity. Independently measured profiles may
   display quotas without becoming that global notification source.
-- Statistics combines selected local datasets. Its separate Provider reports panel
-  compares identity-bound monitoring profiles using provider-reported totals;
-  old common local history is not attributed to them or mixed into those reports.
+- The Codex Usage dashboard keeps the standard global scope. Its Accounts view
+  compares independent monitoring profiles using only provider-reported totals;
+  old common local history is not attributed to them.
 
 Gemini login and quota boundaries are owned by [Gemini](gemini.md).
 
@@ -176,11 +173,3 @@ non-launch/non-mutation on refusal, native command/environment selection,
 statistics/auth exclusion, preserved status after refusal, pending/cancel,
 failure/timeout/retry and saved history. Real corporate browser/SSO login requires the user’s authentication and is not
 established by fixtures; development checks do not change live provider login.
-
-## Interface ownership
-
-[Interface](interface.md) owns menu/options placement and Settings destinations.
-Authentication actions are exclusive: signed-in rows show Sign out; other rows
-show Sign in. Switch follows that action. Authentication and selection remain
-separate. Provider action icons are deliberately different in the local redesign
-for user comparison; do not infer authentication from the selected icon.

@@ -168,14 +168,13 @@ struct CodexFileUsageRecord: Codable, Equatable {
     let size: Int
     let dailyModels: [DailyModelUsage]
     var timeZoneIdentifier: String? = nil
-    var parserRevision: Int? = nil
 
     var eventCount: Int {
         dailyModels.reduce(0) { $0 + $1.events }
     }
 
-    func matches(_ file: CodexLogFile, timeZone: TimeZone = .autoupdatingCurrent, parserRevision expected: Int? = nil) -> Bool {
-        (expected == nil || parserRevision == expected) && timeZoneIdentifier == timeZone.identifier
+    func matches(_ file: CodexLogFile, timeZone: TimeZone = .autoupdatingCurrent) -> Bool {
+        timeZoneIdentifier == timeZone.identifier
             && size == file.size && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1
     }
 }
@@ -254,15 +253,6 @@ final class UsageAnalyticsService: ObservableObject {
     func updateKimi(kimi: ProviderStatus) {
         let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
         snapshot = snapshot.withKimi(kimiAnalytics)
-    }
-
-    func rebuildChangedParserIfNeeded(kimi: ProviderStatus) {
-        guard !isRefreshing, fileCache.values.contains(where: { record in
-            let url = URL(fileURLWithPath: record.path)
-            return record.parserRevision != CodexUsageLogReader.parserRevision &&
-                !ClaudeUsageLogReader.isClaudeLog(url) && !LocalUsageProvider.allCases.contains { $0.contains(url) }
-        }) else { return }
-        refresh(kimi: kimi)
     }
 
     func refreshAccountUsageIfNeeded() {
@@ -351,9 +341,7 @@ final class UsageAnalyticsService: ObservableObject {
                 guard !Task.isCancelled else { return }
                 self.progress.currentFileName = file.url.lastPathComponent
 
-                let isCodex = !ClaudeUsageLogReader.isClaudeLog(file.url) && !LocalUsageProvider.allCases.contains { $0.contains(file.url) }
-                if let cached = existingFileCache[file.url.path],
-                   cached.matches(file, parserRevision: isCodex ? CodexUsageLogReader.parserRevision : nil) {
+                if let cached = existingFileCache[file.url.path], cached.matches(file) {
                     nextFileCache[file.url.path] = cached
                 } else {
                     let record = await Task.detached(priority: .background) {
@@ -564,7 +552,6 @@ struct CodexUsageLogEntry {
 }
 
 struct CodexUsageLogReader {
-    static let parserRevision = 2
     var calendar = Calendar.autoupdatingCurrent
     private let iso8601 = ISO8601DateFormatter()
     private let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
@@ -598,8 +585,7 @@ struct CodexUsageLogReader {
             modifiedAt: file.modifiedAt,
             size: file.size,
             dailyModels: dailyModelUsage(entries: readEntries(from: file.url)),
-            timeZoneIdentifier: calendar.timeZone.identifier,
-            parserRevision: Self.parserRevision
+            timeZoneIdentifier: calendar.timeZone.identifier
         )
     }
 
@@ -671,43 +657,103 @@ struct CodexUsageLogReader {
     }
 
     func readEntries(from file: URL) -> [CodexUsageLogEntry] {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return [] }
-        var entries: [CodexUsageLogEntry] = []
-        var model = "Unknown model"
-        var previousCumulative: [String: Int]?
-        for line in content.split(separator: "\n") {
-            guard line.contains("last_token_usage") || line.contains("turn_context") || line.contains("session_meta"),
-                  let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
-                  let payload = object["payload"] as? [String: Any] else { continue }
-            let type = object["type"] as? String
-            if type == "turn_context" || type == "session_meta" {
-                if let reported = payload["model"] as? String, !reported.isEmpty { model = reported }
-                continue
-            }
-            guard type == "event_msg", payload["type"] == nil || payload["type"] as? String == "token_count",
-                  let info = payload["info"] as? [String: Any],
-                  let usage = info["last_token_usage"] as? [String: Any],
-                  let stamp = object["timestamp"] as? String, let timestamp = timestamp(from: stamp) else { continue }
-            // Codex can repeat a token_count snapshot without another request.
-            if let cumulative = info["total_token_usage"] as? [String: Int], !cumulative.isEmpty {
-                if cumulative == previousCumulative { continue }
-                previousCumulative = cumulative
-            }
-            let reported = (info["model"] as? String) ?? (payload["model"] as? String) ?? model
-            let input = max(0, (usage["input_tokens"] as? Int) ?? 0)
-            let cached = min(input, max(0, (usage["cached_input_tokens"] as? Int) ?? 0))
-            let writes = min(input - cached, max(0, (usage["cache_write_input_tokens"] as? Int) ?? 0))
-            let output = max(0, (usage["output_tokens"] as? Int) ?? 0)
-            let reasoning = min(output, max(0, (usage["reasoning_output_tokens"] as? Int) ?? 0))
-            let totals = usageTotals(model: reported, input: input, cached: cached, cacheWrite: writes,
-                                     output: output, reasoning: reasoning)
-            entries.append(CodexUsageLogEntry(timestamp: timestamp, model: reported, totals: totals))
+        guard let content = try? String(contentsOf: file, encoding: .utf8) else {
+            return []
         }
+
+        var entries: [CodexUsageLogEntry] = []
+        let modelHeader = String(content.prefix(100_000))
+        let sessionModel = knownModel(in: modelHeader) ?? "gpt-5.6-sol"
+        let usageMarker = "\"last_token_usage\""
+        var cursor = content.startIndex
+
+        while cursor < content.endIndex,
+              let usageRange = content.range(of: usageMarker, range: cursor..<content.endIndex) {
+            let lineStart = content[..<usageRange.lowerBound].lastIndex(of: "\n")
+                .map { content.index(after: $0) } ?? content.startIndex
+            let lineEnd = content[usageRange.upperBound...].firstIndex(of: "\n") ?? content.endIndex
+            let text = String(content[lineStart..<lineEnd])
+            cursor = lineEnd < content.endIndex ? content.index(after: lineEnd) : content.endIndex
+
+            guard let timestamp = timestamp(in: text) else { continue }
+
+            let usageText: String
+            if let usageStart = text.range(of: "\"last_token_usage\"")?.lowerBound {
+                usageText = String(text[usageStart...])
+            } else {
+                usageText = text
+            }
+            let input = intValue("input_tokens", in: usageText)
+            let cached = intValue("cached_input_tokens", in: usageText)
+            let cacheWrite = intValue("cache_write_input_tokens", in: usageText)
+            let output = intValue("output_tokens", in: usageText)
+            let reasoning = intValue("reasoning_output_tokens", in: usageText)
+            let totals = usageTotals(
+                model: sessionModel,
+                input: input,
+                cached: cached,
+                cacheWrite: cacheWrite,
+                output: output,
+                reasoning: reasoning
+            )
+
+            entries.append(CodexUsageLogEntry(timestamp: timestamp, model: sessionModel, totals: totals))
+        }
+
         return entries
+    }
+
+    private func timestamp(in text: String) -> Date? {
+        guard let range = text.range(of: "\"timestamp\"") else { return nil }
+        let rest = text[range.upperBound...]
+        guard let firstQuote = rest.firstIndex(of: "\"") else { return nil }
+        let afterFirstQuote = rest.index(after: firstQuote)
+        guard let secondQuote = rest[afterFirstQuote...].firstIndex(of: "\"") else { return nil }
+        return timestamp(from: String(rest[afterFirstQuote..<secondQuote]))
     }
 
     private func timestamp(from value: String) -> Date? {
         iso8601WithFractionalSeconds.date(from: value) ?? iso8601.date(from: value)
+    }
+
+    private func intValue(_ key: String, in text: String) -> Int {
+        guard let keyRange = text.range(of: "\"\(key)\"") else {
+            return 0
+        }
+
+        let afterKey = text[keyRange.upperBound...]
+        guard let colon = afterKey.firstIndex(of: ":") else {
+            return 0
+        }
+
+        var index = text.index(after: colon)
+        while index < text.endIndex, text[index].isWhitespace {
+            index = text.index(after: index)
+        }
+
+        let start = index
+        while index < text.endIndex, text[index].isNumber {
+            index = text.index(after: index)
+        }
+
+        guard start < index else { return 0 }
+        return Int(text[start..<index]) ?? 0
+    }
+
+    private func knownModel(in text: String) -> String? {
+        let knownModels = [
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+            "gpt-5.5-cyber",
+            "gpt-5.5",
+            "gpt-5.4-mini",
+            "gpt-5.4",
+            "gpt-5.3-codex",
+            "gpt-5.2"
+        ]
+        let lowercased = text.lowercased()
+        return knownModels.first { lowercased.contains($0) }
     }
 
     private func usageTotals(
@@ -726,10 +772,7 @@ struct CodexUsageLogReader {
             reasoningOutputTokens: reasoning,
             estimatedCostUSD: 0
         )
-        guard let rates = CodexAPIRates.rates(for: model) else {
-            totals.costEstimateAvailable = false
-            return totals
-        }
+        let rates = CodexAPIRates.rates(for: model)
         totals.estimatedCostUSD =
             Double(totals.billableInputTokens) / 1_000_000 * rates.input +
             Double(cached) / 1_000_000 * rates.cachedInput +
@@ -841,22 +884,23 @@ private enum CodexAPIRates {
         let output: Double
     }
 
-    static func rates(for model: String) -> Rates? {
-        let families: [(String, Rates)] = [
-            ("gpt-5.6-sol", Rates(input: 5, cachedInput: 0.5, cacheWrite: 6.25, output: 30)),
-            ("gpt-5.5-cyber", Rates(input: 5, cachedInput: 0.5, cacheWrite: 6.25, output: 30)),
-            ("gpt-5.5", Rates(input: 5, cachedInput: 0.5, cacheWrite: 6.25, output: 30)),
-            ("gpt-5.6-terra", Rates(input: 2.5, cachedInput: 0.25, cacheWrite: 3.125, output: 15)),
-            ("gpt-5.6-luna", Rates(input: 1, cachedInput: 0.1, cacheWrite: 1.25, output: 6)),
-            ("gpt-5.4-mini", Rates(input: 0.75, cachedInput: 0.075, cacheWrite: 0.9375, output: 4.5)),
-            ("gpt-5.4", Rates(input: 2.5, cachedInput: 0.25, cacheWrite: 3.125, output: 15)),
-            ("gpt-5.3-codex", Rates(input: 1.75, cachedInput: 0.175, cacheWrite: 2.1875, output: 14)),
-            ("gpt-5.2", Rates(input: 1.75, cachedInput: 0.175, cacheWrite: 2.1875, output: 14))
-        ]
+    static func rates(for model: String) -> Rates {
         let normalized = model.lowercased()
-        return families.first { family, _ in
-            normalized == family || (normalized.hasPrefix(family + "-") &&
-                normalized.dropFirst(family.count + 1).count == 8 && normalized.suffix(8).allSatisfy(\.isNumber))
-        }?.1
+        if normalized.contains("gpt-5.6-terra") {
+            return Rates(input: 2.50, cachedInput: 0.25, cacheWrite: 3.125, output: 15.00)
+        }
+        if normalized.contains("gpt-5.6-luna") {
+            return Rates(input: 1.00, cachedInput: 0.10, cacheWrite: 1.25, output: 6.00)
+        }
+        if normalized.contains("gpt-5.4-mini") {
+            return Rates(input: 0.75, cachedInput: 0.075, cacheWrite: 0.9375, output: 4.50)
+        }
+        if normalized.contains("gpt-5.4") {
+            return Rates(input: 2.50, cachedInput: 0.25, cacheWrite: 3.125, output: 15.00)
+        }
+        if normalized.contains("gpt-5.3") || normalized.contains("gpt-5.2") {
+            return Rates(input: 1.75, cachedInput: 0.175, cacheWrite: 2.1875, output: 14.00)
+        }
+        return Rates(input: 5.00, cachedInput: 0.50, cacheWrite: 6.25, output: 30.00)
     }
 }

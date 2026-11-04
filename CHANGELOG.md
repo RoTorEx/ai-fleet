@@ -4,67 +4,6 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
-### Changed
-
-- Open account actions from the provider header, remove key buttons, reduce
-  status marks to 6 points, preserve muted provider colors and align compact
-  provider/agent content margins.
-
-- Replace the connected arrow with the lowest-remaining arrow instead of showing
-  both.
-
-- Restore leading provider arrows (connected and lowest remaining) and unavailable
-  crosses, remove vertical rules, and indent quota/reset details beneath names.
-
-- Use compact General/Accounts tabs and grouped account connectors with separate
-  add/remove actions, verified terminal-login import and explicit reimport after removal.
-- Require matching provider identity for Switch and command launch; add Kimi browser
-  device login that validates the server email before saving private credentials.
-- Keep enabled providers visible without a CLI/login, show unavailable quota dashes,
-  align quota rows and use a short line-based legend.
-- Use monochrome agent states, current-request elapsed Working time and a moving
-  strip; distinguish Ready from Idle and show bound last-message time separately.
-- Rename the menu footer to Last refresh: time.
-
-- Remove Default/Next launch text and repeated location
-  suffixes from agent titles. Center header symbols within fixed hit targets and
-  remove the Refresh/options keyboard-focus highlight.
-- Omit every zero countdown component and align compact menu fonts, symbols and
-  action targets using shared typography and centered provider headers. Keep the
-  agent provider label on the second line to give session titles more room.
-- Keep one state label per agent and remove the leading spinner. Limit menu growth
-  to three quarters of the available display height, scrolling only the agents list.
-
-- Redesign the local menu with instant opening, one compact status header, top
-  options, expanded Agents below providers, and Processes behind menu controls. Move
-  version/check metadata to the main footer; keep Refresh in the header and remove Update.
-- Organize Settings into General and Accounts with shared spacing/type hierarchy.
-  Show one authentication action followed by Switch.
-- Use an arrow-free 320-point panel with adaptive system blur. Keep Greek account
-  badges, open account actions from provider names, and move account mapping into the legend.
-- Keep reset countdowns stable while hovering, with days/hours/minutes/seconds.
-  Add an explicit outside-click dismissal preference and compact options.
-- Combine selected providers in one Statistics view labeled Local usage · This
-  Mac. Filters affect all metrics/tables/activity independently of menu visibility.
-  Promote thousands of millions to billions and bold book comparisons in token help.
-
-- Publish Apple Silicon builds only; stop building Intel release archives and
-  explain the supported architecture before installer downloads.
-- Remove permanent selected-account and terminal-setup messages from menu rows.
-  Successful provider actions leave no banner; other-provider feedback is dismissible.
-- Match default and lowest arrows to the visible size of neighboring access symbols.
-
-### Fixed
-
-- Read current Codex message timestamps from the unique process-bound primary
-  transcript, supporting larger headers, helper transcripts and response items.
-- Route Cmd-comma to the same compact Settings window as the menu action.
-
-- Attribute Codex tokens to structured per-turn model names, including GPT-6.1,
-  rather than prompt mentions or an old default. Rebuild old per-file caches,
-  skip repeated cumulative snapshots, and leave unverified model prices unavailable.
-- Remove the blue focus ring from Statistics provider filters.
-
 ## [1.3.12] - 2026-11-03
 
 ### Changed

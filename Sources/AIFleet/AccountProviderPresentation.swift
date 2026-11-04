@@ -74,12 +74,3 @@ func accountProviderRows(accounts: [FleetAccount], providerID: String, global: P
             isCurrentCLI: currentCLI, usesAccountLogin: providerID == "codex")
     }
 }
-
-func quotaPlaceholderLabels(for status: ProviderStatus) -> [String] {
-    if !status.limitWindows.isEmpty { return status.limitWindows.map(\.label) }
-    switch status.providerID {
-    case "claude", "codex": return ["5h", "7d"]
-    case "kimi": return ["7d"]
-    default: return ["—"]
-    }
-}

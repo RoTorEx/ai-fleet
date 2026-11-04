@@ -6,25 +6,16 @@ struct AgentsView: View {
     let back: () -> Void
     @State private var filter = "All"
     @State private var collapsed = Set<String>()
-    @Binding var section: String
-    let embedded: Bool
-    let maxListHeight: CGFloat?
-
-    init(service: AgentSessionsService, back: @escaping () -> Void, section: Binding<String> = .constant("Sessions"), embedded: Bool = false, maxListHeight: CGFloat? = nil) {
-        self.service = service; self.back = back; self._section = section; self.embedded = embedded; self.maxListHeight = maxListHeight
-    }
+    @State private var section = "Sessions"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let filters = ["All", "Needs you", "Working", "Idle", "Ready", "Question", "Error", "Unknown"]
+    private let filters = ["All", "Needs you", "Working", "Idle", "Unknown"]
 
     private var visible: [AgentSession] {
         service.sessions.filter { session in
             switch filter {
             case "Needs you": return session.needsYou
             case "Working": return session.isWorking
-            case "Idle": return ["Untracked", "Opened", "Idle"].contains(session.state)
-            case "Ready": return ["New reply", "Ready"].contains(session.state)
-            case "Question": return ["Question", "Approval"].contains(session.state)
-            case "Error": return ["Blocked", "Error"].contains(session.state)
+            case "Idle": return ["Untracked", "Opened", "New reply"].contains(session.state)
             case "Unknown": return session.state == "Unknown" || session.location == nil
             default: return true
             }
@@ -33,62 +24,65 @@ struct AgentsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if embedded {
-                HStack(spacing: 6) {
-                    Text("Agents").font(FleetUI.menuHeading)
-                    Text("\(visible.count)").font(FleetUI.menuSecondary).foregroundStyle(.secondary)
-                    Spacer()
-                    filterMenu
-                }.frame(height: FleetUI.menuControlSize)
-            } else {
-                HStack(spacing: 9) {
-                    Image(systemName: "waveform.path.ecg").foregroundStyle(.green)
-                    Text(section == "Processes" ? "Processes" : "Agents").font(FleetUI.title)
-                    if section == "Sessions" {
-                        Text("\(service.sessions.count)").font(FleetUI.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if section == "Sessions" {
-                        if service.isLoading { ProgressView().controlSize(.small) }
-                        Button { service.refresh(force: true) } label: { Image(systemName: "arrow.clockwise") }
-                            .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
-                    }
-                    Menu {
-                        Button("Overview") { back() }
-                        Button("Processes") { section = "Processes" }
-                    } label: { Image(systemName: "ellipsis").frame(width: 24, height: 24) }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().quietMenuFocus()
-                        .accessibilityLabel("Agent view options")
-                    Button(action: back) {
-                        HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Overview"); Text("⌘A").foregroundStyle(.secondary) }
-                    }.buttonStyle(.plain).help("Return to the main menu (⌘A)")
-                }.padding(.horizontal, 16).padding(.top, 15).padding(.bottom, 10)
-            }
+            HStack(spacing: 9) {
+                Image(systemName: "waveform.path.ecg").foregroundStyle(.green)
+                Text("Agents").font(.system(size: 15, weight: .semibold))
+                Text("\(service.sessions.count)").font(.system(size: 11, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 7).padding(.vertical, 3).background(.quaternary, in: Capsule())
+                Spacer()
+                if section == "Sessions" {
+                    if service.isLoading { ProgressView().controlSize(.small) }
+                    Button { service.refresh(force: true) } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
+                }
+                Button(action: back) {
+                    HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Usage"); Text("⌘A").foregroundStyle(.secondary) }
+                }.buttonStyle(.plain).help("Return to the main menu (⌘A)")
+            }.padding(.horizontal, 16).padding(.top, 15).padding(.bottom, 10)
+
+            Picker("View", selection: $section) {
+                Text("Sessions").tag("Sessions")
+                Text("Processes").tag("Processes")
+            }.pickerStyle(.segmented).padding(.horizontal, 14).padding(.bottom, 10)
+
             if section == "Processes" {
-                MenuRowsViewport(maxHeight: maxListHeight ?? (embedded ? 400 : 550)) {
+                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
                     CodexProcessesView()
                 }
             } else {
-                MenuRowsViewport(maxHeight: maxListHeight ?? (embedded ? 400 : 550)) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if let error = service.error {
-                            Label(error, systemImage: "exclamationmark.triangle")
-                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                        } else if !service.sessions.isEmpty, service.sessions.allSatisfy({ $0.location == nil }) {
-                            Text(service.sessions.first?.linkReason ?? "No confirmed iTerm2 links. Check Automation permission in System Settings.")
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(3)
-                                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                HStack(spacing: 4) {
+                    ForEach(filters, id: \.self) { item in
+                        Button { filter = item } label: {
+                            Text(item).font(.system(size: 10.5, weight: .medium))
+                                .padding(.horizontal, 8).padding(.vertical, 5)
+                                .foregroundStyle(filter == item ? Color.primary : Color.secondary)
+                                .background(filter == item ? Color.primary.opacity(0.09) : Color.clear, in: Capsule())
+                        }.buttonStyle(.plain)
+                    }
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 12).padding(.bottom, 9)
+                Divider()
 
+                if let error = service.error {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                } else if !service.sessions.isEmpty, service.sessions.allSatisfy({ $0.location == nil }) {
+                    Text(service.sessions.first?.linkReason ?? "No confirmed iTerm2 links. Check Automation permission in System Settings.")
+                        .font(.caption).foregroundStyle(.orange).lineLimit(3)
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
+                    VStack(alignment: .leading, spacing: 3) {
                         if visible.isEmpty {
                             VStack(spacing: 10) {
                                 Image(systemName: service.isLoading ? "antenna.radiowaves.left.and.right" : "terminal")
-                                    .font(.system(size: embedded ? 18 : 28)).foregroundStyle(.secondary)
-                                Text(service.isLoading ? "Finding live sessions…" : emptyTitle).font(embedded ? FleetUI.menuHeading : .headline)
+                                    .font(.system(size: 28)).foregroundStyle(.secondary)
+                                Text(service.isLoading ? "Finding live sessions…" : emptyTitle).font(.headline)
                                 Text(service.sessions.isEmpty ? "Open Codex or Claude in iTerm2.\nYour usual launch commands stay the same." : "Choose another filter to see more sessions.")
                                     .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            }.frame(maxWidth: .infinity).padding(.vertical, embedded ? 16 : 55)
+                            }.frame(maxWidth: .infinity).padding(.vertical, 55)
                         }
                         ForEach(AgentGroup.make(visible)) { group in
                             Button {
@@ -98,12 +92,12 @@ struct AgentsView: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down").font(.system(size: 8, weight: .bold))
-                                    Image(systemName: "folder").font(FleetUI.menuIcon).frame(width: 12)
-                                    Text(compactAgentLocation(group.id)).lineLimit(1).truncationMode(.middle)
+                                    Image(systemName: "folder")
+                                    Text(group.name).lineLimit(1).truncationMode(.middle)
                                     Text("\(group.sessions.count)").foregroundStyle(.tertiary)
                                     Spacer()
-                                }.font(FleetUI.menuBody).foregroundStyle(.secondary)
-                                    .padding(.horizontal, embedded ? 0 : 9).padding(.top, 6).padding(.bottom, 3)
+                                }.font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
+                                    .padding(.horizontal, 9).padding(.top, 11).padding(.bottom, 4)
                                     .contentShape(Rectangle())
                             }.buttonStyle(.plain).help(group.id)
                             if !collapsed.contains(group.id) {
@@ -112,218 +106,207 @@ struct AgentsView: View {
                                         selected: service.selectedID == session.id,
                                         jumping: service.jumpingID == session.id,
                                         stale: service.isStale,
-                                        workClock: service.workClock(for: session),
                                         canJump: service.jumpingID == nil) {
                                         service.jump(to: session)
                                     }
                                 }
                             }
                         }
-                        if let error = service.jumpError {
-                            Text(error).font(FleetUI.caption).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 6)
-                        }
-                    }.padding(.horizontal, embedded ? 0 : 9).padding(.bottom, 6)
+                    }.padding(.horizontal, 9).padding(.bottom, 12)
                 }
 
-                if !embedded {
-                    Divider()
-                    HStack(spacing: 7) {
-                        Circle().fill(service.isStale ? Color.orange : Color.green).frame(width: 5, height: 5)
-                        Text(service.isStale ? "Stale · refresh to verify" : (service.isLoading ? "Connecting to iTerm2…" : "Live · local iTerm2 sessions"))
-                        Spacer()
-                        Text("Click to jump · Esc to close")
-                    }.font(FleetUI.caption).foregroundStyle(.secondary)
-                        .padding(.horizontal, FleetUI.spacing).padding(.vertical, 8)
+                Divider()
+                if let error = service.jumpError {
+                    Text(error).font(.caption).foregroundStyle(.orange)
+                        .padding(.horizontal, 14).padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
                 }
-
+                HStack(spacing: 7) {
+                    Circle().fill(service.isStale ? Color.orange : Color.green).frame(width: 5, height: 5)
+                    Text(service.isStale ? "Stale · refresh to verify" : (service.isLoading ? "Connecting to iTerm2…" : "Live · local iTerm2 sessions"))
+                    Spacer()
+                    Text("Click to jump · Esc to close")
+                }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 11)
             }
         }
-        .frame(width: embedded ? nil : 520)
-        .background(embedded ? Color.clear : Color(nsColor: .windowBackgroundColor))
+        .frame(width: 520)
+        .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: section) { section in
             if section == "Processes" { service.stop() } else { service.start() }
         }
     }
 
-    private var filterMenu: some View {
-        Menu {
-            ForEach(filters, id: \.self) { item in
-                Button { filter = item } label: {
-                    if filter == item { Label(item, systemImage: "checkmark") } else { Text(item) }
-                }
-            }
-        } label: {
-            FleetMenuIcon(systemName: "line.3.horizontal.decrease.circle")
-                .foregroundStyle(filter == "All" ? Color.secondary : Color.accentColor)
-        }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().quietMenuFocus()
-            .accessibilityLabel("Filter agents: \(filter)").help("Agent filter: \(filter)")
-    }
-
     private var emptyTitle: String { service.sessions.isEmpty ? "No linked agents yet" : "No sessions in this filter" }
 }
 
-struct AgentSessionStatus: Equatable {
-    enum Tone: Equatable { case working, success, attention, blocked, quiet }
-    let title: String
-    let symbol: String
-    let tone: Tone
-
-    init(state: String, stale: Bool, linked: Bool, jumping: Bool = false) {
-        if !linked { self = Self(title: "Unlinked", symbol: "link", tone: .quiet) }
-        else if stale { self = Self(title: "Stale", symbol: "clock", tone: .quiet) }
-        else if jumping { self = Self(title: "Opening…", symbol: "arrow.up.forward", tone: .working) }
-        else {
-            switch state {
-            case "Working": self = Self(title: state, symbol: "bolt.fill", tone: .working)
-            case "New reply": self = Self(title: "Ready", symbol: "checkmark.message", tone: .success)
-            case "Approval": self = Self(title: state, symbol: "hand.raised", tone: .attention)
-            case "Question": self = Self(title: state, symbol: "questionmark.bubble", tone: .attention)
-            case "Blocked", "Error": self = Self(title: "Error", symbol: "exclamationmark.octagon", tone: .blocked)
-            case "Untracked", "Opened": self = Self(title: "Idle", symbol: "pause", tone: .quiet)
-            default: self = Self(title: state, symbol: state == "Unknown" ? "questionmark.circle" : "pause", tone: .quiet)
-            }
-        }
-    }
-
-    private init(title: String, symbol: String, tone: Tone) {
-        self.title = title; self.symbol = symbol; self.tone = tone
-    }
-    var color: Color { .secondary }
-}
-
-struct AgentSessionRow: View {
+private struct AgentSessionRow: View {
     let session: AgentSession
     let selected: Bool
     let jumping: Bool
     let stale: Bool
-    var workClock: AgentWorkClock? = nil
     let canJump: Bool
     let jump: () -> Void
     @State private var hovering = false
-    private var status: AgentSessionStatus {
-        AgentSessionStatus(state: session.state, stale: stale, linked: session.location != nil, jumping: jumping)
+    private var tint: Color { AgentColors.color(for: session.id) }
+    private var statusColor: Color {
+        if stale || session.location == nil { return .secondary }
+        if session.needsYou { return session.state == "Blocked" ? .red : .orange }
+        if session.state == "New reply" { return .cyan }
+        return session.isWorking ? tint : .secondary
     }
-    private var helpText: String {
-        let lastActivity = session.updatedAt.map {
-            "Last activity · " + Date(timeIntervalSince1970: $0).formatted(date: .abbreviated, time: .standard)
-        } ?? ""
-        return [session.explanation, session.locationLabel, lastActivity, String((session.request ?? "").prefix(600))]
-            .filter { !$0.isEmpty }.joined(separator: "\n")
+    private var symbol: String {
+        switch session.state {
+        case "Working": return "waveform.path"
+        case "Approval": return "hand.raised"
+        case "Question": return "questionmark"
+        case "Blocked": return "exclamationmark"
+        case "New reply": return "sparkle"
+        case "Opened": return "checkmark"
+        default: return "ellipsis"
+        }
     }
 
     var body: some View {
         Button(action: jump) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(agentSessionDisplayTitle(session.title, provider: session.provider, project: session.project))
-                    .font(FleetUI.menuBody).foregroundStyle(.primary)
-                    .lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
-                HStack(spacing: 5) {
-                    Text(session.provider.capitalized).foregroundStyle(.secondary).fixedSize().layoutPriority(1)
-                    if let model = session.model { Text("· \(model)").lineLimit(1).truncationMode(.middle) }
-                    Spacer(minLength: 4)
-                    if session.isWorking, !stale, session.location != nil {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            Text("Working (\(workClock?.elapsed(at: context.date) ?? "—"))")
-                                .monospacedDigit().lineLimit(1).fixedSize()
-                        }
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle().fill(tint.opacity(0.12)).frame(width: 25, height: 25)
+                    if session.isWorking && !stale {
+                        AgentOrbit(color: tint).frame(width: 25, height: 25)
                     } else {
-                        Text(status.title).lineLimit(1).fixedSize()
+                        Circle().stroke(tint.opacity(0.35), lineWidth: 1).frame(width: 25, height: 25)
                     }
-                }.font(FleetUI.menuSecondary).foregroundStyle(.secondary)
-                HStack(spacing: 4) {
-                    Text("Last message:")
-                    if let time = session.lastMessageAt {
-                        Text(Date(timeIntervalSince1970: time).formatted(date: .omitted, time: .standard)).monospacedDigit()
-                    } else { Text("—") }
-                    Spacer(minLength: 0)
-                }.font(.system(size: 9)).foregroundStyle(.tertiary)
-                AgentWorkingStrip(active: session.isWorking && !stale && session.location != nil)
-                    .frame(height: 2).accessibilityHidden(true)
+                    Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(statusColor)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(session.title).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
+                            .lineLimit(1).truncationMode(.tail)
+                        Spacer(minLength: 3)
+                        if jumping { ProgressView().controlSize(.mini) }
+                        else if let updated = session.updatedAt {
+                            Text(Date(timeIntervalSince1970: updated), style: .relative)
+                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    HStack(spacing: 5) {
+                        Text(session.provider.capitalized).foregroundStyle(tint)
+                        if let model = session.model { Text("· \(model)").lineLimit(1) }
+                        Spacer(minLength: 4)
+                        Text(session.location == nil ? "Unlinked" : (stale ? "Stale" : session.state))
+                            .foregroundStyle(statusColor).lineLimit(1)
+                    }.font(.system(size: 10)).foregroundStyle(.secondary)
+                    AgentActivityLine(color: tint, active: session.isWorking && !stale)
+                        .frame(height: 2)
+                }
             }
-            .padding(.horizontal, 9).padding(.vertical, 7)
-            .background(status.color.opacity(hovering ? 0.12 : (selected ? 0.08 : 0.035)), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(status.color.opacity(hovering || selected ? 0.4 : 0.1), lineWidth: 1))
+            .padding(.horizontal, 9).padding(.vertical, 6)
+            .background(tint.opacity(hovering ? 0.14 : (selected ? 0.09 : 0.035)), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(tint.opacity(hovering || selected ? 0.45 : 0.08), lineWidth: 1))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain).quietMenuFocus().disabled(session.location == nil || !canJump)
+        .buttonStyle(.plain).disabled(session.location == nil || !canJump)
         .onHover { hovering = $0 }
-        .help(helpText)
-        .accessibilityLabel("\(session.title), \(status.title), \(session.locationLabel)")
+        .help("\(session.explanation)\n\(session.locationLabel)\n\(String((session.request ?? "").prefix(600)))")
+        .accessibilityLabel("\(session.title), \(session.state), \(session.locationLabel)")
         .accessibilityHint("Open the existing iTerm2 pane; keep Agents visible")
     }
 }
 
-/// Remove explicit UI annotations without deleting provider names from task text.
-func agentSessionDisplayTitle(_ title: String, provider: String, project: String? = nil) -> String {
-    var result = title
-    for label in [provider, provider + " Code"] {
-        let suffix = " (" + label + ")"
-        if result.lowercased().hasSuffix(suffix.lowercased()) { result = String(result.dropLast(suffix.count)) }
-        for separator in [" · ", " | ", ": "] {
-            let prefix = label + separator
-            if result.lowercased().hasPrefix(prefix.lowercased()) { result = String(result.dropFirst(prefix.count)) }
-        }
+private struct AgentOrbit: View {
+    let color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        AgentMotion(color: NSColor(color), orbit: true, animated: !reduceMotion)
+            .allowsHitTesting(false).accessibilityHidden(true)
     }
-    // Terminal activity prefixes are decoration, not part of the task name.
-    if let scalar = result.unicodeScalars.first,
-       ((0x2800...0x28FF).contains(scalar.value) || scalar.value == 0x22EE),
-       result.dropFirst().first?.isWhitespace == true {
-        result = String(result.dropFirst()).trimmingCharacters(in: .whitespaces)
-    }
-    if let project, let separator = result.range(of: " | ", options: .backwards) {
-        let location = URL(fileURLWithPath: project).standardizedFileURL
-        let suffix = String(result[separator.upperBound...]).trimmingCharacters(in: .whitespaces)
-        let labels = [location.path, location.lastPathComponent, compactAgentLocation(location.path)]
-        if labels.contains(where: { $0.caseInsensitiveCompare(suffix) == .orderedSame }) {
-            result = String(result[..<separator.lowerBound]).trimmingCharacters(in: .whitespaces)
-        }
-    }
-    return result.isEmpty ? title : result
 }
 
-private struct AgentWorkingStrip: NSViewRepresentable {
+private struct AgentActivityLine: View {
+    let color: Color
     let active: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    func makeNSView(context: Context) -> WorkingStripView { WorkingStripView() }
-    func updateNSView(_ view: WorkingStripView, context: Context) {
-        view.configure(active: active, animated: !reduceMotion)
+    var body: some View {
+        Capsule().fill(color.opacity(active ? 0.16 : 0.08)).overlay {
+            if active {
+                AgentMotion(color: NSColor(color), orbit: false, animated: !reduceMotion)
+            }
+        }.allowsHitTesting(false).accessibilityHidden(true)
     }
 }
 
-private final class WorkingStripView: NSView {
-    private let beam = CALayer()
-    private var active = false
+/// Core Animation drives decoration without invalidating SwiftUI rows every frame.
+private struct AgentMotion: NSViewRepresentable {
+    let color: NSColor
+    let orbit: Bool
+    let animated: Bool
+    func makeNSView(context: Context) -> AgentMotionView { AgentMotionView() }
+    func updateNSView(_ view: AgentMotionView, context: Context) {
+        view.configure(color: color, orbit: orbit, animated: animated)
+    }
+}
+
+private final class AgentMotionView: NSView {
+    private let ring = CAShapeLayer()
+    private let beam = CAGradientLayer()
+    private var orbit = false
     private var animated = false
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    private var previousSize = CGSize.zero
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
         wantsLayer = true
-        isHidden = true
         layer?.masksToBounds = true
-        layer?.cornerRadius = 1
+        layer?.addSublayer(ring)
         layer?.addSublayer(beam)
+        ring.fillColor = nil
+        ring.lineWidth = 1.6
+        ring.lineCap = .round
+        ring.strokeStart = 0.1
+        ring.strokeEnd = 0.85
+        beam.startPoint = CGPoint(x: 0, y: 0.5)
+        beam.endPoint = CGPoint(x: 1, y: 0.5)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    func configure(active: Bool, animated: Bool) {
-        isHidden = !active
-        guard self.active != active || self.animated != animated else { return }
-        self.active = active; self.animated = animated
-        isHidden = !active
+
+    func configure(color: NSColor, orbit: Bool, animated: Bool) {
+        let changed = self.orbit != orbit || self.animated != animated
+        self.orbit = orbit
+        self.animated = animated
+        ring.strokeColor = color.cgColor
+        beam.colors = [color.withAlphaComponent(0).cgColor, color.withAlphaComponent(0.8).cgColor, color.withAlphaComponent(0).cgColor]
+        ring.isHidden = !orbit
+        beam.isHidden = orbit
+        if changed { previousSize = .zero }
         needsLayout = true
     }
+
     override func layout() {
         super.layout()
-        layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.08).cgColor
-        beam.backgroundColor = NSColor.labelColor.withAlphaComponent(0.4).cgColor
+        guard bounds.size != previousSize, bounds.width > 0 else { return }
+        previousSize = bounds.size
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        ring.frame = bounds
+        ring.path = CGPath(ellipseIn: CGRect(origin: .zero, size: bounds.size).insetBy(dx: 1, dy: 1), transform: nil)
+        beam.frame = CGRect(x: bounds.width * 0.25, y: 0, width: bounds.width * 0.45, height: bounds.height)
+        ring.removeAllAnimations()
         beam.removeAllAnimations()
-        beam.frame = CGRect(x: bounds.width * 0.35, y: 0, width: bounds.width * 0.3, height: bounds.height)
-        if active && animated && bounds.width > 0 {
-            let animation = CABasicAnimation(keyPath: "position.x")
-            animation.fromValue = -bounds.width * 0.15
-            animation.toValue = bounds.width * 1.15
-            animation.duration = 1.8
+        if animated {
+            let animation = CABasicAnimation(keyPath: orbit ? "transform.rotation.z" : "position.x")
+            animation.fromValue = orbit ? 0 : -bounds.width * 0.25
+            animation.toValue = orbit ? Double.pi * 2 : bounds.width * 1.25
+            animation.duration = orbit ? 2.4 : 2.2
             animation.repeatCount = .infinity
-            beam.add(animation, forKey: "working")
+            (orbit ? ring : beam).add(animation, forKey: "activity")
         }
+        CATransaction.commit()
+    }
+}
+
+private enum AgentColors {
+    static func color(for id: String) -> Color {
+        let colors: [Color] = [.teal, .purple, .green, .pink, .blue, .orange, .indigo, .cyan]
+        let hash = id.utf8.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1) }
+        return colors[Int(hash % UInt64(colors.count))]
     }
 }

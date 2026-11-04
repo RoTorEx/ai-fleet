@@ -4,15 +4,22 @@ import SwiftUI
 struct StatisticsView: View {
     @ObservedObject private var analytics = UsageAnalyticsService.shared
     @ObservedObject private var service = StatusService.shared
-    @AppStorage("analytics.selectedProviders") private var selectedProviders = "codex,claude,kimi,qwen"
+    @State private var tab: AnalyticsTab = .codex
     @State private var period: AnalyticsPeriod = .allTime
     @State private var detailPage: StatisticsDetailPage = .tables
-    @State private var showsProviderReports = false
+    @State private var showsKimiQuotas = false
+    @State private var showsCodexAccounts = false
 
     private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
 
-    private var providerIDs: Set<String> { Set(selectedProviders.split(separator: ",").map(String.init)) }
-    private var localAnalytics: CodexUsageAnalytics { combinedLocalUsage(snapshot, providers: providerIDs) }
+    private var localAnalytics: CodexUsageAnalytics {
+        switch tab {
+        case .codex: return snapshot.codex
+        case .claude: return snapshot.claude ?? .empty
+        case .kimi: return snapshot.kimiUsage ?? LocalUsageProvider.kimi.analytics(from: [])
+        case .qwen: return snapshot.qwen ?? LocalUsageProvider.qwen.analytics(from: [])
+        }
+    }
 
     private var selection: CodexUsageSelection {
         let bounds = period.bounds()
@@ -29,92 +36,60 @@ struct StatisticsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            codexContent
+            if tab == .codex && showsCodexAccounts {
+                let bounds = period.bounds()
+                ScrollView(.vertical) {
+                    CodexProfilesView(nativeStatus: service.codex,
+                                      start: bounds.start, end: bounds.end,
+                                      refreshNative: { analytics.refreshAccountUsage(); service.refresh() })
+                }
+            } else {
+                codexContent
+            }
         }
-        .font(FleetUI.body)
-        .padding(FleetUI.spacing)
+        .padding(16)
         .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             analytics.updateKimi(kimi: service.kimi)
-            analytics.rebuildChangedParserIfNeeded(kimi: service.kimi)
+            analytics.refreshAccountUsageIfNeeded()
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Statistics").font(FleetUI.title)
-                    Label("Local usage · This Mac", systemImage: "desktopcomputer")
-                        .font(FleetUI.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Provider reports") { showsProviderReports.toggle() }
-                    .buttonStyle(.borderless).font(FleetUI.caption).focusable(false)
-                    .instantPopover(isPresented: $showsProviderReports) { providerReports }
-                RefreshStatus(progress: analytics.progress, refreshedAt: snapshot.refreshedAt,
-                              accountRefreshedAt: nil, showsAccount: false, isRefreshing: analytics.isRefreshing,
-                              refresh: { analytics.refresh(kimi: service.kimi) })
-            }
-            HStack(spacing: 6) {
-                ForEach(["codex", "claude", "kimi", "qwen", "gemini"], id: \.self) { id in
-                    let included = providerIDs.contains(id)
-                    Button {
-                        var next = providerIDs
-                        if included { next.remove(id) } else { next.insert(id) }
-                        selectedProviders = next.sorted().joined(separator: ",")
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: included ? "checkmark.circle.fill" : "circle")
-                            Text(ProviderCatalog.definition(for: id)?.name ?? id)
-                        }.font(.system(size: 12, weight: .medium)).padding(.horizontal, 10).padding(.vertical, 6)
-                            .foregroundStyle(included ? Color.accentColor : Color.secondary)
-                            .background(included ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.04), in: Capsule())
-                    }.buttonStyle(.plain).focusable(false).disabled(id == "gemini")
-                        .accessibilityValue(included ? "Included" : id == "gemini" ? "Local analytics unavailable" : "Excluded")
-                        .help(id == "gemini" ? "Gemini local token analytics are not supported yet." : "Include \(id) in every statistic; menu visibility stays unchanged.")
-                }
-                Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 16) {
+                AnalyticsTabControl(selection: $tab)
+                Spacer(minLength: 20)
+                RefreshStatus(
+                    progress: analytics.progress,
+                    refreshedAt: snapshot.refreshedAt,
+                    accountRefreshedAt: localAnalytics.accountUsage?.fetchedAt,
+                    showsAccount: tab == .codex,
+                    isRefreshing: analytics.isRefreshing,
+                    refresh: { analytics.refresh(kimi: service.kimi) }
+                )
             }
             HStack {
-                Text(providerIDs.isEmpty ? "Select a provider to see usage" : "Combined selection · \(providerIDs.count) providers")
-                    .font(FleetUI.caption).foregroundStyle(.secondary)
-                Spacer()
+                if tab == .codex {
+                    Picker("Codex view", selection: $showsCodexAccounts) {
+                        Text("Usage").tag(false)
+                        Text("Accounts").tag(true)
+                    }
+                    .pickerStyle(.segmented).frame(width: 190)
+                }
+                Spacer(minLength: 0)
                 PeriodToolbar(period: $period)
             }
         }
     }
 
-    private var providerReports: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Provider-reported usage").font(FleetUI.title)
-                Text("These account-wide token/quota reports are separate from this Mac's logs. The integrations do not supply a monetary billing estimate here; local model rates are never multiplied by these totals.")
-                    .font(FleetUI.caption).foregroundStyle(.secondary)
-                if providerIDs.contains("codex") {
-                    let bounds = period.bounds()
-                    CodexProfilesView(nativeStatus: service.codex, start: bounds.start, end: bounds.end,
-                                      refreshNative: { service.refresh() })
-                }
-                if providerIDs.contains("kimi") {
-                    Text("Kimi · reported quota").font(FleetUI.body).bold()
-                    if snapshot.kimi.windows.isEmpty { Text("No provider report available").font(FleetUI.caption).foregroundStyle(.secondary) }
-                    else { KimiTablePanel(windows: snapshot.kimi.windows) }
-                }
-                if !providerIDs.contains("codex") && !providerIDs.contains("kimi") {
-                    Text("Account-wide token or billing reports are unavailable for the selected providers. Their current quota remains in the main menu.")
-                        .font(FleetUI.caption).foregroundStyle(.secondary)
-                }
-            }.padding(FleetUI.spacing).frame(maxWidth: .infinity, alignment: .leading)
-        }.frame(width: 610, height: 430)
-    }
-
     private var codexContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             summaryGrid
+            if tab == .kimi { kimiQuotaSummary }
             if localAnalytics.eventCount == 0 {
-                Text("No local token usage in this selection. Include a provider or refresh after using its CLI.")
+                Text("No recorded \(tab.rawValue) token usage. Refresh after using the CLI; only locally retained accounting records are included.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -122,7 +97,7 @@ struct StatisticsView: View {
             switch detailPage {
             case .tables:
                 HStack(alignment: .top, spacing: 10) {
-                    ModelTablePanel(models: selection.models, usesAccountUsage: selection.usesAccountUsage, showsMissingReasoning: true)
+                    ModelTablePanel(models: selection.models, usesAccountUsage: selection.usesAccountUsage, showsMissingReasoning: tab != .codex)
                         .frame(minWidth: 430, maxWidth: .infinity)
                     DailyTablePanel(daily: selection.daily)
                         .frame(minWidth: 330, maxWidth: .infinity)
@@ -147,10 +122,16 @@ struct StatisticsView: View {
             VStack(spacing: spacing) {
                 HStack(spacing: spacing) {
                     MetricCard(
-                        title: "Local API estimate",
+                        title: "Estimate",
                         sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                        value: selection.totals.hasCostEstimate && selection.totalTokens > 0 ? money(selection.estimatedCostUSD) : "—",
-                        help: "API-equivalent cost of the selected local logs, using known model rates. If any selected usage lacks prices, the combined estimate is unavailable; missing prices never mean free usage. Cache reads/writes retain their separate rates. Subscription charges, tools and platform premiums are excluded.",
+                        value: tab.hasTokenPrices && selection.totals.hasCostEstimate ? money(selection.estimatedCostUSD) : "—",
+                        help: !tab.hasTokenPrices
+                            ? "Token usage comes from local CLI accounting records. API-equivalent prices are not configured for this provider; a missing estimate does not mean free usage. Quotas and subscription charges are separate."
+                            : selection.usesAccountUsage
+                            ? "Estimated from the all-time Codex account token total, multiplied by the average API-equivalent cost per token observed in local sessions. Date-filtered estimates use local session timestamps and model rates in the computer’s time zone. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
+                            : tab == .claude
+                                ? "Unknown model prices show no estimate. Standard rates exclude tool charges, fast mode, long-context and platform premiums. Cache writes use their reported 5m/1h duration, defaulting to 5m when absent. Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge."
+                                : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
                         rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account total × local rate" : "model rates")],
                         fixedHeight: 98
                     )
@@ -158,7 +139,7 @@ struct StatisticsView: View {
                     MetricCard(
                         title: "Total tokens",
                         sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                        value: compactCount(selection.totalTokens),
+                        value: billionsCount(selection.totalTokens),
                         detail: periodDetail,
                         helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total),
                         fixedHeight: 98
@@ -166,7 +147,7 @@ struct StatisticsView: View {
                     .frame(width: columnWidth * 2 + spacing)
                 }
                 HStack(spacing: spacing) {
-                    DatasetCard(codex: localAnalytics, eventCount: selection.eventCount, providerName: "Selected providers")
+                    DatasetCard(codex: localAnalytics, eventCount: selection.eventCount, providerName: tab.rawValue)
                         .frame(width: columnWidth)
                     MetricCard(
                         title: "Input",
@@ -186,10 +167,10 @@ struct StatisticsView: View {
                         sourceLabel: "Local",
                         value: compactCount(selection.totals.outputTokens),
                         helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output).map {
-                            $0.replacingOccurrences(of: "reported by Codex", with: "recorded by the CLI when available")
+                            tab == .codex ? $0 : $0.replacingOccurrences(of: "reported by Codex", with: "recorded by the CLI when available")
                         },
                         rows: [
-                            AccountingRow(label: "Reasoning", value: selection.totals.reasoningOutputTokens == 0 ? "—" : compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
+                            AccountingRow(label: "Reasoning", value: tab != .codex && selection.totals.reasoningOutputTokens == 0 ? "—" : compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
                         ],
                         fixedHeight: 122
                     )
@@ -200,6 +181,44 @@ struct StatisticsView: View {
         .frame(height: 228)
     }
 
+    private var kimiQuotaSummary: some View {
+        HStack(spacing: 12) {
+            Button("Kimi quotas") { showsKimiQuotas.toggle() }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .help("Show quota usage counts and reset times")
+                .popover(isPresented: $showsKimiQuotas) {
+                    KimiTablePanel(windows: snapshot.kimi.windows)
+                        .padding(10)
+                        .frame(width: 650)
+                }
+            if snapshot.kimi.windows.isEmpty {
+                Text("No quota measurement available").foregroundColor(.secondary)
+            }
+            ForEach(snapshot.kimi.windows) { window in
+                Text("\(window.label): \(window.remainingPercent)% remaining")
+                    .help(kimiQuotaHelp(window))
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 11))
+    }
+
+    private func kimiQuotaHelp(_ window: KimiQuotaWindow) -> String {
+        let usage = window.used.flatMap { used in window.limit.map { "\(groupedInteger(used))/\(groupedInteger($0)) used" } } ?? "Usage count unavailable"
+        let reset = window.resetAt.map { "Resets \(dateTimeText($0))" } ?? "Reset time unavailable"
+        return "\(usage)\n\(reset)\n\(snapshot.kimi.source)"
+    }
+
+}
+
+private enum AnalyticsTab: String, CaseIterable, Identifiable {
+    case codex = "Codex"
+    case claude = "Claude"
+    case kimi = "Kimi"
+    case qwen = "Qwen"
+    var hasTokenPrices: Bool { self == .codex || self == .claude }
+    var id: String { rawValue }
 }
 
 private enum AnalyticsPeriod: String, CaseIterable, Identifiable {
@@ -230,6 +249,34 @@ private enum StatisticsDetailPage: Int, CaseIterable {
         switch self {
         case .tables: return "Models + Days"
         case .activity: return "Activity"
+        }
+    }
+}
+
+private struct AnalyticsTabControl: View {
+    @Binding var selection: AnalyticsTab
+    @ObservedObject private var settings = AppSettings.shared
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(AnalyticsTab.allCases.filter { settings.isEnabled($0.rawValue.lowercased()) }) { tab in
+                Button { selection = tab } label: {
+                    Text(tab.rawValue)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(selection == tab ? .white : .primary)
+                        .padding(.horizontal, 17)
+                        .padding(.vertical, 7)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(selection == tab ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }
@@ -343,9 +390,6 @@ private struct MetricCard: View {
     let fixedHeight: CGFloat?
     var helpExamples = ["Current provider value for this metric."]
     var rows: [AccountingRow] = []
-    @State private var valueHelpPresented = false
-    @State private var valueHelpIndex = 0
-    @State private var valueHelp = ""
 
     init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, help: String = "Current provider value for this metric.", rows: [AccountingRow] = [], fixedHeight: CGFloat? = nil) {
         self.title = title
@@ -381,14 +425,6 @@ private struct MetricCard: View {
                 .font(.system(size: 18, weight: .semibold, design: .monospaced))
                 .lineLimit(1)
                 .frame(height: 22, alignment: .leading)
-                .onHover { hovering in
-                    if hovering, !helpExamples.isEmpty {
-                        valueHelp = helpExamples[valueHelpIndex % helpExamples.count]
-                        valueHelpIndex += 1
-                    }
-                    valueHelpPresented = hovering
-                }
-                .instantPopover(isPresented: $valueHelpPresented) { MetricHelpText(text: valueHelp) }
             if let detail {
                 Text(detail)
                     .font(.system(size: 10.5, weight: .medium))
@@ -508,15 +544,6 @@ private struct AccountingRowView: View {
     }
 }
 
-private struct MetricHelpText: View {
-    let text: String
-    var body: some View {
-        Text((try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text))
-            .font(FleetUI.caption).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
-            .frame(width: 310, alignment: .leading).padding(FleetUI.spacing)
-    }
-}
-
 private struct HoverInfoTip: View {
     let texts: [String]
     @State private var isPresented = false
@@ -543,8 +570,12 @@ private struct HoverInfoTip: View {
                 }
                 isPresented = hovering
             }
-            .instantPopover(isPresented: $isPresented) {
-                MetricHelpText(text: currentText.isEmpty ? (texts.first ?? "No additional information.") : currentText)
+            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+                Text(currentText.isEmpty ? (texts.first ?? "No additional information.") : currentText)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineSpacing(2)
+                    .padding(10)
+                    .frame(width: 320, alignment: .leading)
             }
             .accessibilityLabel(texts.first ?? "Additional information")
     }
@@ -596,8 +627,7 @@ private struct ModelTablePanel: View {
         isHeader: Bool
     ) -> some View {
         HStack(spacing: 8) {
-            Text(model).lineLimit(1).truncationMode(.middle).help(model)
-                .frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+            Text(model).frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
             Text(tokens).frame(width: 76, alignment: .trailing)
             Text(reasoning).frame(width: 78, alignment: .trailing)
             Text(estimate).frame(width: 68, alignment: .trailing)
@@ -762,7 +792,7 @@ private struct HeatmapCell: View {
             .frame(width: 9, height: 9)
             .contentShape(Rectangle())
             .onHover { isPresented = $0 }
-            .instantPopover(isPresented: $isPresented) {
+            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(rangeDate(day.day))
                         .font(.system(size: 11, weight: .semibold))
@@ -939,8 +969,8 @@ func codexUsageSelection(
         modelBuckets[usage.model]?.events += usage.events
     }
     let models = modelBuckets.values.sorted {
-        if $0.totals.totalTokens != $1.totals.totalTokens { return $0.totals.totalTokens > $1.totals.totalTokens }
-        return $0.model < $1.model
+        if $0.totals.estimatedCostUSD != $1.totals.estimatedCostUSD { return $0.totals.estimatedCostUSD > $1.totals.estimatedCostUSD }
+        return $0.totals.totalTokens > $1.totals.totalTokens
     }
     let isAllTime = startDay == nil && endDay == nil
     let selectedTotals = isAllTime && localDaily.isEmpty ? codex.total : totals
@@ -974,18 +1004,17 @@ private extension View {
 
 func compactCount(_ value: Int) -> String {
     let absolute = abs(value)
-    if absolute >= 999_995_000 { return "\(formattedNumber(Double(value) / 1_000_000_000, fractionDigits: 2))B" }
     if absolute >= 1_000_000 { return "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M" }
     if absolute >= 1_000 { return "\(formattedNumber(Double(value) / 1_000, fractionDigits: 1))K" }
     return groupedInteger(value)
 }
 
 func billionsCount(_ value: Int) -> String {
-    compactCount(value)
+    "\(formattedNumber(Double(value) / 1_000_000_000, fractionDigits: 2))B"
 }
 
 func millionsCount(_ value: Int) -> String {
-    abs(value) >= 999_995_000 ? compactCount(value) : "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M"
+    "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M"
 }
 
 func money(_ value: Double) -> String {
@@ -1067,7 +1096,7 @@ func tokenVolumeHelpExamples(_ tokens: Int, metric: TokenHelpMetric = .total) ->
         let copies = words / Double(book.approximateWords)
         let formattedWords = groupedInteger(book.approximateWords)
         let comparison = bookCopyComparison(copies, title: book.title)
-        return "\(metric.explanation)\n\nFor a sense of scale, that is **\(comparison)** (~\(formattedWords) words each). Book lengths and the token-to-text conversion are approximate.\(metric.cacheNote) Hover again for another book."
+        return "\(metric.explanation)\n\nFor a sense of scale, that is \(comparison) (~\(formattedWords) words each). Book lengths and the token-to-text conversion are approximate.\(metric.cacheNote) Hover again for another book."
     }
 }
 

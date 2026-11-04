@@ -2,32 +2,23 @@
 
 ## Workflow
 
-The configured global shortcut opens the unified menu with Agents already
-expanded below provider connections. A separate filter icon contains session
-states; location groups collapse independently and show the last two path
-components (home is ~). Processes lives under application options and returns
-to the unified menu with Command-A. There is no separate Agents navigation step.
-The existing configured global shortcut is preserved.
+The configured global shortcut opens AI Fleet. Agents sits after Refresh now and
+before Statistics. Command-A toggles Usage/Agents while the menu is open, also
+after Jump transfers focus to iTerm2. The temporary Command-A registration is
+removed on close. The existing configured global shortcut is preserved.
 
-The compact monochrome view uses project headings, collapsible groups and stable
-session rows. The full first line is the task title; provider/model and the state
-share the second. Working includes elapsed request time in parentheses and a
-moving strip beneath the row; Reduced Motion makes the strip static. The explicit timer in validated terminal output takes precedence over bound
-request timestamps. With neither available, ≥ means continuously observed work duration only. Repeated
-snapshots do not reset the clock; ending work, hiding monitoring or changing
-process identity resets the fallback. Last message uses provider-log time or —.
-Idle covers opened/untracked idle states; Ready means a newly completed reply has
-not been opened since it arrived, without claiming to prove reading. Question,
-Approval, Error (reported blocker), Unknown, Stale and Unlinked remain distinct.
-Source activity glyphs and repeated trailing group paths are stripped only from
-the display title. The list scrolls once the full menu reaches 75% of available
-screen height. Completion percentages and process relationships are not guessed.
+The compact colorful view follows the user's IMG_1195.MP4 reference: project
+headings, collapsible groups, stable session rows, provider/model when known,
+explicit status, last-event time, rotating working indicators and indeterminate
+activity stripes. All/Needs you/Working/Idle/Unknown filters support larger lists.
+Reduced Motion disables repeating animation. Percent completion and parent/child
+relationships are never guessed from a directory or title.
 
 Click opens the exact existing iTerm2 window/tab/split and leaves the overview
 open. Session Jump never sends text, approvals, stop commands or tab closure.
 The separate Processes section offers explicit process termination as described below.
-Command-A returns to Providers. Escape, outside click or the global toggle closes the
-menu (outside-click dismissal can be disabled in General). Ambiguous/exited links report an error rather than choosing a similar title.
+Command-A returns to Usage. Escape, outside click or the global toggle closes the
+menu. Ambiguous/exited links report an error rather than choosing a similar title.
 Opening a pane does not prove the user read its response.
 
 ## Ownership and data
@@ -65,22 +56,22 @@ warmed worker, so it never waits behind a status scan. At most two JXA helpers a
 needed regardless of session count.
 
 Visible Agents keeps updating after loss of keyboard focus; the standalone TUI's
-60-second user-idle sleep does not apply here. Providers/close sends EOF; workers finish
+60-second user-idle sleep does not apply here. Usage/close sends EOF; workers finish
 bounded in-flight work and drop/reap helpers. Scans never overlap in Swift. A
 pending scan after 15 seconds is marked stale; an unconfirmed Jump after 8 seconds
 becomes retryable. Those deadlines bound UI uncertainty rather than establish
 process death. Replies must match request ID and connection generation. Failed
-scans retain and mark the last snapshot stale; no stale row claims active work.
+scans retain and mark the last snapshot stale; activity animations stop.
 
 Inherited Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe
 framing, grouping, failed Jump, missing engine and light/dark layout. Release
-smoke checks require the helper/license in the Apple Silicon archive. Installed
+smoke checks require the helper/license in both architecture archives. Installed
 checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls
 
-Agents exposes Sessions and Processes through its view menu. Processes lists only the current
+Agents has Sessions and Processes sections. Processes lists only the current
 user's exact Codex and codex-code-mode-host executables, including background
 servers and updaters left after closing terminals. Native libproc discovery uses
 executable paths, UID, controlling-terminal presence and microsecond start identity;
@@ -101,13 +92,3 @@ Credentials, history and terminal tabs remain intact. Interrupted in-flight work
 may need resuming. No process is stopped automatically during account selection.
 CodexProcessesTests covers ownership, PID replacement and real SIGTERM/SIGKILL
 against only task-owned fixture processes.
-
-### Current Codex metadata
-
-The Fleet adapter reads only process-open writable Codex transcripts under the
-canonical native sessions root. It accepts headers up to 1 MiB because current
-session metadata includes longer base instructions, excludes explicitly declared
-subagent transcripts, and requires exactly one remaining primary transcript.
-Multiple primary candidates stay unknown; cwd, modification time and model names
-never choose a conversation. PID/start identity is revalidated after the read.
-The inherited parser consumes at most a 1 MiB tail. Pinned vendor code is unchanged.

@@ -19,24 +19,21 @@ No dock icon. AI Fleet monitors and opens native sign-in for each provider’s g
 ## Requirements
 
 - macOS 13 (Ventura) or later
-- Apple Silicon Mac for public releases
 - Swift 5.9 or later
 
 ## Agents
 
-Agents is expanded below provider connections. Use its filter icon and click a
-location to collapse its sessions. **Command-A** returns here from Processes.
-The overview stays expanded after Jump transfers focus to iTerm2.
+Choose **Agents** after **Refresh now**, or press **Command-A** in the open menu.
+The same shortcut returns to Usage, including after Jump transfers focus to iTerm2.
 The colorful list groups live Codex/Claude sessions by project, with filters,
-collapsible groups and one monochrome status per row, an elapsed Working timer and a moving activity strip. The list scrolls when the
-menu reaches three quarters of available screen height. Click a row
+collapsible groups, observed statuses and animated working indicators. Click a row
 to open its exact iTerm2 window/tab/split; the overview stays open. Escape or an
-outside click closes it (configurable in General). The engine ships inside the app; no separate Hub CLI or
+outside click closes it. The engine ships inside the app; no separate Hub CLI or
 Rust toolchain is required by installed releases. Source builds also need Rust
 with the current stable toolchain. iTerm2 access may require macOS Automation permission.
 
 Only local interactive Codex/Claude in iTerm2 are supported. Unknown states remain
-explicit, and status colors never claim a task-completion percentage.
+explicit, and activity stripes do not claim a task-completion percentage.
 See [Agents](business/agents.md).
 
 ## Run from source
@@ -130,10 +127,13 @@ The menu shows each account's remaining 5h/7d limits. A circle means current
 limits are loaded, × requests sign-in, and ? with a gray row means limits are
 unavailable, even if the CLI has a configured login. The row explains why.
 Status shows whether AI Fleet monitoring is Active or Paused, with operations
-and errors shown while relevant. The header has Refresh (⌘R); **…** opens Statistics, Settings, Processes and Quit,
-with Last checked then version below. The **(i)** guide explains status, measured/total count, accounts, limits and live agents. Account help is a native hover
-popover; reset dates change into a countdown in the same cell. A wrong browser
-email is reported instead of showing another account's quota.
+and errors shown while relevant. Checked is the last check and Limits counts
+loaded measurements. The legend separates Capacity (Enough/Low/Critical), Access
+(ready/sign in/unavailable), and Marks (→ default, ↓ lowest remaining). **Statistics → Codex →
+Accounts** compares tokens and quotas under the same account letters for `7d`,
+`30d`, `90d` and `All`. These account totals come from provider-reported dates;
+shared local model history and cost estimates are not split between accounts.
+A wrong browser email is reported instead of showing another account's quota.
 
 Claude, Kimi, Qwen and Gemini use the same **Switch** behavior: the next ordinary
 provider command uses the selected account; running sessions keep their accounts.
@@ -141,7 +141,7 @@ Sign in is separate. New profiles need their own native login. Gemini and Qwen m
 complete that login on the first CLI launch. Explicit directory/API-key/remote
 invocations keep their native scope. See [Provider switching](business/provider-switching.md)
 for adapter boundaries and verification coverage. Provider visibility
-hides menu rows without deleting logins or metadata. Hover an
+hides rows and statistics tabs without deleting logins or metadata. Hover an
 account badge to see its email and plan. Removing an account preserves credential
 files and history; sign out first when credentials should also be cleared.
 See [Accounts](business/accounts.md) and [Codex authorization](business/codex-profiles.md).
@@ -173,27 +173,47 @@ Detailed usage data remains available in **Statistics…**.
 
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
-**Statistics…** opens one combined local view labeled **Local usage · This Mac**.
-Toggle Codex, Claude, Kimi and Qwen independently; these filters affect every card,
-model/day table and Activity without changing providers in the main menu. Gemini
-local token analytics are not supported yet. `7d`, `30d`, `90d` and All all use
-retained local logs. Subscription-wide account totals are not mixed into this view.
-Provider prefixes keep identical model names distinguishable. No selected
-providers produces an empty state, not another provider's data.
+**Statistics…** provides `7d`, `30d`, `90d`, and all-time ranges.
+Choose **Kimi** or **Qwen** for local token history with the same periods,
+input/cache/output cards, models, days, and Activity. Kimi reads `wire.jsonl`
+under `~/.kimi-code/sessions` and legacy `~/.kimi/sessions`; Qwen reads JSONL
+chat records under `~/.qwen/projects/*/chats`. Refresh scans retained logs;
+opening or switching tabs uses the cache. Missing history is labelled, and API
+prices are not configured for these two tabs, so their Estimate reads `—`.
+Kimi's quota summary remains available; click **Kimi quotas** for usage counts
+and reset times. Local token statistics do not provide Qwen subscription quotas.
+See [provider statistics](business/provider-statistics.md) for format support.
 
-Refresh scans retained history; ordinary filter/period changes use cached
-aggregates. A parser upgrade rebuilds affected Codex files on the first open.
-Model identity follows structured session/turn records, including changes during
-one conversation; prompt examples cannot assign a model. Unknown prices show no
-estimate. Day boundaries follow this computer's time zone. Estimate is an
-API-equivalent comparison, never subscription billing.
+Choose **Claude** for local Claude Code tokens, input/cache/output breakdowns,
+standard API-equivalent estimates, models, daily totals, and Activity. This reads
+`~/.claude/projects` including subagent transcripts, with repeated content-block
+usage counted once per API message in each file. It covers history retained on
+this Mac, independently of your current login. Unknown model prices show no
+estimate; estimates exclude tool charges and pricing premiums and are not
+subscription bills. Click refresh to scan your history for the first time.
 
-Models + Days and Activity remain two detail pages; their rows/grids scroll
-independently. Token values promote a thousand millions to billions throughout
-cards, tables and hover help. Hover Total, Input or Output to see rotating book
-comparisons, with the book quantity/name in bold and the accounting explanation
-in regular text. Repeated cache context is processed volume, not unique reading.
-The window
+On the **Codex** tab:
+The all-time Total comes from the signed-in ChatGPT account, with its Estimate
+extrapolated using the blended API-equivalent cost per token in local logs.
+Days, Activity, and the `7d`, `30d`, and `90d` totals and estimates use active and
+archived local sessions. Each event belongs to the day from midnight to midnight
+in the computer's current time zone, including daylight-saving changes. This
+shows today's recorded activity even when account daily reports are delayed.
+Daily history covers logs retained on this Mac. Input, Output, cache, reasoning,
+Models, Events, and Files also use local logs. `Account` and `Local` badges
+identify the source. Click refresh to include new activity or rebuild daily
+aggregates after changing the computer's time zone.
+
+The dashboard scrolls vertically to the final Activity block. The heatmap uses
+separate month grids with centered abbreviated labels and spacing, an exact
+date/token hover popover, and horizontal scrolling for long histories. The two tables scroll their rows only
+vertically without horizontal scrolling. Days omits dates with no activity. On
+each hover, the total-token help
+cycles through 15 approximate comparisons with well-known English fantasy and
+science-fiction books or complete series. The same help explains that Total is
+all model-read Input plus generated Output, including repeated cache context and
+reported internal reasoning—not only text typed by the user. Total, Input, and
+Output each show their own comparison in a separate paragraph. The window
 resets to its compact size and opens centered on the visible screen.
 The summary uses one three-column grid: Estimate sits above Sources in the first
 column, while Total spans the two columns above Input and Output. Both rows use
@@ -214,8 +234,8 @@ Choose **Quit** from the menu.
 
 Published versions are available from
 [GitHub Releases](https://github.com/RoTorEx/ai-fleet/releases). Each release
-contains a native macOS application ZIP for Apple Silicon plus its SHA-256
-checksum. The application is ad-hoc signed; it is not currently notarized by
+contains native macOS application ZIPs for Apple Silicon and Intel plus SHA-256
+checksums. The application is ad-hoc signed; it is not currently notarized by
 Apple.
 
 Install or update the latest release from Terminal without `sudo`:
@@ -230,8 +250,11 @@ The default destination is `~/Applications/AIFleet.app`. Pass `--system` to
 select `/Applications` when the current user can write there, or
 `--version MAJOR.MINOR.PATCH` to install one exact release.
 
-Use the terminal installer above to download and verify the newest compatible
-release, replace the installed application, and relaunch it. Updates do not bypass macOS
+Update failures appear in the top Status with a **Retry update…** action.
+Version checks use the public release redirect without a GitHub API token.
+Choose **Update…** in the menu to download the newest compatible release,
+verify its SHA-256 checksum, bundle identity, version, and code signature,
+replace the installed application, and relaunch it. Updates do not bypass macOS
 quarantine or Gatekeeper.
 
 Maintainers prepare a release locally and publish it through the tag-triggered

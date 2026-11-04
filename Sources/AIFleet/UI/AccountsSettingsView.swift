@@ -4,185 +4,203 @@ import SwiftUI
 struct AccountsSettingsView: View {
     @ObservedObject private var store = AccountStore.shared
     @ObservedObject private var codex = CodexMonitoringStore.shared
-    @ObservedObject private var launch = ProviderLaunchStore.shared
+    @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
-    @State private var adding = false
-    @State private var loginGuide: String?
-    @State private var accountName = ""
-    @State private var accountEmail = ""
-    @State private var removal: AccountRemoval?
+    @State private var selectedID = ""
+    @State private var isAdding = false
+    @State private var createsAccount = false
+    @State private var targetID = ""
+    @State private var providerID = "codex"
+    @State private var email = ""
+    @State private var name = ""
 
-    private var busy: Bool { launch.busy || codex.refreshing || codex.authenticatingID != nil }
+    private var selected: FleetAccount? {
+        store.visibleAccounts.first { $0.id == selectedID } ?? store.visibleAccounts.first
+    }
+    private var target: FleetAccount? {
+        store.visibleAccounts.first { $0.id == targetID } ?? selected
+    }
+    private var duplicate: Bool { !createsAccount && target?.connection(for: providerID) != nil }
 
-    private struct AccountRemoval: Identifiable {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Switch selects the account for the next command. Running agents keep their accounts. After first installing command integration, run rehash once in already open terminals.")
+                .font(.callout).foregroundColor(.secondary)
+            if !isAdding {
+                HStack {
+                    if !store.visibleAccounts.isEmpty {
+                        Picker("Account", selection: Binding(get: { selected?.id ?? "" }, set: { selectedID = $0 })) {
+                            ForEach(store.visibleAccounts) { account in
+                                Text("\(account.badge) · \(account.name)").tag(account.id)
+                            }
+                        }
+                    }
+                    Button("Connect provider…") {
+                        targetID = selected?.id ?? ""
+                        createsAccount = store.visibleAccounts.isEmpty
+                        isAdding = true
+                    }
+                }
+            }
+            if isAdding { connectionForm }
+            else if let selected { AccountEditor(account: selected).id(selected.id) }
+            CodexAccountAuthenticationStatus(store: codex, accounts: store)
+            if let error = store.launchError { Text(error).font(.caption).foregroundColor(.red) }
+            DisclosureGroup("Provider visibility") {
+                ForEach(ProviderCatalog.all) { provider in
+                    Toggle("Show \(provider.name)", isOn: Binding(
+                        get: { settings.isEnabled(provider.id) },
+                        set: { settings.setEnabled($0, for: provider.id); service.refresh() }
+                    ))
+                }
+            }.font(.callout)
+        }
+        .onAppear { codex.synchronizeAccounts(store); consumeAddRequest(); service.refresh() }
+        .onChange(of: navigation.addingProviderID) { _ in consumeAddRequest() }
+    }
+
+    private var connectionForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Provider", selection: $providerID) {
+                ForEach(ProviderCatalog.all.filter { settings.isEnabled($0.id) }) { Text($0.name).tag($0.id) }
+            }
+            Picker("Connect to", selection: $createsAccount) {
+                Text("Existing account").tag(false)
+                Text("New account").tag(true)
+            }.pickerStyle(.segmented)
+            if createsAccount {
+                TextField("Account name", text: $name).textFieldStyle(.roundedBorder)
+                TextField("Account email", text: $email).textFieldStyle(.roundedBorder)
+            } else {
+                Picker("Account", selection: Binding(get: { target?.id ?? "" }, set: { targetID = $0 })) {
+                    ForEach(store.visibleAccounts) { account in
+                        Text("\(account.badge) · \(account.name)").tag(account.id)
+                    }
+                }
+                if duplicate { Text("This provider is already connected to this account.").font(.caption) }
+            }
+            HStack {
+                Button("Connect & sign in…", action: connect)
+                    .disabled(duplicate || (createsAccount && email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
+                              (!createsAccount && target == nil) || codex.refreshing || codex.authenticatingID != nil)
+                Button("Cancel") { isAdding = false; email = ""; name = "" }
+            }
+        }
+    }
+
+    private func connect() {
         let account: FleetAccount
-        let providerID: String?
-        var id: String { account.id + (providerID ?? "") }
+        if createsAccount {
+            let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            account = store.add(name: name.isEmpty ? trimmed : name, email: trimmed)
+        } else if let target { account = target }
+        else { return }
+        guard account.connection(for: providerID) == nil else { return }
+        store.attachGlobal(providerID, to: account.id)
+        selectedID = account.id
+        if providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
+        else { providerLaunch.signIn(account, providerID: providerID) }
+        isAdding = false
+        email = ""; name = ""
+        service.refresh()
+    }
+
+    private func consumeAddRequest() {
+        guard let requested = navigation.addingProviderID else { return }
+        providerID = requested
+        targetID = selected?.id ?? ""
+        createsAccount = store.visibleAccounts.isEmpty
+        isAdding = true
+        navigation.addingProviderID = nil
+    }
+}
+
+private struct AccountEditor: View {
+    let account: FleetAccount
+    @ObservedObject private var store = AccountStore.shared
+    @ObservedObject private var codex = CodexMonitoringStore.shared
+    @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var service = StatusService.shared
+    @State private var name: String
+    @State private var email: String
+
+    init(account: FleetAccount) {
+        self.account = account
+        _name = State(initialValue: account.name)
+        _email = State(initialValue: account.email)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Button("Add account") { adding.toggle() }
-                Spacer()
-                Button("Refresh terminal logins") { service.refresh(); codex.refresh(force: true) }
+                Text(account.badge).font(.title2)
+                TextField("Account name", text: $name).textFieldStyle(.roundedBorder)
+                Button("Save") { store.update(account.id, name: name, email: email) }
+                    .disabled(name == account.name && email == account.email)
             }
-            Text("Terminal logins with a verified email appear under the matching account after refresh. A different email creates a separate account.")
-                .font(FleetUI.caption).foregroundStyle(.secondary)
-            if let requested = navigation.addingProviderID {
-                Text("To connect \(ProviderCatalog.definition(for: requested)?.name ?? requested), use Add provider under the matching account, or Add account first.")
-                    .font(FleetUI.caption).foregroundStyle(.secondary)
-            }
-            if let loginGuide {
-                Text(loginGuide).font(FleetUI.caption).foregroundStyle(.secondary)
-            }
-            if adding {
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("Account name", text: $accountName).textFieldStyle(.roundedBorder)
-                    TextField("Email used to sign in", text: $accountEmail).textFieldStyle(.roundedBorder)
+            TextField("Account email", text: $email).textFieldStyle(.roundedBorder)
+            ForEach(account.connections.filter { settings.isEnabled($0.providerID) }) { connection in
+                let status = connection.providerID == "codex" ? codex.status(for: account, global: service.codex, accounts: store.visibleAccounts)
+                    : service.status(for: connection)
+                VStack(alignment: .leading, spacing: 5) {
                     HStack {
-                        Button("Add") {
-                            _ = store.add(name: accountName, email: accountEmail.trimmingCharacters(in: .whitespacesAndNewlines))
-                            adding = false; accountName = ""; accountEmail = ""
-                        }.disabled(!accountEmail.contains("@") || store.visibleAccounts.contains {
-                            $0.email.caseInsensitiveCompare(accountEmail.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
-                        })
-                        Button("Cancel") { adding = false }
-                    }
-                }
-            }
-            ForEach(store.visibleAccounts) { account in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(account.name) (\(account.badge))").font(FleetUI.title)
+                        Text("\(ProviderCatalog.definition(for: connection.providerID)?.name ?? connection.providerID) (\(account.badge))").bold()
                         Spacer()
-                        Menu("Add provider") {
-                            ForEach(ProviderCatalog.all.filter { account.connection(for: $0.id) == nil }.sorted { $0.name < $1.name }) { provider in
-                                Button(provider.name) { connect(provider.id, to: account) }
+                        Text(status?.detail ?? "Checking…").font(.caption).foregroundColor(.secondary)
+                    }
+                    HStack {
+                        Button("Sign in…") {
+                            if connection.providerID == "codex" { codex.signIn(codex.ensureProfile(for: account)) }
+                            else { providerLaunch.signIn(account, providerID: connection.providerID) }
+                        }
+                        if connection.providerID == "codex" {
+                            if codex.profile(for: account) == nil,
+                               service.codex.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame {
+                                Button("Save current login") { codex.saveCurrentLogin(account) }
                             }
-                        }.fixedSize().disabled(busy)
-                        Button { removal = AccountRemoval(account: account, providerID: nil) } label: {
-                            Image(systemName: "trash")
-                        }.buttonStyle(.plain).disabled(busy).accessibilityLabel("Remove \(account.name) from AI Fleet")
+                            if codex.profile(for: account) != nil {
+                                Button("Switch") { codex.switchAccount(account) }
+                                    .help("The next codex command uses this account without changing running sessions.")
+                            }
+                            if let profile = codex.profile(for: account), status?.authentication == .signedIn {
+                                Button("Sign out", role: .destructive) { codex.signOut(profile) }
+                            }
+                        } else {
+                            Button("Switch") {
+                                providerLaunch.switchAccount(account, providerID: connection.providerID,
+                                    global: service.status(for: connection.providerID))
+                            }
+                            if status?.authentication == .signedIn {
+                                Button("Sign out", role: .destructive) { providerLaunch.signOut(account, providerID: connection.providerID) }
+                            }
+                        }
                     }
-                    Text(account.email).font(FleetUI.caption).foregroundStyle(.secondary)
-                    Divider()
-                    if account.connections.isEmpty {
-                        Text("No providers yet. Choose Add provider, then sign in with this email.")
-                            .font(FleetUI.caption).foregroundStyle(.secondary)
-                    }
-                    ForEach(account.connections.sorted { $0.providerID < $1.providerID }) { connection in
-                        connector(connection, account: account)
-                    }
-                }.padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
-            }
-            DisclosureGroup("Connecting a terminal login") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("1. Sign in with the provider in your terminal, or add it under the account above.")
-                    Text("2. Refresh terminal logins. AI Fleet checks the provider's actual email.")
-                    Text("3. Switch is available only when that email matches the account.")
-                    Text("If the provider cannot report its identity, the connection stays unverified. It is never assigned using a typed email alone.")
-                    Text("Only default terminal homes import automatically. For a separate home, use Add provider. AI Fleet Switch preserves running sessions; native terminal login changes that home's credentials.")
-                }.font(FleetUI.caption).foregroundStyle(.secondary)
-            }
-            nativeLogins
-            CodexAccountAuthenticationStatus(store: codex, accounts: store)
-            if let error = store.launchError { Text(error).font(FleetUI.caption).foregroundStyle(.secondary) }
-        }
-        .onAppear { codex.synchronizeAccounts(store) }
-        .alert(item: $removal) { item in
-            Alert(title: Text(item.providerID == nil ? "Remove account from AI Fleet?" : "Remove provider from this account?"),
-                  message: Text("This removes the saved association and default selection. Credentials, history and running sessions are preserved. You can import the terminal login again."),
-                  primaryButton: .destructive(Text("Remove")) { remove(item) }, secondaryButton: .cancel())
-        }
-    }
-
-    private func connector(_ connection: ProviderConnection, account: FleetAccount) -> some View {
-        let status = connection.providerID == "codex" ? codex.status(for: account, global: service.codex, accounts: store.visibleAccounts)
-            : service.status(for: connection)
-        let match = AccountIdentityMatch.assess(expected: account.email, observed: status?.account?.email)
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(ProviderCatalog.definition(for: connection.providerID)?.name ?? connection.providerID)
-                Spacer()
-                Text(status?.authentication == .signedIn && match == .verified ? "Connected" : "Not verified")
-                    .font(FleetUI.caption).foregroundStyle(.secondary)
-                Button { removal = AccountRemoval(account: account, providerID: connection.providerID) } label: {
-                    Image(systemName: "minus.circle")
-                }.buttonStyle(.plain).disabled(busy).accessibilityLabel("Remove \(connection.providerID) from \(account.name)")
-            }
-            if connection.providerID == "qwen" {
-                Text("Email verification is unavailable for Qwen in this build. This connection cannot be confirmed; removing it clears named routing while preserving credentials.")
-                    .font(FleetUI.caption).foregroundStyle(.secondary)
-            } else if match == .different {
-                Text("Signed in as \(status?.account?.email ?? "—"). Expected \(account.email). Sign in again with the correct email.")
-                    .font(FleetUI.caption).foregroundStyle(.secondary)
-            } else if match == .unavailable {
-                Text("The provider has not confirmed this account's email. Switch is unavailable until verified.")
-                    .font(FleetUI.caption).foregroundStyle(.secondary)
-            }
-            HStack {
-                AccountConnectionActions(account: account, connection: connection, status: status,
-                    isCurrentCLI: service.globalAccountIDs[connection.providerID] == account.id)
-            }.buttonStyle(.bordered).controlSize(.small)
-            if launch.messageAccountID == account.id, launch.messageProviderID == connection.providerID, let message = launch.message {
-                Text(message).font(FleetUI.caption).foregroundStyle(.secondary)
-                if launch.busy && connection.providerID == "kimi" {
-                    Button("Cancel sign-in") { launch.cancelSignIn() }.controlSize(.small)
+                    .disabled(providerLaunch.busy || codex.authenticatingID != nil || service.signingOutProvider != nil ||
+                              (connection.providerID == "codex" && codex.refreshing))
                 }
-            }
-        }.padding(.vertical, 5)
-    }
-
-    private var nativeLogins: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(ProviderCatalog.all.sorted { $0.name < $1.name }) { provider in
-                let status = service.status(for: provider.id)
-                if status.authentication == .signedIn,
-                   !store.visibleAccounts.contains(where: { account in
-                       account.connection(for: provider.id) != nil && AccountIdentityMatch.assess(expected: account.email, observed: status.account?.email) == .verified
-                   }) {
-                    HStack {
-                        Text("\(provider.name) · \(status.account?.email ?? "Identity unavailable")").font(FleetUI.caption)
-                        Spacer()
-                        Button("Import login") { store.importNative(status); service.refresh() }
-                            .disabled(status.account?.email?.isEmpty != false)
-                    }
+                if providerLaunch.messageAccountID == account.id, providerLaunch.messageProviderID == connection.providerID,
+                   let message = providerLaunch.message {
+                    Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
+                if connection.providerID == "codex", codex.profile(for: account) == nil {
+                    Text("This account uses the shared terminal login. Connect a separate login once to retain access when the terminal account changes.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                Divider()
             }
-        }
-    }
-
-    private func connect(_ providerID: String, to account: FleetAccount) {
-        if providerID == "qwen" {
-            loginGuide = "Qwen is visible in the menu, but this build cannot verify the email behind its configured provider credentials. Named-account connection and Switch are unavailable rather than guessed. Qwen can still be configured in its own CLI."
-            return
-        }
-        if providerID == "gemini" {
-            let installation = ProviderCatalog.isInstalled(providerID) ? "" : "Install the \(providerID) CLI first. "
-            loginGuide = installation + "Open \(providerID) in your terminal and sign in as \(account.email), then click Refresh terminal logins. A confirmed email is imported under this account. If identity cannot be verified, no account binding is created."
-            return
-        }
-        loginGuide = nil
-        store.attach(providerID, to: account.id)
-        guard let updated = store.accounts.first(where: { $0.id == account.id }) else { return }
-        if providerID == "codex" { codex.signIn(codex.ensureProfile(for: updated)) }
-        else { launch.signIn(updated, providerID: providerID) }
-    }
-
-    private func remove(_ item: AccountRemoval) {
-        guard !launch.busy, !codex.refreshing, codex.authenticatingID == nil else { return }
-        if let providerID = item.providerID {
-            if providerID == "codex", let profile = codex.profile(for: item.account) { codex.remove(profile) }
-            else { do { try launch.forget(item.account.id, providerID: providerID) } catch { return } }
-            store.detach(providerID, from: item.account.id)
-        } else {
-            guard codex.forgetAccount(item.account) else { return }
-            do { try launch.forget(item.account.id) } catch { return }
-            store.remove(item.account.id)
-        }
-        service.refresh()
+            Button("Remove account") {
+                guard !providerLaunch.busy, !codex.refreshing, codex.authenticatingID == nil else { return }
+                guard codex.forgetAccount(account) else { return }
+                do { try providerLaunch.forget(account.id) } catch { return }
+                store.remove(account.id)
+                service.refresh()
+            }
+            .disabled(providerLaunch.busy || codex.refreshing || codex.authenticatingID != nil)
+            .help("Forget account metadata; preserve credentials and session history.")
+        }.font(.callout)
     }
 }
 
@@ -203,6 +221,16 @@ struct CodexAccountAuthenticationStatus: View {
     }
     var body: some View {
         Group {
+            if let accountID, store.nextLaunchAccountID == accountID {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Next codex launch · running sessions keep their accounts")
+                    if store.terminalSetupNotice {
+                        Text("One-time setup for terminals already open: run rehash. No terminal restart is needed.")
+                    }
+                }
+                .font(.caption).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             if let id = store.authenticatingID, matches(id) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {

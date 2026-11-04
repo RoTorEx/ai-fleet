@@ -39,10 +39,6 @@ final class AppSettings: ObservableObject {
 
     private let defaults = UserDefaults.standard
 
-    @Published var closeMenuOnOutsideClick: Bool {
-        didSet { defaults.set(closeMenuOnOutsideClick, forKey: "menu.closeOnOutsideClick") }
-    }
-
     @Published var kimiEnabled: Bool {
         didSet { defaults.set(kimiEnabled, forKey: "provider.kimi.enabled") }
     }
@@ -76,7 +72,6 @@ final class AppSettings: ObservableObject {
     }
 
     private init() {
-        closeMenuOnOutsideClick = defaults.object(forKey: "menu.closeOnOutsideClick") as? Bool ?? true
         kimiEnabled = defaults.object(forKey: "provider.kimi.enabled") as? Bool ?? true
         codexEnabled = defaults.object(forKey: "provider.codex.enabled") as? Bool ?? true
         claudeEnabled = defaults.object(forKey: "provider.claude.enabled") as? Bool ?? true

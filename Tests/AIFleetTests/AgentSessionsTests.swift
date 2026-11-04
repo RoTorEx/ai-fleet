@@ -21,21 +21,6 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertNil(sessions[1].location)
     }
 
-    func testWorkingClockUsesTurnTimeAndResetsObservedFallback() throws {
-        let sessions = try JSONDecoder().decode([AgentSession].self, from: Data(Self.rows.utf8))
-        var observations = AgentWorkObservations()
-        let start = Date(timeIntervalSince1970: 1000)
-        observations.update(sessions, now: start)
-        let first = try XCTUnwrap(observations.clock(for: sessions[0]))
-        XCTAssertEqual(first.elapsed(at: start.addingTimeInterval(125)), "≥2m 5s")
-        observations.update(sessions, now: start.addingTimeInterval(10))
-        XCTAssertEqual(observations.clock(for: sessions[0]), first)
-        observations.reset()
-        observations.update(sessions, now: start.addingTimeInterval(120))
-        XCTAssertEqual(observations.clock(for: sessions[0])?.elapsed(at: start.addingTimeInterval(125)), "≥5s")
-        XCTAssertEqual(AgentWorkClock(startedAt: start, exact: true).elapsed(at: start.addingTimeInterval(3661)), "1h 1m 1s")
-    }
-
     @MainActor
     func testBundledProtocolRefreshJumpFailureAndClose() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -63,8 +48,6 @@ final class AgentSessionsTests: XCTestCase {
         for _ in 0..<100 where service.sessions.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(service.sessions.count, 2)
         XCTAssertFalse(service.isLoading)
-        XCTAssertNotNil(service.workClock(for: service.sessions[0]))
-        XCTAssertFalse(service.workClock(for: service.sessions[0])?.exact ?? true)
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let host = NSHostingController(rootView: AgentsView(service: service, back: {}))
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 700),

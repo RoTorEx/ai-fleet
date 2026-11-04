@@ -5,13 +5,9 @@ provider quotas and reviewing Codex, Claude Code, Kimi and Qwen usage. It is inf
 not proxy prompts, bill users, or claim that API-equivalent estimates are actual
 subscription charges.
 
-Public releases support Apple Silicon Macs only. The release workflow builds and
-publishes one aarch64 archive and checksum; the terminal installer rejects Intel
-before attempting a download.
-
 ## Actors and flows
 
-- The developer opens the unified providers/agents menu, reviews
+- The developer switches Usage/Agents with Command-A in the open menu, reviews
   local live Codex/Claude sessions and jumps to an exact iTerm2 pane without
   closing the overview. [Agents](business/agents.md) owns this integration.
 
@@ -25,8 +21,8 @@ before attempting a download.
 ## Invariants
 
 - Greek letters identify real accounts. One account can own several providers,
-  with at most one connection per provider. Provider rows use readable account names; the guide and account reports retain
-  the stable Greek identity. Internal credential homes and the
+  with at most one connection per provider. Provider rows and account statistics
+  use the same `Provider (badge)` identity. Internal credential homes and the
   standard CLI login are not separate visible accounts. Connect provider chooses
   an existing or new account before login; hidden providers retain stored data.
 - Each Codex account can keep an independent saved browser login. Its quota and
@@ -79,9 +75,10 @@ before attempting a download.
   confirmed Stop/Force Quit controls are available in Agents → Processes,
   independently of account selection.
   Management stays in Settings → Accounts with one account editor and an
-  existing/new account choice when connecting a provider. Readable account names follow the provider name; stable Greek mappings live in
-  the guide. A compact provider action button exposes login actions.
-  Hover shows email and plan. The info-button Capacity/Access/Marks legend explains them, and ↓ marks the exact lowest positive current quota connection.
+  existing/new account choice when connecting a provider. Small parenthesized
+  badges follow the provider name; the ellipsis exposes account login actions.
+  Hover shows email and plan. The Capacity/Access/Marks legend remains
+  visible, and ↓ marks the exact lowest positive current quota connection.
   Legacy isolated files and metadata remain preserved. See
   [Accounts](business/accounts.md) for matching, ordering and storage rules.
 
@@ -98,14 +95,14 @@ before attempting a download.
   parsing displays it automatically.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
-- Kimi and Qwen contribute separate local datasets with local token/cache accounting,
+- Kimi and Qwen have separate Statistics tabs with local token/cache accounting,
   model/day tables, periods, and Activity grouped in the computer's time zone.
   Kimi keeps its separate account quota windows and their usage/reset details.
   No Qwen quota integration or provider API prices are implied. Missing prices
   show no cost estimate, and empty history is explicitly labelled.
   [Provider statistics](business/provider-statistics.md) owns formats, accounting
   boundaries, and verification.
-- Claude contributes a separate local dataset with the same periods, token/cache cards,
+- Claude has a separate Statistics tab with the same periods, token/cache cards,
   model/day tables, and Activity heatmap as Codex. All Claude metrics are local
   to `~/.claude/projects/**/*.jsonl`, including nested subagent transcripts;
   they are not subscription-wide history and are independent of current login.
@@ -115,7 +112,7 @@ before attempting a download.
   count once per file, keeping the most complete usage sample. Missing/malformed
   records and synthetic messages are skipped. Refresh scans all four providers at
   background priority, reuses unchanged per-file aggregates, and preserves old
-  Codex-only snapshots. Ordinary filter/period changes never scan logs; a changed parser revision rebuilds old Codex caches on first open.
+  Codex-only snapshots. Opening or switching tabs never scans logs.
 - Claude API-equivalent estimates use standard USD-per-million-token rates from
   [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing),
   encoded in `ClaudeAPIRates`. Supported families match exact model names or
@@ -127,18 +124,18 @@ before attempting a download.
   estimate and the selected total estimate while retaining token counts.
   `ClaudeUsageAnalyticsTests` protects cache accounting, repeated records,
   unknown prices, nested discovery, period selection, and snapshot compatibility.
-- Statistics is one combined local view with independent Codex/Claude/Kimi/Qwen
-  inclusion filters. Filters affect totals, input/output, cache, models, days and
-  Activity together without hiding providers in the menu. The header explicitly
-  labels the scope Local usage · This Mac. All periods, including All, use local
-  logs; subscription-wide Codex totals are retained in storage but never mixed
-  into this view. Gemini token accounting is unavailable rather than guessed.
-  [Interface](business/interface.md) owns navigation and presentation.
-- Codex model accounting follows structured session_meta/turn_context metadata
-  in log order, including model changes. Prompt text cannot assign a model;
-  absent metadata is Unknown model. Repeated cumulative token snapshots are
-  counted once. Parser revision 2 rebuilds affected per-file caches on refresh.
-  Unrecognized models retain tokens without inheriting an older model's price.
+- Statistics opens on the all-time range. Only the all-time Codex Total and
+  its extrapolated API-equivalent Estimate use account-wide usage, preserving
+  that headline after deleting local sessions or moving to another Mac.
+  Days, Activity, and date-filtered totals/estimates use local session event
+  timestamps grouped from local midnight to the next local midnight in the
+  computer's current time zone, including daylight-saving transitions. Provider
+  day buckets have no event timestamps and cannot establish that boundary;
+  delayed or missing account days must never hide recorded local activity.
+  These date-based views cover only history retained on this Mac. Input, Output,
+  cache, reasoning, Models, Events, and Files also remain local. `Account` and
+  `Local` labels identify the actual source. Refresh rereads changed files;
+  per-file aggregates from another or unknown time zone are rebuilt from logs.
 - Period controls remain unboxed and accounting values are grouped by meaning.
   The lower Statistics region has two arrow-controlled pages: `Models + Days`
   and `Activity`. There is no surrounding vertical scroll view, so the compact
@@ -170,18 +167,28 @@ before attempting a download.
   half a copy read as `less than one copy` instead of showing a decimal.
 - Statistics number formatting is locale-stable across tokens, estimates,
   source counts, progress, heatmap details, and book comparisons: spaces group
-  thousands and a dot separates the integer part from fractional digits.
-  All token displays promote a thousand millions to billions, with two decimal
-  places for M/B, including cards, tables and heatmap hover values.
+  thousands and a dot separates the integer part from fractional digits. The
+  Total uses billions with two decimal places; Input and Output use millions
+  with two decimal places. Heatmap hover values also use millions with two
+  decimal places.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover
   so it cannot cover the analytics window.
-- API-equivalent cost is an estimate of selected local usage, never a bill.
-  Unknown rates suppress the combined estimate while preserving tokens and
-  known row-level estimates. Cached input and reasoning remain subsets of their
-  parent totals; the combined total is Input + Output. Model rows retain provider
-  identity so identical model names from different tools cannot silently merge.
+- API-equivalent cost is always an estimate, never a subscription bill. With
+  account usage available, it equals the all-time account token total ×
+  the blended API-equivalent cost per token observed in local session logs.
+  This extrapolation is necessary because Codex exposes the account token total
+  but not its model/input/output mix. Offline fallback cost remains the direct
+  sum derived from local per-model token rates.
+- Local Total tokens means `Input + Output`, not merely user-typed text. The
+  account-wide Total follows the aggregate activity definition reported by
+  Codex and is not presented as the sum of the narrower local cards. Input covers
+  everything the model reads, including user messages, instructions, prior
+  conversation, files, tool results, and cached context. Output covers returned
+  replies/actions plus reported internal reasoning; reasoning is a subset of
+  Output and may not be visible to the user. Each metric's help states its own
+  boundary in a short first paragraph before a separate book-scale paragraph.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
 - Statistics groups each headline with its own accounting details in one aligned
@@ -196,18 +203,15 @@ before attempting a download.
   unobstructed and keeping its label and segments aligned as one compact unit.
   Summary and detail panels remain within the default window size.
 - All windows follow the current macOS light or dark appearance.
-- The menu opens instantly and combines provider accounts with expanded live
-  agents grouped by compact location paths. Its only header contains status,
-  measured/total count, the complete guide, Refresh and options. Routine refreshing
-  does not flash the Active label. Options contains Statistics, Settings, Processes,
-  then Quit. Last refresh and version share the bottom main-menu row. The compact
-  arrow-free panel uses system blur. The legend owns account mapping; provider
-  rows retain Greek badges and open account actions from the name. Reset dates change to a clock and
-  days/hours/minutes/seconds in a fixed cell without shifting adjacent rows.
-  Settings uses compact General and Accounts tabs. General groups provider visibility,
-  menu controls, statistics scheduling and notifications. Local API
-  estimates and identity-bound provider reports are separate; remote tokens are
-  never multiplied by local rates. [Interface](business/interface.md) owns details.
+- The compact menu presents the application version as the final `Version`
+  key/value row in its top summary; it has no separate version footer.
+- The native popover owns its surface, border and rounded corners; menu content
+  does not draw a second rounded panel. Command rows use compact spacing like
+  the summary. Quota availability counts current measurements independently of
+  login, and authentication progress/errors belong to the affected account row.
+  Current measured limits use ○; missing limits use ? and gray even when a CLI
+  login is configured. The top Status reflects Active/Paused monitoring and transient operations or update errors;
+  Checked and Limits replace Refresh and Quota. See Accounts for the full contract.
 - Remaining-quota color states in the compact menu are red at `10%` or below,
   orange from `11%` through `25%` inclusive, and normal at `26%` or above.
   The boundaries make the warning band more visible before an account becomes

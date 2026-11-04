@@ -10,8 +10,16 @@ permissions:
 
 jobs:
   build:
-    name: build-macos-aarch64
-    runs-on: macos-15
+    name: build-macos-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: aarch64
+          - runner: macos-15-intel
+            arch: x86_64
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -52,6 +60,7 @@ jobs:
           codesign --verify --deep --strict "$app"
 
       - name: Include terminal installer
+        if: matrix.arch == 'aarch64'
         env:
           DIST_DIR: ${{ runner.temp }}/ai-fleet-dist
         run: cp scripts/install.sh "$DIST_DIR/release/ai-fleet-install.sh"
@@ -59,7 +68,7 @@ jobs:
       - name: Upload release assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ai-fleet-macos-aarch64
+          name: ai-fleet-macos-${{ matrix.arch }}
           path: ${{ runner.temp }}/ai-fleet-dist/release/*
           if-no-files-found: error
 
