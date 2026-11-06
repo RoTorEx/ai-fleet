@@ -6,6 +6,16 @@ Tracks real product and release progress.
 
 ### Added
 
+- Prepare shared local statistics for Codex, Claude, Kimi and Qwen with persisted
+  independent selection, separate identity-bound reports and explicit price coverage.
+- Read Codex models from structured chronological metadata, invalidate legacy
+  parser/catalog/timezone caches and retain unavailable historical sources.
+- Preserve independent log names, deduplicate proven copies, diagnose partial
+  accounting and move formatting/book-scale computation out of UI layout code.
+
+
+### Added
+
 - Prepare a typed, presentation-independent agent session contract with process
   identity, explicit heuristic state provenance and independent message/work clocks.
 - Adapt current process-bound Codex response items and large transcript headers;

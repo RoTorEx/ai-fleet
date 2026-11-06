@@ -177,7 +177,7 @@ final class StatisticsBehaviorTests: XCTestCase {
         XCTAssertEqual(selection.eventCount, 45)
     }
 
-    func testAccountUsageOnlyDrivesAllTimeTotalWhileLocalLogsDriveCalendarDays() throws {
+    func testRemoteAccountUsageNeverChangesLocalSelection() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let firstDay = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 20)))
@@ -219,12 +219,12 @@ final class StatisticsBehaviorTests: XCTestCase {
         let all = codexUsageSelection(from: codex, start: nil, end: nil, calendar: calendar)
         let firstOnly = codexUsageSelection(from: codex, start: firstDay, end: firstDay, calendar: calendar)
 
-        XCTAssertEqual(all.totalTokens, 9_000)
+        XCTAssertEqual(all.totalTokens, 100)
         XCTAssertEqual(all.totals.totalTokens, 100)
         XCTAssertEqual(all.daily.map(\.tokens), [100])
-        XCTAssertEqual(all.estimatedCostUSD, 112.5, accuracy: 0.001)
+        XCTAssertEqual(all.estimatedCostUSD, 1.25, accuracy: 0.001)
         XCTAssertEqual(all.daily[0].estimatedCostUSD, 1.25)
-        XCTAssertTrue(all.usesAccountUsage)
+        XCTAssertFalse(all.usesAccountUsage)
         XCTAssertEqual(firstOnly.totalTokens, 0)
         XCTAssertEqual(firstOnly.estimatedCostUSD, 0)
         XCTAssertFalse(firstOnly.usesAccountUsage)
@@ -309,8 +309,9 @@ final class StatisticsBehaviorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let movedName = "rollout-moved.jsonl"
-        try Data().write(to: active.appendingPathComponent(movedName))
-        try Data().write(to: archive.appendingPathComponent(movedName))
+        let header = Data("{\"type\":\"session_meta\",\"payload\":{\"id\":\"00000000-0000-0000-0000-000000000001\"}}\n".utf8)
+        try header.write(to: active.appendingPathComponent(movedName))
+        try header.write(to: archive.appendingPathComponent(movedName))
         try Data().write(to: archive.appendingPathComponent("rollout-archived.jsonl"))
 
         let files = CodexUsageLogReader().codexLogFileMetadata(roots: [active, archive])
@@ -372,7 +373,7 @@ final class StatisticsBehaviorTests: XCTestCase {
 
     func testStatisticsNumbersUseSpacesForGroupingAndDotsForDecimals() {
         XCTAssertEqual(groupedInteger(73_938), "73 938")
-        XCTAssertEqual(compactCount(11_803_040_000), "11 803.04M")
+        XCTAssertEqual(compactCount(11_803_040_000), "11.80B")
         XCTAssertEqual(compactCount(37_910_000), "37.91M")
         XCTAssertEqual(billionsCount(11_803_040_000), "11.80B")
         XCTAssertEqual(millionsCount(383_530_000), "383.53M")

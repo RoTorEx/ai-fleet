@@ -36,15 +36,16 @@ enum LocalUsageProvider: String, CaseIterable {
                 files[path] = CodexLogFile(url: url, modifiedAt: values.contentModificationDate ?? .distantPast, size: values.fileSize ?? 0)
             }
         }
-        return files.values.sorted { $0.url.path < $1.url.path }
+        return canonicalUsageFiles(Array(files.values))
     }
 
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
-        let entries = self == .kimi ? KimiUsageLogReader().readEntries(from: file.url) : QwenUsageLogReader().readEntries(from: file.url)
+        let parsed = self == .kimi ? KimiUsageLogReader().parseEntries(from: file.url) : QwenUsageLogReader().parseEntries(from: file.url)
+        let entries = parsed.entries
         let reader = CodexUsageLogReader()
         return CodexFileUsageRecord(
             path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
-            dailyModels: reader.dailyModelUsage(entries: entries), timeZoneIdentifier: reader.calendar.timeZone.identifier
+            dailyModels: reader.dailyModelUsage(entries: entries), timeZoneIdentifier: reader.calendar.timeZone.identifier, parserRevision: 4, rateRevision: CodexAPIRates.revision, sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
         )
     }
 
@@ -59,13 +60,17 @@ enum LocalUsageProvider: String, CaseIterable {
 
 /// Reads only accounting fields. Prompts and tool results are never retained.
 struct QwenUsageLogReader {
-    func readEntries(from file: URL) -> [CodexUsageLogEntry] {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return [] }
+    func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
+    func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
+        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
+        var malformed = false
         let decoder = JSONDecoder()
         var entries: [String: CodexUsageLogEntry] = [:]
         for line in content.split(separator: "\n") {
-            guard let record = try? decoder.decode(Record.self, from: Data(line.utf8)),
-                  record.type == "assistant", let usage = record.usageMetadata,
+            guard let record = try? decoder.decode(Record.self, from: Data(line.utf8)) else {
+                malformed = malformed || malformedAccountingLine(String(line), kinds: ["assistant"]); continue
+            }
+            guard record.type == "assistant", let usage = record.usageMetadata,
                   let input = usage.promptTokenCount, let output = usage.candidatesTokenCount,
                   let timestamp = usageDate(record.timestamp) else { continue }
             let totals = unpricedTotals(
@@ -76,7 +81,7 @@ struct QwenUsageLogReader {
             if let previous = entries[key], previous.totals.totalTokens > totals.totalTokens { continue }
             entries[key] = CodexUsageLogEntry(timestamp: timestamp, model: record.model ?? "Unknown model", totals: totals)
         }
-        return entries.values.sorted { $0.timestamp < $1.timestamp }
+        return (entries.values.sorted { $0.timestamp < $1.timestamp }, malformed ? "Partial accounting source: " + file.path : nil, false)
     }
 
     private struct Record: Decodable {
@@ -95,15 +100,19 @@ struct QwenUsageLogReader {
 }
 
 struct KimiUsageLogReader {
-    func readEntries(from file: URL) -> [CodexUsageLogEntry] {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return [] }
+    func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
+    func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
+        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
+        var malformed = false
         let decoder = JSONDecoder()
         var model = "Unknown model"
         var step = ""
         var turn = 0
         var entries: [String: CodexUsageLogEntry] = [:]
         for (index, line) in content.split(separator: "\n").enumerated() {
-            guard let record = try? decoder.decode(Record.self, from: Data(line.utf8)) else { continue }
+            guard let record = try? decoder.decode(Record.self, from: Data(line.utf8)) else {
+                malformed = malformed || malformedAccountingLine(String(line), kinds: ["context.append_loop_event", "StatusUpdate"]); continue
+            }
             if record.type == "profile.bind" || record.type == "config.update" {
                 if let alias = record.modelAlias { model = alias }
             }
@@ -113,23 +122,27 @@ struct KimiUsageLogReader {
             // Observable status/turn totals repeat those tokens and are not counted.
             if record.type == "context.append_loop_event", let event = record.event,
                event.type == "step.end", let usage = event.usage, let time = record.time {
-                let totals = unpricedTotals(
-                    input: max(0, usage.inputOther) + max(0, usage.inputCacheRead ?? 0) + max(0, usage.inputCacheCreation ?? 0),
+                let combined = checkedStatisticsSum([usage.inputOther, usage.inputCacheRead ?? 0, usage.inputCacheCreation ?? 0])
+                var totals = unpricedTotals(
+                    input: combined ?? 0,
                     cached: usage.inputCacheRead ?? 0, writes: usage.inputCacheCreation ?? 0, output: usage.output
                 )
+                if combined == nil { totals.overflowDetected = true }
                 entries[event.uuid] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time / 1000), model: model, totals: totals)
             } else if record.message?.type == "StatusUpdate", let payload = record.message?.payload,
                       let usage = payload.token_usage, let time = record.timestamp {
                 // Legacy Python CLI records per-step usage in StatusUpdate envelopes.
-                let totals = unpricedTotals(
-                    input: max(0, usage.input_other) + max(0, usage.input_cache_read ?? 0) + max(0, usage.input_cache_creation ?? 0),
+                let combined = checkedStatisticsSum([usage.input_other, usage.input_cache_read ?? 0, usage.input_cache_creation ?? 0])
+                var totals = unpricedTotals(
+                    input: combined ?? 0,
                     cached: usage.input_cache_read ?? 0, writes: usage.input_cache_creation ?? 0, output: usage.output
                 )
+                if combined == nil { totals.overflowDetected = true }
                 let key = payload.message_id ?? "\(turn)|\(step.isEmpty ? String(index) : step)"
                 entries[key] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time), model: model, totals: totals)
             }
         }
-        return entries.values.sorted { $0.timestamp < $1.timestamp }
+        return (entries.values.sorted { $0.timestamp < $1.timestamp }, malformed ? "Partial accounting source: " + file.path : nil, false)
     }
 
     private struct Record: Decodable {
@@ -183,5 +196,6 @@ private func unpricedTotals(input: Int, cached: Int, writes: Int, output: Int, r
         outputTokens: max(0, output), reasoningOutputTokens: min(max(0, output), max(0, reasoning)), estimatedCostUSD: 0
     )
     totals.costEstimateAvailable = false
+    totals.overflowDetected = max(0, input).addingReportingOverflow(max(0, output)).overflow
     return totals
 }

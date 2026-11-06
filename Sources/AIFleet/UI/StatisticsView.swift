@@ -467,7 +467,7 @@ private struct DatasetCard: View {
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundColor(.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                DatasetValue(label: "All-time total", value: codex.accountUsage == nil ? "Local" : "Codex account")
+                DatasetValue(label: "All-time total", value: "Local logs")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 DatasetValue(label: "Details", value: "Local sessions", help: "Days, Activity, date-filtered totals, input, output, cache, reasoning, models, events, and costs come from local session logs. Days follow the computer’s time zone.")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -926,75 +926,6 @@ private struct KimiTablePanel: View {
     }
 }
 
-struct CodexUsageSelection: Equatable {
-    let totals: UsageTotals
-    let totalTokens: Int
-    let estimatedCostUSD: Double
-    let daily: [CodexSelectedDay]
-    let models: [ModelUsage]
-    let eventCount: Int
-    let usesAccountUsage: Bool
-}
-
-struct CodexSelectedDay: Identifiable, Equatable {
-    let day: Date
-    let tokens: Int
-    let estimatedCostUSD: Double?
-
-    var id: Date { day }
-}
-
-func codexUsageSelection(
-    from codex: CodexUsageAnalytics,
-    start: Date?,
-    end: Date?,
-    calendar: Calendar = .autoupdatingCurrent
-) -> CodexUsageSelection {
-    let startDay = start.map { calendar.startOfDay(for: $0) }
-    let endDay = end.map { calendar.startOfDay(for: $0) }
-    let includes: (Date) -> Bool = { date in
-        let day = calendar.startOfDay(for: date)
-        return (startDay == nil || day >= startDay!) && (endDay == nil || day <= endDay!)
-    }
-
-    let localDaily = codex.daily.filter { includes($0.day) }
-    let selectedDailyModels = codex.dailyModels.filter { includes($0.day) }
-    let totals = localDaily.reduce(into: UsageTotals.zero) { $0.add($1.totals) }
-    var modelBuckets: [String: ModelUsage] = [:]
-    for usage in selectedDailyModels {
-        if modelBuckets[usage.model] == nil {
-            modelBuckets[usage.model] = ModelUsage(model: usage.model, totals: .zero, events: 0)
-        }
-        modelBuckets[usage.model]?.totals.add(usage.totals)
-        modelBuckets[usage.model]?.events += usage.events
-    }
-    let models = modelBuckets.values.sorted {
-        if $0.totals.estimatedCostUSD != $1.totals.estimatedCostUSD { return $0.totals.estimatedCostUSD > $1.totals.estimatedCostUSD }
-        return $0.totals.totalTokens > $1.totals.totalTokens
-    }
-    let isAllTime = startDay == nil && endDay == nil
-    let selectedTotals = isAllTime && localDaily.isEmpty ? codex.total : totals
-    let rateBasisTotals = selectedTotals.totalTokens > 0 ? selectedTotals : codex.total
-    let blendedCostPerToken = rateBasisTotals.totalTokens > 0
-        ? rateBasisTotals.estimatedCostUSD / Double(rateBasisTotals.totalTokens)
-        : 0
-    // Account day buckets have no event timestamps to regroup at local midnight.
-    // Keep date-based views on the same local accounting source as their details.
-    let displayDaily = localDaily.map {
-        CodexSelectedDay(day: $0.day, tokens: $0.totals.totalTokens, estimatedCostUSD: $0.totals.hasCostEstimate ? $0.totals.estimatedCostUSD : nil)
-    }
-    let accountTotal = isAllTime ? codex.accountUsage?.lifetimeTokens : nil
-    return CodexUsageSelection(
-        totals: selectedTotals,
-        totalTokens: accountTotal ?? selectedTotals.totalTokens,
-        estimatedCostUSD: accountTotal.map { Double($0) * blendedCostPerToken } ?? selectedTotals.estimatedCostUSD,
-        daily: displayDaily,
-        models: selectedDailyModels.isEmpty && isAllTime ? codex.models : models,
-        eventCount: selectedDailyModels.isEmpty && isAllTime ? codex.eventCount : selectedDailyModels.reduce(0) { $0 + $1.events },
-        usesAccountUsage: accountTotal != nil
-    )
-}
-
 private extension View {
     func panelStyle() -> some View {
         background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
@@ -1002,20 +933,7 @@ private extension View {
     }
 }
 
-func compactCount(_ value: Int) -> String {
-    let absolute = abs(value)
-    if absolute >= 1_000_000 { return "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M" }
-    if absolute >= 1_000 { return "\(formattedNumber(Double(value) / 1_000, fractionDigits: 1))K" }
-    return groupedInteger(value)
-}
 
-func billionsCount(_ value: Int) -> String {
-    "\(formattedNumber(Double(value) / 1_000_000_000, fractionDigits: 2))B"
-}
-
-func millionsCount(_ value: Int) -> String {
-    "\(formattedNumber(Double(value) / 1_000_000, fractionDigits: 2))M"
-}
 
 func money(_ value: Double) -> String {
     let absolute = abs(value)
@@ -1036,93 +954,6 @@ private func shortDate(_ date: Date) -> String {
 
 private func rangeDate(_ date: Date) -> String {
     date.formatted(.dateTime.year().month(.abbreviated).day())
-}
-
-struct BookTokenComparison: Equatable {
-    let title: String
-    let approximateWords: Int
-}
-
-let bookTokenComparisons: [BookTokenComparison] = [
-    BookTokenComparison(title: "The Little Prince", approximateWords: 16_500),
-    BookTokenComparison(title: "The Hobbit", approximateWords: 95_000),
-    BookTokenComparison(title: "the complete Lord of the Rings trilogy", approximateWords: 481_000),
-    BookTokenComparison(title: "the complete seven-book Harry Potter series", approximateWords: 1_084_000),
-    BookTokenComparison(title: "Dune", approximateWords: 188_000),
-    BookTokenComparison(title: "1984", approximateWords: 89_000),
-    BookTokenComparison(title: "Brave New World", approximateWords: 64_000),
-    BookTokenComparison(title: "A Game of Thrones", approximateWords: 298_000),
-    BookTokenComparison(title: "The Name of the Wind", approximateWords: 259_000),
-    BookTokenComparison(title: "American Gods", approximateWords: 183_000),
-    BookTokenComparison(title: "The Hitchhiker's Guide to the Galaxy", approximateWords: 46_000),
-    BookTokenComparison(title: "Ender's Game", approximateWords: 101_000),
-    BookTokenComparison(title: "Neuromancer", approximateWords: 79_000),
-    BookTokenComparison(title: "The Martian", approximateWords: 105_000),
-    BookTokenComparison(title: "Fahrenheit 451", approximateWords: 46_000)
-]
-
-enum TokenHelpMetric {
-    case accountTotal
-    case total
-    case input
-    case output
-
-    var explanation: String {
-        switch self {
-        case .accountTotal:
-            return "Account-wide Codex token activity reported by OpenAI. It follows your ChatGPT account and can include work whose session files are no longer stored on this Mac. OpenAI does not split this account total into input, output, or models here."
-        case .total:
-            return "Total tokens cover everything the model processed—not only what you typed. Total is Input + Output."
-        case .input:
-            return "Input tokens cover everything the model read: your messages, instructions, earlier conversation, files, tool results, and cached context."
-        case .output:
-            return "Output tokens cover everything the model generated: replies and actions returned to you, plus internal reasoning reported by Codex. Reasoning is usually not visible."
-        }
-    }
-
-    var cacheNote: String {
-        switch self {
-        case .accountTotal, .total, .input:
-            return " Cached context can be counted repeatedly, so this is processed text rather than unique reading."
-        case .output:
-            return ""
-        }
-    }
-}
-
-func tokenVolumeHelpExamples(_ tokens: Int, metric: TokenHelpMetric = .total) -> [String] {
-    let words = Double(max(0, tokens)) * 0.75
-    return bookTokenComparisons.map { book in
-        let copies = words / Double(book.approximateWords)
-        let formattedWords = groupedInteger(book.approximateWords)
-        let comparison = bookCopyComparison(copies, title: book.title)
-        return "\(metric.explanation)\n\nFor a sense of scale, that is \(comparison) (~\(formattedWords) words each). Book lengths and the token-to-text conversion are approximate.\(metric.cacheNote) Hover again for another book."
-    }
-}
-
-func bookCopyComparison(_ copies: Double, title: String) -> String {
-    guard copies >= 0.5 else { return "less than one copy of \(title)" }
-    let roundedCopies = Int(copies.rounded())
-    if roundedCopies == 1 { return "roughly one copy of \(title)" }
-    return "roughly \(groupedInteger(roundedCopies)) copies of \(title)"
-}
-
-func groupedInteger(_ value: Int) -> String {
-    formattedNumber(Double(value), fractionDigits: 0)
-}
-
-private func formattedNumber(_ value: Double, fractionDigits: Int) -> String {
-    let formatter = NumberFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.numberStyle = .decimal
-    formatter.usesGroupingSeparator = true
-    formatter.groupingSeparator = " "
-    formatter.groupingSize = 3
-    formatter.secondaryGroupingSize = 3
-    formatter.decimalSeparator = "."
-    formatter.minimumFractionDigits = fractionDigits
-    formatter.maximumFractionDigits = fractionDigits
-    return formatter.string(from: NSNumber(value: value)) ?? String(value)
 }
 
 private func dateTimeText(_ date: Date) -> String {

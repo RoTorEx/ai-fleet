@@ -1,4 +1,9 @@
-# Kimi and Qwen Statistics
+# Local provider statistics
+
+The shared [local statistics contract](../docs/contracts/local-statistics.md) owns
+provider selection, local/report scope, price coverage, cache revisions and
+formatting. Its backend supports Codex, Claude, Kimi and Qwen; design and combined
+user acceptance are separate. Only standard roots are in scope.
 
 Statistics reads retained local accounting history independently of login and
 quota monitoring. Each provider has input/cache/output cards, model and daily

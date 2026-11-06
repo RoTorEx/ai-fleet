@@ -125,9 +125,9 @@ subscription charges.
   estimate and the selected total estimate while retaining token counts.
   `ClaudeUsageAnalyticsTests` protects cache accounting, repeated records,
   unknown prices, nested discovery, period selection, and snapshot compatibility.
-- Statistics opens on the all-time range. Only the all-time Codex Total and
-  its extrapolated API-equivalent Estimate use account-wide usage, preserving
-  that headline after deleting local sessions or moving to another Mac.
+- Statistics opens on the all-time range. The all-time Codex Total and
+  its API-equivalent Estimate use local retained usage. Identity-bound account
+  reports remain separate and never enter local accounting.
   Days, Activity, and date-filtered totals/estimates use local session event
   timestamps grouped from local midnight to the next local midnight in the
   computer's current time zone, including daylight-saving transitions. Provider
@@ -169,19 +169,18 @@ subscription charges.
 - Statistics number formatting is locale-stable across tokens, estimates,
   source counts, progress, heatmap details, and book comparisons: spaces group
   thousands and a dot separates the integer part from fractional digits. The
-  Total uses billions with two decimal places; Input and Output use millions
-  with two decimal places. Heatmap hover values also use millions with two
-  decimal places.
+  Token values use K with one decimal place or M/B with two decimal
+  places, promoting the unit after rounding. Exact detail values retain
+  integer precision.
 - Statistics resets to its compact `900 × 650 pt` size, centers, and fully
   constrains itself to the visible screen on every open instead of retaining an
   oversized off-center frame. Opening Statistics also closes the menu popover
   so it cannot cover the analytics window.
-- API-equivalent cost is always an estimate, never a subscription bill. With
-  account usage available, it equals the all-time account token total ×
-  the blended API-equivalent cost per token observed in local session logs.
-  This extrapolation is necessary because Codex exposes the account token total
-  but not its model/input/output mix. Offline fallback cost remains the direct
-  sum derived from local per-model token rates.
+- API-equivalent estimates use one verified standard-rate catalog over local
+  recorded tokens. Unknown prices suppress the full estimate; the known amount
+  and recorded-token price coverage remain separate. Remote tokens are never
+  extrapolated with local rates. The [statistics contract](docs/contracts/local-statistics.md)
+  owns source, migration, completeness and formatting rules.
 - Local Total tokens means `Input + Output`, not merely user-typed text. The
   account-wide Total follows the aggregate activity definition reported by
   Codex and is not presented as the sum of the narrower local cards. Input covers

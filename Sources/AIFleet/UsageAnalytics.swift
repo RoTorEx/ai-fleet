@@ -6,12 +6,20 @@ struct UsageAnalyticsSnapshot: Codable, Equatable {
     var claude: CodexUsageAnalytics? = nil
     var kimiUsage: CodexUsageAnalytics? = nil
     var qwen: CodexUsageAnalytics? = nil
+    var sourceIssues: [StatisticsSourceIssue]? = nil
+    var statisticsRevision: Int? = nil
+    var rateRevision: String? = nil
+    var timeZoneIdentifier: String? = nil
+    var unattributedAccountUsage: CodexAccountUsage? = nil
+    var legacyLocalHistory: [String: CodexUsageAnalytics]? = nil
     var refreshedAt: Date?
     var lastLoadDuration: TimeInterval?
 
     static let empty = UsageAnalyticsSnapshot(
         codex: .empty,
         kimi: .empty,
+        rateRevision: CodexAPIRates.revision,
+        timeZoneIdentifier: TimeZone.current.identifier,
         refreshedAt: nil,
         lastLoadDuration: nil
     )
@@ -160,6 +168,7 @@ struct CodexLogFile {
     let url: URL
     let modifiedAt: Date
     let size: Int
+    var issue: String? = nil
 }
 
 struct CodexFileUsageRecord: Codable, Equatable {
@@ -168,14 +177,20 @@ struct CodexFileUsageRecord: Codable, Equatable {
     let size: Int
     let dailyModels: [DailyModelUsage]
     var timeZoneIdentifier: String? = nil
+    var parserRevision: Int? = nil
+    var rateRevision: String? = nil
+    var sourceIssue: String? = nil
+    var excluded: Bool? = nil
+    var modifiedAtEpoch: Double? = nil
 
     var eventCount: Int {
         dailyModels.reduce(0) { $0 + $1.events }
     }
 
-    func matches(_ file: CodexLogFile, timeZone: TimeZone = .autoupdatingCurrent) -> Bool {
-        timeZoneIdentifier == timeZone.identifier
-            && size == file.size && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1
+    func matches(_ file: CodexLogFile, timeZone: TimeZone = .autoupdatingCurrent, revision: Int? = nil) -> Bool {
+        (sourceIssue == nil && file.issue == nil) && (revision == nil || (parserRevision == revision && rateRevision == CodexAPIRates.revision)) && timeZoneIdentifier == timeZone.identifier
+            && size == file.size && (modifiedAtEpoch.map { $0 == file.modifiedAt.timeIntervalSince1970 }
+                ?? (revision == nil && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1))
     }
 }
 
@@ -187,8 +202,10 @@ struct UsageTotals: Codable, Equatable {
     var reasoningOutputTokens: Int
     var estimatedCostUSD: Double
     var costEstimateAvailable: Bool? = nil
+    var pricedTokens: Int? = nil
+    var overflowDetected: Bool? = nil
 
-    var hasCostEstimate: Bool { costEstimateAvailable ?? true }
+    var hasCostEstimate: Bool { overflowDetected != true && (costEstimateAvailable ?? true) }
 
     static let zero = UsageTotals(
         inputTokens: 0,
@@ -200,7 +217,8 @@ struct UsageTotals: Codable, Equatable {
     )
 
     var totalTokens: Int {
-        inputTokens + outputTokens
+        let sum = inputTokens.addingReportingOverflow(outputTokens)
+        return sum.overflow ? 0 : sum.partialValue
     }
 
     var billableInputTokens: Int {
@@ -208,12 +226,17 @@ struct UsageTotals: Codable, Equatable {
     }
 
     mutating func add(_ other: UsageTotals) {
-        inputTokens += other.inputTokens
-        cachedInputTokens += other.cachedInputTokens
-        cacheWriteInputTokens += other.cacheWriteInputTokens
-        outputTokens += other.outputTokens
-        reasoningOutputTokens += other.reasoningOutputTokens
-        costEstimateAvailable = hasCostEstimate && other.hasCostEstimate
+        let lhs = [inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens, reasoningOutputTokens, pricedTokens ?? (hasCostEstimate ? totalTokens : 0)]
+        let rhs = [other.inputTokens, other.cachedInputTokens, other.cacheWriteInputTokens, other.outputTokens, other.reasoningOutputTokens, other.pricedTokens ?? (other.hasCostEstimate ? other.totalTokens : 0)]
+        let sums = zip(lhs, rhs).map { $0.addingReportingOverflow($1) }
+        guard !sums.contains(where: \.overflow), !sums[0].partialValue.addingReportingOverflow(sums[3].partialValue).overflow else {
+            overflowDetected = true; costEstimateAvailable = false; return
+        }
+        inputTokens = sums[0].partialValue; cachedInputTokens = sums[1].partialValue
+        cacheWriteInputTokens = sums[2].partialValue; outputTokens = sums[3].partialValue
+        reasoningOutputTokens = sums[4].partialValue; pricedTokens = sums[5].partialValue
+        overflowDetected = overflowDetected == true || other.overflowDetected == true
+        costEstimateAvailable = overflowDetected != true && (totalTokens == 0 || pricedTokens == totalTokens)
         estimatedCostUSD += other.estimatedCostUSD
     }
 }
@@ -222,19 +245,44 @@ struct UsageTotals: Codable, Equatable {
 final class UsageAnalyticsService: ObservableObject {
     static let shared = UsageAnalyticsService()
 
+    @Published var selectedProviders = Set(StatisticsProvider.allCases) {
+        didSet { preferences.set(selectedProviders.map(\.rawValue).sorted().joined(separator: ","), forKey: "analytics.selectedProviders") }
+    }
+    private let preferences: UserDefaults
     @Published private(set) var snapshot = UsageAnalyticsSnapshot.empty
     @Published private(set) var isRefreshing = false
     @Published private(set) var progress = UsageAnalyticsLoadProgress.idle
 
     private var task: Task<Void, Never>?
-    private var accountTask: Task<Void, Never>?
     private var scheduleTimer: Timer?
     private var fileCache: [String: CodexFileUsageRecord]
+    private let cacheRoot: URL
+    private let discoverFiles: @Sendable () -> [CodexLogFile]
+    private var timeZoneObserver: NSObjectProtocol?
 
-    private init() {
-        let cached = Self.loadCachedSnapshot()
-        fileCache = Self.loadFileCache()
+    init(cacheDirectory: URL? = nil, discoverFiles: (@Sendable () -> [CodexLogFile])? = nil, preferences: UserDefaults = .standard) {
+        self.preferences = preferences
+        if let stored = preferences.string(forKey: "analytics.selectedProviders") {
+            selectedProviders = Set(stored.split(separator: ",").compactMap { StatisticsProvider(rawValue: String($0)) })
+        }
+        let root = cacheDirectory ?? Self.cacheDirectoryURL
+        cacheRoot = root
+        self.discoverFiles = discoverFiles ?? {
+            CodexUsageLogReader().codexLogFileMetadata() + ClaudeUsageLogReader().logFileMetadata()
+                + LocalUsageProvider.allCases.flatMap { $0.logFileMetadata() }
+        }
+        let cached = Self.loadCachedSnapshot(directory: root)
+        fileCache = Self.loadFileCache(directory: root)
         snapshot = cached
+        snapshot.unattributedAccountUsage = cached.unattributedAccountUsage ?? cached.codex.accountUsage
+        snapshot.codex.accountUsage = nil
+        if cached.statisticsRevision != 4 || cached.rateRevision != CodexAPIRates.revision || cached.timeZoneIdentifier != TimeZone.current.identifier {
+            snapshot.legacyLocalHistory = cached.legacyLocalHistory ?? ["codex": cached.codex, "claude": cached.claude ?? .empty, "kimi": cached.kimiUsage ?? .empty, "qwen": cached.qwen ?? .empty]
+            snapshot.codex = snapshot.codex.withUnverifiedPrices()
+            snapshot.claude = snapshot.claude?.withUnverifiedPrices()
+            snapshot.kimiUsage = snapshot.kimiUsage?.withUnverifiedPrices()
+            snapshot.qwen = snapshot.qwen?.withUnverifiedPrices()
+        }
         progress = UsageAnalyticsLoadProgress(
             isLoading: false,
             processedFiles: 0,
@@ -255,28 +303,21 @@ final class UsageAnalyticsService: ObservableObject {
         snapshot = snapshot.withKimi(kimiAnalytics)
     }
 
-    func refreshAccountUsageIfNeeded() {
-        guard snapshot.codex.accountUsage == nil, accountTask == nil else { return }
-        refreshAccountUsage()
-    }
+    func refreshAccountUsageIfNeeded() { refreshAccountUsage() }
 
     func refreshAccountUsage() {
-        accountTask?.cancel()
-        accountTask = Task { [weak self] in
-            let usage = await Task.detached(priority: .utility) {
-                try? CodexAccountUsageReader().read()
-            }.value
-            guard let self, !Task.isCancelled else { return }
-            if let usage {
-                let nextSnapshot = self.snapshot.withAccountUsage(usage)
-                self.snapshot = nextSnapshot
-                Self.saveCachedSnapshot(nextSnapshot)
-            }
-            self.accountTask = nil
-        }
+        // Reports are measured by the identity-bound account service, not an anonymous default CLI.
+        guard selectedProviders.contains(.codex), SwitchCoordinator.shared.active.isEmpty else { return }
+        CodexMonitoringStore.shared.refresh()
     }
 
     func startDailyRefreshSchedule() {
+        if timeZoneObserver == nil {
+            timeZoneObserver = NotificationCenter.default.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { [weak self] _ in
+                Task { @MainActor in self?.startRefresh(kimi: StatusService.shared.kimi, restartExisting: true, preserveQuota: true) }
+            }
+        }
+        if snapshot.statisticsRevision != 4 || snapshot.rateRevision != CodexAPIRates.revision || snapshot.timeZoneIdentifier != TimeZone.current.identifier { startRefresh(kimi: StatusService.shared.kimi, restartExisting: false, preserveQuota: true) }
         rescheduleDailyRefresh()
     }
 
@@ -301,7 +342,7 @@ final class UsageAnalyticsService: ObservableObject {
         scheduleTimer = timer
     }
 
-    private func startRefresh(kimi: ProviderStatus, restartExisting: Bool) {
+    private func startRefresh(kimi: ProviderStatus, restartExisting: Bool, preserveQuota: Bool = false) {
         if isRefreshing {
             guard restartExisting else { return }
             task?.cancel()
@@ -319,19 +360,14 @@ final class UsageAnalyticsService: ObservableObject {
             currentFileName: nil
         )
 
-        let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
+        let kimiAnalytics = preserveQuota ? snapshot.kimi : Self.kimiAnalytics(from: kimi.limitWindows)
         let existingFileCache = fileCache
-        let existingAccountUsage = snapshot.codex.accountUsage
         snapshot = snapshot.withKimi(kimiAnalytics)
 
-        task = Task { [self, startedAt, kimiAnalytics, existingAccountUsage] in
-            async let accountUsageResult: CodexAccountUsage? = Task.detached(priority: .utility) {
-                try? CodexAccountUsageReader().read()
-            }.value
-            let files = await Task.detached(priority: .background) {
-                CodexUsageLogReader().codexLogFileMetadata() + ClaudeUsageLogReader().logFileMetadata()
-                    + LocalUsageProvider.allCases.flatMap { $0.logFileMetadata() }
-            }.value
+        task = Task { [self, startedAt, kimiAnalytics] in
+            let discover = self.discoverFiles
+            let scanTimeZone = TimeZone.current.identifier
+            let files = await Task.detached(priority: .background) { discover() }.value
             guard !Task.isCancelled else { return }
 
             self.progress.totalFiles = files.count
@@ -341,7 +377,7 @@ final class UsageAnalyticsService: ObservableObject {
                 guard !Task.isCancelled else { return }
                 self.progress.currentFileName = file.url.lastPathComponent
 
-                if let cached = existingFileCache[file.url.path], cached.matches(file) {
+                if let cached = existingFileCache[file.url.path], cached.matches(file, revision: 4) {
                     nextFileCache[file.url.path] = cached
                 } else {
                     let record = await Task.detached(priority: .background) {
@@ -355,11 +391,12 @@ final class UsageAnalyticsService: ObservableObject {
                     }.value
                     nextFileCache[file.url.path] = record
                 }
+                guard !Task.isCancelled else { return }
                 self.progress.processedFiles = index + 1
                 try? await Task.sleep(nanoseconds: 5_000_000)
             }
 
-            let records = Array(nextFileCache.values)
+            let records = Array(nextFileCache.values).filter { $0.excluded != true }
             var codex = await Task.detached(priority: .background) {
                 let codexRecords = records.filter {
                     let url = URL(fileURLWithPath: $0.path)
@@ -367,7 +404,7 @@ final class UsageAnalyticsService: ObservableObject {
                 }
                 return CodexUsageLogReader().analytics(from: codexRecords, fileCount: codexRecords.count)
             }.value
-            codex.accountUsage = await accountUsageResult ?? existingAccountUsage
+            codex.accountUsage = nil
             let claude = await Task.detached(priority: .background) {
                 let claudeRecords = records.filter { ClaudeUsageLogReader.isClaudeLog(URL(fileURLWithPath: $0.path)) }
                 var result = CodexUsageLogReader().analytics(from: claudeRecords, fileCount: claudeRecords.count)
@@ -383,9 +420,15 @@ final class UsageAnalyticsService: ObservableObject {
             }.value
 
             guard !Task.isCancelled else { return }
+            guard TimeZone.current.identifier == scanTimeZone else {
+                self.snapshot.sourceIssues = [StatisticsSourceIssue(provider: nil, message: "Time zone changed during scan; refresh to rebuild local days.")]
+                self.progress.isLoading = false
+                self.isRefreshing = false
+                return
+            }
             let duration = Date().timeIntervalSince(startedAt)
             let completedAt = Date()
-            let nextSnapshot = UsageAnalyticsSnapshot(
+            var nextSnapshot = UsageAnalyticsSnapshot(
                 codex: codex,
                 kimi: kimiAnalytics,
                 claude: claude,
@@ -394,8 +437,17 @@ final class UsageAnalyticsService: ObservableObject {
                 refreshedAt: completedAt,
                 lastLoadDuration: duration
             )
+            nextSnapshot.statisticsRevision = 4
+            nextSnapshot.rateRevision = CodexAPIRates.revision
+            nextSnapshot.timeZoneIdentifier = scanTimeZone
+            nextSnapshot.unattributedAccountUsage = self.snapshot.unattributedAccountUsage
+            nextSnapshot.legacyLocalHistory = self.snapshot.legacyLocalHistory
+            nextSnapshot.sourceIssues = nextFileCache.values.compactMap { record in
+                record.sourceIssue.map { StatisticsSourceIssue(provider: statisticsProvider(for: record.path), message: $0) }
+            } + existingFileCache.keys.filter { nextFileCache[$0] == nil && !FileManager.default.fileExists(atPath: $0) }.map { StatisticsSourceIssue(provider: statisticsProvider(for: $0), message: "Missing source: " + $0) }
             self.snapshot = nextSnapshot
-            self.fileCache = nextFileCache
+            // Missing records remain available for migration/recovery but not active totals.
+            self.fileCache = existingFileCache.merging(nextFileCache) { _, current in current }
             self.progress = UsageAnalyticsLoadProgress(
                 isLoading: false,
                 processedFiles: files.count,
@@ -406,8 +458,12 @@ final class UsageAnalyticsService: ObservableObject {
                 currentFileName: nil
             )
             self.isRefreshing = false
-            Self.saveFileCache(nextFileCache)
-            Self.saveCachedSnapshot(nextSnapshot)
+            if !Self.saveFileCache(self.fileCache, directory: cacheRoot) {
+                self.snapshot.sourceIssues = (self.snapshot.sourceIssues ?? []) + [StatisticsSourceIssue(provider: nil, message: "Could not save incremental file cache.")]
+            }
+            if !Self.saveCachedSnapshot(nextSnapshot, directory: cacheRoot) {
+                self.snapshot.sourceIssues = (self.snapshot.sourceIssues ?? []) + [StatisticsSourceIssue(provider: nil, message: "Could not save statistics snapshot; in-memory results only.")]
+            }
         }
     }
 
@@ -443,10 +499,11 @@ final class UsageAnalyticsService: ObservableObject {
         cacheDirectoryURL.appendingPathComponent("usage-analytics-files-cache.json")
     }
 
-    private static func loadCachedSnapshot() -> UsageAnalyticsSnapshot {
+    private static func loadCachedSnapshot(directory: URL) -> UsageAnalyticsSnapshot {
+        let cacheURL = directory.appendingPathComponent("usage-analytics-cache.json")
         do {
             let data = try Data(contentsOf: cacheURL)
-            protectCacheFile()
+            protectCacheFile(directory: directory)
 
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
@@ -456,7 +513,9 @@ final class UsageAnalyticsService: ObservableObject {
         }
     }
 
-    private static func saveCachedSnapshot(_ snapshot: UsageAnalyticsSnapshot) {
+    private static func saveCachedSnapshot(_ snapshot: UsageAnalyticsSnapshot, directory: URL) -> Bool {
+        let cacheDirectoryURL = directory
+        let cacheURL = directory.appendingPathComponent("usage-analytics-cache.json")
         do {
             try FileManager.default.createDirectory(
                 at: cacheDirectoryURL,
@@ -475,12 +534,12 @@ final class UsageAnalyticsService: ObservableObject {
                 [.posixPermissions: 0o600],
                 ofItemAtPath: cacheURL.path
             )
-        } catch {
-            // Statistics cache is best-effort; the next refresh can rebuild it.
-        }
+            return true
+        } catch { return false }
     }
 
-    private static func loadFileCache() -> [String: CodexFileUsageRecord] {
+    private static func loadFileCache(directory: URL) -> [String: CodexFileUsageRecord] {
+        let fileCacheURL = directory.appendingPathComponent("usage-analytics-files-cache.json")
         do {
             let data = try Data(contentsOf: fileCacheURL)
             let decoder = JSONDecoder()
@@ -491,12 +550,11 @@ final class UsageAnalyticsService: ObservableObject {
         }
     }
 
-    private static func saveFileCache(_ cache: [String: CodexFileUsageRecord]) {
+    private static func saveFileCache(_ cache: [String: CodexFileUsageRecord], directory: URL) -> Bool {
+        let cacheDirectoryURL = directory
+        let fileCacheURL = directory.appendingPathComponent("usage-analytics-files-cache.json")
         do {
-            try FileManager.default.createDirectory(
-                at: cacheDirectoryURL,
-                withIntermediateDirectories: true
-            )
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             try FileManager.default.setAttributes(
                 [.posixPermissions: 0o700],
                 ofItemAtPath: cacheDirectoryURL.path
@@ -510,12 +568,13 @@ final class UsageAnalyticsService: ObservableObject {
                 [.posixPermissions: 0o600],
                 ofItemAtPath: fileCacheURL.path
             )
-        } catch {
-            // Best-effort optimization; the main snapshot remains authoritative.
-        }
+            return true
+        } catch { return false }
     }
 
-    private static func protectCacheFile() {
+    private static func protectCacheFile(directory: URL) {
+        let cacheDirectoryURL = directory
+        let cacheURL = directory.appendingPathComponent("usage-analytics-cache.json")
         try? FileManager.default.setAttributes(
             [.posixPermissions: 0o700],
             ofItemAtPath: cacheDirectoryURL.path
@@ -552,6 +611,7 @@ struct CodexUsageLogEntry {
 }
 
 struct CodexUsageLogReader {
+    static let parserRevision = 4
     var calendar = Calendar.autoupdatingCurrent
     private let iso8601 = ISO8601DateFormatter()
     private let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
@@ -580,13 +640,11 @@ struct CodexUsageLogReader {
     }
 
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
-        CodexFileUsageRecord(
-            path: file.url.path,
-            modifiedAt: file.modifiedAt,
-            size: file.size,
-            dailyModels: dailyModelUsage(entries: readEntries(from: file.url)),
-            timeZoneIdentifier: calendar.timeZone.identifier
-        )
+        let parsed = parseEntries(from: file.url)
+        return CodexFileUsageRecord(path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
+            dailyModels: dailyModelUsage(entries: parsed.entries), timeZoneIdentifier: calendar.timeZone.identifier,
+            parserRevision: Self.parserRevision, rateRevision: CodexAPIRates.revision,
+            sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970)
     }
 
     private func analytics(from dailyModels: [DailyModelUsage], fileCount: Int) -> CodexUsageAnalytics {
@@ -615,7 +673,7 @@ struct CodexUsageLogReader {
     }
 
     func codexLogFiles() -> [URL] {
-        codexLogFileMetadata().map(\.url)
+        codexLogFileMetadata().filter { $0.issue == nil }.map(\.url)
     }
 
     func codexLogFileMetadata(roots suppliedRoots: [URL]? = nil) -> [CodexLogFile] {
@@ -632,6 +690,9 @@ struct CodexUsageLogReader {
                 includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey],
                 options: [.skipsHiddenFiles]
             ) else {
+                if FileManager.default.fileExists(atPath: root.path) {
+                    filesByName[root.path] = CodexLogFile(url: root, modifiedAt: .distantPast, size: 0, issue: "Unreadable history root: " + root.path)
+                }
                 continue
             }
 
@@ -648,112 +709,60 @@ struct CodexUsageLogReader {
                     modifiedAt: values.contentModificationDate ?? .distantPast,
                     size: values.fileSize ?? 0
                 )
-                if filesByName[url.lastPathComponent] == nil {
-                    filesByName[url.lastPathComponent] = file
+                if filesByName[url.resolvingSymlinksInPath().path] == nil {
+                    filesByName[url.resolvingSymlinksInPath().path] = file
                 }
             }
         }
-        return filesByName.values.sorted { $0.url.path < $1.url.path }
+        return canonicalUsageFiles(Array(filesByName.values))
     }
 
-    func readEntries(from file: URL) -> [CodexUsageLogEntry] {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else {
-            return []
-        }
+    func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
 
+    private func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
+        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
+        var malformed = false
         var entries: [CodexUsageLogEntry] = []
-        let modelHeader = String(content.prefix(100_000))
-        let sessionModel = knownModel(in: modelHeader) ?? "gpt-5.6-sol"
-        let usageMarker = "\"last_token_usage\""
-        var cursor = content.startIndex
-
-        while cursor < content.endIndex,
-              let usageRange = content.range(of: usageMarker, range: cursor..<content.endIndex) {
-            let lineStart = content[..<usageRange.lowerBound].lastIndex(of: "\n")
-                .map { content.index(after: $0) } ?? content.startIndex
-            let lineEnd = content[usageRange.upperBound...].firstIndex(of: "\n") ?? content.endIndex
-            let text = String(content[lineStart..<lineEnd])
-            cursor = lineEnd < content.endIndex ? content.index(after: lineEnd) : content.endIndex
-
-            guard let timestamp = timestamp(in: text) else { continue }
-
-            let usageText: String
-            if let usageStart = text.range(of: "\"last_token_usage\"")?.lowerBound {
-                usageText = String(text[usageStart...])
-            } else {
-                usageText = text
+        var model = "Unknown model"
+        var seenCounters = Set<String>()
+        var previousCumulative: [String: Int]?
+        for line in content.split(separator: "\n") {
+            guard let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { malformed = true; continue }
+            guard let payload = object["payload"] as? [String: Any] else { continue }
+            let type = object["type"] as? String
+            if type == "turn_context" || type == "session_meta" {
+                if let reported = payload["model"] as? String, !reported.isEmpty { model = reported }
+                continue
             }
-            let input = intValue("input_tokens", in: usageText)
-            let cached = intValue("cached_input_tokens", in: usageText)
-            let cacheWrite = intValue("cache_write_input_tokens", in: usageText)
-            let output = intValue("output_tokens", in: usageText)
-            let reasoning = intValue("reasoning_output_tokens", in: usageText)
-            let totals = usageTotals(
-                model: sessionModel,
-                input: input,
-                cached: cached,
-                cacheWrite: cacheWrite,
-                output: output,
-                reasoning: reasoning
-            )
-
-            entries.append(CodexUsageLogEntry(timestamp: timestamp, model: sessionModel, totals: totals))
+            guard type == "event_msg", payload["type"] == nil || payload["type"] as? String == "token_count",
+                  let info = payload["info"] as? [String: Any],
+                  let usage = info["last_token_usage"] as? [String: Any],
+                  let stamp = object["timestamp"] as? String, let timestamp = timestamp(from: stamp) else { continue }
+            // Codex can repeat a token_count snapshot without another request.
+            if let cumulative = info["total_token_usage"] as? [String: Int], !cumulative.isEmpty {
+                if let previousCumulative, cumulative.contains(where: { $0.value < (previousCumulative[$0.key] ?? 0) }) { seenCounters.removeAll() }
+                let key = cumulative.keys.sorted().map { "\($0):\(cumulative[$0]!)" }.joined(separator: "|")
+                guard seenCounters.insert(key).inserted else { continue }
+                previousCumulative = cumulative
+            }
+            let reported = (usage["model"] as? String) ?? (info["model"] as? String) ?? (payload["model"] as? String) ?? model
+            let input = max(0, (usage["input_tokens"] as? Int) ?? 0)
+            let details = usage["input_tokens_details"] as? [String: Any] ?? [:]
+            let cached = min(input, max(0, (usage["cached_input_tokens"] as? Int) ?? (details["cached_tokens"] as? Int) ?? 0))
+            let writes = min(input - cached, max(0, (usage["cache_write_input_tokens"] as? Int) ?? (details["cache_write_tokens"] as? Int) ?? 0))
+            let output = max(0, (usage["output_tokens"] as? Int) ?? 0)
+            let outputDetails = usage["output_tokens_details"] as? [String: Any] ?? [:]
+            let reasoning = min(output, max(0, (usage["reasoning_output_tokens"] as? Int) ?? (outputDetails["reasoning_tokens"] as? Int) ?? 0))
+            guard !input.addingReportingOverflow(output).overflow else { malformed = true; continue }
+            let totals = usageTotals(model: reported, input: input, cached: cached, cacheWrite: writes,
+                                     output: output, reasoning: reasoning)
+            entries.append(CodexUsageLogEntry(timestamp: timestamp, model: reported, totals: totals))
         }
-
-        return entries
-    }
-
-    private func timestamp(in text: String) -> Date? {
-        guard let range = text.range(of: "\"timestamp\"") else { return nil }
-        let rest = text[range.upperBound...]
-        guard let firstQuote = rest.firstIndex(of: "\"") else { return nil }
-        let afterFirstQuote = rest.index(after: firstQuote)
-        guard let secondQuote = rest[afterFirstQuote...].firstIndex(of: "\"") else { return nil }
-        return timestamp(from: String(rest[afterFirstQuote..<secondQuote]))
+        return (entries, malformed ? "Partial accounting source: " + file.path : nil, false)
     }
 
     private func timestamp(from value: String) -> Date? {
         iso8601WithFractionalSeconds.date(from: value) ?? iso8601.date(from: value)
-    }
-
-    private func intValue(_ key: String, in text: String) -> Int {
-        guard let keyRange = text.range(of: "\"\(key)\"") else {
-            return 0
-        }
-
-        let afterKey = text[keyRange.upperBound...]
-        guard let colon = afterKey.firstIndex(of: ":") else {
-            return 0
-        }
-
-        var index = text.index(after: colon)
-        while index < text.endIndex, text[index].isWhitespace {
-            index = text.index(after: index)
-        }
-
-        let start = index
-        while index < text.endIndex, text[index].isNumber {
-            index = text.index(after: index)
-        }
-
-        guard start < index else { return 0 }
-        return Int(text[start..<index]) ?? 0
-    }
-
-    private func knownModel(in text: String) -> String? {
-        let knownModels = [
-            "gpt-5.6-sol",
-            "gpt-5.6-terra",
-            "gpt-5.6-luna",
-            "gpt-5.5-cyber",
-            "gpt-5.5",
-            "gpt-5.4-mini",
-            "gpt-5.4",
-            "gpt-5.3-codex",
-            "gpt-5.2"
-        ]
-        let lowercased = text.lowercased()
-        return knownModels.first { lowercased.contains($0) }
     }
 
     private func usageTotals(
@@ -772,7 +781,10 @@ struct CodexUsageLogReader {
             reasoningOutputTokens: reasoning,
             estimatedCostUSD: 0
         )
-        let rates = CodexAPIRates.rates(for: model)
+        guard let rates = CodexAPIRates.rates(for: model) else {
+            totals.costEstimateAvailable = false
+            return totals
+        }
         totals.estimatedCostUSD =
             Double(totals.billableInputTokens) / 1_000_000 * rates.input +
             Double(cached) / 1_000_000 * rates.cachedInput +
@@ -876,31 +888,18 @@ func nextDailyRefreshDate(
     return calendar.date(byAdding: .day, value: 1, to: scheduledToday) ?? scheduledToday
 }
 
-private enum CodexAPIRates {
-    struct Rates {
-        let input: Double
-        let cachedInput: Double
-        let cacheWrite: Double
-        let output: Double
-    }
-
-    static func rates(for model: String) -> Rates {
-        let normalized = model.lowercased()
-        if normalized.contains("gpt-5.6-terra") {
-            return Rates(input: 2.50, cachedInput: 0.25, cacheWrite: 3.125, output: 15.00)
-        }
-        if normalized.contains("gpt-5.6-luna") {
-            return Rates(input: 1.00, cachedInput: 0.10, cacheWrite: 1.25, output: 6.00)
-        }
-        if normalized.contains("gpt-5.4-mini") {
-            return Rates(input: 0.75, cachedInput: 0.075, cacheWrite: 0.9375, output: 4.50)
-        }
-        if normalized.contains("gpt-5.4") {
-            return Rates(input: 2.50, cachedInput: 0.25, cacheWrite: 3.125, output: 15.00)
-        }
-        if normalized.contains("gpt-5.3") || normalized.contains("gpt-5.2") {
-            return Rates(input: 1.75, cachedInput: 0.175, cacheWrite: 2.1875, output: 14.00)
-        }
-        return Rates(input: 5.00, cachedInput: 0.50, cacheWrite: 6.25, output: 30.00)
+enum CodexAPIRates {
+    static let revision = "2026-11-06-standard-v1"
+    // USD per million, standard short-context comparison; not subscription charges.
+    // https://developers.openai.com/api/docs/pricing (checked 2026-11-06)
+    struct Rates { let input: Double; let cachedInput: Double; let cacheWrite: Double; let output: Double }
+    static func rates(for model: String) -> Rates? {
+        let entries: [String: Rates] = [
+            "gpt-6-astra": Rates(input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50),
+            "gpt-6.1-sol": Rates(input: 2, cachedInput: 0.1, cacheWrite: 2.5, output: 10),
+            "gpt-6.1-terra": Rates(input: 1, cachedInput: 0.05, cacheWrite: 1.25, output: 5),
+            "gpt-6-luna": Rates(input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5)
+        ]
+        return entries[model.lowercased()]
     }
 }

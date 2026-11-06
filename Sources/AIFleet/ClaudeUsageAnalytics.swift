@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reads accounting metadata only; message content is neither decoded nor cached.
+/// Extracts accounting metadata; message content is not retained in analytics.
 struct ClaudeUsageLogReader {
     static var projectsURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects")
@@ -16,23 +16,28 @@ struct ClaudeUsageLogReader {
     }
 
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
-        CodexFileUsageRecord(
+        let parsed = parseEntries(from: file.url)
+        return CodexFileUsageRecord(
             path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
-            dailyModels: CodexUsageLogReader().dailyModelUsage(entries: readEntries(from: file.url)),
-            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+            dailyModels: CodexUsageLogReader().dailyModelUsage(entries: parsed.entries),
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier, parserRevision: 4, rateRevision: CodexAPIRates.revision, sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
         )
     }
 
-    func readEntries(from file: URL) -> [CodexUsageLogEntry] {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return [] }
+    func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
+    func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
+        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
+        var malformed = false
         let decoder = JSONDecoder()
         let formatter = ISO8601DateFormatter()
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         var entries: [String: CodexUsageLogEntry] = [:]
         for line in content.split(separator: "\n") {
-            guard let event = try? decoder.decode(Event.self, from: Data(line.utf8)),
-                  event.type == "assistant", let message = event.message,
+            guard let event = try? decoder.decode(Event.self, from: Data(line.utf8)) else {
+                malformed = malformed || malformedAccountingLine(String(line), kinds: ["assistant"]); continue
+            }
+            guard event.type == "assistant", let message = event.message,
                   let usage = message.usage, let model = message.model, model != "<synthetic>",
                   let id = message.id ?? event.uuid,
                   let timestamp = event.timestamp.flatMap({ fractional.date(from: $0) ?? formatter.date(from: $0) })
@@ -45,13 +50,14 @@ struct ClaudeUsageLogReader {
             let oneHour = min(writes, max(0, usage.cache_creation?.ephemeral_1h_input_tokens ?? 0))
             let rates = ClaudeAPIRates.rates(for: model)
             var totals = UsageTotals(
-                inputTokens: uncached + cached + writes,
+                inputTokens: checkedStatisticsSum([uncached, cached, writes]) ?? 0,
                 cachedInputTokens: cached, cacheWriteInputTokens: writes,
                 outputTokens: output,
                 reasoningOutputTokens: min(output, max(0, usage.output_tokens_details?.thinking_tokens ?? 0)),
                 estimatedCostUSD: 0
             )
-            totals.costEstimateAvailable = rates != nil
+            totals.overflowDetected = checkedStatisticsSum([uncached, cached, writes, output]) == nil
+            totals.costEstimateAvailable = rates != nil && totals.overflowDetected != true
             if let rates {
                 totals.estimatedCostUSD = (
                     Double(uncached) * rates.input + Double(cached) * rates.cached +
@@ -65,7 +71,7 @@ struct ClaudeUsageLogReader {
             if let previous = entries[key], previous.totals.totalTokens > totals.totalTokens { continue }
             entries[key] = CodexUsageLogEntry(timestamp: timestamp, model: model, totals: totals)
         }
-        return entries.values.sorted { $0.timestamp < $1.timestamp }
+        return (entries.values.sorted { $0.timestamp < $1.timestamp }, malformed ? "Partial accounting source: " + file.path : nil, false)
     }
 
     private struct Event: Decodable {
@@ -102,7 +108,7 @@ enum ClaudeAPIRates {
         let cached: Double
     }
 
-    /// Standard USD per million tokens; excludes tools, fast mode and platform premiums.
+    /// Catalog checked 2026-11-06; standard USD per million tokens; excludes tools, fast mode and platform premiums.
     /// Source: https://platform.claude.com/docs/en/about-claude/pricing
     static func rates(for model: String) -> Rates? {
         let model = model.lowercased()
@@ -121,10 +127,6 @@ enum ClaudeAPIRates {
             ("claude-sonnet-4", 3, 15, 0.30),
             ("claude-sonnet-5", 2, 10, 0.20),
             ("claude-haiku-4-5", 1, 5, 0.10),
-            ("claude-3-5-haiku", 0.80, 4, 0.08),
-            ("claude-3-7-sonnet", 3, 15, 0.30),
-            ("claude-3-5-sonnet", 3, 15, 0.30),
-            ("claude-3-opus", 15, 75, 1.50)
         ]
         guard let match = families.first(where: {
             model == $0.0 || (model.hasPrefix($0.0 + "-") && model.dropFirst($0.0.count + 1).count == 8 && model.suffix(8).allSatisfy(\.isNumber))

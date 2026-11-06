@@ -12,6 +12,7 @@ struct CodexMonitoringResult {
     let status: ProviderStatus
     let usage: CodexAccountUsage?
     let usageError: String?
+    var usageIdentity: CodexCredentialSwitch.Identity? = nil
 
 }
 
@@ -56,16 +57,17 @@ final class CodexMonitoringStore: ObservableObject {
             .appendingPathComponent("AI Fleet/CodexProfiles", isDirectory: true)).standardizedFileURL
         self.authenticate = authenticate
         self.measure = measure ?? { directory in
-            let beforeIdentity = codexMonitoringIdentity(directory)
+            let beforeIdentity = try? CodexCredentialSwitch.identity(at: directory.appendingPathComponent("auth.json"))
             let usage = await Task.detached(priority: .utility) {
                 try? CodexAccountUsageReader(profileDirectory: directory).read()
             }.value
             let connection = ProviderConnection(id: directory.lastPathComponent, providerID: "codex", configDirectory: directory.path)
             let status = await StatusService.shared.checkCodex(connection: connection)
-            let sameIdentity = beforeIdentity != nil && beforeIdentity == codexMonitoringIdentity(directory)
+            let sameIdentity = beforeIdentity != nil && beforeIdentity == (try? CodexCredentialSwitch.identity(at: directory.appendingPathComponent("auth.json")))
             return CodexMonitoringResult(status: status, usage: sameIdentity ? usage : nil,
                 usageError: !sameIdentity ? "Profile identity changed or is unavailable; refresh again."
-                    : usage == nil ? "Account tokens unavailable; quota is shown independently." : nil)
+                    : usage == nil ? "Account tokens unavailable; quota is shown independently." : nil,
+                usageIdentity: sameIdentity && usage != nil ? beforeIdentity : nil)
         }
         var ids = Set<String>()
         profiles = (defaults.data(forKey: "codex.monitoringProfiles")
