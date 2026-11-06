@@ -32,6 +32,12 @@ final class UpdateServiceTests: XCTestCase {
             } catch { }
         }
     }
+    func testFutureUpdatesRequireAppleSilicon() throws {
+        XCTAssertNoThrow(try ReleaseUpdater.requireSupportedArchitecture("aarch64"))
+        XCTAssertThrowsError(try ReleaseUpdater.requireSupportedArchitecture("x86_64"))
+        XCTAssertThrowsError(try ReleaseUpdater.requireSupportedArchitecture("unsupported"))
+    }
+
     func testSemanticVersionOrdering() throws {
         XCTAssertLessThan(
             try XCTUnwrap(AppSemanticVersion("1.9.9")),

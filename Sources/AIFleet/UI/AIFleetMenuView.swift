@@ -14,12 +14,11 @@ struct AIFleetMenuView: View {
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
 
     private var connections: [MenuAccountConnection] {
-        sortedAccountProviderRows(ProviderCatalog.all.flatMap { provider -> [MenuAccountConnection] in
-            guard settings.isEnabled(provider.id), ProviderCatalog.isInstalled(provider) else { return [] }
-            return accountProviderRows(accounts: accounts.accounts, providerID: provider.id,
-                global: service.status(for: provider.id), statusForConnection: service.status(for:), codex: codexProfiles)
-        })
+        menuProviderRows(accounts: accounts.accounts, enabled: settings.isEnabled,
+            global: service.status(for:), statusForConnection: service.status(for:), codex: codexProfiles)
     }
+
+    private var monitoringSummary: MonitoringSummary { MonitoringSummary(rows: connections, monitoring: service.isMonitoring) }
 
     private var providers: [ProviderStatus] { connections.map(\.status) }
 
@@ -123,7 +122,7 @@ struct AIFleetMenuView: View {
             }
             GridRow {
                 summaryLabel("Limits")
-                summaryValue(quotaAvailabilityText(providers))
+                summaryValue("\(monitoringSummary.measured)/\(monitoringSummary.total) loaded")
             }
             GridRow {
                 summaryLabel("Version")
@@ -221,16 +220,6 @@ private struct MenuRowsHeightKey: PreferenceKey {
     }
 }
 
-struct MenuAccountConnection: Identifiable {
-    let account: FleetAccount
-    let connection: ProviderConnection
-    let status: ProviderStatus
-    let isSelected: Bool
-    var isCurrentCLI: Bool? = nil
-    var usesAccountLogin = false
-    var id: String { connection.statusID }
-}
-
 struct ProviderLimitRow: View {
     let entry: MenuAccountConnection
     let isLowest: Bool
@@ -270,6 +259,11 @@ struct ProviderLimitRow: View {
                 }
                 Spacer(minLength: 8)
                 Menu {
+                    if entry.isSetup {
+                        Button("Set up connection…") {
+                            SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
+                        }
+                    } else {
                     if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil, entry.isCurrentCLI == true {
                         Button("Save current login") { codexProfiles.saveCurrentLogin(entry.account) }
                             .disabled(codexProfiles.refreshing)
@@ -313,6 +307,7 @@ struct ProviderLimitRow: View {
                         Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
                             providerLaunch.signOut(entry.account, providerID: status.providerID)
                         }
+                    }
                     }
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
@@ -460,7 +455,11 @@ struct LimitWindowLine: View {
         if blockingWindow != nil {
             return "-"
         }
-        return "↻ \(window.resetAt.map(formatResetTime) ?? "unknown")"
+        switch QuotaResetState(resetAt: window.resetAt, now: Date()) {
+        case .notReported: return "Not reported"
+        case .due: return "Reset due"
+        case .upcoming(let date): return "↻ \(formatResetTime(date))"
+        }
     }
 
     private var resetColor: Color {

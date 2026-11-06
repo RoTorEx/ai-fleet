@@ -6,11 +6,11 @@ import XCTest
 final class AccountProviderPresentationTests: XCTestCase {
     func testMenuAvailabilityAndLoginAreDifferentStates() {
         let signedInWithoutLimits = ProviderStatus(id: "claude", name: "Claude", state: .offline,
-            detail: "Limits access expired", lastUpdated: Date(), authentication: .signedIn)
+            detail: "Limits access expired", lastUpdated: Date(), authentication: .signedIn, quotaFailure: .credentialsExpired)
         let unavailable = MenuConnectionState(status: signedInWithoutLimits)
         XCTAssertFalse(unavailable.available)
         XCTAssertEqual(unavailable.marker, "?")
-        XCTAssertEqual(unavailable.detail, "Limits access expired")
+        XCTAssertEqual(unavailable.detail, "Quota credentials expired")
         let signedOut = ProviderStatus(id: "codex", name: "Codex", state: .noKey, detail: "Sign in required", lastUpdated: nil)
         XCTAssertEqual(MenuConnectionState(status: signedOut).marker, "×")
         let exhausted = status("work@example.test", remaining: 0)

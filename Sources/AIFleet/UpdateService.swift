@@ -136,7 +136,12 @@ enum ReleaseUpdater {
         return candidateVersion > currentVersion
     }
 
+    static func requireSupportedArchitecture(_ value: String) throws {
+        guard value == "aarch64" else { throw UpdateError.appleSiliconRequired }
+    }
+
     static func latestRelease(session: URLSession = .shared) async throws -> Release {
+        try requireSupportedArchitecture(architecture)
         // The public release redirect also powers the terminal installer and avoids
         // GitHub's shared unauthenticated API allowance.
         let url = URL(string: "https://github.com/\(repository)/releases/latest")!
@@ -307,6 +312,7 @@ struct AppSemanticVersion: Comparable {
 
 private enum UpdateError: LocalizedError {
     case notInstalledApplication
+    case appleSiliconRequired
     case installLocationNotWritable
     case invalidRelease
     case missingReleaseAsset
@@ -319,6 +325,8 @@ private enum UpdateError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .appleSiliconRequired:
+            return "New AI Fleet releases require Apple Silicon."
         case .notInstalledApplication:
             return "Updates are available from the installed AI Fleet.app."
         case .installLocationNotWritable:

@@ -1,0 +1,52 @@
+import XCTest
+@testable import AIFleet
+
+final class MenuContractTests: XCTestCase {
+    @MainActor
+    func testTenBadgesPersistWithoutRecycling() throws {
+        let suite = "stage5-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = AccountStore(defaults: defaults, homeDirectory: root)
+        let accounts = (0..<10).map { store.add(name: "Account \($0)", email: "a\($0)@example.test") }
+        XCTAssertEqual(accounts.map(\.badge), Array("αβγδεζηθικ").map(String.init))
+        store.remove(accounts[4].id)
+        let restarted = AccountStore(defaults: defaults, homeDirectory: root)
+        XCTAssertEqual(restarted.accounts.filter { !$0.badge.isEmpty }.map(\.badge), accounts.filter { $0.id != accounts[4].id }.map(\.badge))
+        XCTAssertEqual(restarted.add().badge, "λ")
+    }
+
+    @MainActor
+    func testSetupRowsHaveNoSavedAccountAndDoNotCount() throws {
+        let suite = "stage5-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let codex = CodexMonitoringStore(defaults: defaults)
+        let rows = menuProviderRows(accounts: [], enabled: { $0 != "qwen" }, global: {
+            LocalProviderAuth.unknown.status(for: ProviderCatalog.definition(for: $0)!)
+        }, statusForConnection: { _ in nil }, codex: codex)
+        XCTAssertEqual(rows.map { $0.status.name }, ["Claude", "Codex", "Gemini", "Kimi"])
+        XCTAssertTrue(rows.allSatisfy { $0.isSetup && $0.account.badge.isEmpty })
+        XCTAssertEqual(MonitoringSummary(rows: rows, monitoring: true).total, 0)
+        let account = FleetAccount(id: "test", badgeIndex: 9, name: "Test", email: "", connections: [])
+        let zero = ProviderStatus(id: "kimi", name: "Kimi", state: .limited, detail: "", lastUpdated: Date(), remainingPercent: 0)
+        let saved = MenuAccountConnection(account: account, connection: .global("kimi"), status: zero, isSelected: false)
+        let summary = MonitoringSummary(rows: rows + [saved], monitoring: false)
+        XCTAssertEqual(summary.total, 1)
+        XCTAssertEqual(summary.measured, 1)
+    }
+
+    func testResetBoundariesAndReasonSurviveAccountMapping() {
+        let now = Date(timeIntervalSince1970: 100)
+        XCTAssertEqual(QuotaResetState(resetAt: nil, now: now).text(now: now), "Not reported")
+        XCTAssertEqual(QuotaResetState(resetAt: now, now: now).text(now: now), "Reset due")
+        XCTAssertEqual(QuotaResetState(resetAt: now.addingTimeInterval(0.1), now: now).text(now: now), "1s")
+        XCTAssertEqual(QuotaResetState(resetAt: now.addingTimeInterval(90061), now: now).text(now: now), "1d 1h 1m 1s")
+        let status = ClaudeQuota.unavailable("arbitrary provider text", reason: .rateLimited).withAuthentication(.signedIn)
+        let mapped = ProviderConnection.global("claude").status(from: status).withAccount(nil)
+        XCTAssertEqual(mapped.quotaFailureReason, .rateLimited)
+        XCTAssertEqual(MenuConnectionState(status: mapped).detail, "Quota requests limited")
+    }
+}

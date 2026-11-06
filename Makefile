@@ -1,5 +1,7 @@
 .PHONY: dist-dir build bundle-app run test check public-audit release release-push release-publish clean stop-app reinstall vibe-kernel-path vibe-kernel-set vibe-pull
 
+CODE_SIGN_IDENTITY ?= -
+
 APP_NAME := AIFleet
 APP_BUNDLE_ID := dev.ai-fleet
 PROJECT_NAME := $(notdir $(CURDIR))
@@ -41,7 +43,7 @@ bundle-app: dist-dir build
 	@cp AppBundle/Info.plist "$(APP_CONTENTS)/Info.plist"
 	@/usr/libexec/PlistBuddy -c "Merge $(APP_RESOURCES)/partial.plist" "$(APP_CONTENTS)/Info.plist" >/dev/null 2>&1 || true
 	@rm -f "$(APP_RESOURCES)/partial.plist"
-	@codesign --force --deep --sign - "$(APP_BUNDLE)" >/dev/null 2>&1 || true
+	@./scripts/sign-bundle.sh "$(APP_BUNDLE)" "$(CODE_SIGN_IDENTITY)"
 	@echo "Bundled $(APP_BUNDLE)"
 
 run: bundle-app
@@ -50,6 +52,7 @@ run: bundle-app
 test:
 	@./scripts/test-release.sh
 	@./scripts/test-install.sh
+	@./scripts/test-stage-five-build.sh
 	swift test --build-path "$(SWIFT_BUILD_PATH)"
 
 check: public-audit check-session-engine test
@@ -70,18 +73,21 @@ release-push:
 	git rev-parse -q --verify "refs/tags/$$tag" >/dev/null || { echo "ERROR: missing $$tag. Run make release." >&2; exit 1; }; \
 	git push origin main --follow-tags
 
-release-publish: bundle-app
+release-publish: check-release-architecture
+	@$(MAKE) bundle-app
 	@set -eu; \
 	printf '%s\n' "$(VERSION)" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$$' || { echo "ERROR: invalid VERSION=$(VERSION)" >&2; exit 1; }; \
 	plist_version="$$($(MAKE) --no-print-directory -s version-value)"; \
 	test "$(VERSION)" = "$$plist_version" || { echo "ERROR: VERSION=$(VERSION) does not match Info.plist $$plist_version" >&2; exit 1; }; \
-	case "$$(uname -m)" in arm64) arch=aarch64 ;; x86_64) arch=x86_64 ;; *) echo "ERROR: unsupported architecture $$(uname -m)" >&2; exit 1 ;; esac; \
+	case "$$(uname -m)" in arm64) arch=aarch64 ;; *) echo "ERROR: unsupported architecture $$(uname -m)" >&2; exit 1 ;; esac; \
 	release_dir="$(DIST_DIR)/release"; \
 	archive="$(APP_NAME)-v$(VERSION)-macos-$$arch.zip"; \
 	mkdir -p "$$release_dir"; \
 	rm -f "$$release_dir/$$archive" "$$release_dir/$$archive.sha256"; \
 	plutil -lint "$(APP_CONTENTS)/Info.plist" >/dev/null; \
 	codesign --verify --deep --strict "$(APP_BUNDLE)"; \
+	test "$$(lipo -archs "$(APP_MACOS)/$(APP_NAME)")" = arm64; \
+	test "$$(lipo -archs "$(APP_MACOS)/fleet-session-engine")" = arm64; \
 	ditto -c -k --sequesterRsrc --keepParent "$(APP_BUNDLE)" "$$release_dir/$$archive"; \
 	cd "$$release_dir"; \
 	shasum -a 256 "$$archive" > "$$archive.sha256"; \
@@ -145,3 +151,10 @@ vibe-propose:
 	python3 "$$kernel_root/tools/vibe-propose" .
 
 # VIBE:KERNEL_MAKE_END
+
+.PHONY: check-release-architecture signing-info
+check-release-architecture:
+	@test "$$(uname -m)" = arm64 || { echo 'ERROR: future releases require native Apple Silicon.' >&2; exit 1; }
+
+signing-info:
+	@./scripts/signing-info.sh "$(APP_BUNDLE)"

@@ -22,6 +22,7 @@ struct ClaudeQuotaCredential {
     struct Resolution {
         let credential: ClaudeQuotaCredential?
         let detail: String
+        var reason: ProviderStatus.QuotaFailure = .credentialsUnavailable
     }
 
     static func decodeResolution(_ data: Data, now: Date = Date()) -> Resolution {
@@ -29,7 +30,7 @@ struct ClaudeQuotaCredential {
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         if let oauth = json?["claudeAiOauth"] as? [String: Any],
            let expires = oauth["expiresAt"] as? Double, expires / 1000 <= now.timeIntervalSince1970 {
-            return Resolution(credential: nil, detail: "Limits access expired")
+            return Resolution(credential: nil, detail: "Limits access expired", reason: .credentialsExpired)
         }
         return Resolution(credential: nil, detail: "Limits access unavailable")
     }
@@ -40,7 +41,7 @@ struct ClaudeQuotaCredential {
 
     static func resolve(snapshot: ClaudeAuthSnapshot, profile: ClaudeProfile? = nil) -> Resolution {
         guard snapshot.auth == .signedIn, snapshot.authMethod == "claude.ai" else {
-            return Resolution(credential: nil, detail: "Limits require a Claude subscription login")
+            return Resolution(credential: nil, detail: "Limits require a Claude subscription login", reason: .unsupported)
         }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let defaultDirectory = home.appendingPathComponent(".claude")
@@ -48,7 +49,7 @@ struct ClaudeQuotaCredential {
         if let profile, let reported = snapshot.configDirectory {
             let requested = profile.configDirectory.map { URL(fileURLWithPath: $0) } ?? defaultDirectory
             guard URL(fileURLWithPath: reported).standardizedFileURL == requested.standardizedFileURL else {
-                return Resolution(credential: nil, detail: "Limits account mismatch · check login")
+                return Resolution(credential: nil, detail: "Limits account mismatch · check login", reason: .identityUnverified)
             }
         }
         var failure = Resolution(credential: nil, detail: "Limits access unavailable")
@@ -71,9 +72,9 @@ struct ClaudeQuotaCredential {
 enum ClaudeQuota {
     private static let liveSession = URLSession(configuration: .ephemeral, delegate: ClaudeQuotaRedirectGuard(),
                                                delegateQueue: nil)
-    static func unavailable(_ detail: String, state: ProviderStatus.State = .offline) -> ProviderStatus {
+    static func unavailable(_ detail: String, state: ProviderStatus.State = .offline, reason: ProviderStatus.QuotaFailure = .unavailable) -> ProviderStatus {
         ProviderStatus(id: "claude", name: "Claude", state: state, detail: detail, lastUpdated: Date(),
-                       quotaState: state == .noKey ? .unknown : .unavailable)
+                       quotaState: state == .noKey ? .unknown : .unavailable, quotaFailure: reason)
     }
 
     static func decode(_ data: Data, now: Date = Date()) throws -> ProviderStatus {
@@ -138,15 +139,15 @@ enum ClaudeQuota {
             guard let http = response as? HTTPURLResponse else { return Result(status: unavailable("Quota unavailable")) }
             switch http.statusCode {
             case 200: return Result(status: try decode(data))
-            case 401: return Result(status: unavailable("Sign in required", state: .noKey))
-            case 403: return Result(status: unavailable("Signed in · quota access denied"))
+            case 401: return Result(status: unavailable("Sign in required", state: .noKey, reason: .signInRequired))
+            case 403: return Result(status: unavailable("Signed in · quota access denied", reason: .accessDenied))
             case 429:
-                return Result(status: unavailable("Signed in · quota update paused", state: .ok), rateLimited: true,
+                return Result(status: unavailable("Signed in · quota update paused", state: .ok, reason: .rateLimited), rateLimited: true,
                               retryAt: retryDate(http.value(forHTTPHeaderField: "Retry-After"), now: Date()))
             default: return Result(status: unavailable("Quota unavailable"))
             }
         } catch {
-            return Result(status: unavailable("Quota unavailable"))
+            return Result(status: unavailable("Quota unavailable", reason: error is DecodingError ? .invalidResponse : .network))
         }
     }
 }

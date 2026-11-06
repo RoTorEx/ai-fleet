@@ -70,6 +70,9 @@ final class ProviderStatusTests: XCTestCase {
             let result = await StatusService.checkClaudeProfile(profile, executableURL: executable, quotaSession: session)
             XCTAssertEqual(result.authentication, code == 401 ? .signInRequired : .signedIn, "HTTP \(code)")
             XCTAssertEqual(result.quotaState, code == 200 ? .exhausted : (code == 401 ? .unknown : .unavailable))
+            if code == 403 { XCTAssertEqual(result.quotaFailureReason, .accessDenied) }
+            if code == 429 { XCTAssertEqual(result.quotaFailureReason, .rateLimited) }
+            if code == -1 { XCTAssertEqual(result.quotaFailureReason, .network) }
             XCTAssertEqual(result.hasCurrentQuota, code == 200)
             XCTAssertEqual(result.account?.email, "person@example.test")
         }

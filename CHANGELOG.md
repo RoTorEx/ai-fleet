@@ -4,6 +4,13 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Keep enabled providers visible without a CLI and expose setup-only rows without creating accounts.
+- Prepare typed monitoring counts, quota failure reasons, reset states and legend sections for design.
+- Verify ten stable Greek account badges across restart and deletion without recycling.
+- Make bundle signing explicit and fail on signing errors; add read-only signing diagnostics.
+- Restrict future release assets to Apple Silicon while preserving explicit historical Intel installation.
+
+
 ### Added
 
 - Prepare shared local statistics for Codex, Claude, Kimi and Qwen with persisted

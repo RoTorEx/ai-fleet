@@ -49,7 +49,9 @@ done
 
 case "$(uname -m)" in
     arm64) architecture=aarch64 ;;
-    x86_64) architecture=x86_64 ;;
+    x86_64)
+        [ "$requested_version" != latest ] || fail "New releases require Apple Silicon; use --version for a historical Intel release."
+        architecture=x86_64 ;;
     *) fail "unsupported Mac architecture: $(uname -m)" ;;
 esac
 
@@ -85,7 +87,7 @@ trap cleanup EXIT HUP INT TERM
 
 echo "Downloading AI Fleet $tag for ${architecture}…"
 curl -fL --retry 3 --connect-timeout 15 \
-    -o "$work_dir/$archive" "$download_base/$archive"
+    -o "$work_dir/$archive" "$download_base/$archive" || fail "No downloadable $architecture archive for $tag"
 curl -fL --retry 3 --connect-timeout 15 \
     -o "$work_dir/$archive.sha256" "$download_base/$archive.sha256"
 

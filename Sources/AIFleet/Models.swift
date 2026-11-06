@@ -44,6 +44,7 @@ struct ProviderStatus: Identifiable, Equatable {
     let quotaNotice: String?
     let authentication: Authentication
     let quotaState: QuotaState
+    let quotaFailure: QuotaFailure?
 
     init(
         id: String,
@@ -60,7 +61,8 @@ struct ProviderStatus: Identifiable, Equatable {
         notificationScope: String? = nil,
         quotaNotice: String? = nil,
         authentication: Authentication? = nil,
-        quotaState: QuotaState? = nil
+        quotaState: QuotaState? = nil,
+        quotaFailure: QuotaFailure? = nil
     ) {
         self.id = id
         self.providerID = providerID ?? id
@@ -75,6 +77,7 @@ struct ProviderStatus: Identifiable, Equatable {
         self.account = account
         self.notificationScope = notificationScope ?? id
         self.quotaNotice = quotaNotice
+        self.quotaFailure = quotaFailure
         self.authentication = authentication ?? {
             switch state {
             case .ok, .limited: return .signedIn
@@ -88,6 +91,20 @@ struct ProviderStatus: Identifiable, Equatable {
             if let remainingPercent { return remainingPercent <= 0 ? .exhausted : .available }
             return state == .offline && lastUpdated != nil ? .unavailable : .unknown
         }()
+    }
+
+    enum QuotaFailure: String, Equatable {
+        case cliMissing, signInRequired, identityUnverified, credentialsUnavailable, credentialsExpired
+        case accessDenied, rateLimited, network, invalidResponse, unsupported, unavailable
+    }
+    var quotaFailureReason: QuotaFailure? {
+        if let quotaFailure { return quotaFailure }
+        if authentication == .notInstalled { return .cliMissing }
+        if authentication == .signInRequired { return .signInRequired }
+        if authentication == .accessDenied { return .accessDenied }
+        if authentication == .unknown { return .identityUnverified }
+        if quotaState == .unsupported { return .unsupported }
+        return hasCurrentQuota ? nil : .unavailable
     }
 
     enum State: Equatable {
@@ -130,22 +147,22 @@ struct ProviderStatus: Identifiable, Equatable {
                        remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
                        limitWindows: limitWindows, providerID: providerID, account: identity,
                        notificationScope: notificationScope, quotaNotice: quotaNotice,
-                       authentication: authentication, quotaState: quotaState)
+                       authentication: authentication, quotaState: quotaState, quotaFailure: quotaFailure)
     }
 
-    func withQuotaNotice(_ notice: String) -> ProviderStatus {
+    func withQuotaNotice(_ notice: String, reason: QuotaFailure? = nil) -> ProviderStatus {
         ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
                        remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
                        limitWindows: limitWindows, providerID: providerID, account: account,
                        notificationScope: notificationScope, quotaNotice: notice,
-                       authentication: authentication, quotaState: remainingPercent == nil ? .unavailable : .stale)
+                       authentication: authentication, quotaState: remainingPercent == nil ? .unavailable : .stale, quotaFailure: reason ?? quotaFailure)
     }
     func withAuthentication(_ authentication: Authentication) -> ProviderStatus {
         ProviderStatus(id: id, name: name, state: state, detail: detail, lastUpdated: lastUpdated,
                        remainingPercent: remainingPercent, windowLabel: windowLabel, resetAt: resetAt,
                        limitWindows: limitWindows, providerID: providerID, account: account,
                        notificationScope: notificationScope, quotaNotice: quotaNotice,
-                       authentication: authentication, quotaState: quotaState)
+                       authentication: authentication, quotaState: quotaState, quotaFailure: quotaFailure)
     }
 
 }

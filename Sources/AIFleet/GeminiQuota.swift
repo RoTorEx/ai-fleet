@@ -60,15 +60,15 @@ enum GeminiQuota {
     static let endpoint = "https://cloudcode-pa.googleapis.com/v1internal:"
 
     static func status(_ detail: String, auth: ProviderStatus.Authentication = .unknown,
-                       account: ProviderAccountIdentity? = nil) -> ProviderStatus {
+                       account: ProviderAccountIdentity? = nil, reason: ProviderStatus.QuotaFailure? = nil) -> ProviderStatus {
         ProviderStatus(id: "gemini", name: "Gemini", state: auth == .signInRequired ? .noKey : .offline,
                        detail: detail, lastUpdated: Date(), account: account, authentication: auth,
-                       quotaState: auth == .signedIn ? .unavailable : .unknown)
+                       quotaState: auth == .signedIn ? .unavailable : .unknown, quotaFailure: reason)
     }
 
     static func check(home: URL = FileManager.default.homeDirectoryForCurrentUser) async -> ProviderStatus {
         let snapshot = await Task.detached(priority: .utility) { GeminiLoginSnapshot.read(home: home) }.value
-        guard snapshot.supported else { return status("API/Vertex login · quota unsupported", auth: .unknown) }
+        guard snapshot.supported else { return status("API/Vertex login · quota unsupported", auth: .unknown, reason: .unsupported) }
         let account = ProviderAccountIdentity(email: snapshot.email, organizationID: nil, organizationName: nil, subscriptionType: nil)
         switch snapshot.auth {
         case .signedOut: return status("Sign in required", auth: .signInRequired, account: account)
@@ -120,14 +120,14 @@ enum GeminiQuota {
             }
             switch failure.code {
             case 401: return Result(status: status("Sign in required", auth: .signInRequired, account: identity))
-            case 403: return Result(status: status("Signed in · quota access denied", auth: .signedIn, account: identity))
-            case 429: return Result(status: status("Signed in · quota update paused", auth: .signedIn, account: identity),
+            case 403: return Result(status: status("Signed in · quota access denied", auth: .signedIn, account: identity, reason: .accessDenied))
+            case 429: return Result(status: status("Signed in · quota update paused", auth: .signedIn, account: identity, reason: .rateLimited),
                                    retryAt: failure.retryAt ?? Date().addingTimeInterval(300))
             default: return Result(status: status("Signed in · quota unavailable", auth: .signedIn, account: identity))
             }
         } catch {
             return Result(status: status(identityConfirmed ? "Signed in · quota unavailable" : "Sign in required",
-                                         auth: identityConfirmed ? .signedIn : .unknown, account: identity))
+                                         auth: identityConfirmed ? .signedIn : .unknown, account: identity, reason: error is DecodingError ? .invalidResponse : .network))
         }
     }
 

@@ -58,7 +58,7 @@ struct AccountsSettingsView: View {
             CodexAccountAuthenticationStatus(store: codex, accounts: store)
             if let error = store.launchError { Text(error).font(.caption).foregroundColor(.red) }
             DisclosureGroup("Provider visibility") {
-                ForEach(ProviderCatalog.all) { provider in
+                ForEach(ProviderCatalog.all.sorted { $0.name < $1.name }) { provider in
                     Toggle("Show \(provider.name)", isOn: Binding(
                         get: { settings.isEnabled(provider.id) },
                         set: { settings.setEnabled($0, for: provider.id); service.refresh() }

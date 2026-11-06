@@ -237,8 +237,10 @@ Choose **Quit** from the menu.
 
 Published versions are available from
 [GitHub Releases](https://github.com/RoTorEx/ai-fleet/releases). Each release
-contains native macOS application ZIPs for Apple Silicon and Intel plus SHA-256
-checksums. The application is ad-hoc signed; it is not currently notarized by
+will contain a native macOS application ZIP for Apple Silicon plus its SHA-256
+checksum. Historical releases may also contain Intel builds. New releases require
+Apple Silicon; explicit historical Intel versions remain installable when their
+assets exist. The application is ad-hoc signed; it is not currently notarized by
 Apple.
 
 Install or update the latest release from Terminal without `sudo`:
@@ -299,3 +301,5 @@ Claude login explicitly restores an intentionally removed native connection.
 A second account's Sign in uses an isolated credential home. A wrong browser
 identity or failed login preserves the previous connection. After successful
 sign-in, use Switch to select that connection for ordinary commands.
+
+Local signing and menu data contracts: [monitoring and builds](docs/contracts/menu-monitoring.md).

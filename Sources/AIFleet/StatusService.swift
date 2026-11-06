@@ -388,7 +388,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 }
             }
         } else {
-            status = ClaudeQuota.unavailable(resolution.detail)
+            status = ClaudeQuota.unavailable(resolution.detail, reason: resolution.reason)
         }
         // A failed usage endpoint does not undo a successful native auth check.
         // Only an explicit credential rejection invalidates the confirmed login.
@@ -580,16 +580,16 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Unavailable", lastUpdated: Date())
+                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Unavailable", lastUpdated: Date(), quotaFailure: (response as? HTTPURLResponse)?.statusCode == 403 ? .accessDenied : ((response as? HTTPURLResponse)?.statusCode == 429 ? .rateLimited : .unavailable))
             }
             let decoded = try JSONDecoder().decode(KimiBalanceResponse.self, from: data)
             guard let balance = decoded.data?.availableBalance else {
-                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Bad response", lastUpdated: Date())
+                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Bad response", lastUpdated: Date(), quotaFailure: .invalidResponse)
             }
             let state: ProviderStatus.State = balance > 0 ? .ok : .limited
             return ProviderStatus(id: "kimi", name: "Kimi", state: state, detail: String(format: "$%.2f", balance), lastUpdated: Date())
         } catch {
-            return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Offline", lastUpdated: Date())
+            return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Offline", lastUpdated: Date(), quotaFailure: error is DecodingError ? .invalidResponse : .network)
         }
     }
 
@@ -602,7 +602,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             case .unauthorized:
                 return Self.unavailableStatus(for: ProviderCatalog.kimi)
             case .failed:
-                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Refresh failed", lastUpdated: Date())
+                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Refresh failed", lastUpdated: Date(), quotaFailure: .network)
             }
         }
 
@@ -639,7 +639,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 if let http = response as? HTTPURLResponse, http.statusCode == 401 {
                     return Self.unavailableStatus(for: ProviderCatalog.kimi)
                 }
-                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Unavailable", lastUpdated: Date())
+                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Unavailable", lastUpdated: Date(), quotaFailure: (response as? HTTPURLResponse)?.statusCode == 403 ? .accessDenied : ((response as? HTTPURLResponse)?.statusCode == 429 ? .rateLimited : .unavailable))
             }
             let decoded = try decoder.decode(KimiCodeUsageResponse.self, from: data)
 
@@ -676,7 +676,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 limitWindows: candidates.map(\.providerWindow)
             )
         } catch {
-            return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Offline", lastUpdated: Date())
+            return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Offline", lastUpdated: Date(), quotaFailure: error is DecodingError ? .invalidResponse : .network)
         }
     }
 
@@ -784,7 +784,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 limitWindows: candidates.map(\.providerWindow)
             )
         } catch {
-            return ProviderStatus(id: "codex", name: "Codex", state: .offline, detail: "Offline", lastUpdated: Date())
+            return ProviderStatus(id: "codex", name: "Codex", state: .offline, detail: "Offline", lastUpdated: Date(), quotaFailure: error is DecodingError ? .invalidResponse : .network)
         }
     }
 

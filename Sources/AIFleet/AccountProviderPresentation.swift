@@ -9,14 +9,20 @@ struct MenuConnectionState {
     var available: Bool { status.hasCurrentQuota }
     var marker: String { available ? "○" : status.authentication.needsAccess ? "×" : "?" }
     var detail: String {
-        if status.authentication.needsAccess { return "Sign in to load limits" }
-        if status.quotaState == .unsupported { return "Limit tracking not supported" }
-        if status.quotaState == .stale { return "Last known limits · update pending" }
-        if status.detail == "Signed in · quota unavailable" || status.detail == "Quota unavailable" { return "Limits unavailable" }
-        if status.detail == "Auth status unknown" { return "Could not verify login" }
-        return status.detail.replacingOccurrences(of: "Signed in · ", with: "")
-            .replacingOccurrences(of: "quota", with: "limits")
-            .replacingOccurrences(of: "Quota", with: "Limits")
+        switch status.quotaFailureReason {
+        case .cliMissing: return "CLI not installed"
+        case .signInRequired: return "Sign in required"
+        case .identityUnverified: return "Could not verify login"
+        case .credentialsUnavailable: return "Quota credentials unavailable"
+        case .credentialsExpired: return "Quota credentials expired"
+        case .accessDenied: return "Quota access denied"
+        case .rateLimited: return "Quota requests limited"
+        case .network: return "Quota network error"
+        case .invalidResponse: return "Invalid quota response"
+        case .unsupported: return "Limit tracking not supported"
+        case .unavailable: return status.quotaState == .stale ? "Last known limits · update pending" : "Limits unavailable"
+        case nil: return status.detail
+        }
     }
 }
 

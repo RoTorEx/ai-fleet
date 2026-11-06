@@ -73,10 +73,10 @@ actor ClaudeQuotaPoller {
         let time = retryAt.formatted(date: .omitted, time: .shortened)
         if let lastGood {
             let measured = lastGood.lastUpdated?.formatted(date: .omitted, time: .shortened) ?? "unknown"
-            return lastGood.withQuotaNotice("Last known at \(measured) · retry at \(time)")
+            return lastGood.withQuotaNotice("Last known at \(measured) · retry at \(time)", reason: .rateLimited)
         }
         return ProviderStatus(id: "claude", name: "Claude", state: .ok,
                               detail: "Signed in · waiting for quota", lastUpdated: nil,
-                              quotaNotice: "Update paused · retry at \(time)")
+                              quotaNotice: "Update paused · retry at \(time)", quotaFailure: .rateLimited)
     }
 }

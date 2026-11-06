@@ -20,6 +20,11 @@ subscription charges.
 
 ## Invariants
 
+- Enabled-provider visibility, saved-connection measurement counts, typed quota
+  failures and reset states follow the [menu monitoring contract](docs/contracts/menu-monitoring.md).
+  The first ten stable account badges are α β γ δ ε ζ η θ ι κ; local token
+  history is never split by those badges.
+
 - Greek letters identify real accounts. One account can own several providers,
   with at most one connection per provider. Provider rows and account statistics
   use the same `Provider (badge)` identity. Internal credential homes and the

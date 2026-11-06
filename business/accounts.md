@@ -1,6 +1,6 @@
 # Shared accounts and global provider login
 
-An AI Fleet account is a labelled identity with a stable α, β, γ badge and
+An AI Fleet account is a labelled identity with a stable Greek badge (the first ten are α, β, γ, δ, ε, ζ, η, θ, ι, κ) and
 zero or one association with each supported provider. One badge can represent
 Claude, Codex, Kimi, Qwen, and Gemini. Labels are app metadata, not credentials.
 
@@ -207,3 +207,5 @@ account does so for its connections; neither performs logout or terminates sessi
 Sign out remains a separate native operation. Authentication and removal respect
 the existing Switch/busy guards. Real-account acceptance is deferred until after
 design and does not block subsequent technical stages.
+
+Menu visibility and measurement counts follow the [monitoring contract](../docs/contracts/menu-monitoring.md).

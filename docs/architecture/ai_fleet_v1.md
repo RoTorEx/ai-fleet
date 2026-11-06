@@ -213,7 +213,7 @@ receive no current row; the provider summary retains the actual native status.
 
 ## Delivery and updates
 
-- Annotated `vMAJOR.MINOR.PATCH` tags trigger native Apple Silicon and Intel
+- Annotated `vMAJOR.MINOR.PATCH` tags trigger native Apple Silicon
   builds in GitHub Actions.
 - Release ZIPs and their SHA-256 files are attached to GitHub Releases.
 - In-app update checks follow the public HTTPS latest-release redirect and
