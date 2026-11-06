@@ -4,6 +4,23 @@ import XCTest
 @testable import AIFleet
 
 final class MenuLayoutTests: XCTestCase {
+    func testMenuPanelHangsBelowStatusItemAndStaysOnScreen() {
+        let screen = NSRect(x: 0, y: 0, width: 1512, height: 944)
+        let item = NSRect(x: 1200, y: 945, width: 18, height: 24)
+
+        let centered = FleetMenuPanel.frame(contentSize: NSSize(width: 354, height: 500), below: item, in: screen)
+        XCTAssertEqual(centered.midX, item.midX, accuracy: 1)
+        XCTAssertEqual(centered.maxY, item.minY - FleetMenuPanel.gap, accuracy: 1)
+
+        let edge = NSRect(x: 1490, y: 945, width: 18, height: 24)
+        let clamped = FleetMenuPanel.frame(contentSize: NSSize(width: 520, height: 500), below: edge, in: screen)
+        XCTAssertEqual(clamped.maxX, screen.maxX - FleetMenuPanel.screenMargin, accuracy: 1)
+        XCTAssertEqual(clamped.width, 520)
+
+        let tall = FleetMenuPanel.frame(contentSize: NSSize(width: 354, height: 2000), below: item, in: screen)
+        XCTAssertGreaterThanOrEqual(tall.minY, screen.minY + FleetMenuPanel.screenMargin - 1)
+    }
+
     @MainActor
     func testBlockedSwitchDetailsExpandAndCollapseInBothAppearances() async throws {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {

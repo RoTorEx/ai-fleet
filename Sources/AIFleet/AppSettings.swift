@@ -57,6 +57,9 @@ final class AppSettings: ObservableObject {
     @Published var notifyStepPercent: Int {
         didSet { defaults.set(notifyStepPercent, forKey: "notify.stepPercent") }
     }
+    @Published var menuClosesOnOutsideClick: Bool {
+        didSet { defaults.set(menuClosesOnOutsideClick, forKey: "menu.closesOnOutsideClick") }
+    }
     @Published var analyticsAutoRefreshEnabled: Bool {
         didSet { defaults.set(analyticsAutoRefreshEnabled, forKey: "analytics.autoRefresh.enabled") }
     }
@@ -80,6 +83,7 @@ final class AppSettings: ObservableObject {
 
         let storedStep = defaults.integer(forKey: "notify.stepPercent")
         notifyStepPercent = storedStep > 0 ? storedStep : 10
+        menuClosesOnOutsideClick = defaults.object(forKey: "menu.closesOnOutsideClick") as? Bool ?? true
         analyticsAutoRefreshEnabled = defaults.object(forKey: "analytics.autoRefresh.enabled") as? Bool ?? true
         if defaults.object(forKey: "analytics.autoRefresh.minutes") != nil {
             analyticsRefreshMinutes = Self.normalizedRefreshMinutes(

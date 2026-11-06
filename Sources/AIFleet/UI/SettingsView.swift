@@ -52,6 +52,17 @@ struct SettingsView: View {
                 HotkeyRecorder(settings: settings)
             }
 
+            settingsRow("Menu") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Close when clicking outside", isOn: $settings.menuClosesOnOutsideClick)
+                        .font(.system(size: 11.5, weight: .medium))
+                    Text("When off, the menu stays open until Esc, the menu bar icon or the shortcut.")
+                        .font(.system(size: 10.5))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             settingsRow("Notifications") {
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 4) {

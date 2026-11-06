@@ -210,8 +210,12 @@ subscription charges.
 - All windows follow the current macOS light or dark appearance.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.
-- The native popover owns its surface, border and rounded corners; menu content
-  does not draw a second rounded panel. Command rows use compact spacing like
+- The menu is a borderless panel below the menu-bar icon: no arrow, no open or
+  close animation, 12 pt corners, adaptive menu blur and a hairline outline,
+  matching native menu-bar extras. The panel owns the surface; menu content does
+  not draw a second background or rounded panel. Outside clicks close it by
+  default; General can turn that off so it stays open until Esc, the icon or the
+  shortcut. Esc always closes it. Command rows use compact spacing like
   the summary. Quota availability counts current measurements independently of
   login, and authentication progress/errors belong to the affected account row.
   Current measured limits use ○; missing limits use ? and gray even when a CLI

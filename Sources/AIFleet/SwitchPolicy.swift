@@ -170,6 +170,8 @@ final class SwitchCoordinator: ObservableObject {
                         alert.informativeText = "PIDs: \(targets.map { String($0.pid) }.joined(separator: ", ")). Current requests can be interrupted. Saved history is retained."
                         alert.addButton(withTitle: force ? "Force Quit" : "Stop")
                         alert.addButton(withTitle: "Cancel")
+                        // Keep the confirmation above the menu panel it was opened from.
+                        alert.window.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
                         return alert.runModal() == .alertFirstButtonReturn
                     }, stop: { process, force in
                         try CodexProcessControl.stop(process, force: force, read: CodexProcessControl.allInventory)

@@ -129,7 +129,6 @@ struct AgentsView: View {
             }
         }
         .frame(width: 520)
-        .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: section) { section in
             if section == "Processes" { service.stop() } else { service.start() }
         }

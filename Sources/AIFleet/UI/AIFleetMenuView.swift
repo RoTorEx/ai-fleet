@@ -83,7 +83,6 @@ struct AIFleetMenuView: View {
         }
         .padding(.vertical, 14)
         .frame(width: 354)
-        .background(FleetPalette.background)
     }
 
     private var providerRows: some View {

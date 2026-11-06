@@ -8,7 +8,7 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 
 ```
 ┌─────────────────────────────────────────┐
-│        NSStatusItem + NSPopover         │
+│        NSStatusItem + FleetMenuPanel    │
 │ (StatusBarController + Menu SwiftUI)    │
 └─────────────────┬───────────────────────┘
 │  @EnvironmentObject
@@ -36,12 +36,12 @@ AI Fleet is a tiny native macOS menu-bar application built with SwiftUI. It show
 
 1. `AppDelegate` sets `NSApplication` activation policy to `.accessory` so no dock icon appears.
 2. `StatusService.start()` begins refreshing provider state every 60 seconds.
-3. `StatusBarController` owns the menu-bar icon and hosts `AIFleetMenuView` inside an `NSPopover`.
+3. `StatusBarController` owns the menu-bar icon and hosts `AIFleetMenuView` inside `FleetMenuPanel`, a borderless non-animated `NSPanel` with `.menu` blur, centered under the icon and clamped to the visible screen.
    `FleetIcon.menuBarImage()` draws the original clipper as an 18-point native
    vector template; macOS supplies its appearance color. Application PNGs live
    in `AppBundle/Assets.xcassets/AppIcon.appiconset`. Approved sources and previous
    icons are retained in [the icon collection](../assets/icon-collection/README.md).
-4. `GlobalHotKey` registers `⌘⇧I` to toggle the same popover as clicking the menu-bar icon.
+4. `GlobalHotKey` registers `⌘⇧I` to toggle the same menu panel as clicking the menu-bar icon.
 5. Each provider returns a `ProviderStatus` with `ok`, `limited`, `offline`, `noKey`, or `notInstalled` state.
 6. `AIFleetMenuView` observes `StatusService` and re-renders on every change.
 7. `UsageAnalyticsService` asks `codex app-server` for account-wide lifetime and
@@ -126,8 +126,8 @@ receive no current row; the provider summary retains the actual native status.
   Badge hover shows email/plan. `MenuOperationStatus` combines the actual monitoring lifecycle
   (Active/Paused) with transient operations and update errors; Checked shows the last check and Limits counts
   current measurements. The legend uses Capacity, Access and Marks, with shared rotated vector arrows.
-  Commands remain compact; native popover clipping owns the corners around a
-  plain system background. Long connection lists use a measured bounded scroll
+  Commands remain compact; the menu panel's blur mask owns the corners;
+  content stays transparent. Long connection lists use a measured bounded scroll
   area; short lists retain natural height. [Accounts](../../business/accounts.md)
   owns presentation and matching semantics.
 - `SettingsNavigation` — shared, transient tab/add-provider navigation, including

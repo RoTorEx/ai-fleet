@@ -7,6 +7,8 @@ Tracks real product and release progress.
 - Resolve Claude quota credentials from the requested profile when native auth omits its directory.
 - Drain CLI auth output during execution and bound cleanup of owned Codex usage helpers that ignore termination.
 - Reject unrepresentable quota counts without crashing.
+- Replace the menu popover with an instant borderless blurred panel without an arrow.
+- Add a General setting to keep the menu open on outside clicks.
 
 
 - Keep enabled providers visible without a CLI and expose setup-only rows without creating accounts.
