@@ -173,3 +173,37 @@ non-launch/non-mutation on refusal, native command/environment selection,
 statistics/auth exclusion, preserved status after refusal, pending/cancel,
 failure/timeout/retry and saved history. Real corporate browser/SSO login requires the user’s authentication and is not
 established by fixtures; development checks do not change live provider login.
+
+## Verified connections and isolated reauthentication
+
+For Codex and Claude, automatic native-login import requires signed-in status and
+an observed nonempty email. Email matching trims whitespace and ignores case.
+Unknown identity, duplicate labels and conflicting known organization/workspace
+identity do not bind or receive another account's measurements. Explicitly detached
+or removed provider/email pairs persist in accounts.dismissedImports; Refresh and
+restart do not recreate them. Import login explicitly removes that suppression.
+Other providers retain their existing matching behavior.
+
+Connection metadata optionally records verifiedIdentity. Old records retain their
+IDs, badges and paths and acquire identity only after observation. A connected
+account's email cannot be edited into another identity; disconnect first. Names
+remain editable. First verified login may fill an empty email.
+
+Account-targeted Codex and Claude Sign in uses a separate candidate credential
+home. Pending home UUIDs persist across failed retries. A verified matching result
+changes the connection's profile pointer without moving its files. Claude Keychain
+selectors therefore retain the exact native login path. Failure, cancellation,
+wrong identity or lost association cannot replace the previous connection.
+Credentials and history in the previous home are retained. Sign in does not change
+the existing command selection; Switch explicitly selects the refreshed connection.
+
+ProviderLaunchProfile.credentialHomeID and CodexMonitoringProfile.credentialHomeID
+are optional UUIDs; absent values retain legacy account/profile directories. Codex
+launch selection uses the credential-home UUID, while ownership markers retain the
+real account UUID. New paths remain inside existing protected provider roots.
+
+Disconnect provider forgets that association and its command selection. Remove
+account does so for its connections; neither performs logout or terminates sessions.
+Sign out remains a separate native operation. Authentication and removal respect
+the existing Switch/busy guards. Real-account acceptance is deferred until after
+design and does not block subsequent technical stages.

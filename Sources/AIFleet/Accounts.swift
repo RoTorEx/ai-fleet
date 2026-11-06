@@ -43,6 +43,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
     var configDirectory: String?
     // Metadata association only; never an independent credential store.
     var globalAssociation: Bool? = nil
+    var verifiedIdentity: ConnectionIdentity? = nil
 
     var isNativeDefault: Bool { configDirectory == nil && globalAssociation != true }
     var statusID: String { isNativeDefault ? providerID : "\(providerID):\(id)" }
@@ -135,6 +136,22 @@ final class AccountStore: ObservableObject {
     private let defaults: UserDefaults
     private let home: URL
     private var nextBadge: Int
+    private var dismissedImports: Set<String> {
+        get { Set(defaults.stringArray(forKey: "accounts.dismissedImports") ?? []) }
+        set { defaults.set(Array(newValue).sorted(), forKey: "accounts.dismissedImports") }
+    }
+    private func importKey(_ provider: String, _ email: String) -> String {
+        provider + ":" + ConnectionIdentity.normalize(email)
+    }
+    private func suppressImport(_ provider: String, email: String) {
+        guard ["codex", "claude"].contains(provider) else { return }
+        var keys = dismissedImports; keys.insert(importKey(provider, email)); dismissedImports = keys
+    }
+    func importNative(_ status: ProviderStatus) {
+        guard let identity = ConnectionIdentity(status: status) else { return }
+        var keys = dismissedImports; keys.remove(importKey(status.providerID, identity.email)); dismissedImports = keys
+        _ = globalAccount(for: status)
+    }
 
     init(defaults: UserDefaults = .standard, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.defaults = defaults
@@ -209,7 +226,12 @@ final class AccountStore: ObservableObject {
     func update(_ id: String, name: String, email: String) {
         guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
         accounts[index].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        accounts[index].email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let updatedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard accounts[index].email.isEmpty || accounts[index].connections.isEmpty || ConnectionIdentity.normalize(updatedEmail) == ConnectionIdentity.normalize(accounts[index].email) else {
+            launchError = "Disconnect providers before changing this account's email. Existing logins were preserved."
+            return
+        }
+        accounts[index].email = updatedEmail
         if accounts[index].badgeIndex < 0, !accounts[index].email.isEmpty {
             let account = accounts[index]
             accounts[index] = FleetAccount(id: account.id, badgeIndex: nextBadge, name: account.name,
@@ -218,6 +240,18 @@ final class AccountStore: ObservableObject {
         }
         save()
     }
+    @discardableResult
+    func confirmIdentity(_ identity: ConnectionIdentity, provider: String, accountID: String) -> Bool {
+        guard !identity.email.isEmpty, let index = accounts.firstIndex(where: { $0.id == accountID }),
+              let connection = accounts[index].connections.firstIndex(where: { $0.providerID == provider }),
+              accounts[index].email.isEmpty || ConnectionIdentity.normalize(accounts[index].email) == identity.email,
+              accounts[index].connections[connection].verifiedIdentity.map({ $0.matches(identity) }) != false else { return false }
+        accounts[index].email = identity.email
+        accounts[index].connections[connection].verifiedIdentity = identity
+        save()
+        return true
+    }
+
     func select(_ accountID: String, for providerID: String) {
         guard accounts.contains(where: { $0.id == accountID && $0.connection(for: providerID) != nil }) else { return }
         selections[providerID] = accountID
@@ -246,6 +280,22 @@ final class AccountStore: ObservableObject {
     // Observed native identity, not a requested target or a stored manual selection.
     // Duplicate email labels are ambiguous; do not attribute quota to either badge.
     func globalAccount(for status: ProviderStatus) -> String? {
+        if ["codex", "claude"].contains(status.providerID) {
+            guard let identity = ConnectionIdentity(status: status),
+                  !dismissedImports.contains(importKey(status.providerID, identity.email)) else { return nil }
+            let matches = accounts.filter { ConnectionIdentity.normalize($0.email) == identity.email }
+            guard matches.count <= 1 else { return nil }
+            let account = matches.first ?? add(name: identity.email, email: identity.email)
+            if let existing = account.connection(for: status.providerID)?.verifiedIdentity,
+               !existing.matches(identity) { return nil }
+            attachGlobal(status.providerID, to: account.id)
+            if let index = accounts.firstIndex(where: { $0.id == account.id }),
+               let connection = accounts[index].connections.firstIndex(where: { $0.providerID == status.providerID }) {
+                accounts[index].connections[connection].verifiedIdentity = identity
+                save()
+            }
+            return account.id
+        }
         let email = status.account?.email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if email.isEmpty {
             return accounts.first { $0.connection(for: status.providerID)?.isNativeDefault == true }?.id
@@ -265,6 +315,10 @@ final class AccountStore: ObservableObject {
 
     func signInGlobally(_ providerID: String, accountID: String? = nil) {
         guard !SwitchCoordinator.shared.active.contains(providerID), StatusService.shared.signingOutProvider == nil, !codexSigningIn else { return }
+        if let accountID, let account = accounts.first(where: { $0.id == accountID }) {
+            if providerID == "codex" { CodexMonitoringStore.shared.signIn(CodexMonitoringStore.shared.ensureProfile(for: account)); return }
+            if providerID == "claude" { ProviderLaunchStore.shared.signIn(account, providerID: providerID); return }
+        }
         launchProviderID = providerID
         launchAccountID = accountID
         guard let provider = ProviderCatalog.definition(for: providerID),
@@ -318,7 +372,9 @@ final class AccountStore: ObservableObject {
 
     func detach(_ providerID: String, from accountID: String) {
         guard let index = accounts.firstIndex(where: { $0.id == accountID }),
-              accounts[index].connection(for: providerID).map({ !$0.isNativeDefault }) == true else { return }
+              accounts[index].connection(for: providerID).map({ !$0.isNativeDefault || ["codex", "claude"].contains(providerID) }) == true else { return }
+        guard !SwitchCoordinator.shared.active.contains(providerID) else { return }
+        suppressImport(providerID, email: accounts[index].email)
         accounts[index].connections.removeAll { $0.providerID == providerID }
         repairSelection(providerID)
         save()
@@ -333,7 +389,17 @@ final class AccountStore: ObservableObject {
         save()
     }
     func remove(_ id: String) {
-        guard id != FleetAccount.defaultID, let account = accounts.first(where: { $0.id == id }) else { return }
+        guard let account = accounts.first(where: { $0.id == id }) else { return }
+        if id == FleetAccount.defaultID {
+            guard !account.email.isEmpty, let index = accounts.firstIndex(where: { $0.id == id }) else { return }
+            for connection in account.connections { suppressImport(connection.providerID, email: account.email) }
+            accounts[index] = FleetAccount(id: FleetAccount.defaultID, badgeIndex: -1, name: "Default", email: "",
+                connections: account.connections.filter { $0.isNativeDefault })
+            for provider in ProviderCatalog.all { repairSelection(provider.id) }
+            save()
+            return
+        }
+        for connection in account.connections { suppressImport(connection.providerID, email: account.email) }
         let defaultsToKeep = account.connections.filter { $0.isNativeDefault }
         accounts.removeAll { $0.id == id }
         for connection in defaultsToKeep {

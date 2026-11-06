@@ -1,9 +1,10 @@
 # Tasks
 
-## Stage one acceptance and remaining implementation
+## Combined user acceptance after design
 
 - Exercise the local app transitions and Codex/Claude switching, quota identity and saved conversation resume jointly with the user.
-- Keep this stage open until these checks pass; do not publish a release.
+- Continue technical stages without blocking on user acceptance. After design, jointly exercise Stage 1 switching/recovery and Stage 2 account import, second login, removal and reimport.
+- Track automated implementation separately from user-confirmed behavior; do not publish a release.
 
 
 ## Account statistics

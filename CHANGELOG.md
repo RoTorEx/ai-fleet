@@ -6,6 +6,16 @@ Tracks real product and release progress.
 
 ### Added
 
+- Verify Codex/Claude connection identities on native import; preserve explicit
+  removal across refresh/restart and support explicit reimport.
+- Isolate account-targeted login candidates, verify identity before adopting the
+  credential home and retain previous credentials on failure.
+- Add provider disconnect without logout and retain stable IDs/badges and legacy
+  credential paths. User acceptance of technical stages follows design.
+
+
+### Added
+
 - Add per-provider next-launch, wait, graceful and force Switch policies for
   Codex and Claude, verified account ownership markers and launch exclusion.
 - Extend manual Processes recovery to native Claude and provider-wide bulk

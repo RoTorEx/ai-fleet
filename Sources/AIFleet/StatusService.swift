@@ -253,7 +253,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                            presentation: ProviderConnection? = nil) {
         let presented = presentation ?? connection
         let displayed: ProviderStatus
-        if let email = result.account?.email, let expectedEmail, !expectedEmail.isEmpty,
+        let identityMismatch = result.hasCurrentQuota && presented.verifiedIdentity.map { expected in
+            ConnectionIdentity(status: result).map { !expected.matches($0) } ?? true
+        } == true
+        if identityMismatch {
+            displayed = presented.status(from: ProviderStatus(id: connection.providerID, name: result.name,
+                state: .offline, detail: "Account identity unavailable or changed · reconnect", lastUpdated: result.lastUpdated,
+                authentication: .unknown, quotaState: .unavailable))
+        } else if let email = result.account?.email, let expectedEmail, !expectedEmail.isEmpty,
            email.caseInsensitiveCompare(expectedEmail) != .orderedSame {
             displayed = presented.status(from: ProviderStatus(id: connection.providerID, name: result.name,
                 state: .offline, detail: "Account mismatch · check native sign-in", lastUpdated: result.lastUpdated,

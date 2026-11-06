@@ -33,6 +33,10 @@ struct AccountsSettingsView: View {
             ForEach(Array(switching.active).sorted(), id: \.self) { provider in
                 Button("Cancel \(provider.capitalized) switch") { switching.cancel(provider) }
             }
+            HStack {
+                Button("Import Codex login") { store.importNative(service.codex) }
+                Button("Import Claude login") { store.importNative(service.claude) }
+            }
             if !isAdding {
                 HStack {
                     if !store.visibleAccounts.isEmpty {
@@ -194,10 +198,18 @@ private struct AccountEditor: View {
                     Text("This account uses the shared terminal login. Connect a separate login once to retain access when the terminal account changes.")
                         .font(.caption).foregroundColor(.secondary)
                 }
+                Button("Disconnect provider") {
+                    guard !providerLaunch.busy, codex.authenticatingID == nil, !codex.refreshing,
+                          !SwitchCoordinator.shared.active.contains(connection.providerID) else { return }
+                    if connection.providerID == "codex" { guard codex.forgetAccount(account) else { return } }
+                    else { do { try providerLaunch.forgetProvider(connection.providerID, accountID: account.id) } catch { return } }
+                    store.detach(connection.providerID, from: account.id)
+                    service.refresh()
+                }.help("Forget this connection; keep credentials, history and running processes.")
                 Divider()
             }
             Button("Remove account") {
-                guard !providerLaunch.busy, !codex.refreshing, codex.authenticatingID == nil else { return }
+                guard SwitchCoordinator.shared.active.isEmpty, !providerLaunch.busy, !codex.refreshing, codex.authenticatingID == nil else { return }
                 guard codex.forgetAccount(account) else { return }
                 do { try providerLaunch.forget(account.id) } catch { return }
                 store.remove(account.id)

@@ -290,3 +290,12 @@ configuration is restricted to the current macOS user when the app loads it.
 Before publishing or contributing, run `make public-audit`. See
 [`SECURITY.md`](SECURITY.md) for the credential boundary and vulnerability
 reporting guidance.
+
+## Account connections
+
+Codex and Claude terminal logins with confirmed identities import on Refresh.
+Disconnect provider keeps credentials and history; Import Codex login or Import
+Claude login explicitly restores an intentionally removed native connection.
+A second account's Sign in uses an isolated credential home. A wrong browser
+identity or failed login preserves the previous connection. After successful
+sign-in, use Switch to select that connection for ordinary commands.

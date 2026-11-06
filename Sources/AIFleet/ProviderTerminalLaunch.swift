@@ -4,8 +4,9 @@ import Foundation
 struct ProviderLaunchProfile: Codable, Equatable {
     let providerID: String
     let accountID: String
-    let email: String
+    var email: String
     let native: Bool
+    var credentialHomeID: String? = nil
 }
 
 /// Provider adapters keep Switch semantics identical without replacing live credentials.
@@ -28,11 +29,12 @@ enum ProviderTerminalLaunch {
         guard providers.contains(profile.providerID), UUID(uuidString: profile.accountID) != nil else {
             throw Failure.invalidProfile
         }
+        guard profile.credentialHomeID == nil || UUID(uuidString: profile.credentialHomeID!) != nil else { throw Failure.invalidProfile }
         let base: URL
         if profile.native {
             base = home
         } else {
-            base = CodexTerminalLaunch.support(home: home).appendingPathComponent("ProviderProfiles/\(profile.providerID)/\(profile.accountID)")
+            base = CodexTerminalLaunch.support(home: home).appendingPathComponent("ProviderProfiles/\(profile.providerID)/\(profile.credentialHomeID ?? profile.accountID)")
         }
         let result = profile.native ? base.appendingPathComponent(nativeName(profile.providerID)) :
             profile.providerID == "gemini" ? base.appendingPathComponent(".gemini") : base
@@ -198,13 +200,12 @@ enum ProviderTerminalLaunch {
             }
             if let profile = plan.profile, let directory = plan.directory {
                 try prepare(profile, home: home)
-                if providerID == "claude", profile.native, !profile.email.isEmpty,
-                   let result = LocalCommandReader.read(executableURL: plan.executable, arguments: ["auth", "status"],
-                                                         environment: plan.environment), result.exitCode == 0,
-                   let object = try JSONSerialization.jsonObject(with: result.data) as? [String: Any],
-                   let email = object["email"] as? String,
-                   email.caseInsensitiveCompare(profile.email) != .orderedSame {
-                    throw Failure.invalidProfile
+                if providerID == "claude", !arguments.prefix(1).elementsEqual(["auth"]) {
+                    let snapshot = ClaudeAuthReader(executableURL: plan.executable, environment: plan.environment).readSnapshot()
+                    guard snapshot.auth == .signedIn,
+                          snapshot.account?.email.map(ConnectionIdentity.normalize) == ConnectionIdentity.normalize(profile.email) else {
+                        throw Failure.invalidProfile
+                    }
                 }
                 if arguments.first == "logout" || arguments.first == "login" || arguments.prefix(2).elementsEqual(["auth", "logout"]) || arguments.prefix(2).elementsEqual(["auth", "login"]) {
                     try CodexCredentialSwitch.checkLegacyConsumers(directory)
@@ -304,7 +305,12 @@ final class ProviderLaunchStore: ObservableObject {
         guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
         messageAccountID = account.id; messageProviderID = providerID
         do {
-            let profile = ProviderLaunchProfile(providerID: providerID, accountID: account.id, email: account.email, native: false)
+            var profile = ProviderLaunchProfile(providerID: providerID, accountID: account.id, email: account.email, native: false)
+            if providerID == "claude" {
+                let key = "accounts.pendingClaude.\(account.id)"
+                profile.credentialHomeID = defaults.string(forKey: key) ?? UUID().uuidString
+                defaults.set(profile.credentialHomeID, forKey: key)
+            }
             let directory = try ProviderTerminalLaunch.directory(profile, home: home)
             try CodexCredentialSwitch.checkLegacyConsumers(directory)
             try ProviderTerminalLaunch.validateCredentialPaths(profile, home: home)
@@ -319,17 +325,29 @@ final class ProviderLaunchStore: ObservableObject {
             let environment = try ProviderTerminalLaunch.environment(profile, home: home, inheriting: ProcessInfo.processInfo.environment)
             busy = true; message = "Complete \(providerID) sign-in in your browser. The default launch account is unchanged."
             Task {
+                defer { busy = false; StatusService.shared.refresh() }
                 await StatusService.shared.joinRefreshBeforeAccountAuth()
                 let result = await Task.detached(priority: .utility) {
                     LocalCommandReader.read(executableURL: executable, arguments: providerID == "claude" ? ["auth", "login"] : ["login"],
                                             timeout: 600, environment: environment)
                 }.value
-                busy = false
-                if result?.exitCode == 0 {
+                let verified: Bool
+                if providerID == "claude", result?.exitCode == 0 {
+                    let snapshot = await Task.detached(priority: .utility) {
+                        ClaudeAuthReader(executableURL: executable, environment: environment).readSnapshot()
+                    }.value
+                    if snapshot.auth == .signedIn, let email = snapshot.account?.email {
+                        let identity = ConnectionIdentity(email: email, organizationID: snapshot.account?.organizationID)
+                        verified = AccountStore.shared.confirmIdentity(identity, provider: providerID, accountID: account.id)
+                        if verified { profile.email = identity.email }
+                    } else { verified = false }
+                } else { verified = result?.exitCode == 0 }
+                if verified {
+                    defaults.removeObject(forKey: "accounts.pendingClaude.\(account.id)")
                     profiles.removeAll { $0.providerID == providerID && $0.accountID == account.id }
                     profiles.append(profile); save()
                 }
-                message = result?.exitCode == 0 ? "Sign-in finished. Use Switch to choose this account for new launches." : "Sign-in did not complete. Retry native browser sign-in."
+                message = verified ? "Sign-in finished. Use Switch to choose this account for new launches." : "Sign-in failed or identity did not match. Previous connection is preserved. Retry native browser sign-in."
                 StatusService.shared.refresh()
             }
         } catch { message = error.localizedDescription }
@@ -377,6 +395,7 @@ final class ProviderLaunchStore: ObservableObject {
     }
 
     func forget(_ accountID: String) throws {
+        guard !busy, SwitchCoordinator.shared.active.isEmpty else { throw CodexAuthenticationError.busy }
         for (providerID, selectedID) in selected where selectedID == accountID {
             let file = try ProviderTerminalLaunch.selectionURL(providerID, home: home)
             try CodexTerminalLaunch.checkPath(file)
@@ -384,6 +403,18 @@ final class ProviderLaunchStore: ObservableObject {
             selected.removeValue(forKey: providerID)
         }
         profiles.removeAll { $0.accountID == accountID }; save()
+    }
+
+    func forgetProvider(_ provider: String, accountID: String) throws {
+        guard !busy, !SwitchCoordinator.shared.active.contains(provider) else { throw CodexAuthenticationError.busy }
+        if selected[provider] == accountID {
+            let file = try ProviderTerminalLaunch.selectionURL(provider, home: home)
+            try CodexTerminalLaunch.checkPath(file)
+            if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+            selected.removeValue(forKey: provider)
+        }
+        profiles.removeAll { $0.providerID == provider && $0.accountID == accountID }
+        save()
     }
 
     private func save() {
