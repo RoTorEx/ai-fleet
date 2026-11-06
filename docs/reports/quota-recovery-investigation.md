@@ -25,3 +25,21 @@ or otherwise explained with evidence. Selection and running-session identity
 remain separate. No repair deletes credentials/history, stops user agents or
 changes selected accounts. The local app can be installed and inspected under
 the user's current authorization; public release is not authorized.
+
+## Installed observation
+
+Commit ebc34f1 was installed at /Applications/AIFleet.app. Both installed
+executables match the built bundle and strict signature verification passed.
+The actual menu shows five providers and one measured connection out of six.
+Native default Claude auth independently reports loggedIn=false, authMethod=none
+and exit 1. A second Codex connection and Gemini remain unverified; Kimi reports
+a network failure. These states are observations, not successful quota restoration.
+All pre-existing provider selection values were preserved; startup added a
+previously absent Gemini selection entry. No explicit login or switch occurred.
+The old installed bundle is retained under construction_side/ai-fleet.noindex/
+rollback-before-quota-recovery-4a for rollback until this batch is accepted.
+
+The required suite passed with 167 Swift tests and 22 Rust tests. The actual
+installed menu screenshot is retained privately on the local AI desk; it is not
+part of the public repository. Future work proceeds in pairs with local app
+updates and visible review, while combined recovery acceptance remains outstanding.

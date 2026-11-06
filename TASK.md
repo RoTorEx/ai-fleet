@@ -1,5 +1,11 @@
 # Tasks
 
+## Local review batches
+
+- Work through two original requirements at a time, update the local application and show its actual appearance/behavior for review.
+- First batch: tasks 1 and 2. Fixes are installed, but Claude native login is absent and the historical switch incident remains unproven; keep both tasks open.
+- Preserve account selections and user agent processes during local updates.
+
 ## Combined user acceptance after design
 
 - Exercise the local app transitions and Codex/Claude switching, quota identity and saved conversation resume jointly with the user.
