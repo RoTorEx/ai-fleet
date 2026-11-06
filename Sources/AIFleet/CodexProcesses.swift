@@ -9,6 +9,8 @@ struct CodexProcess: Identifiable, Equatable {
     let executable: String
     var id: String { "\(pid):\(started):\(executable)" }
     var isBackground: Bool { terminal == "??" || terminal == "?" || terminal == "-" }
+    var detectedProvider: String? = nil
+    var providerID: String { detectedProvider ?? (name == "claude" || executable.contains("/.local/share/claude/versions/") ? "claude" : "codex") }
     var name: String { URL(fileURLWithPath: executable).lastPathComponent }
     var startedLabel: String {
         guard let seconds = TimeInterval(started) else { return started }
@@ -16,7 +18,7 @@ struct CodexProcess: Identifiable, Equatable {
     }
     var kind: String {
         if name == "codex-code-mode-host" { return "Code Mode helper" }
-        return isBackground ? "Codex background process" : "Codex terminal session"
+        return "\(providerID.capitalized) " + (isBackground ? "detached process · role unknown" : "terminal process")
     }
 }
 
@@ -40,7 +42,9 @@ enum CodexProcessControl {
         }
     }
 
-    static func inventory() throws -> [CodexProcess] {
+    static func inventory() throws -> [CodexProcess] { try allInventory().filter { $0.providerID == "codex" } }
+
+    static func allInventory() throws -> [CodexProcess] {
         let needed = proc_listpids(UInt32(PROC_UID_ONLY), getuid(), nil, 0)
         guard needed > 0 else { throw Failure.inventory }
         var pids = [Int32](repeating: 0, count: Int(needed) / MemoryLayout<Int32>.size + 256)
@@ -53,15 +57,48 @@ enum CodexProcessControl {
             var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
             guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
             let executable = String(cString: buffer)
-            guard ["codex", "codex-code-mode-host"].contains(URL(fileURLWithPath: executable).lastPathComponent) else { return nil }
+            guard let provider = provider(executable: executable, script: URL(fileURLWithPath: executable).lastPathComponent == "node" ? scriptEntry(pid) : nil) else { return nil }
             var info = proc_bsdinfo()
             guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0,
                   info.pbi_uid == getuid() else { return nil }
             let timestamp = "\(info.pbi_start_tvsec).\(info.pbi_start_tvusec)"
             let noTerminal = info.e_tdev == UInt32.max
             return CodexProcess(pid: pid, uid: info.pbi_uid, terminal: noTerminal ? "??" : "tty:\(info.e_tdev)",
-                                started: timestamp, executable: executable)
+                                started: timestamp, executable: executable, detectedProvider: provider)
         }.sorted { $0.pid < $1.pid }
+    }
+
+    static func provider(executable: String, script: String?) -> String? {
+        let name = URL(fileURLWithPath: executable).lastPathComponent
+        if ["codex", "codex-code-mode-host"].contains(name) { return "codex" }
+        if name == "claude" { return "claude" }
+        let versions = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/claude/versions").path
+        if URL(fileURLWithPath: executable).deletingLastPathComponent().path == versions { return "claude" }
+        guard name == "node", let script, script.hasPrefix("/") else { return nil }
+        for provider in ["claude", "codex"] {
+            guard let native = ProviderTerminalLaunch.nativeExecutable(provider, environment: ProcessInfo.processInfo.environment) else { continue }
+            if native.resolvingSymlinksInPath().path == URL(fileURLWithPath: script).resolvingSymlinksInPath().path { return provider }
+        }
+        return nil
+    }
+
+    // Read only the interpreter entry argument. Never expose prompts or environment.
+    private static func scriptEntry(_ pid: Int32) -> String? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var count = 0
+        guard sysctl(&mib, 3, nil, &count, nil, 0) == 0, count > 4, count <= 1_048_576 else { return nil }
+        var bytes = [UInt8](repeating: 0, count: count)
+        guard sysctl(&mib, 3, &bytes, &count, nil, 0) == 0 else { return nil }
+        var offset = 4
+        while offset < count && bytes[offset] != 0 { offset += 1 }
+        while offset < count && bytes[offset] == 0 { offset += 1 }
+        // argv[0] is the runtime; argv[1] must be an exact installed script path.
+        while offset < count && bytes[offset] != 0 { offset += 1 }
+        offset += 1
+        guard offset < count else { return nil }
+        let start = offset
+        while offset < count && bytes[offset] != 0 { offset += 1 }
+        return String(bytes: bytes[start..<offset], encoding: .utf8)
     }
 
     /// Re-read ownership, executable and start time immediately before signaling a single PID.
@@ -102,7 +139,7 @@ final class CodexProcessesService: ObservableObject {
         guard !refreshing else { return }
         refreshing = true
         scan = Task {
-            let result = await Task.detached(priority: .utility) { Result { try CodexProcessControl.inventory() } }.value
+            let result = await Task.detached(priority: .utility) { Result { try CodexProcessControl.allInventory() } }.value
             guard !Task.isCancelled else { return }
             switch result {
             case .success(let processes): self.processes = processes; error = nil
@@ -119,13 +156,13 @@ final class CodexProcessesService: ObservableObject {
             let result = await Task.detached(priority: .userInitiated) { () -> (Int, [String], [CodexProcess]?) in
                 var sent = 0, failures: [String] = []
                 for process in targets {
-                    do { try CodexProcessControl.stop(process, force: force); sent += 1 }
+                    do { try CodexProcessControl.stop(process, force: force, read: CodexProcessControl.allInventory); sent += 1 }
                     catch { failures.append("PID \(process.pid): \(error.localizedDescription)") }
                 }
                 // Observe actual exit; do not report a sent signal as a stopped process.
                 var current: [CodexProcess]?
                 for _ in 0..<10 {
-                    current = try? CodexProcessControl.inventory()
+                    current = try? CodexProcessControl.allInventory()
                     guard let current, targets.contains(where: { current.contains($0) }) else { break }
                     try? await Task.sleep(nanoseconds: 200_000_000)
                 }

@@ -9,12 +9,12 @@ struct CodexProcessesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Codex processes").font(.headline)
+                Text("Provider processes").font(.headline)
                 Spacer()
                 if service.refreshing { ProgressView().controlSize(.small) }
                 Button("Refresh") { service.refresh() }.keyboardShortcut("r")
             }
-            Text("Includes background servers and helpers left after terminal windows close. Switching the default account for new launches does not require stopping them.")
+            Text("Includes Codex and Claude processes, including detached processes left after terminal windows close. Select an individual process for manual recovery; account identity may be unknown.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if let error = service.error {
                 Text(error).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -23,7 +23,7 @@ struct CodexProcessesView: View {
                 Text(notice).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if service.processes.isEmpty {
-                Text(service.refreshing ? "Reading processes…" : "No Codex processes found.")
+                Text(service.refreshing ? "Reading processes…" : "No provider processes found.")
                     .foregroundStyle(.secondary).padding(.vertical, 24)
             }
             ForEach(service.processes) { process in
@@ -34,6 +34,9 @@ struct CodexProcessesView: View {
                         Spacer()
                         Text("PID \(String(process.pid))").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                     }
+                    let owner = SwitchRecovery.owner(of: process, roots: SwitchCoordinator.sessionRoots(home: FileManager.default.homeDirectoryForCurrentUser))
+                    Text(owner.flatMap { binding in AccountStore.shared.accounts.first { $0.id == binding.accountID } }.map { "Account: \($0.badge) · \($0.name)" } ?? "Account: unknown · manual selection required")
+                        .font(.caption2).foregroundStyle(.secondary)
                     Text(process.executable).font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(2).truncationMode(.middle).help(process.executable)
                     HStack {
@@ -44,6 +47,13 @@ struct CodexProcessesView: View {
                     }.buttonStyle(.bordered).controlSize(.small)
                 }
                 .padding(9).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+            }
+            ForEach(["codex", "claude"], id: \.self) { provider in
+                let rows = service.processes.filter { $0.providerID == provider }
+                if !rows.isEmpty {
+                    Button("Stop all \(provider.capitalized) processes…") { request(rows, force: false) }
+                    Button("Force quit all \(provider.capitalized) processes…") { request(rows, force: true) }
+                }
             }
             let background = service.processes.filter(\.isBackground)
             if !background.isEmpty {
@@ -60,7 +70,7 @@ struct CodexProcessesView: View {
             Button(force ? "Force Quit" : "Stop", role: .destructive) { service.terminate(pending, force: force) }
             Button("Cancel", role: .cancel) { pending = [] }
         } message: {
-            Text("PIDs: \(pending.map { String($0.pid) }.joined(separator: ", ")). This can interrupt running conversations and their tools. Saved history and credentials are retained. A native client may restart a background server.")
+            Text("PIDs: \(pending.map { String($0.pid) }.joined(separator: ", ")). This can interrupt running conversations and their tools, including other accounts in a provider-wide selection. Saved history and credentials are retained. A native client may restart a background server.")
         }
     }
 

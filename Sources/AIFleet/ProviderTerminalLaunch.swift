@@ -162,14 +162,18 @@ enum ProviderTerminalLaunch {
         let directory: URL?
     }
 
-    static func plan(_ providerID: String, arguments: [String], home: URL,
-                     environment: [String: String]) throws -> Plan {
-        guard let executable = nativeExecutable(providerID, environment: environment) else { throw Failure.missingCLI(providerID) }
+    static func shouldRoute(_ providerID: String, arguments: [String], environment: [String: String]) -> Bool {
         let connection = ProviderConnection.global(providerID)
         let explicit = connection.overrideKeys.contains { environment[$0] != nil }
         let nativeCommand = arguments.contains("--help") || arguments.contains("--version") || arguments.contains("-h") || arguments.contains("-V") || arguments.contains("-v") ||
             ["update", "upgrade", "completion", "serve", "daemon", "remote-control"].contains(arguments.first ?? "")
-        guard !explicit, !nativeCommand, let profile = try read(providerID, home: home) else {
+        return !explicit && !nativeCommand
+    }
+
+    static func plan(_ providerID: String, arguments: [String], home: URL,
+                     environment: [String: String]) throws -> Plan {
+        guard let executable = nativeExecutable(providerID, environment: environment) else { throw Failure.missingCLI(providerID) }
+        guard shouldRoute(providerID, arguments: arguments, environment: environment), let profile = try read(providerID, home: home) else {
             return Plan(executable: executable, arguments: arguments, environment: environment, profile: nil, directory: nil)
         }
         let directory = try directory(profile, home: home)
@@ -183,6 +187,8 @@ enum ProviderTerminalLaunch {
         do {
             let home = FileManager.default.homeDirectoryForCurrentUser, source = ProcessInfo.processInfo.environment
             let info = arguments == ["--fleet-launch-info"]
+            let transition = !info && providerID == "claude" && shouldRoute(providerID, arguments: arguments, environment: source) ? try ProviderTransitionLock(provider: providerID, home: home, exclusive: false) : nil
+            defer { withExtendedLifetime(transition) {} }
             let plan = try plan(providerID, arguments: info ? [] : arguments, home: home, environment: source)
             if info {
                 print(String(data: try JSONSerialization.data(withJSONObject: ["providerID": providerID,
@@ -202,7 +208,7 @@ enum ProviderTerminalLaunch {
                 }
                 if arguments.first == "logout" || arguments.first == "login" || arguments.prefix(2).elementsEqual(["auth", "logout"]) || arguments.prefix(2).elementsEqual(["auth", "login"]) {
                     try CodexCredentialSwitch.checkLegacyConsumers(directory)
-                } else { marker = try CodexTerminalLaunch.registerSession(directory: directory) }
+                } else { marker = try CodexTerminalLaunch.registerSession(directory: directory, owner: (providerID, profile.accountID, profile.accountID)) }
             }
             for key in source.keys where plan.environment[key] == nil { unsetenv(key) }
             for (key, value) in plan.environment { setenv(key, value, 1) }
@@ -256,7 +262,7 @@ final class ProviderLaunchStore: ObservableObject {
 
     func switchAccount(_ account: FleetAccount, providerID: String, global: ProviderStatus,
                        environment: [String: String] = ProcessInfo.processInfo.environment) {
-        guard !busy else { return }
+        guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
         messageAccountID = account.id; messageProviderID = providerID
         do {
             let existing = profile(providerID, accountID: account.id)
@@ -264,16 +270,38 @@ final class ProviderLaunchStore: ObservableObject {
                 global.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame
             let profile = existing ?? ProviderLaunchProfile(providerID: providerID, accountID: account.id,
                                                            email: account.email, native: matches)
+            if providerID == "claude" {
+                SwitchCoordinator.shared.perform(provider: providerID, current: selected[providerID], validate: {
+                    guard let executable = ProviderTerminalLaunch.nativeExecutable(providerID, environment: environment) else {
+                        throw SwitchRecoveryError.identity
+                    }
+                    let scoped = try ProviderTerminalLaunch.environment(profile, home: self.home, inheriting: environment)
+                    let snapshot = await Task.detached(priority: .utility) {
+                        ClaudeAuthReader(executableURL: executable, environment: scoped).readSnapshot()
+                    }.value
+                    guard snapshot.auth == .signedIn,
+                          snapshot.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame else {
+                        throw SwitchRecoveryError.identity
+                    }
+                }, commit: { [self] in
+                    try ProviderTerminalLaunch.choose(profile, home: home, application: Bundle.main.bundleURL, environment: environment)
+                    if existing == nil { profiles.append(profile) }
+                    selected[providerID] = account.id
+                    save()
+                    message = "Account selected for the next Claude command."
+                }, failure: { [weak self] error in self?.message = error.localizedDescription })
+            } else {
             try ProviderTerminalLaunch.choose(profile, home: home, application: Bundle.main.bundleURL, environment: environment)
             if existing == nil { profiles.append(profile) }
             selected[providerID] = account.id
             save()
             message = "Default for the next \(providerID) launch. Running agents keep their accounts."
+            }
         } catch { message = error.localizedDescription }
     }
 
     func signIn(_ account: FleetAccount, providerID: String) {
-        guard !busy else { return }
+        guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
         messageAccountID = account.id; messageProviderID = providerID
         do {
             let profile = ProviderLaunchProfile(providerID: providerID, accountID: account.id, email: account.email, native: false)
@@ -308,7 +336,7 @@ final class ProviderLaunchStore: ObservableObject {
     }
 
     func signOut(_ account: FleetAccount, providerID: String) {
-        guard !busy else { return }
+        guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
         messageAccountID = account.id; messageProviderID = providerID
         guard let profile = profile(providerID, accountID: account.id), !profile.native else {
             Task { await StatusService.shared.signOutGlobally(providerID) }

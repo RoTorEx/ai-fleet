@@ -160,7 +160,7 @@ final class CodexMonitoringStore: ObservableObject {
     }
 
     func saveCurrentLogin(_ account: FleetAccount) {
-        guard !refreshing, authenticatingID == nil else { return }
+        guard !refreshing, authenticatingID == nil, !SwitchCoordinator.shared.active.contains("codex") else { return }
         do {
             let shared = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
             guard try CodexCredentialSwitch.identity(at: shared.appendingPathComponent("auth.json")).email
@@ -176,8 +176,8 @@ final class CodexMonitoringStore: ObservableObject {
         } catch { errorProfileID = profile(for: account)?.id; self.error = error.localizedDescription }
     }
 
-    func switchAccount(_ account: FleetAccount) {
-        guard !refreshing, authenticatingID == nil else { return }
+    func switchAccount(_ account: FleetAccount, interactive: Bool = true) {
+        guard !refreshing, authenticatingID == nil, !SwitchCoordinator.shared.active.contains("codex") else { return }
         do {
             guard let profile = profile(for: account) else { throw CodexCredentialSwitch.Failure.missingLogin }
             let home = FileManager.default.homeDirectoryForCurrentUser
@@ -191,12 +191,48 @@ final class CodexMonitoringStore: ObservableObject {
                                                  email: account.email, workspaceID: chosenIdentity.accountID,
                                                  usesStandardHome: usesStandard)
             let installed = CodexTerminalLaunch.isShim(home.appendingPathComponent(".local/bin/codex"))
-            try CodexTerminalLaunch.choose(selection, home: home, application: Bundle.main.bundleURL)
-            nextLaunchAccountID = account.id
-            defaults.set(account.id, forKey: CodexTerminalLaunch.selectionKey)
-            terminalSetupNotice = !installed
-            error = nil
-            errorProfileID = nil
+            let validate = {
+                try CodexTerminalLaunch.validateIdentity(selection, directory: directory)
+                let credentials = try CodexCredentialSwitch.identity(at: directory.appendingPathComponent("auth.json"))
+                guard credentials.email.caseInsensitiveCompare(account.email) == .orderedSame else { throw SwitchRecoveryError.identity }
+            }
+            if !interactive {
+                // Preserve the supported synchronous next-launch CLI; never show a stop dialog here.
+                let transition = try ProviderTransitionLock(provider: "codex", home: home, exclusive: true)
+                defer { withExtendedLifetime(transition) {} }
+                try validate()
+                try CodexTerminalLaunch.choose(selection, home: home, application: Bundle.main.bundleURL)
+                nextLaunchAccountID = account.id
+                defaults.set(account.id, forKey: CodexTerminalLaunch.selectionKey)
+                error = nil
+                errorProfileID = nil
+                return
+            }
+            SwitchCoordinator.shared.perform(provider: "codex", current: nextLaunchAccountID ?? activeAccountID,
+                validate: {
+                    try validate()
+                    guard let executable = CodexTerminalLaunch.nativeExecutable() else { throw SwitchRecoveryError.identity }
+                    var environment = ProcessInfo.processInfo.environment
+                    for key in ProviderConnection.global("codex").overrideKeys { environment.removeValue(forKey: key) }
+                    environment["CODEX_HOME"] = directory.path
+                    let scoped = environment
+                    let result = await Task.detached(priority: .utility) {
+                        LocalCommandReader.read(executableURL: executable,
+                            arguments: ["-c", "cli_auth_credentials_store=\"file\"", "login", "status"], environment: scoped)
+                    }.value
+                    guard result?.exitCode == 0 else { throw SwitchRecoveryError.identity }
+                    try validate()
+                }, commit: { [self] in
+                try CodexTerminalLaunch.choose(selection, home: home, application: Bundle.main.bundleURL)
+                nextLaunchAccountID = account.id
+                defaults.set(account.id, forKey: CodexTerminalLaunch.selectionKey)
+                terminalSetupNotice = !installed
+                error = nil
+                errorProfileID = nil
+            }, failure: { [weak self] error in
+                self?.errorProfileID = self?.profile(for: account)?.id
+                self?.error = error.localizedDescription
+            })
         } catch {
             errorProfileID = profile(for: account)?.id
             self.error = error.localizedDescription
@@ -207,7 +243,7 @@ final class CodexMonitoringStore: ObservableObject {
     func replaceSharedLogin(_ account: FleetAccount,
                        sharedDirectory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex"),
                        inventory: () throws -> [Int32] = { try CodexProcessInventory().runningPIDs() }) {
-        guard !refreshing, authenticatingID == nil else { return }
+        guard !refreshing, authenticatingID == nil, !SwitchCoordinator.shared.active.contains("codex") else { return }
         do {
             guard let profile = profile(for: account) else { throw CodexCredentialSwitch.Failure.missingLogin }
             let incoming = try directory(for: profile)
@@ -316,7 +352,7 @@ final class CodexMonitoringStore: ObservableObject {
     func signOut(_ profile: CodexMonitoringProfile) { changeAuthentication(.logout, profile: profile) }
 
     private func changeAuthentication(_ action: CodexAuthenticationOperation.Action, profile: CodexMonitoringProfile) {
-        guard authenticatingID == nil, !refreshing, profiles.contains(where: { $0.id == profile.id }) else { return }
+        guard !SwitchCoordinator.shared.active.contains("codex"), authenticatingID == nil, !refreshing, profiles.contains(where: { $0.id == profile.id }) else { return }
         error = nil
         errorProfileID = profile.id
         var directory: URL
@@ -376,7 +412,13 @@ final class CodexMonitoringStore: ObservableObject {
         }
     }
 
+    func joinRefreshForSwitch() async {
+        refreshTask?.cancel()
+        await refreshTask?.value
+    }
+
     func refresh(force: Bool = false) {
+        guard !SwitchCoordinator.shared.active.contains("codex") else { return }
         guard !refreshing, authenticatingID == nil, !profiles.isEmpty,
               force || lastRefresh.map({ Date().timeIntervalSince($0) >= 300 }) ?? true else { return }
         refreshing = true

@@ -43,6 +43,11 @@ struct SettingsView: View {
 
     private var generalSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
+            ForEach(["codex", "claude"], id: \.self) { provider in
+                settingsRow("\(provider.capitalized) Switch") {
+                    SwitchPolicyPicker(provider: provider)
+                }
+            }
             settingsRow("Menu shortcut") {
                 HotkeyRecorder(settings: settings)
             }
@@ -270,5 +275,18 @@ struct HotkeyRecorder: View {
             self.monitor = nil
         }
         settings.isRecordingHotkey = false
+    }
+}
+
+struct SwitchPolicyPicker: View {
+    let provider: String
+    @State private var policy = SwitchPolicy.graceful
+    var body: some View {
+        Picker("Switch policy", selection: $policy) {
+            ForEach(SwitchPolicy.allCases) { Text($0.title).tag($0) }
+        }
+        .labelsHidden()
+        .onAppear { policy = SwitchCoordinator.policy(provider) }
+        .onChange(of: policy) { UserDefaults.standard.set($0.rawValue, forKey: "switch.policy.\(provider)") }
     }
 }

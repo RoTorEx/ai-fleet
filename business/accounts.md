@@ -31,8 +31,8 @@ login is attached, its state controls that account, including explicit sign-out.
 [Codex authorization](codex-profiles.md) owns isolation and storage details.
 
 All providers use the same Switch action and [next-launch contract](provider-switching.md).
-The action changes only that provider's default command account. Running agents
-continue under their existing credentials. New launches use native isolated homes;
+The action changes only that provider's default command account. In next-launch-only mode running agents continue under their existing credentials.
+Codex and Claude stopping modes follow [Switch recovery](switch-recovery.md). New launches use native isolated homes;
 Sign in remains a separate action and never silently changes the default. The
 → mark means default for the next launch, falling back to observed native identity
 before integration. Independently measured accounts keep their own colors/limits.
@@ -40,8 +40,8 @@ Rows sort by tool name, then strictly by Greek badge.
 
 Codex Save current login retains existing authorization without repeating browser
 login. Its adapter and guarded internal recovery path are documented in
-[Codex authorization](codex-profiles.md). Switching through the UI never invokes
-the old shared-file replacement or requires stopping background processes.
+[Codex authorization](codex-profiles.md). Switching through the UI never invokes the old shared-file replacement; its
+process policy determines whether it waits for or stops bound consumers.
 
 The menu's Limits summary counts connections with current reported quota, not
 signed-in accounts. A signed-in provider without a measurement is excluded;
@@ -65,7 +65,7 @@ establishing the exact order of every overnight failure.
 
 Changes to the shared CLI login remain protected internally by a conservative
 current-user Codex process check. Account-specific browser logins do not change
-that shared login and do not require terminating existing agents. Fleet never terminates a process as a side effect of account selection. Explicit process controls in Agents are separate and require confirmation. The active
+that shared login and do not require terminating existing agents. Stopping Switch policies and manual process controls require explicit confirmation. The active
 account's standard home is the only refresh consumer for its credential bundle;
 its saved copy is checkpointed rather than polled in parallel.
 Login/logout and account-usage reads are exclusive within each credential home;

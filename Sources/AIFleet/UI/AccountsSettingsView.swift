@@ -8,6 +8,7 @@ struct AccountsSettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
+    @ObservedObject private var switching = SwitchCoordinator.shared
     @State private var selectedID = ""
     @State private var isAdding = false
     @State private var createsAccount = false
@@ -26,8 +27,12 @@ struct AccountsSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Switch selects the account for the next command. Running agents keep their accounts. After first installing command integration, run rehash once in already open terminals.")
+            Text("Switch follows the policy in General settings. Stops require confirmation and preserve saved history. After first installing command integration, run rehash once in already open terminals.")
                 .font(.callout).foregroundColor(.secondary)
+            if let detail = switching.detail { Text(detail).font(.caption).textSelection(.enabled) }
+            ForEach(Array(switching.active).sorted(), id: \.self) { provider in
+                Button("Cancel \(provider.capitalized) switch") { switching.cancel(provider) }
+            }
             if !isAdding {
                 HStack {
                     if !store.visibleAccounts.isEmpty {

@@ -267,7 +267,7 @@ enum CodexTerminalLaunch {
     }
 
     /// The marker follows this PID through exec; stale files are pruned on the next launch.
-    static func registerSession(directory: URL) throws -> URL {
+    static func registerSession(directory: URL, owner: (String, String, String)? = nil) throws -> URL {
         let folder = directory.appendingPathComponent("FleetSessions", isDirectory: true)
         try checkPath(folder)
         let manager = FileManager.default
@@ -276,15 +276,23 @@ enum CodexTerminalLaunch {
             try checkPath(file)
             let lines = try String(contentsOf: file).split(whereSeparator: { $0.isNewline })
             if let first = lines.first, let pid = Int32(first), pid > 1 {
-                if kill(pid, 0) != 0, errno == ESRCH { try manager.removeItem(at: file) }
+                if kill(pid, 0) != 0, errno == ESRCH {
+                    try manager.removeItem(at: file)
+                    try? manager.removeItem(at: file.deletingPathExtension().appendingPathExtension("owner"))
+                }
                 else if lines.count == 2, let current = CodexProcessControl.startIdentity(pid), current != String(lines[1]) {
                     try manager.removeItem(at: file)
+                    try? manager.removeItem(at: file.deletingPathExtension().appendingPathExtension("owner"))
                 }
             }
         }
         let marker = folder.appendingPathComponent("terminal-\(getpid()).pid")
         guard let start = CodexProcessControl.startIdentity(getpid()) else { throw Failure.preparationFailed }
         try atomicWrite(Data("\(getpid())\n\(start)\n".utf8), to: marker, mode: 0o600)
+        if let owner {
+            let record = FleetSessionOwner(providerID: owner.0, accountID: owner.1, profileID: owner.2, pid: getpid(), started: start)
+            try atomicWrite(JSONEncoder().encode(record), to: marker.deletingPathExtension().appendingPathExtension("owner"), mode: 0o600)
+        }
         return marker
     }
 
@@ -293,6 +301,8 @@ enum CodexTerminalLaunch {
         var marker: URL?
         do {
             let info = arguments == ["--fleet-launch-info"]
+            let transition = !info && shouldRoute(arguments, environment: environment) ? try ProviderTransitionLock(provider: "codex", home: home, exclusive: false) : nil
+            defer { withExtendedLifetime(transition) {} }
             let plan = try plan(arguments: info ? [] : arguments, home: home, environment: environment)
             if info {
                 let data = try JSONSerialization.data(withJSONObject: [
@@ -315,7 +325,7 @@ enum CodexTerminalLaunch {
                         let pids = try CodexProcessInventory().runningPIDs()
                         guard pids.isEmpty else { throw CodexAuthenticationError.activeProcesses(pids) }
                     }
-                } else if !loginStatus { marker = try registerSession(directory: plan.directory) }
+                } else if !loginStatus { marker = try registerSession(directory: plan.directory, owner: plan.selection.map { ("codex", $0.accountID, $0.profileID) }) }
             }
             for key in environment.keys where plan.environment[key] == nil { unsetenv(key) }
             for (key, value) in plan.environment { setenv(key, value, 1) }

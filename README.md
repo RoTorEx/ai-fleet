@@ -104,8 +104,10 @@ account's saved Codex login, and is refused while its Fleet sessions are running
 
 Use **Save current login** to retain an already authenticated Codex account.
 **Switch** selects the account for your next ordinary `codex`
-or `codex resume` command, including in the same terminal. Existing sessions keep
-their accounts and do not need to stop. After the first installation of command
+or `codex resume` command, including in the same terminal. Codex and Claude use the policy selected in Settings → General: Next launch
+only, Wait for exit, Stop gracefully (default), or Force quit. Stopping policies
+show the affected PIDs and require confirmation. Unverified account ownership
+requires manual review in Processes. See [Switch recovery](business/switch-recovery.md). After the first installation of command
 integration, run `rehash` once in terminals already open; later account changes
 need no extra command. The shim lives at `~/.local/bin/codex`, which must precede
 the native CLI in PATH. New terminals use it automatically with that PATH order.
@@ -118,10 +120,11 @@ native scope. Fleet never opens a terminal or starts a conversation for you.
 To remove command integration, delete only the Fleet-owned `~/.local/bin/codex`
 shim and run `rehash`; saved accounts, history and native credentials remain.
 
-**Agents → Processes** lists Codex sessions, background servers and helpers. Use
+**Agents → Processes** lists Codex and Claude processes, including detached servers
+and helpers. Use
 **Stop**, **Force Quit**, or **Stop all background processes…** after reviewing
 the confirmation. The app verifies process identity and checks exit. Account
-selection itself does not terminate anything.
+selection follows the chosen Switch policy; stopping requires confirmation.
 
 The menu shows each account's remaining 5h/7d limits. A circle means current
 limits are loaded, × requests sign-in, and ? with a gray row means limits are
@@ -136,8 +139,8 @@ shared local model history and cost estimates are not split between accounts.
 A wrong browser email is reported instead of showing another account's quota.
 
 Claude, Kimi, Qwen and Gemini use the same **Switch** behavior: the next ordinary
-provider command uses the selected account; running sessions keep their accounts.
-Sign in is separate. New profiles need their own native login. Gemini and Qwen may
+provider command uses the selected account; next-launch-only mode keeps running sessions. Claude also follows the configured
+stop policy. Sign in is separate. New profiles need their own native login. Gemini and Qwen may
 complete that login on the first CLI launch. Explicit directory/API-key/remote
 invocations keep their native scope. See [Provider switching](business/provider-switching.md)
 for adapter boundaries and verification coverage. Provider visibility

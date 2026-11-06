@@ -4,8 +4,8 @@
 
 Users can keep multiple Codex accounts signed in and select which account the next
 ordinary `codex` command uses. Its UI action is Switch, following the
-[provider-independent contract](provider-switching.md). Selecting an account never replaces standard
-credentials, stops a process, or retargets an existing conversation. A terminal
+[provider-independent contract](provider-switching.md). Selecting an account never replaces standard credentials or retargets an existing
+conversation. Process stopping follows the explicit [Switch recovery](switch-recovery.md) policy. A terminal
 already open needs one initial `rehash` after command integration is installed;
 subsequent selections apply on the next command without reopening the terminal.
 Fleet never creates terminals or starts conversations. Native shared-credential

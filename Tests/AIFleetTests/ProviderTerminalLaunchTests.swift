@@ -84,21 +84,21 @@ final class ProviderTerminalLaunchTests: XCTestCase {
         let first = accounts.add(email: "one@example.test"), second = accounts.add(email: "two@example.test")
         let bin = root.appendingPathComponent("bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
-        for name in ["claude", "kimi"] {
+        for name in ["qwen", "kimi"] {
             let file = bin.appendingPathComponent(name)
             try "#!/bin/sh\nexit 0\n".write(to: file, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
         }
         let store = ProviderLaunchStore(defaults: defaults, home: root)
-        let global = LocalProviderAuth.signedOut.status(for: ProviderCatalog.claude)
-        store.switchAccount(first, providerID: "claude", global: global, environment: ["PATH": bin.path])
+        let global = LocalProviderAuth.signedOut.status(for: ProviderCatalog.qwen)
+        store.switchAccount(first, providerID: "qwen", global: global, environment: ["PATH": bin.path])
         store.switchAccount(second, providerID: "kimi", global: global, environment: ["PATH": bin.path])
-        XCTAssertEqual(store.selected, ["claude": first.id, "kimi": second.id])
+        XCTAssertEqual(store.selected, ["qwen": first.id, "kimi": second.id])
         let restored = ProviderLaunchStore(defaults: defaults, home: root)
         XCTAssertEqual(restored.selected, store.selected)
         try restored.forget(first.id)
         XCTAssertEqual(restored.selected, ["kimi": second.id])
-        XCTAssertNil(try ProviderTerminalLaunch.read("claude", home: root))
+        XCTAssertNil(try ProviderTerminalLaunch.read("qwen", home: root))
         XCTAssertEqual(try ProviderTerminalLaunch.read("kimi", home: root)?.accountID, second.id)
     }
 

@@ -2,19 +2,16 @@
 
 ## User contract
 
-Switch is the only user-facing switching action. For Codex, Claude Code, Kimi,
-Qwen and Gemini it selects the account used by the next ordinary launch of that
-provider's command. Existing processes keep their credential homes, in-flight
-requests and account. Switching never stops agents, waits for their work, replaces
-shared credentials, opens a terminal or starts a model request. It does not move
-a running request to another subscription. Each provider has its own default.
-Sign in connects a login; it does not select the default. Sign out is separate.
+Switch selects the account for the next ordinary provider command. Codex and
+Claude additionally support explicit wait, graceful-stop and force-quit policies;
+[Switch recovery](switch-recovery.md) owns their scope, defaults and deadlines.
+Next-launch-only mode retains existing sessions and credential homes. Other
+providers retain next-launch-only behavior. No policy migrates an in-flight
+request, opens a terminal or starts a conversation. Sign in connects a login and
+Sign out remains separate.
 
-The → default mark identifies the next-launch selection, falling back to observed
-native identity before setup. Lowest is only a quota recommendation. It never
-changes the selection automatically. There is no user-facing hard-switch mode.
-The internal guarded Codex credential replacement remains for compatibility and
-recovery, outside the ordinary Switch action.
+The default selection and lowest-quota recommendation are independent. Neither
+quota measurement nor account sign-in changes the selection automatically.
 
 ## Command integration and adapters
 

@@ -206,6 +206,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     func refresh() {
+        guard SwitchCoordinator.shared.active.isEmpty else { return }
         guard signingOutProvider == nil, !ProviderLaunchStore.shared.busy else { return }
         let previous = task
         previous?.cancel()
@@ -264,7 +265,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     func signOutGlobally(_ providerID: String, accounts suppliedAccounts: AccountStore? = nil,
                          logout: ProviderLogout = ProviderLogout()) async {
-        guard signingOutProvider == nil,
+        guard !SwitchCoordinator.shared.active.contains(providerID), signingOutProvider == nil,
               let provider = ProviderCatalog.definition(for: providerID) else { return }
         let accounts = suppliedAccounts ?? AccountStore.shared
         guard !accounts.codexSigningIn else { return }

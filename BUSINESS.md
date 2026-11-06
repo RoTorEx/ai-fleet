@@ -64,8 +64,9 @@ subscription charges.
   badges. Menu rows sort by tool name, then strictly by Greek badge within each tool.
   Switch always selects the account for the next launch of that provider.
   The → marker identifies the default account for the next provider command after
-  terminal integration, or the standard credential account before setup. Selection
-  changes only the launch preference; running sessions retain their accounts.
+  terminal integration, or the standard credential account before setup. Selection changes the launch preference; next-launch-only mode retains running
+  sessions. Codex and Claude additionally support explicit stopping policies
+  described in [Switch recovery](business/switch-recovery.md).
   Shared credential replacement remains a guarded internal recovery path. Fleet
   never creates terminals or agent sessions. Independent saved Codex logins retain their
   own quota and normal colors. Signing into one does not switch running sessions

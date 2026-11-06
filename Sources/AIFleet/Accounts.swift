@@ -264,7 +264,7 @@ final class AccountStore: ObservableObject {
     }
 
     func signInGlobally(_ providerID: String, accountID: String? = nil) {
-        guard StatusService.shared.signingOutProvider == nil, !codexSigningIn else { return }
+        guard !SwitchCoordinator.shared.active.contains(providerID), StatusService.shared.signingOutProvider == nil, !codexSigningIn else { return }
         launchProviderID = providerID
         launchAccountID = accountID
         guard let provider = ProviderCatalog.definition(for: providerID),
@@ -297,7 +297,7 @@ final class AccountStore: ObservableObject {
 
     func startCodexSignIn(executable: URL,
                           inventory: @escaping @Sendable () throws -> [Int32] = { try CodexProcessInventory().runningPIDs() }) {
-        guard !codexSigningIn, StatusService.shared.signingOutProvider == nil else { return }
+        guard !SwitchCoordinator.shared.active.contains("codex"), !codexSigningIn, StatusService.shared.signingOutProvider == nil else { return }
         launchProviderID = "codex"
         launchError = nil
         let operation = CodexAuthenticationOperation()

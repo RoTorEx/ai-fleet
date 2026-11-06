@@ -4,6 +4,14 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+### Added
+
+- Add per-provider next-launch, wait, graceful and force Switch policies for
+  Codex and Claude, verified account ownership markers and launch exclusion.
+- Extend manual Processes recovery to native Claude and provider-wide bulk
+  Stop/Force Quit with explicit confirmations. Real-account stage acceptance
+  remains outstanding.
+
 ## [1.3.12] - 2026-11-03
 
 ### Changed

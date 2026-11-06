@@ -24,7 +24,7 @@ struct AIFleetApp: App {
                 exit(1)
             }
             let store = CodexMonitoringStore.shared
-            store.switchAccount(account)
+            store.switchAccount(account, interactive: false)
             if let error = store.error {
                 FileHandle.standardError.write(Data("AI Fleet: \(error)\n".utf8)); exit(1)
             }
