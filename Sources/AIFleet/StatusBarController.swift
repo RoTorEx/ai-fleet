@@ -28,8 +28,9 @@ struct FleetMenuRoot: View {
     }
 }
 
-/// Borderless menu window: no popover arrow, no open/close animation, menu blur
-/// with a hairline outline like the native menu-bar extras.
+/// Borderless menu window: no popover arrow and no open/close animation. On
+/// macOS 26+ it uses the same glass as native menu-bar menus; older systems get
+/// menu blur with a hairline outline.
 final class FleetMenuPanel: NSPanel {
     static let cornerRadius: CGFloat = 12
     static let gap: CGFloat = 5
@@ -49,19 +50,26 @@ final class FleetMenuPanel: NSPanel {
         animationBehavior = .none
         collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .transient, .ignoresCycle]
 
-        let effect = NSVisualEffectView()
-        effect.material = .menu
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.maskImage = Self.roundedMask(radius: Self.cornerRadius)
         content.translatesAutoresizingMaskIntoConstraints = true
         content.autoresizingMask = [.width, .height]
-        effect.addSubview(content)
-
-        let outline = MenuPanelOutline()
-        outline.autoresizingMask = [.width, .height]
-        effect.addSubview(outline)
-        contentView = effect
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.style = .regular
+            glass.cornerRadius = Self.cornerRadius
+            glass.contentView = content
+            contentView = glass
+        } else {
+            let effect = NSVisualEffectView()
+            effect.material = .menu
+            effect.blendingMode = .behindWindow
+            effect.state = .active
+            effect.maskImage = Self.roundedMask(radius: Self.cornerRadius)
+            effect.addSubview(content)
+            let outline = MenuPanelOutline()
+            outline.autoresizingMask = [.width, .height]
+            effect.addSubview(outline)
+            contentView = effect
+        }
     }
 
     override var canBecomeKey: Bool { true }
@@ -69,7 +77,7 @@ final class FleetMenuPanel: NSPanel {
 
     func layout(contentSize: NSSize, below anchor: NSRect, in visibleFrame: NSRect) {
         setFrame(Self.frame(contentSize: contentSize, below: anchor, in: visibleFrame), display: true)
-        contentView?.subviews.forEach { $0.frame = contentView?.bounds ?? .zero }
+        hostingView.frame = hostingView.superview?.bounds ?? hostingView.frame
         invalidateShadow()
     }
 
@@ -122,6 +130,7 @@ final class StatusBarController: NSObject {
     private var globalClickMonitor: Any?
     private var localEventMonitor: Any?
     private var sizeObservation: NSKeyValueObservation?
+    private var lastOutsideDismissal = Date.distantPast
     private let screen = FleetMenuScreen()
     private let agents = AgentSessionsService()
     private var agentsHotKey: GlobalHotKey?
@@ -198,6 +207,11 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func statusItemClicked() {
+        // A press on the icon can reach the outside-click monitor before the
+        // button action; that press already closed the menu, so don't reopen it.
+        if !panel.isVisible, Date().timeIntervalSince(lastOutsideDismissal) < 0.5 {
+            return
+        }
         togglePopover()
     }
 
@@ -262,8 +276,9 @@ final class StatusBarController: NSObject {
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { [weak self] _ in
             Task { @MainActor in
-                guard AppSettings.shared.menuClosesOnOutsideClick else { return }
-                self?.closePanel()
+                guard let self, AppSettings.shared.menuClosesOnOutsideClick,
+                      !self.isMouseOverStatusButton else { return }
+                self.dismissOnOutsideClick()
             }
         }
 
@@ -290,9 +305,9 @@ final class StatusBarController: NSObject {
                AppSettings.shared.menuClosesOnOutsideClick,
                NSApplication.shared.modalWindow == nil,
                event.window !== self.panel,
-               !self.isEventInsideStatusButton(event),
+               !self.isMouseOverStatusButton,
                !self.isEventInsideCompanionWindow(event) {
-                self.closePanel()
+                self.dismissOnOutsideClick()
             }
 
             return event
@@ -311,14 +326,19 @@ final class StatusBarController: NSObject {
         }
     }
 
-    private func isEventInsideStatusButton(_ event: NSEvent) -> Bool {
-        guard let button = statusItem.button,
-              event.window === button.window else {
+    private func dismissOnOutsideClick() {
+        lastOutsideDismissal = Date()
+        closePanel()
+    }
+
+    /// Screen-space check: status-item clicks may arrive with a window the
+    /// monitors cannot match, so compare the pointer with the button frame.
+    private var isMouseOverStatusButton: Bool {
+        guard let button = statusItem.button, let window = button.window else {
             return false
         }
-
-        let location = button.convert(event.locationInWindow, from: nil)
-        return button.bounds.contains(location)
+        let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
+        return frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
     }
 
     private func isEventInsideCompanionWindow(_ event: NSEvent) -> Bool {

@@ -211,8 +211,9 @@ subscription charges.
 - The compact menu presents the application version as the final `Version`
   key/value row in its top summary; it has no separate version footer.
 - The menu is a borderless panel below the menu-bar icon: no arrow, no open or
-  close animation, 12 pt corners, adaptive menu blur and a hairline outline,
-  matching native menu-bar extras. The panel owns the surface; menu content does
+  close animation, 12 pt corners and the native menu glass on macOS 26+ (menu
+  blur with a hairline outline on older systems), matching native menu-bar
+  menus. Clicking the icon again closes it. The panel owns the surface; menu content does
   not draw a second background or rounded panel. Outside clicks close it by
   default; General can turn that off so it stays open until Esc, the icon or the
   shortcut. Esc always closes it. Command rows use compact spacing like
