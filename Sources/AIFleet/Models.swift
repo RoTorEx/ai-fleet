@@ -313,6 +313,7 @@ extension KeyedDecodingContainer {
             return value
         }
         if let value = try? decodeIfPresent(Double.self, forKey: key) {
+            guard value.isFinite, value >= Double(Int.min), value < Double(Int.max) else { return nil }
             return Int(value)
         }
         if let value = try? decodeIfPresent(String.self, forKey: key) {

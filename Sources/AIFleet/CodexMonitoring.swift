@@ -58,11 +58,12 @@ final class CodexMonitoringStore: ObservableObject {
         self.authenticate = authenticate
         self.measure = measure ?? { directory in
             let beforeIdentity = try? CodexCredentialSwitch.identity(at: directory.appendingPathComponent("auth.json"))
-            let usage = await Task.detached(priority: .utility) {
+            let usageTask = Task.detached(priority: .utility) {
                 try? CodexAccountUsageReader(profileDirectory: directory).read()
-            }.value
+            }
             let connection = ProviderConnection(id: directory.lastPathComponent, providerID: "codex", configDirectory: directory.path)
             let status = await StatusService.shared.checkCodex(connection: connection)
+            let usage = await usageTask.value
             let sameIdentity = beforeIdentity != nil && beforeIdentity == (try? CodexCredentialSwitch.identity(at: directory.appendingPathComponent("auth.json")))
             return CodexMonitoringResult(status: status, usage: sameIdentity ? usage : nil,
                 usageError: !sameIdentity ? "Profile identity changed or is unavailable; refresh again."

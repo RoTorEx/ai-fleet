@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 struct CodexAccountDailyUsage: Codable, Identifiable, Equatable {
     let day: Date
@@ -42,6 +43,7 @@ struct CodexAccountUsageReader {
         let inputPipe = Pipe()
         let outputPipe = Pipe()
         let responseReady = DispatchSemaphore(value: 0)
+        let exited = DispatchSemaphore(value: 0)
         let collector = CodexUsageResponseCollector()
 
         process.executableURL = executableURL
@@ -54,7 +56,7 @@ struct CodexAccountUsageReader {
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { _ in responseReady.signal() }
+        process.terminationHandler = { _ in responseReady.signal(); exited.signal() }
 
         let outputHandle = outputPipe.fileHandleForReading
         outputHandle.readabilityHandler = { handle in
@@ -74,7 +76,13 @@ struct CodexAccountUsageReader {
         defer {
             outputHandle.readabilityHandler = nil
             try? inputPipe.fileHandleForWriting.close()
-            if process.isRunning { process.terminate() }
+            if process.isRunning {
+                process.terminate()
+                if exited.wait(timeout: .now() + 1) != .success, process.isRunning {
+                    // Only this reader's child: never signal a user session or a shared daemon.
+                    kill(process.processIdentifier, SIGKILL)
+                }
+            }
             process.waitUntilExit()
         }
 

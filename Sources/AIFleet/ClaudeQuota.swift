@@ -45,7 +45,7 @@ struct ClaudeQuotaCredential {
         }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let defaultDirectory = home.appendingPathComponent(".claude")
-        let directory = snapshot.configDirectory.map { URL(fileURLWithPath: $0) } ?? defaultDirectory
+        let directory = (snapshot.configDirectory ?? profile?.configDirectory).map { URL(fileURLWithPath: $0) } ?? defaultDirectory
         if let profile, let reported = snapshot.configDirectory {
             let requested = profile.configDirectory.map { URL(fileURLWithPath: $0) } ?? defaultDirectory
             guard URL(fileURLWithPath: reported).standardizedFileURL == requested.standardizedFileURL else {

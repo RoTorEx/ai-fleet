@@ -65,3 +65,20 @@ its version-named installed binaries, and Node processes whose entry script exac
 matches an installed provider executable. Other generic runtimes are not attributed
 by their name. Detached helpers without a validated ownership marker remain unknown
 and require explicit manual selection, as required by the account-only policy.
+
+## Quota-read child cleanup
+
+The account-usage reader owns the app-server process it starts. On completion or
+its existing 15-second request timeout it closes input, sends SIGTERM and allows
+one second for exit, then sends SIGKILL only to that owned child if still running.
+This bounds cleanup when a helper ignores termination; it never targets an
+existing terminal or user daemon. Quota HTTP reads start alongside account usage
+instead of waiting for the usage helper to finish. This fixes a reproducible
+unbounded wait, not proof of the user's historical incident cause.
+
+CLI auth stdout is drained concurrently with execution so a response exceeding
+pipe capacity cannot block process exit. A named Claude profile remains the
+credential source even if structured auth status omits configDirectory.
+Out-of-range numeric quota counts are unavailable rather than a trapping Int
+conversion. QuotaRecoveryRegressionTests exercises these boundaries with owned
+local fixtures, including an app-server that ignores SIGTERM.

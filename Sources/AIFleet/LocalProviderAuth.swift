@@ -103,6 +103,13 @@ enum LocalCommandReader {
         } catch {
             return nil
         }
+        // Drain while the child runs: a full pipe must not prevent process exit.
+        let drain = CommandOutputDrain()
+        let drained = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            drain.data = output.fileHandleForReading.readDataToEndOfFile()
+            drained.signal()
+        }
         guard finished.wait(timeout: .now() + timeout) == .success else {
             process.terminate()
             if finished.wait(timeout: .now() + 0.2) != .success {
@@ -111,7 +118,8 @@ enum LocalCommandReader {
             process.waitUntilExit()
             return nil
         }
-        return (output.fileHandleForReading.readDataToEndOfFile(), process.terminationStatus)
+        guard drained.wait(timeout: .now() + 1) == .success else { return nil }
+        return (drain.data, process.terminationStatus)
     }
 }
 
@@ -152,4 +160,9 @@ enum QwenAuthReader {
         }
         return .signedIn
     }
+}
+
+// The semaphore provides exclusive handoff from the output reader to its caller.
+private final class CommandOutputDrain: @unchecked Sendable {
+    var data = Data()
 }
