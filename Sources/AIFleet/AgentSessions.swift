@@ -24,6 +24,17 @@ struct AgentSession: Decodable, Identifiable, Equatable {
     let request: String?
     let answer: String?
     let updatedAt: Double?
+    let activityObservedAt: Double?
+    let dataVersion: Int?
+    let pid: UInt32?
+    let processStarted: UInt64?
+    let cwd: String?
+    let requestedAt: Double?
+    let lastMessageAt: Double?
+    let workingStartedAt: Double?
+    let workStartedAt: Double?
+    let workTimeSource: String?
+    let stateSource: String?
 
     var needsYou: Bool { ["Approval", "Question", "Blocked"].contains(state) }
     var isWorking: Bool { state == "Working" }
@@ -134,6 +145,10 @@ final class AgentSessionsService: ObservableObject {
 
     init(executableURL: URL? = nil) {
         self.executableURL = executableURL
+    }
+
+    var contracts: [AgentSessionContract] {
+        sessions.map { AgentSessionContract(session: $0, observedAt: observedAt, stale: isStale || !isVisible) }
     }
 
     var groups: [AgentGroup] { AgentGroup.make(sessions) }

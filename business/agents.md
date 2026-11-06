@@ -27,7 +27,9 @@ AI Session Hub owns discovery, PID/start/TTY/ancestry identity, UUID Jump and
 activity parsing. Its required MIT sources are vendored byte-for-byte at the
 revision/checksums in SessionEngine/upstream.json. Updates must come from reviewed
 upstream sources; make check verifies the pin. Fleet owns the private JSON-lines
-adapter, native UI, lifecycle and packaging. The standalone Hub CLI/TUI is
+adapter, native UI, lifecycle and packaging. The presentation-independent
+[session contract](../docs/contracts/agent-sessions.md) owns typed states, evidence,
+identity and timing for future UI composition. The standalone Hub CLI/TUI is
 independent and is not required by the app.
 
 Only local interactive Codex/Claude in iTerm2 are supported. SSH, tmux, GUI
@@ -71,11 +73,13 @@ checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls
 
-Agents has Sessions and Processes sections. Processes lists only the current
-user's exact Codex and codex-code-mode-host executables, including background
-servers and updaters left after closing terminals. Native libproc discovery uses
+Agents has Sessions and Processes sections. Processes lists the current user's recognized Codex and Claude executables,
+including native version-named Claude binaries and known installed Node entrypoints.
+Detached processes can remain after terminals close; their exact role/account
+remains unknown without evidence. Native libproc discovery uses
 executable paths, UID, controlling-terminal presence and microsecond start identity;
-no prompts, environment or command-line arguments are collected. The visible list
+Prompts and environment are not exported or logged; a Node runtime entry argument
+may be read solely to match an installed provider executable. The visible list
 refreshes every 3 seconds to show exits/restarts promptly without a permanent scan.
 The timer stops when this section disappears.
 
@@ -89,6 +93,18 @@ survivor remains visible with an explicit Force Quit choice. Unknown observation
 never claims successful exit. A client may restart its daemon; the next inventory
 shows that new process rather than chasing and terminating it automatically.
 Credentials, history and terminal tabs remain intact. Interrupted in-flight work
-may need resuming. No process is stopped automatically during account selection.
+may need resuming. Switch process policies are owned by [Switch recovery](switch-recovery.md);
+manual and switching controls remain separate from session discovery.
 CodexProcessesTests covers ownership, PID replacement and real SIGTERM/SIGKILL
 against only task-owned fixture processes.
+
+## Backend preparation before design
+
+The Agents service exposes typed contracts alongside legacy sessions. UI files
+are unchanged in this stage. Current Codex response items and larger primary
+transcript headers are adapted in Fleet-owned sources without changing the pin.
+Terminal state remains explicitly heuristic. Provider message/request timestamps,
+terminal timers and continuous observed duration have distinct provenance.
+Backend preparation does not approve the prior experimental design; the future
+interface can compose these fields independently. Combined user acceptance follows
+design and does not block technical stages.

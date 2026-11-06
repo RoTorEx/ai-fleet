@@ -6,6 +6,15 @@ Tracks real product and release progress.
 
 ### Added
 
+- Prepare a typed, presentation-independent agent session contract with process
+  identity, explicit heuristic state provenance and independent message/work clocks.
+- Adapt current process-bound Codex response items and large transcript headers;
+  clear lost binding timestamps and keep observed work duration stable across polls.
+- Preserve existing Agents UI and pinned Session Hub vendor sources.
+
+
+### Added
+
 - Verify Codex/Claude connection identities on native import; preserve explicit
   removal across refresh/restart and support explicit reimport.
 - Isolate account-targeted login candidates, verify identity before adopting the

@@ -22,3 +22,9 @@ identity, project, terminal-derived name, optional location, observed activity
 and optional bound provider metadata. Errors are not empty successful snapshots.
 EOF joins workers and drops their helpers. There is no accepted terminal text or
 shell command. Product/lifecycle contract: business/agents.md in the parent.
+
+Additive row dataVersion 1 exposes process identity, activity sample time,
+provider message/request times and a work-time source. The complete meanings,
+precedence and unknown/stale behavior are owned by
+[Agent session contract](../docs/contracts/agent-sessions.md). Fleet-owned
+codex_metadata.rs adapts current response_item logs; vendor remains pinned.

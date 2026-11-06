@@ -6,7 +6,7 @@ import XCTest
 final class AgentSessionsTests: XCTestCase {
     private static let rows = #"""
     [
-      {"id":"7-10","provider":"codex","project":"/work/client/project","title":"Review authentication","state":"Working","explanation":"Working","location":{"id":"pane-7","window":"Client","tab_index":1,"pane_index":0}},
+      {"id":"7-10","provider":"codex","project":"/work/client/project","title":"Review authentication","dataVersion":1,"pid":7,"processStarted":10,"lastMessageAt":1799999990,"workStartedAt":1799999980,"workTimeSource":"observed","stateSource":"terminalHeuristic","state":"Working","explanation":"Working","location":{"id":"pane-7","window":"Client","tab_index":1,"pane_index":0}},
       {"id":"8-10","provider":"claude","project":"/personal/project","title":"Check deployment","state":"Approval","explanation":"Needs approval","location":null,"linkReason":"Ambiguous pane linkage"}
     ]
     """#
@@ -48,6 +48,11 @@ final class AgentSessionsTests: XCTestCase {
         for _ in 0..<100 where service.sessions.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(service.sessions.count, 2)
         XCTAssertFalse(service.isLoading)
+        let contract = try XCTUnwrap(service.contracts.first)
+        XCTAssertEqual(contract.pid, 7)
+        XCTAssertEqual(contract.workTimeSource, .observed)
+        XCTAssertEqual(contract.lastMessageAt, Date(timeIntervalSince1970: 1799999990))
+        XCTAssertEqual(contract.state, .working)
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let host = NSHostingController(rootView: AgentsView(service: service, back: {}))
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 700),
@@ -75,6 +80,8 @@ final class AgentSessionsTests: XCTestCase {
         for _ in 0..<100 where service.error == nil { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(service.error, "iTerm2 unavailable")
         XCTAssertTrue(service.isStale)
+        XCTAssertEqual(service.contracts.first?.state, .stale)
+        XCTAssertNil(service.contracts.first?.workingDuration(at: Date()))
         XCTAssertEqual(service.sessions.count, 2, "An unavailable scan must retain the last snapshot")
         service.stop()
         XCTAssertFalse(service.isVisible)
