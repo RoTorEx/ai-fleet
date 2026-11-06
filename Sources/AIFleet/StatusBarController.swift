@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class FleetMenuScreen: ObservableObject {
     @Published var showsAgents = false
+    @Published var agentsSection = "Sessions"
 }
 
 struct FleetMenuRoot: View {
@@ -14,13 +15,15 @@ struct FleetMenuRoot: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
     let toggleAgents: () -> Void
+    let openProcesses: () -> Void
 
     var body: some View {
         Group {
             if screen.showsAgents {
-                AgentsView(service: agents, back: toggleAgents)
+                AgentsView(service: agents, section: screen.agentsSection, back: toggleAgents)
             } else {
-                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics, openAgents: toggleAgents)
+                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics,
+                                openAgents: toggleAgents, openProcesses: openProcesses)
                     .environmentObject(service)
                     .environmentObject(AppSettings.shared)
             }
@@ -143,14 +146,15 @@ final class StatusBarController: NSObject {
         self.openSettings = openSettings
         self.openStatistics = openStatistics
         // The root view is built before `self` exists; its actions resolve through this box.
-        var actions: (settings: () -> Void, statistics: () -> Void, agents: () -> Void) = ({}, {}, {})
+        var actions: (settings: () -> Void, statistics: () -> Void, agents: () -> Void, processes: () -> Void) = ({}, {}, {}, {})
         hostingController = NSHostingController(rootView: FleetMenuRoot(
             screen: screen,
             agents: agents,
             service: service,
             openSettings: { actions.settings() },
             openStatistics: { actions.statistics() },
-            toggleAgents: { actions.agents() }
+            toggleAgents: { actions.agents() },
+            openProcesses: { actions.processes() }
         ))
         hostingController.sizingOptions = [.preferredContentSize]
         panel = FleetMenuPanel(content: hostingController.view)
@@ -173,7 +177,11 @@ final class StatusBarController: NSObject {
                     self?.openStatistics(anchorFrame)
                 }
             },
-            agents: { [weak self] in self?.toggleAgents() }
+            agents: { [weak self] in self?.toggleAgents() },
+            processes: { [weak self] in
+                self?.screen.agentsSection = "Processes"
+                self?.toggleAgents()
+            }
         )
 
         if let button = statusItem.button {
@@ -200,7 +208,7 @@ final class StatusBarController: NSObject {
 
     func toggleAgents() {
         screen.showsAgents.toggle()
-        if screen.showsAgents { agents.start() } else { agents.stop() }
+        if screen.showsAgents { agents.start() } else { agents.stop(); screen.agentsSection = "Sessions" }
         // Jump transfers focus to iTerm2. The same shortcut brings the menu back.
         NSApplication.shared.activate(ignoringOtherApps: true)
         panel.makeKey()
@@ -268,6 +276,7 @@ final class StatusBarController: NSObject {
         agentsHotKey?.unregister()
         agentsHotKey = nil
         screen.showsAgents = false
+        screen.agentsSection = "Sessions"
     }
 
     private func startClickMonitor() {

@@ -9,6 +9,8 @@ Tracks real product and release progress.
 - Reject unrepresentable quota counts without crashing.
 - Replace the menu popover with an instant borderless blurred panel without an arrow.
 - Add a General setting to keep the menu open on outside clicks.
+- Compress the menu summary into one status line with a measured/saved count, Refresh and an Options menu.
+- Move last refresh and version into a footer, group the legend under titled rows, and remove the Update command.
 
 
 - Keep enabled providers visible without a CLI and expose setup-only rows without creating accounts.

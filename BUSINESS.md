@@ -208,20 +208,25 @@ subscription charges.
   unobstructed and keeping its label and segments aligned as one compact unit.
   Summary and detail panels remain within the default window size.
 - All windows follow the current macOS light or dark appearance.
-- The compact menu presents the application version as the final `Version`
-  key/value row in its top summary; it has no separate version footer.
+- The menu header is one line: a status dot with Active/Paused, then
+  `measured/saved` (for example `1/6`: saved accounts with a current limit out
+  of all saved accounts of enabled providers), then Refresh (⌘R) and Options.
+  Sign-in progress and errors add one detail line below it; refreshing spins the
+  Refresh icon instead of replacing the status. Options is a native menu:
+  Agents (temporary until Agents is embedded), Statistics, Settings…,
+  Processes, Quit. The menu has no Update command. The footer shows
+  `Last refresh` on the left and the version on the right. The legend groups
+  Monitoring, Quota, Access, Marks and Keys under aligned titles.
 - The menu is a borderless panel below the menu-bar icon: no arrow, no open or
   close animation, 12 pt corners and the native menu glass on macOS 26+ (menu
   blur with a hairline outline on older systems), matching native menu-bar
   menus. Clicking the icon again closes it. The panel owns the surface; menu content does
   not draw a second background or rounded panel. Outside clicks close it by
   default; General can turn that off so it stays open until Esc, the icon or the
-  shortcut. Esc always closes it. Command rows use compact spacing like
-  the summary. Quota availability counts current measurements independently of
+  shortcut. Esc always closes it. Quota availability counts current measurements independently of
   login, and authentication progress/errors belong to the affected account row.
   Current measured limits use ○; missing limits use ? and gray even when a CLI
-  login is configured. The top Status reflects Active/Paused monitoring and transient operations or update errors;
-  Checked and Limits replace Refresh and Quota. See Accounts for the full contract.
+  login is configured. See Accounts for the full contract.
 - Remaining-quota color states in the compact menu are red at `10%` or below,
   orange from `11%` through `25%` inclusive, and normal at `26%` or above.
   The boundaries make the warning band more visible before an account becomes

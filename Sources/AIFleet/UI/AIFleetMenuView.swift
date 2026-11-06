@@ -5,10 +5,10 @@ struct AIFleetMenuView: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
     var openAgents: () -> Void = {}
+    var openProcesses: () -> Void = {}
 
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
-    @ObservedObject private var updater = UpdateService.shared
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
@@ -31,10 +31,10 @@ struct AIFleetMenuView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            summarySection
+            header
 
             FleetDivider()
-                .padding(.top, 11)
+                .padding(.top, 10)
                 .padding(.bottom, 8)
 
             if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
@@ -45,44 +45,23 @@ struct AIFleetMenuView: View {
                 providerRows
             }
 
-            LegendSection()
-                .padding(.horizontal, 16)
-                .padding(.top, 11)
-
             FleetDivider()
-                .padding(.top, 12)
+                .padding(.top, 11)
                 .padding(.bottom, 9)
 
-            VStack(alignment: .leading, spacing: 0) {
-                ActionButton(title: "Refresh now", shortcut: "⌘R", keyEquivalent: "r", modifiers: .command) {
-                    service.refresh(); codexProfiles.refresh(force: true)
-                }
+            LegendSection()
+                .padding(.horizontal, 16)
 
-                ActionButton(title: "Agents", shortcut: "⌘A", keyEquivalent: nil) {
-                    openAgents()
-                }
+            FleetDivider()
+                .padding(.top, 9)
+                .padding(.bottom, 8)
 
-                ActionButton(title: "Statistics…", shortcut: "", keyEquivalent: nil) {
-                    openStatistics()
-                }
-
-                ActionButton(title: "Settings…", shortcut: "", keyEquivalent: nil) {
-                    openSettings()
-                }
-
-                ActionButton(title: updater.actionTitle, shortcut: "", keyEquivalent: nil) {
-                    updater.update()
-                }.disabled(updater.isBusy)
-
-                ActionButton(title: "Quit", shortcut: "⌘Q", keyEquivalent: "q", modifiers: .command) {
-                    NSApplication.shared.terminate(nil)
-                }
-            }
-            .padding(.horizontal, 16)
-
+            footer
         }
-        .padding(.vertical, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
         .frame(width: 354)
+        .background(menuShortcuts)
     }
 
     private var providerRows: some View {
@@ -95,54 +74,91 @@ struct AIFleetMenuView: View {
         .padding(.horizontal, 16)
     }
 
-    private var summarySection: some View {
-        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 6, verticalSpacing: 7) {
-            GridRow {
-                summaryLabel("Status")
-                VStack(alignment: .leading, spacing: 3) {
-                    summaryValue(operationStatus.title, color: operationStatus.failed ? FleetPalette.warning : FleetPalette.value)
-                    if let detail = operationStatus.detail {
-                        Text(detail).font(.system(size: 11))
-                            .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.muted)
-                            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                    }
+    /// One compact line: monitoring state and measured/saved count, then Refresh and Options.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(statusDotColor)
+                    .frame(width: 7, height: 7)
+                Text(operationStatus.title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.value)
+                    .lineLimit(1)
+                Text("·").foregroundColor(FleetPalette.muted)
+                Text("\(monitoringSummary.measured)/\(monitoringSummary.total)")
+                    .font(.system(size: 12.5, weight: .medium).monospacedDigit())
+                    .foregroundColor(FleetPalette.muted)
+                Spacer(minLength: 8)
+                HeaderIconButton(systemName: "arrow.clockwise", help: "Refresh (⌘R)", spinning: isRefreshing) {
+                    refresh()
                 }
+                optionsMenu
             }
-            GridRow {
-                summaryLabel("Checked")
-                summaryValue(lastUpdateText)
-            }
-            GridRow {
-                summaryLabel("Lowest")
-                summaryValue(
-                    lowestRemainingText,
-                    color: lowestProvider.map(rowColor(for:)) ?? FleetPalette.value
-                )
-            }
-            GridRow {
-                summaryLabel("Limits")
-                summaryValue("\(monitoringSummary.measured)/\(monitoringSummary.total) loaded")
-            }
-            GridRow {
-                summaryLabel("Version")
-                summaryValue(versionText)
+            if let detail = operationStatus.detail {
+                Text(detail).font(.system(size: 11))
+                    .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    .padding(.leading, 14)
             }
         }
         .padding(.horizontal, 16)
     }
 
-    private func summaryLabel(_ text: String) -> some View {
-        Text("\(text):")
-            .font(.system(size: 12.5, weight: .semibold))
-            .foregroundColor(FleetPalette.label)
+    private var optionsMenu: some View {
+        Menu {
+            Button("Agents") { openAgents() }.keyboardShortcut("a")
+            Button("Statistics") { openStatistics() }
+            Button("Settings…") { openSettings() }.keyboardShortcut(",")
+            Button("Processes") { openProcesses() }
+            Divider()
+            Button("Quit") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(FleetPalette.muted)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Options")
+        .accessibilityLabel("Options")
     }
 
-    private func summaryValue(_ text: String, color: Color = FleetPalette.value) -> some View {
-        Text(text)
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundColor(color)
-            .lineLimit(1)
-            .minimumScaleFactor(0.78)
+    /// Shortcuts that work while the Options menu is closed. ⌘A is routed by the status bar controller.
+    private var menuShortcuts: some View {
+        ZStack {
+            Button("") { refresh() }.keyboardShortcut("r")
+            Button("") { openSettings() }.keyboardShortcut(",")
+            Button("") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
+        }
+        .opacity(0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var footer: some View {
+        HStack {
+            Text("Last refresh: \(lastUpdateText)")
+            Spacer()
+            Text(versionText)
+        }
+        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+        .foregroundColor(FleetPalette.muted)
+        .padding(.horizontal, 16)
+    }
+
+    private var isRefreshing: Bool { service.isRefreshing || codexProfiles.refreshing }
+
+    private func refresh() {
+        service.refresh(); codexProfiles.refresh(force: true)
+    }
+
+    private var statusDotColor: Color {
+        if operationStatus.failed { return FleetPalette.warning }
+        return service.isMonitoring ? FleetPalette.ready : FleetPalette.faint
     }
 
     private var operationStatus: MenuOperationStatus {
@@ -159,24 +175,18 @@ struct AIFleetMenuView: View {
         } else {
             signing = accounts.codexSigningIn ? "Signing in Codex…" : nil
         }
-        return MenuOperationStatus.resolve(update: updater.state, refreshing: service.isRefreshing || codexProfiles.refreshing,
-                                            signingIn: signing, monitoring: service.isMonitoring)
+        let status = MenuOperationStatus.resolve(update: .idle, refreshing: false,
+                                                 signingIn: signing, monitoring: service.isMonitoring)
+        // Sign-in progress belongs on the detail line; the header title stays Active/Paused.
+        guard signing != nil else { return status }
+        return MenuOperationStatus(title: service.isMonitoring ? "Active" : "Paused", detail: status.title)
     }
 
     private var lastUpdateText: String {
         guard let updated = providers.compactMap(\.lastUpdated).max() else {
-            return "waiting"
+            return "—"
         }
         return updated.formatted(date: .omitted, time: .standard)
-    }
-
-    private var lowestRemainingText: String {
-        if let provider = lowestProvider {
-            let badge = connections.first { $0.status.id == provider.id }?.account.badge ?? "?"
-            return "\(provider.name) (\(badge)) · \(limitText(for: provider))"
-        }
-        let hasData = providers.contains { $0.remainingPercent != nil }
-        return hasData ? "-" : "waiting"
     }
 
     private var versionText: String {
@@ -185,7 +195,7 @@ struct AIFleetMenuView: View {
         ) as? String else {
             return "development build"
         }
-        return version
+        return "v\(version)"
     }
 }
 
@@ -494,48 +504,103 @@ struct FleetMark: View {
     }
 }
 
+/// Grouped legend: one titled row per topic, aligned in a shared column.
 struct LegendSection: View {
     var body: some View {
-        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 4, verticalSpacing: 4) {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 6) {
             GridRow {
-                Text("Capacity:")
-                    .foregroundColor(FleetPalette.label)
-                HStack(spacing: 4) {
-                    Text("Enough ≥26%")
-                        .foregroundColor(FleetPalette.value)
-                    Text("·")
+                title("Monitoring")
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 9) {
+                        dot(FleetPalette.ready, "Active")
+                        dot(FleetPalette.faint, "Paused")
+                        dot(FleetPalette.warning, "Error")
+                    }
+                    Text("1/6 — current limits / saved accounts")
                         .foregroundColor(FleetPalette.muted)
-                    Text("Low 11–25%")
-                        .foregroundColor(FleetPalette.warning)
-                    Text("·")
-                        .foregroundColor(FleetPalette.muted)
-                    Text("Critical ≤10%")
-                        .foregroundColor(FleetPalette.danger)
                 }
             }
-
             GridRow {
-                Text("Access:").foregroundColor(FleetPalette.label)
+                title("Quota")
+                HStack(spacing: 4) {
+                    Text("≥26%").foregroundColor(FleetPalette.value)
+                    Text("·").foregroundColor(FleetPalette.muted)
+                    Text("11–25% low").foregroundColor(FleetPalette.warning)
+                    Text("·").foregroundColor(FleetPalette.muted)
+                    Text("≤10% critical").foregroundColor(FleetPalette.danger)
+                }
+            }
+            GridRow {
+                title("Access")
                 HStack(spacing: 4) {
                     Text("○ ready").foregroundColor(FleetPalette.value)
-                    Text("· × sign in ·").foregroundColor(FleetPalette.value)
+                    Text("·").foregroundColor(FleetPalette.muted)
+                    Text("× sign in").foregroundColor(FleetPalette.value)
+                    Text("·").foregroundColor(FleetPalette.muted)
                     Text("? unavailable").foregroundColor(FleetPalette.muted)
                 }
             }
             GridRow {
-                Text("Marks:").foregroundColor(FleetPalette.label)
-                HStack(spacing: 6) {
+                title("Marks")
+                HStack(spacing: 5) {
                     FleetMark(kind: .current, size: 10.5)
                     Text("default")
-                    Spacer().frame(width: 8)
+                    Text("·").foregroundColor(FleetPalette.muted)
                     FleetMark(kind: .lowest, size: 10.5)
                     Text("lowest remaining")
                 }.foregroundColor(FleetPalette.value)
+            }
+            GridRow {
+                title("Keys")
+                Text("⌘R refresh · ⌘A agents · ⌘, settings · Esc close")
+                    .foregroundColor(FleetPalette.value)
             }
         }
         .font(.system(size: 10.5, weight: .medium))
         .lineLimit(1)
         .minimumScaleFactor(0.8)
+    }
+
+    private func title(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(FleetPalette.label)
+            .gridColumnAlignment(.leading)
+    }
+
+    private func dot(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label).foregroundColor(FleetPalette.value)
+        }
+    }
+}
+
+struct HeaderIconButton: View {
+    let systemName: String
+    let help: String
+    var spinning = false
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(FleetPalette.muted)
+                .rotationEffect(.degrees(spinning ? 360 : 0))
+                .animation(spinning ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: spinning)
+                .frame(width: 22, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(isHovered ? 0.10 : 0))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+        .help(help)
+        .accessibilityLabel(help)
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -545,65 +610,6 @@ struct FleetDivider: View {
             .fill(FleetPalette.divider)
             .frame(height: 1)
             .padding(.horizontal, 16)
-    }
-}
-
-struct ActionButton: View {
-    let title: String
-    let shortcut: String
-    let keyEquivalent: KeyEquivalent?
-    let modifiers: EventModifiers
-    let action: () -> Void
-    @State private var isHovered = false
-
-    init(
-        title: String,
-        shortcut: String,
-        keyEquivalent: KeyEquivalent? = nil,
-        modifiers: EventModifiers = [],
-        action: @escaping () -> Void
-    ) {
-        self.title = title
-        self.shortcut = shortcut
-        self.keyEquivalent = keyEquivalent
-        self.modifiers = modifiers
-        self.action = action
-    }
-
-    var body: some View {
-        if let keyEquivalent {
-            button
-                .keyboardShortcut(keyEquivalent, modifiers: modifiers)
-        } else {
-            button
-        }
-    }
-
-    private var button: some View {
-        Button(action: action) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundColor(isHovered ? FleetPalette.hoverCommand : FleetPalette.command)
-                Spacer()
-                Text(shortcut)
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundColor(FleetPalette.muted)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PlainButtonStyle())
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(isHovered ? 0.10 : 0))
-        )
-        .padding(.horizontal, -8)
-        .animation(.easeOut(duration: 0.15), value: isHovered)
-        .onHover { hovering in
-            isHovered = hovering
-        }
     }
 }
 
@@ -620,16 +626,6 @@ private enum FleetPalette {
     static let ready = Color(nsColor: .systemGreen)
     static let warning = Color(nsColor: .systemOrange)
     static let danger = Color(nsColor: .systemRed)
-}
-
-private func limitText(for status: ProviderStatus) -> String {
-    if let remaining = status.remainingPercent {
-        if let windowLabel = status.windowLabel {
-            return "\(windowLabel) \(remaining)%"
-        }
-        return "\(remaining)%"
-    }
-    return status.detail
 }
 
 private func rowColor(for status: ProviderStatus) -> Color {

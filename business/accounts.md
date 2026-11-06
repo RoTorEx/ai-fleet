@@ -108,15 +108,13 @@ Email/plan hover and login actions retain actual authentication
 state. Account-specific errors cannot borrow another account's limits or tokens.
 Old shared session history is not split by badge.
 
-The top Status reflects AI Fleet's monitoring lifecycle: Active while periodic
-monitoring is enabled, Paused after monitoring stops. Checking/downloading/installing
-an update, authentication of a named account, and refreshing limits temporarily
-show their operation state. A successful version check returns to Active/Paused
-with a secondary confirmation rather than replacing the monitor state. Provider
-measurement problems belong to their own rows and never become an unscoped app
-error. Checked names the last provider check; Limits counts current measurements.
-Update errors appear once in Status, including the failing stage, with Retry update
-as the command. Account authentication errors remain under their named provider.
+The header status reflects AI Fleet's monitoring lifecycle: Active while periodic
+monitoring is enabled, Paused after monitoring stops. Authentication of a named
+account appears as a detail line below it; refreshing limits spins the Refresh
+icon. Provider measurement problems belong to their own rows and never become an
+unscoped app error. The `measured/saved` count counts current measurements; the
+footer names the last provider check. Account authentication errors remain under
+their named provider.
 Expired or missing access is described without the generic "sign in again"
 suffix; the account's existing Sign in action remains available.
 

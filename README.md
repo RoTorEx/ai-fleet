@@ -23,7 +23,7 @@ No dock icon. AI Fleet monitors and opens native sign-in for each provider’s g
 
 ## Agents
 
-Choose **Agents** after **Refresh now**, or press **Command-A** in the open menu.
+Choose **Agents** in the **Options** (⋯) menu, or press **Command-A** in the open menu.
 The same shortcut returns to Usage, including after Jump transfers focus to iTerm2.
 The colorful list groups live Codex/Claude sessions by project, with filters,
 collapsible groups, observed statuses and animated working indicators. Click a row
@@ -129,10 +129,11 @@ selection follows the chosen Switch policy; stopping requires confirmation.
 The menu shows each account's remaining 5h/7d limits. A circle means current
 limits are loaded, × requests sign-in, and ? with a gray row means limits are
 unavailable, even if the CLI has a configured login. The row explains why.
-Status shows whether AI Fleet monitoring is Active or Paused, with operations
-and errors shown while relevant. Checked is the last check and Limits counts
-loaded measurements. The legend separates Capacity (Enough/Low/Critical), Access
-(ready/sign in/unavailable), and Marks (→ default, ↓ lowest remaining). **Statistics → Codex →
+The header shows whether AI Fleet monitoring is Active or Paused and a
+`measured/saved` count such as `1/6`, with Refresh (⌘R) and Options (⋯) on the
+right. The footer shows the last refresh and the version. The legend groups
+Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
+Marks (→ default, ↓ lowest remaining) and Keys. **Statistics → Codex →
 Accounts** compares tokens and quotas under the same account letters for `7d`,
 `30d`, `90d` and `All`. These account totals come from provider-reported dates;
 shared local model history and cost estimates are not split between accounts.
@@ -151,7 +152,7 @@ See [Accounts](business/accounts.md) and [Codex authorization](business/codex-pr
 
 ## Refresh
 
-Provider status is refreshed every 60 seconds. **Refresh now** also checks local
+Provider status is refreshed every 60 seconds. **Refresh** (⌘R) also checks local
 login immediately. Claude quota requests reuse measurements for five minutes;
 opening views or refreshing does not bypass that interval or a server cooldown.
 If Claude limits quota updates, the app keeps the login visible, shows any last

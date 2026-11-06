@@ -6,7 +6,13 @@ struct AgentsView: View {
     let back: () -> Void
     @State private var filter = "All"
     @State private var collapsed = Set<String>()
-    @State private var section = "Sessions"
+    @State private var section: String
+
+    init(service: AgentSessionsService, section: String = "Sessions", back: @escaping () -> Void) {
+        self.service = service
+        self.back = back
+        _section = State(initialValue: section)
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let filters = ["All", "Needs you", "Working", "Idle", "Unknown"]
 
@@ -129,6 +135,7 @@ struct AgentsView: View {
             }
         }
         .frame(width: 520)
+        .onAppear { if section == "Processes" { service.stop() } }
         .onChange(of: section) { section in
             if section == "Processes" { service.stop() } else { service.start() }
         }
