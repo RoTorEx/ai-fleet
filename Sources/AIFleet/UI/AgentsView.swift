@@ -16,8 +16,14 @@ struct MenuAgentsSection: View {
             if service.sessions.isEmpty {
                 Text(service.isLoading ? "Finding live sessions…" : "No live Codex or Claude sessions in iTerm2.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 4)
+            } else {
+                filters
+                if visible.isEmpty {
+                    Text("No sessions in this filter.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        .padding(.horizontal, 4).padding(.vertical, 8)
+                }
             }
-            ForEach(AgentGroup.make(service.sessions)) { group in
+            ForEach(AgentGroup.make(visible)) { group in
                 groupHeader(group)
                 if !service.collapsedGroups.contains(group.id) {
                     ForEach(group.sessions) { session in
@@ -35,6 +41,26 @@ struct MenuAgentsSection: View {
             }
         }
         .padding(.horizontal, 8)
+    }
+
+    private var visible: [AgentSession] { service.sessions.filter(service.filter.matches) }
+
+    private var filters: some View {
+        HStack(spacing: 4) {
+            ForEach(AgentFilter.allCases, id: \.self) { item in
+                let count = service.sessions.filter(item.matches).count
+                let active = service.filter == item
+                Button { service.filter = item } label: {
+                    Text("\(item.rawValue) \(count)").font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .foregroundStyle(active ? Color.primary
+                            : (item == .needsYou && count > 0 ? Color.orange : Color.secondary))
+                        .background(active ? Color.primary.opacity(0.1) : .clear, in: Capsule())
+                }.buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.bottom, 2)
     }
 
     private func groupHeader(_ group: AgentGroup) -> some View {

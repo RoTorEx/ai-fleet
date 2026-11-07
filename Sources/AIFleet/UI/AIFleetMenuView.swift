@@ -725,7 +725,11 @@ final class ActionMenu: NSObject {
     struct Item {
         let title: String
         var enabled = true
+        /// A small secondary information line instead of a command.
+        var detail = false
         let action: () -> Void
+
+        static func info(_ title: String) -> Item { Item(title: title, enabled: false, detail: true) {} }
     }
 
     private let items: [Item?]
@@ -748,6 +752,10 @@ final class ActionMenu: NSObject {
             menuItem.target = self
             menuItem.tag = index
             menuItem.isEnabled = item.enabled
+            if item.detail {
+                menuItem.attributedTitle = NSAttributedString(string: item.title, attributes: [
+                    .font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor])
+            }
             menu.addItem(menuItem)
         }
         // Synchronous: the caller keeps `self` alive until the menu closes.

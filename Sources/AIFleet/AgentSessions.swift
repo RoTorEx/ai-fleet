@@ -44,6 +44,19 @@ struct AgentSession: Decodable, Identifiable, Equatable {
     }
 }
 
+enum AgentFilter: String, CaseIterable {
+    case all = "All", needsYou = "Needs you", working = "Working", idle = "Idle"
+
+    func matches(_ session: AgentSession) -> Bool {
+        switch self {
+        case .all: return true
+        case .needsYou: return session.needsYou
+        case .working: return session.isWorking
+        case .idle: return !session.isWorking && !session.needsYou
+        }
+    }
+}
+
 struct AgentGroup: Identifiable {
     let id: String
     let name: String
@@ -135,6 +148,7 @@ final class AgentSessionsService: ObservableObject {
     /// Lives here rather than in the view: menu content is rebuilt on every open.
     @Published var collapsedGroups = Set<String>()
     @Published var expandedSessions = Set<String>()
+    @Published var filter: AgentFilter = .all
     private var transport: AgentTransport?
     private var timer: Timer?
     private var generation = UUID()

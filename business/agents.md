@@ -16,7 +16,8 @@ Each row shows the terminal session name without spinner glyphs or the iTerm
 job suffix such as "(codex)"; provider and model sit on the second line. The
 top-right time is an exact running stopwatch while the session works and a
 rough one-unit age (~40s, ~5m, ~16h, ~3d) since the last message or observed
-change otherwise. Each card keeps its session color; a chevron expands the
+change otherwise. All / Needs you / Working / Idle filters with counts sit above
+the groups; the chosen filter persists while Fleet runs. Each card keeps its session color; a chevron expands the
 latest captured request and reply with their times. Collapsed groups and
 expanded cards persist while Fleet runs. The list hides the scroller and fades
 at the bottom edge when more rows follow.
@@ -87,9 +88,10 @@ checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls
 
-Process rows are three thin lines: kind and PID with a ⋯ menu (Stop, Force
-Quit, copy, account and start details), the executable path (click to copy)
-and account with start time. All/Codex/Claude filters and newest/oldest sort
+Process rows are two thin lines: kind with the PID in parentheses (click to
+copy) and a ⋯ menu (Stop, Force Quit, Copy PID, Copy Path, then path, account
+and start details), then account on the left and start time on the right. A
+short "Copied …" notice confirms each copy. All/Codex/Claude filters and newest/oldest sort
 sit above the list; provider-wide and background stops are in one ⋯ menu.
 The Processes tab lists the current user's recognized Codex and Claude executables,
 including native version-named Claude binaries and known installed Node entrypoints.

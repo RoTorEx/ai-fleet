@@ -21,6 +21,14 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertNil(sessions[1].location)
     }
 
+    func testFiltersSplitWorkingWaitingAndIdleSessions() throws {
+        let sessions = try JSONDecoder().decode([AgentSession].self, from: Data(Self.rows.utf8))
+        XCTAssertEqual(sessions.filter(AgentFilter.working.matches).map(\.id), ["7-10"])
+        XCTAssertEqual(sessions.filter(AgentFilter.needsYou.matches).map(\.id), ["8-10"])
+        XCTAssertTrue(sessions.filter(AgentFilter.idle.matches).isEmpty)
+        XCTAssertEqual(sessions.filter(AgentFilter.all.matches).count, 2)
+    }
+
     @MainActor
     func testBundledProtocolRefreshJumpFailureAndClose() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
