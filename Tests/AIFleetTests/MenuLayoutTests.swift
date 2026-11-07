@@ -106,7 +106,7 @@ final class MenuLayoutTests: XCTestCase {
             anchor.appearance = NSAppearance(named: appearance)
             let service = StatusService(session: URLSession(configuration: .ephemeral))
             let host = NSHostingController(rootView:
-                AIFleetMenuView(openSettings: {}, openStatistics: {})
+                AIFleetMenuView(openSettings: {}, openStatistics: {}, agents: AgentSessionsService())
                     .environmentObject(service).environmentObject(AppSettings.shared)
                     .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))
             host.sizingOptions = [.preferredContentSize]
