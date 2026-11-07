@@ -209,16 +209,17 @@ subscription charges.
   unobstructed and keeping its label and segments aligned as one compact unit.
   Summary and detail panels remain within the default window size.
 - All windows follow the current macOS light or dark appearance.
-- The menu header is one line: a status dot with Active/Paused, then
+- The menu header is one line: a status dot with Active/Paused and ⓘ, then
+  Refresh (⌘R) and Options. Below it the Providers column heading carries
   `measured/saved` (for example `1/6`: saved accounts with a current limit out
-  of all saved accounts of enabled providers), then Refresh (⌘R) and Options.
+  of all saved accounts of enabled providers), like the Agents heading carries its count.
   Sign-in progress and errors add one detail line below it; a manual refresh spins the
   Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status. Options is a native menu:
-  Statistics, Settings…, Processes, Quit. Agents is embedded below the
-  providers; the menu grows to 80% of the screen's visible height, after which
+  Statistics, Settings…, Processes, Quit. Agents is the right column next
+  to the providers; the menu grows to 80% of the screen's visible height, after which
   only the Agents list scrolls (header, providers and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not
-  permanent: hovering the ⓘ after the count shows it as a card over the menu,
+  permanent: hovering the ⓘ after the status shows it as a card over the menu,
   grouping Monitoring, Quota, Access, Marks and Keys under aligned titles.
 - The menu is a borderless panel below the menu-bar icon: no arrow, no open or
   close animation, 12 pt corners and the native menu glass on macOS 26+ (menu

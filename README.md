@@ -130,10 +130,10 @@ mark leads each row: • working, → the current account when a provider has
 several, ↓ the lowest remaining quota anywhere, × sign-in required and ? limits
 unavailable (gray even with a configured CLI login). Important account notes
 appear in the Status section of the ⓘ card.
-The header shows whether AI Fleet monitoring is Active or Paused and a
-`measured/saved` count such as `1/6`, with Refresh (⌘R) and Options (⋯) on the
-right. The footer shows the last refresh and the version. Hover ⓘ next to the
-count for the legend, which groups
+The header shows whether AI Fleet monitoring is Active or Paused, with Refresh
+(⌘R) and Options (⋯) on the right. Providers (left, with a `measured/saved`
+count such as `1/6`) and Agents (right) sit in two columns. The footer shows the
+last refresh and the version. Hover ⓘ next to the status for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
 Marks and Keys. **Statistics → Codex →
 Accounts** compares tokens and quotas under the same account letters for `7d`,

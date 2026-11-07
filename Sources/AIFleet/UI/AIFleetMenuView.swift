@@ -10,7 +10,6 @@ struct AIFleetMenuView: View {
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
     @State private var isLegendShown = false
-    @State private var fixedContentHeight: CGFloat = 0
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
@@ -33,36 +32,38 @@ struct AIFleetMenuView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-
-                FleetDivider()
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-
-                // Providers never scroll; only Agents below does.
-                providerRows
-            }
-            .background(GeometryReader { geometry in
-                Color.clear.preference(key: MenuFixedHeightKey.self, value: geometry.size.height)
-            })
-
-            FleetDivider()
-                .padding(.top, 11)
-                .padding(.bottom, 8)
-
-            MenuAgentsSection(service: agents, maxListHeight: agentsListBudget)
+            header
 
             FleetDivider()
                 .padding(.top, 10)
+
+            // Two columns: providers never scroll; only the Agents list on the right does.
+            HStack(alignment: .top, spacing: 0) {
+                VStack(alignment: .leading, spacing: 10) {
+                    MenuSectionTitle(title: "Providers",
+                                     count: "\(monitoringSummary.measured)/\(monitoringSummary.total)")
+                    providerRows
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .frame(width: FleetMenuLayout.providersWidth, alignment: .leading)
+
+                Rectangle().fill(FleetPalette.divider).frame(width: 1)
+
+                MenuAgentsSection(service: agents, maxListHeight: agentsListBudget)
+                    .padding(.top, 10)
+                    .frame(width: FleetMenuLayout.agentsWidth, alignment: .leading)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+
+            FleetDivider()
                 .padding(.bottom, 8)
 
             footer
         }
-        .onPreferenceChange(MenuFixedHeightKey.self) { fixedContentHeight = $0 }
         .padding(.top, 12)
         .padding(.bottom, 10)
-        .frame(width: 354)
+        .frame(width: FleetMenuLayout.width)
         .overlay(alignment: .topLeading) {
             if isLegendShown {
                 VStack(alignment: .leading, spacing: 9) {
@@ -92,9 +93,9 @@ struct AIFleetMenuView: View {
     /// Agents list scrolls. Header, providers and footer always stay whole.
     private var agentsListBudget: CGFloat {
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
-        // Paddings, dividers, the Agents title and the footer around the list.
-        let chrome: CGFloat = 112
-        return max(120, screenHeight * 0.8 - fixedContentHeight - chrome)
+        // Header, footer, dividers, paddings and the Agents title around the list.
+        let chrome: CGFloat = 130
+        return max(160, screenHeight * 0.8 - chrome)
     }
 
     private var providerRows: some View {
@@ -102,9 +103,7 @@ struct AIFleetMenuView: View {
             ForEach(connections) { entry in
                 ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
             }
-
         }
-        .padding(.horizontal, 16)
     }
 
     /// One leading mark per row: ↓ lowest positive quota anywhere, → the current account of a
@@ -185,10 +184,6 @@ struct AIFleetMenuView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.value)
                     .lineLimit(1)
-                Text("·").foregroundColor(FleetPalette.muted)
-                Text("\(monitoringSummary.measured)/\(monitoringSummary.total)")
-                    .font(.system(size: 12.5, weight: .medium).monospacedDigit())
-                    .foregroundColor(FleetPalette.muted)
                 InfoIndicator(attention: attentionColor, highlighted: isLegendShown)
                     .frame(width: 18, height: 18)
                     .contentShape(Rectangle())
@@ -311,22 +306,46 @@ struct MenuRowsViewport<Content: View>: View {
     }
 
     var body: some View {
+        let scrolls = contentHeight > maxHeight
         ScrollView {
             content
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, scrolls ? 14 : 0)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: MenuRowsHeightKey.self, value: geometry.size.height)
                 })
+        }
+        // A legacy scroller paints an opaque track over the glass; a soft fade
+        // at the bottom edge says "more below" instead.
+        .scrollIndicators(.hidden)
+        .mask {
+            VStack(spacing: 0) {
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(scrolls ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 22)
+            }
         }
         .frame(height: min(maxHeight, contentHeight))
         .onPreferenceChange(MenuRowsHeightKey.self) { contentHeight = max(1, $0) }
     }
 }
 
-private struct MenuFixedHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+enum FleetMenuLayout {
+    static let providersWidth: CGFloat = 340
+    static let agentsWidth: CGFloat = 400
+    static let width = providersWidth + 1 + agentsWidth
+}
+
+/// Shared column heading: "Providers 3/4", "Agents 15".
+struct MenuSectionTitle: View {
+    let title: String
+    let count: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundColor(FleetPalette.value)
+            Text(count).font(.system(size: 11.5, weight: .medium).monospacedDigit()).foregroundColor(FleetPalette.muted)
+        }
     }
 }
 

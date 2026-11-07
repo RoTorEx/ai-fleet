@@ -37,7 +37,7 @@ final class MenuLayoutTests: XCTestCase {
         // showPanel measures right after opening; the first layout must already be the menu.
         screen.isOpen = true
         host.view.layoutSubtreeIfNeeded()
-        XCTAssertEqual(host.view.fittingSize.width, 354, accuracy: 1)
+        XCTAssertEqual(host.view.fittingSize.width, FleetMenuLayout.width, accuracy: 1)
         XCTAssertGreaterThan(host.view.fittingSize.height, 250)
         screen.isOpen = false
         host.view.layoutSubtreeIfNeeded()
@@ -145,7 +145,7 @@ final class MenuLayoutTests: XCTestCase {
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
             XCTAssertTrue(popover.isShown)
-            XCTAssertEqual(host.view.fittingSize.width, 354, accuracy: 1)
+            XCTAssertEqual(host.view.fittingSize.width, FleetMenuLayout.width, accuracy: 1)
             XCTAssertGreaterThan(host.view.fittingSize.height, 250)
             if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
                let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {

@@ -145,7 +145,7 @@ struct AgentsView: View {
     private var emptyTitle: String { service.sessions.isEmpty ? "No linked agents yet" : "No sessions in this filter" }
 }
 
-/// Live agent sessions embedded at the bottom of the main menu, grouped by location.
+/// Live agent sessions in the right column of the main menu, grouped by location.
 /// The caller bounds its height; this is the only scrolling block of the menu.
 struct MenuAgentsSection: View {
     @ObservedObject var service: AgentSessionsService
@@ -153,11 +153,9 @@ struct MenuAgentsSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text("Agents").font(.system(size: 12.5, weight: .semibold))
-                Text("\(service.sessions.count)")
-                    .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.secondary)
+                MenuSectionTitle(title: "Agents", count: "\(service.sessions.count)")
                 if service.isLoading { ProgressView().controlSize(.mini) }
                 Spacer()
             }
@@ -171,27 +169,12 @@ struct MenuAgentsSection: View {
             if service.sessions.isEmpty {
                 Text(service.isLoading ? "Finding live sessions…" : "No live Codex or Claude sessions in iTerm2.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 16).padding(.bottom, 10)
             } else {
                 MenuRowsViewport(maxHeight: maxListHeight) {
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 5) {
                         ForEach(AgentGroup.make(service.sessions)) { group in
-                            Button {
-                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                                    if !service.collapsedGroups.insert(group.id).inserted { service.collapsedGroups.remove(group.id) }
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: service.collapsedGroups.contains(group.id) ? "chevron.right" : "chevron.down")
-                                        .font(.system(size: 8, weight: .bold))
-                                    Text(group.name).lineLimit(1).truncationMode(.middle)
-                                    Text("\(group.sessions.count)").foregroundStyle(.tertiary)
-                                    Spacer()
-                                }
-                                .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 4).padding(.top, 6).padding(.bottom, 2)
-                                .contentShape(Rectangle())
-                            }.buttonStyle(.plain).help(group.id)
+                            groupHeader(group)
                             if !service.collapsedGroups.contains(group.id) {
                                 ForEach(group.sessions) { session in
                                     AgentSessionRow(session: session,
@@ -199,7 +182,8 @@ struct MenuAgentsSection: View {
                                         jumping: service.jumpingID == session.id,
                                         stale: service.isStale,
                                         observedAt: service.observedAt,
-                                        canJump: service.jumpingID == nil) {
+                                        canJump: service.jumpingID == nil,
+                                        expanded: expansion(for: session.id)) {
                                         service.jump(to: session)
                                     }
                                 }
@@ -207,9 +191,39 @@ struct MenuAgentsSection: View {
                         }
                     }
                     .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
                 }
             }
         }
+    }
+
+    private func groupHeader(_ group: AgentGroup) -> some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                if !service.collapsedGroups.insert(group.id).inserted { service.collapsedGroups.remove(group.id) }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .rotationEffect(.degrees(service.collapsedGroups.contains(group.id) ? 0 : 90))
+                Text(group.name).font(.system(size: 11, weight: .semibold)).foregroundStyle(.primary.opacity(0.75))
+                    .lineLimit(1).truncationMode(.middle)
+                Text("\(group.sessions.count)").font(.system(size: 10, weight: .semibold).monospacedDigit())
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Color.primary.opacity(0.07), in: Capsule())
+                Spacer()
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 4).padding(.top, 5).padding(.bottom, 1)
+            .contentShape(Rectangle())
+        }.buttonStyle(.plain).help(group.id)
+    }
+
+    private func expansion(for id: String) -> Binding<Bool> {
+        Binding(get: { service.expandedSessions.contains(id) }, set: { open in
+            if open { service.expandedSessions.insert(id) } else { service.expandedSessions.remove(id) }
+        })
     }
 }
 
@@ -220,12 +234,14 @@ private struct AgentSessionRow: View {
     let stale: Bool
     let observedAt: Date?
     let canJump: Bool
+    var expanded: Binding<Bool>? = nil
     let jump: () -> Void
     @State private var hovering = false
     private var tint: Color { AgentColors.color(for: session.id) }
     private var contract: AgentSessionContract {
         AgentSessionContract(session: session, observedAt: observedAt, stale: stale)
     }
+    private var live: Bool { session.isWorking && !stale }
     private var statusColor: Color {
         if stale || session.location == nil { return .secondary }
         if session.needsYou { return session.state == "Blocked" ? .red : .orange }
@@ -234,58 +250,138 @@ private struct AgentSessionRow: View {
     }
     private var symbol: String {
         switch session.state {
-        case "Working": return "waveform.path"
-        case "Approval": return "hand.raised"
+        case "Working": return "waveform"
+        case "Approval": return "hand.raised.fill"
         case "Question": return "questionmark"
         case "Blocked": return "exclamationmark"
         case "New reply": return "sparkle"
         case "Opened": return "checkmark"
-        default: return "ellipsis"
+        case "Untracked", "Idle": return "pause.fill"
+        default: return "circle.dotted"
         }
     }
 
+    init(session: AgentSession, selected: Bool, jumping: Bool, stale: Bool, observedAt: Date?, canJump: Bool,
+         expanded: Binding<Bool>? = nil, jump: @escaping () -> Void) {
+        self.session = session; self.selected = selected; self.jumping = jumping; self.stale = stale
+        self.observedAt = observedAt; self.canJump = canJump; self.expanded = expanded; self.jump = jump
+    }
+
     var body: some View {
-        Button(action: jump) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(tint.opacity(0.12)).frame(width: 25, height: 25)
-                    if session.isWorking && !stale {
-                        AgentOrbit(color: tint).frame(width: 25, height: 25)
-                    } else {
-                        Circle().stroke(tint.opacity(0.35), lineWidth: 1).frame(width: 25, height: 25)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                Button(action: jump) { summary.contentShape(Rectangle()) }
+                    .buttonStyle(.plain).disabled(session.location == nil || !canJump)
+                    .help("\(session.explanation)\n\(session.locationLabel)")
+                    .accessibilityLabel("\(session.title), \(session.state), \(session.locationLabel)")
+                    .accessibilityHint("Open the existing iTerm2 pane; keep Agents visible")
+                if let expanded {
+                    Button { expanded.wrappedValue.toggle() } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                            .rotationEffect(.degrees(expanded.wrappedValue ? 180 : 0))
+                            .foregroundStyle(hovering || expanded.wrappedValue ? tint : Color.secondary.opacity(0.6))
+                            .frame(width: 18, height: 30)
+                            .contentShape(Rectangle())
                     }
-                    Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(statusColor)
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 5) {
-                        Text(AgentRowText.title(session.title, provider: session.provider))
-                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
-                            .lineLimit(1).truncationMode(.tail)
-                        Spacer(minLength: 3)
-                        if jumping { ProgressView().controlSize(.mini) }
-                        else { AgentTimeLabel(contract: contract, fallback: session.updatedAt) }
-                    }
-                    HStack(spacing: 5) {
-                        Text(session.provider.capitalized).foregroundStyle(tint)
-                        if let model = session.model { Text("· \(model)").lineLimit(1) }
-                        Spacer(minLength: 4)
-                        Text(session.location == nil ? "Unlinked" : (stale ? "Stale" : session.state))
-                            .foregroundStyle(statusColor).lineLimit(1)
-                    }.font(.system(size: 10)).foregroundStyle(.secondary)
-                    AgentActivityLine(color: tint, active: session.isWorking && !stale)
-                        .frame(height: 2)
+                    .buttonStyle(.plain)
+                    .help(expanded.wrappedValue ? "Hide last messages" : "Show last request and reply")
+                    .accessibilityLabel("Last messages")
                 }
             }
-            .padding(.horizontal, 9).padding(.vertical, 6)
-            .background(tint.opacity(hovering ? 0.14 : (selected ? 0.09 : 0.035)), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(tint.opacity(hovering || selected ? 0.45 : 0.08), lineWidth: 1))
-            .contentShape(Rectangle())
+            if expanded?.wrappedValue == true {
+                AgentMessages(session: session, contract: contract, tint: tint)
+                    .padding(.leading, 40).padding(.top, 7).padding(.trailing, 6)
+            }
+            AgentActivityLine(color: tint, active: live)
+                .frame(height: 2)
+                .padding(.leading, 40).padding(.top, 5)
+                .opacity(live ? 1 : 0)
         }
-        .buttonStyle(.plain).disabled(session.location == nil || !canJump)
+        .padding(.leading, 9).padding(.trailing, 4).padding(.top, 7).padding(.bottom, 5)
+        .background(
+            LinearGradient(colors: [tint.opacity(hovering ? 0.22 : (selected ? 0.17 : 0.13)),
+                                    tint.opacity(hovering ? 0.08 : 0.035)],
+                           startPoint: .leading, endPoint: .trailing),
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(tint.opacity(hovering || selected ? 0.5 : 0.16), lineWidth: 1))
         .onHover { hovering = $0 }
-        .help("\(session.explanation)\n\(session.locationLabel)\n\(String((session.request ?? "").prefix(600)))")
-        .accessibilityLabel("\(session.title), \(session.state), \(session.locationLabel)")
-        .accessibilityHint("Open the existing iTerm2 pane; keep Agents visible")
+    }
+
+    private var summary: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(LinearGradient(colors: [tint.opacity(0.42), tint.opacity(0.16)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                if live {
+                    AgentOrbit(color: tint)
+                } else {
+                    Circle().strokeBorder(tint.opacity(0.45), lineWidth: 1)
+                }
+                Image(systemName: symbol).font(.system(size: 10.5, weight: .bold))
+                    .foregroundStyle(session.needsYou ? statusColor : tint)
+            }
+            .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Text(AgentRowText.title(session.title, provider: session.provider))
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.primary)
+                        .lineLimit(1).truncationMode(.tail)
+                    Spacer(minLength: 3)
+                    if jumping { ProgressView().controlSize(.mini) }
+                    else { AgentTimeLabel(contract: contract, fallback: session.updatedAt) }
+                }
+                HStack(spacing: 5) {
+                    Text(session.provider.capitalized).fontWeight(.medium).foregroundStyle(tint)
+                    if let model = session.model { Text("· \(model)").lineLimit(1) }
+                    Spacer(minLength: 4)
+                    Text(session.location == nil ? "Unlinked" : (stale ? "Stale" : session.state))
+                        .fontWeight(live || session.needsYou ? .semibold : .regular)
+                        .foregroundStyle(statusColor).lineLimit(1)
+                }.font(.system(size: 10.5)).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// The latest request and reply bound to this process, for orienting across sessions.
+private struct AgentMessages: View {
+    let session: AgentSession
+    let contract: AgentSessionContract
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if session.request == nil && session.answer == nil {
+                Text("No messages captured for this session yet.")
+                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+            }
+            if let request = session.request {
+                message("You", time: contract.requestStartedAt, text: request, lines: 3)
+            }
+            if let answer = session.answer {
+                message(session.provider.capitalized, time: contract.lastMessageAt, text: answer, lines: 5)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func message(_ who: String, time: Date?, text: String, lines: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Text(who.uppercased()).font(.system(size: 9, weight: .bold)).kerning(0.4)
+                    .foregroundStyle(who == "You" ? Color.secondary : tint)
+                if let time {
+                    Text(formatResetTime(time)).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(.tertiary)
+                }
+            }
+            Text(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                .font(.system(size: 11)).foregroundStyle(.primary.opacity(0.85))
+                .lineLimit(lines).truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(String(text.prefix(1200)))
+        }
     }
 }
 

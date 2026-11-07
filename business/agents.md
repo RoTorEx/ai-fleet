@@ -2,8 +2,8 @@
 
 ## Workflow
 
-The configured global shortcut opens AI Fleet. Agents is a block under the
-providers in the main menu, grouped by collapsible location; the session engine
+The configured global shortcut opens AI Fleet. The main menu has two columns:
+Providers on the left and Agents on the right, grouped by collapsible location; the session engine
 runs while the menu is open. The menu grows up to 80% of the screen's visible
 height; past that only the Agents list scrolls. Processes opens from Options as
 a separate screen with Back. No Command-A registration remains.
@@ -12,7 +12,10 @@ Each row shows the terminal session name without spinner glyphs or the iTerm
 job suffix such as "(codex)"; provider and model sit on the second line. The
 top-right time is an exact running stopwatch while the session works and a
 rough one-unit age (~40s, ~5m, ~16h, ~3d) since the last message or observed
-change otherwise. Collapsed groups persist while Fleet runs.
+change otherwise. Each card keeps its session color; a chevron expands the
+latest captured request and reply with their times. Collapsed groups and
+expanded cards persist while Fleet runs. The list hides the scroller and fades
+at the bottom edge when more rows follow.
 
 The compact colorful view follows the user's IMG_1195.MP4 reference: project
 headings, collapsible groups, stable session rows, provider/model when known,
