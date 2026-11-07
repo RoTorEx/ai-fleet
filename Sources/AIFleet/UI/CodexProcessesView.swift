@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct CodexProcessesView: View {
-    @StateObject private var service = CodexProcessesService()
+    @ObservedObject var service: CodexProcessesService
     @State private var pending: [CodexProcess] = []
     @State private var force = false
     @State private var confirms = false
@@ -67,8 +67,6 @@ struct CodexProcessesView: View {
             }
         }
         .disabled(!service.stopping.isEmpty)
-        .onAppear { service.start() }
-        .onDisappear { service.stopMonitoring() }
         .confirmationDialog(force ? "Force quit selected processes?" : "Stop selected processes?",
                             isPresented: $confirms, titleVisibility: .visible) {
             Button(force ? "Force Quit" : "Stop", role: .destructive) { service.terminate(pending, force: force) }

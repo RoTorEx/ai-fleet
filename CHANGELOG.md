@@ -29,6 +29,7 @@ Tracks real product and release progress.
 - Draw tabs as full-width bookmarks joined to their page; ← / → wrap around; slim Processes into three-line rows with a ⋯ action menu, click-to-copy paths, provider filters, start-time sort and one bulk-stop menu.
 - Shrink process rows to two lines with a copyable PID, hover highlights, a copy notice and path/account details in the ⋯ menu; add All / Needs you / Working / Idle filters to Agents.
 - Give providers, agents and processes one block style; show an agent's last request and reply in a hover popover; give processes a hover-revealed, copyable path icon, seconds in start times and a small Stop/Force Quit menu; show state icons; use terminal-style overlay scrollers with a bottom fade.
+- Show the process count on the Processes tab and tighten the provider name hover highlight.
 - Cut idle CPU: run the ⓘ attention pulse in Core Animation and unload menu content while the panel is closed.
 
 

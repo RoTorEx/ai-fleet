@@ -10,6 +10,8 @@ struct AIFleetMenuView: View {
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
     @State private var isLegendShown = false
+    // Owned here so the Processes tab shows its count; scans only while the menu is open.
+    @StateObject private var processes = CodexProcessesService()
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
@@ -40,7 +42,9 @@ struct AIFleetMenuView: View {
                       count: "\(monitoringSummary.measured)/\(monitoringSummary.total)", attention: false),
                 .init(tab: .agents, title: "Agents", count: "\(agents.sessions.count)",
                       attention: !agents.isStale && agents.sessions.contains(where: \.needsYou)),
-                .init(tab: .processes, title: "Processes", count: nil, attention: false),
+                .init(tab: .processes, title: "Processes",
+                      count: processes.processes.isEmpty && processes.refreshing ? nil : "\(processes.processes.count)",
+                      attention: false),
             ]) {
                 // Only the active tab's content scrolls, once the menu reaches 80% of the screen.
                 MenuRowsViewport(maxHeight: tabBudget) {
@@ -50,7 +54,7 @@ struct AIFleetMenuView: View {
                     case .agents:
                         MenuAgentsSection(service: agents)
                     case .processes:
-                        CodexProcessesView().padding(.horizontal, 8)
+                        CodexProcessesView(service: processes).padding(.horizontal, 8)
                     }
                 }
                 .padding(.vertical, 10)
@@ -64,6 +68,8 @@ struct AIFleetMenuView: View {
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(width: FleetMenuLayout.width)
+        .onAppear { processes.start() }
+        .onDisappear { processes.stopMonitoring() }
         .overlay(alignment: .topLeading) {
             if isLegendShown {
                 VStack(alignment: .leading, spacing: 9) {
@@ -656,13 +662,12 @@ struct ProviderLimitRow: View {
                         }
                     }
                     .foregroundColor(color)
-                    .padding(.leading, 6)
-                    .padding(.trailing, 4)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
                     // Hover highlight shows the name is clickable.
                     .background(
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(Color.primary.opacity(isNameHovered ? 0.12 : 0))
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.primary.opacity(isNameHovered ? 0.1 : 0))
                     )
                     .contentShape(Rectangle())
                     .background(GeometryReader { geometry in
@@ -672,8 +677,7 @@ struct ProviderLimitRow: View {
                     })
                 }
                 .buttonStyle(PlainButtonStyle())
-                .padding(.leading, -6)
-                .padding(.trailing, -4)
+                .padding(.horizontal, -4)
                 .onHover { isNameHovered = $0 }
                 .accessibilityLabel("\(status.name) \(entry.account.badge) actions")
                 .accessibilityHint(Text(subscription))

@@ -8,7 +8,7 @@ Tabs split the full width and look like bookmarks: the active tab and its page
 are one shape. Click a tab or press ← / →, which wrap around; the last tab is
 remembered across openings and restarts. An orange dot on Agents flags a session waiting for approval or
 an answer. The session engine runs while the menu is open so that dot stays
-current; Processes rescans only while its tab is visible. The menu grows up to
+current; Processes rescans while the menu is open so its tab shows a count. The menu grows up to
 80% of the screen's visible height; past that only the active tab scrolls, with
 a terminal-style overlay scroller. No Command-A registration remains.
 
@@ -102,7 +102,7 @@ executable paths, UID, controlling-terminal presence and microsecond start ident
 Prompts and environment are not exported or logged; a Node runtime entry argument
 may be read solely to match an installed provider executable. The visible list
 refreshes every 3 seconds to show exits/restarts promptly without a permanent scan.
-The timer stops when this section disappears.
+The timer stops when the menu closes.
 
 Each row offers Stop (SIGTERM) and Force Quit (SIGKILL), with confirmation naming
 the selected PIDs and the effect on conversations/tools. Stop all background
