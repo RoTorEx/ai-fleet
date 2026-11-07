@@ -67,7 +67,8 @@ final class MenuLayoutTests: XCTestCase {
     @MainActor
     func testLeadingMarksShareOneVisualSize() throws {
         func ink(_ mark: String) throws -> CGRect {
-            let renderer = ImageRenderer(content: RowMark(mark: mark).foregroundColor(.black))
+            let renderer = ImageRenderer(content: RowMark(mark: mark).foregroundColor(.black)
+                .frame(width: FleetRowMetrics.markWidth))
             renderer.scale = 4
             let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
             var minX = bitmap.pixelsWide, minY = bitmap.pixelsHigh, maxX = -1, maxY = -1
@@ -82,6 +83,8 @@ final class MenuLayoutTests: XCTestCase {
                 .applying(CGAffineTransform(scaleX: 0.25, y: 0.25))
         }
         let cross = try ink("×")
+        let right = try ink("→"), down = try ink("↓")
+        XCTAssertEqual(right.width, down.height, accuracy: 0.5, "→ must be as long as ↓")
         for mark in ["→", "↓", "•", "?"] {
             let box = try ink(mark)
             XCTAssertEqual(box.midY, cross.midY, accuracy: 0.5, "\(mark) must share the × optical center")

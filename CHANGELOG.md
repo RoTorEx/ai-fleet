@@ -14,6 +14,7 @@ Tracks real product and release progress.
 - Lead each provider row with one mark (• → ↓ × ?) and align quota periods, values and reset dates in shared columns.
 - Move account notes and errors from under rows into the ⓘ card; keep sign-in progress with Cancel in the header.
 - Route menu shortcuts through the panel key monitor instead of hidden buttons.
+- Draw → as the turned ↓ glyph, unscale legend text, space reset dates from values, and rename unknown login to "Login status unknown".
 
 
 - Keep enabled providers visible without a CLI and expose setup-only rows without creating accounts.

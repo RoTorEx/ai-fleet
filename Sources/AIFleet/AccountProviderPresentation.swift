@@ -12,7 +12,7 @@ struct MenuConnectionState {
         switch status.quotaFailureReason {
         case .cliMissing: return "CLI not installed"
         case .signInRequired: return "Sign in required"
-        case .identityUnverified: return "Could not verify login"
+        case .identityUnverified: return "Login status unknown"
         case .credentialsUnavailable: return "Quota credentials unavailable"
         case .credentialsExpired: return "Quota credentials expired"
         case .accessDenied: return "Quota access denied"

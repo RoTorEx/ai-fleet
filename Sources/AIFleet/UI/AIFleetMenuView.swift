@@ -295,15 +295,22 @@ private struct MenuRowsHeightKey: PreferenceKey {
     }
 }
 
-/// Leading row mark. Every mark uses one monospaced font so arrows, ×, ? and • stay
-/// consistent; arrows may run longer but share the × optical center.
+/// Leading row mark. Every mark uses one monospaced font sharing the × optical center.
+/// The font's → is shorter than its ↓, so → is the same ↓ glyph turned a quarter.
 struct RowMark: View {
     let mark: String
+    var size: CGFloat = 14
 
     var body: some View {
-        Text(mark)
-            .font(.system(size: 14, weight: .medium, design: .monospaced))
-            .offset(y: mark == "→" ? 0.5 : 0)
+        if mark == "→" {
+            glyph("↓").rotationEffect(.degrees(-90)).offset(y: size * 0.07)
+        } else {
+            glyph(mark)
+        }
+    }
+
+    private func glyph(_ text: String) -> some View {
+        Text(text).font(.system(size: size, weight: .medium, design: .monospaced))
     }
 }
 
@@ -500,6 +507,7 @@ struct LimitWindowLine: View {
             Text(resetText)
                 .font(limitWindowFont)
                 .foregroundColor(resetColor)
+                .padding(.leading, 8)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
 
@@ -599,29 +607,43 @@ struct LegendSection: View {
             GridRow {
                 title("Marks")
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 4) {
-                        Text("• working").foregroundColor(FleetPalette.value)
-                        Text("·").foregroundColor(FleetPalette.muted)
-                        Text("→ current account").foregroundColor(FleetPalette.value)
-                        Text("·").foregroundColor(FleetPalette.muted)
-                        Text("↓ lowest").foregroundColor(FleetPalette.value)
+                    HStack(spacing: 9) {
+                        legendMark("•", "working")
+                        legendMark("→", "current account")
+                        legendMark("↓", "lowest")
                     }
-                    HStack(spacing: 4) {
-                        Text("× sign in").foregroundColor(FleetPalette.value)
-                        Text("·").foregroundColor(FleetPalette.muted)
-                        Text("? unavailable").foregroundColor(FleetPalette.muted)
+                    HStack(spacing: 9) {
+                        legendMark("×", "sign in")
+                        legendMark("?", "unavailable")
                     }
                 }
             }
             GridRow {
                 title("Keys")
-                Text("⌘R refresh · ⌘A agents · ⌘, settings · Esc close")
-                    .foregroundColor(FleetPalette.value)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 9) { legendKey("⌘R", "refresh"); legendKey("⌘A", "agents") }
+                    HStack(spacing: 9) { legendKey("⌘,", "settings"); legendKey("Esc", "close") }
+                }
             }
         }
         .font(.system(size: 10.5, weight: .medium))
         .lineLimit(1)
-        .minimumScaleFactor(0.8)
+        .fixedSize()
+    }
+
+    private func legendMark(_ mark: String, _ label: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            RowMark(mark: mark, size: 11).frame(width: 10)
+            Text(label)
+        }
+        .foregroundColor(FleetPalette.value)
+    }
+
+    private func legendKey(_ key: String, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(key).foregroundColor(FleetPalette.value)
+            Text(label).foregroundColor(FleetPalette.muted)
+        }
     }
 
     private func title(_ text: String) -> some View {
