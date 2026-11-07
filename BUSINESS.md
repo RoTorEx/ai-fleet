@@ -212,8 +212,8 @@ subscription charges.
 - The menu header is one line: a status dot with Active/Paused, then
   `measured/saved` (for example `1/6`: saved accounts with a current limit out
   of all saved accounts of enabled providers), then Refresh (⌘R) and Options.
-  Sign-in progress and errors add one detail line below it; refreshing spins the
-  Refresh icon instead of replacing the status. Options is a native menu:
+  Sign-in progress and errors add one detail line below it; a manual refresh spins the
+  Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status. Options is a native menu:
   Statistics, Settings…, Processes, Quit. Agents is embedded below the
   providers; the menu grows to 80% of the screen's visible height, after which
   only the Agents list scrolls (header, providers and footer never scroll). The menu has no Update command. The footer shows

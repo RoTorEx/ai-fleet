@@ -32,7 +32,16 @@ struct FleetMenuRoot: View {
                     .environmentObject(service)
                     .environmentObject(AppSettings.shared)
             }
-        }.fixedSize(horizontal: false, vertical: true)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        // The panel becomes key on open; no control should show a focus ring then.
+        .modifier(NoFocusRing())
+    }
+}
+
+private struct NoFocusRing: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) { content.focusEffectDisabled() } else { content }
     }
 }
 
@@ -257,6 +266,12 @@ final class StatusBarController: NSObject {
         panel.layout(contentSize: size, below: top, in: visibleFrame)
     }
 
+    func showPopoverIfNeeded() {
+        if !panel.isVisible {
+            showPanel()
+        }
+    }
+
     func closePopoverIfNeeded() {
         if panel.isVisible {
             closePanel()
@@ -305,7 +320,7 @@ final class StatusBarController: NSObject {
                event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
                 switch event.charactersIgnoringModifiers {
                 case "r":
-                    StatusService.shared.refresh(); CodexMonitoringStore.shared.refresh(force: true)
+                    StatusService.shared.refresh(manual: true); CodexMonitoringStore.shared.refresh(force: true)
                     return nil
                 case ",":
                     self.openSettingsFromMenu()

@@ -34,9 +34,9 @@ struct AIFleetApp: App {
     }
 
     var body: some Scene {
-        Settings {
-            SettingsView()
-        }
+        // App needs a scene, but SwiftUI opens a lone Settings scene at launch on
+        // macOS 26. Settings use their own window; this extra never inserts.
+        MenuBarExtra("AI Fleet", isInserted: .constant(false)) { EmptyView() }
     }
 }
 
@@ -97,6 +97,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         .store(in: &cancellables)
         registerToggleHotKey()
+    }
+
+    /// Launching the running app again (Finder, Spotlight, `open`) shows the menu.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        statusBarController?.showPopoverIfNeeded()
+        return false
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -296,9 +296,12 @@ private struct AgentTimeLabel: View {
     let fallback: Double?
 
     var body: some View {
+        // Both forms share one Text style so working and idle rows match.
         Group {
             if let start = contract.workStartedAt {
-                Text(start, style: .timer).foregroundStyle(.primary)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(AgentRowText.stopwatch(context.date.timeIntervalSince(start)))
+                }
             } else if let since = contract.lastMessageAt ?? fallback.map(Date.init(timeIntervalSince1970:)) {
                 TimelineView(.periodic(from: .now, by: 10)) { context in
                     Text(AgentRowText.roughAge(context.date.timeIntervalSince(since)))
@@ -324,6 +327,13 @@ enum AgentRowText {
             if jobs.contains(job), !name.isEmpty { text = name }
         }
         return text.isEmpty ? raw : text
+    }
+
+    /// Exact running time: 0:52, 4:51, 1:02:03.
+    static func stopwatch(_ seconds: TimeInterval) -> String {
+        let value = max(0, Int(seconds))
+        let (h, m, s) = (value / 3600, value / 60 % 60, value % 60)
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 
     /// One coarse unit with a tilde: ~40s, ~5m, ~16h, ~3d.

@@ -61,5 +61,7 @@ final class AgentSessionContractTests: XCTestCase {
         XCTAssertEqual(AgentRowText.roughAge(5 * 60 + 59), "~5m")
         XCTAssertEqual(AgentRowText.roughAge(16 * 3600 + 35 * 60), "~16h")
         XCTAssertEqual(AgentRowText.roughAge(3 * 86_400 + 5), "~3d")
+        XCTAssertEqual(AgentRowText.stopwatch(52), "0:52")
+        XCTAssertEqual(AgentRowText.stopwatch(3723), "1:02:03")
     }
 }

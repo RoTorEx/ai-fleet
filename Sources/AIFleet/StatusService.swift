@@ -16,6 +16,9 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var lastError: String?
     @Published private(set) var isRefreshing = false
+    /// Only a refresh the user asked for spins the menu's Refresh icon; the
+    /// 60-second quota poll and the refresh on menu open stay quiet.
+    @Published private(set) var isManualRefresh = false
     @Published private(set) var isMonitoring = false
     private var refreshID: UUID?
     @Published var notificationStatusText = "Checking"
@@ -203,18 +206,20 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         task = nil
         refreshID = nil
         isRefreshing = false
+        isManualRefresh = false
     }
 
-    func refresh() {
+    func refresh(manual: Bool = false) {
         guard SwitchCoordinator.shared.active.isEmpty else { return }
         guard signingOutProvider == nil, !ProviderLaunchStore.shared.busy else { return }
         let previous = task
         previous?.cancel()
         let id = UUID()
         refreshID = id
+        isManualRefresh = manual || (isManualRefresh && isRefreshing)
         isRefreshing = true
         task = Task { @MainActor in
-            defer { if refreshID == id { isRefreshing = false } }
+            defer { if refreshID == id { isRefreshing = false; isManualRefresh = false } }
             await previous?.value
             guard !Task.isCancelled else { return }
             lastError = nil

@@ -251,10 +251,10 @@ struct AIFleetMenuView: View {
         .padding(.horizontal, 16)
     }
 
-    private var isRefreshing: Bool { service.isRefreshing || codexProfiles.refreshing }
+    private var isRefreshing: Bool { service.isManualRefresh }
 
     private func refresh() {
-        service.refresh(); codexProfiles.refresh(force: true)
+        service.refresh(manual: true); codexProfiles.refresh(force: true)
     }
 
     private var statusDotColor: Color {
