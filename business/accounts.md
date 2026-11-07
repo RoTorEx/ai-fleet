@@ -105,17 +105,24 @@ optical center (arrows may run longer than × and •):
 Unavailable marks win over → and •. Any connection without current limits is
 gray, even if its CLI reports a configured login; a missing measurement never
 looks ready. Quota rows sit in shared columns (period, right-aligned remaining,
-reset) indented slightly inside the provider name. An unavailable row keeps its
-short reason visible and reserves the height of the provider's usual quota lines
-(its measured accounts' count, else 5h/7d for Codex and Claude, else one) so rows
-stay balanced. "Login status unknown" means the login check gave no answer;
-"Sign in required" means the CLI confirmed no login; providers are separated by
-spacing, not lines. Row-level notes are not shown under rows: important notes
-(quota notices, sign-in/switch failures, terminal rehash) appear briefly in the
-Status section of the ⓘ card, and a dot on ⓘ (orange for problems) shows they
-exist. Sign-in progress with Cancel stays in the header detail line.
-Email/plan hover and login actions retain actual authentication
-state. Account-specific errors cannot borrow another account's limits or tokens.
+reset) indented slightly inside the provider name; the reset date keeps a clear
+gap from the value. An unavailable row shows its short reason on one line.
+"Login status unknown" means the login check gave no answer; "Sign in required"
+means the CLI confirmed no login. Provider blocks are separated by one equal
+spacing, never lines; a block grows only by its own content.
+The provider name and badge form one target (the mark is excluded): hovering it
+shows email · plan on the right of the same line, and clicking it opens a native
+menu with Sign in… or Sign out, then Switch (Set up connection… for setup rows).
+There are no per-row ellipsis buttons or overlapping hover popups. Saving the
+current terminal login stays in Settings → Accounts; a failed sign-out is
+retried with the same Sign out.
+Row-level notes are not shown under rows: important notes (quota notices,
+sign-in/switch failures, terminal rehash) appear in the Status section of the ⓘ
+card. ⓘ pulses red for errors and orange for warnings (static under Reduce
+Motion) and stays still otherwise. The card ends with an Accounts section: each
+badge with its email and a bullet per provider with its plan. Sign-in progress
+with Cancel stays in the header detail line. Login actions retain actual
+authentication state. Account-specific errors cannot borrow another account's limits or tokens.
 Old shared session history is not split by badge.
 
 The header status reflects AI Fleet's monitoring lifecycle: Active while periodic

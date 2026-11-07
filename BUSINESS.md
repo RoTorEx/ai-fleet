@@ -82,8 +82,8 @@ subscription charges.
   independently of account selection.
   Management stays in Settings → Accounts with one account editor and an
   existing/new account choice when connecting a provider. Small parenthesized
-  badges follow the provider name; the ellipsis exposes account login actions.
-  Hover shows email and plan. One leading mark per row: ↓ lowest positive
+  badges follow the provider name; clicking the name opens account actions and
+  hovering it shows email and plan. One leading mark per row: ↓ lowest positive
   quota anywhere, → current account of a multi-account provider, • working, ×/?
   unavailable.
   Legacy isolated files and metadata remain preserved. See

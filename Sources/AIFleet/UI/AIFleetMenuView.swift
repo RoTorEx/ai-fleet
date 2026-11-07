@@ -63,6 +63,10 @@ struct AIFleetMenuView: View {
                         Rectangle().fill(FleetPalette.divider).frame(height: 1)
                     }
                     LegendSection()
+                    if !accountSummaries.isEmpty {
+                        Rectangle().fill(FleetPalette.divider).frame(height: 1)
+                        AccountsLegendSection(accounts: accountSummaries)
+                    }
                 }
                     .frame(maxWidth: 330, alignment: .leading)
                     .padding(12)
@@ -77,10 +81,9 @@ struct AIFleetMenuView: View {
     }
 
     private var providerRows: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, mark: mark(for: entry), reservedLines: reservedLines(for: entry),
-                                 openSettings: openSettings)
+                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
             }
 
         }
@@ -98,13 +101,28 @@ struct AIFleetMenuView: View {
         return "•"
     }
 
-    /// Unavailable rows reserve as many lines as this provider's measured accounts show,
-    /// or its usual 5h/7d pair, so rows stay balanced.
-    private func reservedLines(for entry: MenuAccountConnection) -> Int {
-        let measured = connections.filter { $0.status.providerID == entry.status.providerID }
-            .map(\.status.limitWindows.count).max() ?? 0
-        if measured > 0 { return measured }
-        return ["codex", "claude"].contains(entry.status.providerID) ? 2 : 1
+    /// Saved accounts by badge with their email and each provider's plan.
+    private var accountSummaries: [AccountsLegendSection.Account] {
+        var order: [String] = []
+        var byID: [String: AccountsLegendSection.Account] = [:]
+        for entry in connections where !entry.isSetup && !entry.account.badge.isEmpty {
+            let id = entry.account.id
+            if byID[id] == nil {
+                order.append(id)
+                let email = entry.status.account?.email ?? entry.account.email
+                byID[id] = .init(badge: entry.account.badge, email: email, providers: [])
+            }
+            let plan = entry.status.account?.planLabel
+            byID[id]?.providers.append(plan.map { "\(entry.status.name) (\($0))" } ?? entry.status.name)
+        }
+        return order.compactMap { byID[$0] }
+    }
+
+    /// ⓘ glows red for errors and orange for warnings; info-only notes keep it still.
+    private var attentionColor: Color? {
+        if statusNotes.contains(where: { $0.severity == .error }) { return FleetPalette.danger }
+        if statusNotes.contains(where: { $0.severity == .warning }) { return FleetPalette.warning }
+        return nil
     }
 
     /// Account notes worth reading, shown at the top of the ⓘ card instead of under rows.
@@ -115,25 +133,25 @@ struct AIFleetMenuView: View {
         }
         for entry in connections {
             if let notice = entry.status.quotaNotice {
-                notes.append(.init(label: label(entry), text: notice, warning: entry.isSelected))
+                notes.append(.init(label: label(entry), text: notice, severity: entry.isSelected ? .warning : .info))
             }
             if providerLaunch.messageIsError, let message = providerLaunch.message,
                providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == entry.status.providerID {
-                notes.append(.init(label: label(entry), text: message, warning: true))
+                notes.append(.init(label: label(entry), text: message, severity: .error))
             }
             if entry.usesAccountLogin, let error = codexProfiles.error,
                codexProfiles.profiles.first(where: { $0.id == codexProfiles.errorProfileID })?.accountID == entry.account.id {
                 let text = codexProfiles.switchBlockedProcessIDs == nil ? error
                     : "Switch blocked while Codex is running. Stop it in Processes, then retry."
-                notes.append(.init(label: label(entry), text: text, warning: true))
+                notes.append(.init(label: label(entry), text: text, severity: .error))
             }
         }
         if let error = accounts.launchError {
             let provider = accounts.launchProviderID.flatMap { ProviderCatalog.definition(for: $0)?.name } ?? "Sign-in"
-            notes.append(.init(label: provider, text: error, warning: true))
+            notes.append(.init(label: provider, text: error, severity: .error))
         }
         if codexProfiles.terminalSetupNotice {
-            notes.append(.init(label: "Codex", text: "Terminals opened earlier: run rehash once.", warning: false))
+            notes.append(.init(label: "Codex", text: "Terminals opened earlier: run rehash once.", severity: .info))
         }
         return notes
     }
@@ -153,18 +171,8 @@ struct AIFleetMenuView: View {
                 Text("\(monitoringSummary.measured)/\(monitoringSummary.total)")
                     .font(.system(size: 12.5, weight: .medium).monospacedDigit())
                     .foregroundColor(FleetPalette.muted)
-                Image(systemName: "info.circle")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(isLegendShown ? FleetPalette.value : FleetPalette.muted)
+                InfoIndicator(attention: attentionColor, highlighted: isLegendShown)
                     .frame(width: 18, height: 18)
-                    .overlay(alignment: .topTrailing) {
-                        if !statusNotes.isEmpty {
-                            Circle()
-                                .fill(statusNotes.contains(where: \.warning) ? FleetPalette.warning : FleetPalette.muted)
-                                .frame(width: 5, height: 5)
-                                .offset(x: 2, y: -1)
-                        }
-                    }
                     .contentShape(Rectangle())
                     .onHover { isLegendShown = $0 }
                     .accessibilityLabel("Legend")
@@ -329,16 +337,34 @@ enum FleetRowMetrics {
     static let markSpacing: CGFloat = 5
     /// Wide enough for `↻ 12 Nov 10:58` and the `6d 23h 59m 59s` countdown.
     static let resetWidth: CGFloat = 112
-    static let quotaLineHeight: CGFloat = 13
     static let quotaLineSpacing: CGFloat = 3
     /// Quota rows sit a little inside the provider name, like a nested list.
     static let detailIndent: CGFloat = markWidth + markSpacing + 10
 }
 
 struct MenuStatusNote: Hashable {
+    enum Severity { case info, warning, error }
     let label: String
     let text: String
-    let warning: Bool
+    let severity: Severity
+}
+
+struct InfoIndicator: View {
+    let attention: Color?
+    let highlighted: Bool
+    @State private var glowing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let pulses = attention != nil && !reduceMotion
+        Image(systemName: "info.circle")
+            .font(.system(size: 12, weight: attention == nil ? .regular : .semibold))
+            .foregroundColor(attention ?? (highlighted ? FleetPalette.value : FleetPalette.muted))
+            .opacity(pulses && !glowing ? 0.35 : 1)
+            .shadow(color: (attention ?? .clear).opacity(pulses && glowing ? 0.9 : 0), radius: 3)
+            .animation(pulses ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true) : .default, value: glowing)
+            .onAppear { glowing = true }
+    }
 }
 
 struct StatusNotesSection: View {
@@ -352,7 +378,8 @@ struct StatusNotesSection: View {
             ForEach(notes, id: \.self) { note in
                 (Text(note.label + "  ").fontWeight(.semibold) + Text(note.text))
                     .font(.system(size: 10.5))
-                    .foregroundColor(note.warning ? FleetPalette.warning : FleetPalette.value)
+                    .foregroundColor(note.severity == .error ? FleetPalette.danger
+                        : note.severity == .warning ? FleetPalette.warning : FleetPalette.value)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -362,13 +389,12 @@ struct StatusNotesSection: View {
 struct ProviderLimitRow: View {
     let entry: MenuAccountConnection
     let mark: String
-    var reservedLines = 1
     let openSettings: () -> Void
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
-    @State private var isBadgeHovered = false
+    @State private var isNameHovered = false
     private var status: ProviderStatus { entry.status }
     private var presentation: MenuConnectionState { MenuConnectionState(status: status) }
     private var color: Color { presentation.available ? rowColor(for: status) : FleetPalette.muted }
@@ -389,72 +415,30 @@ struct ProviderLimitRow: View {
                     .foregroundColor(color)
                     .frame(width: FleetRowMetrics.markWidth, alignment: .center)
                     .accessibilityLabel(markAccessibility)
-                Text(status.name)
-                    .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
-                if !entry.account.badge.isEmpty {
-                Text("(\(entry.account.badge))")
-                    .font(.system(size: 10.5, weight: .medium))
+                Button(action: showActions) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(status.name)
+                            .font(.system(size: 13, weight: .semibold))
+                        if !entry.account.badge.isEmpty {
+                            Text("(\(entry.account.badge))")
+                                .font(.system(size: 10.5, weight: .medium))
+                        }
+                    }
                     .foregroundColor(color)
-                    .onHover { isBadgeHovered = $0 }
-                    .accessibilityHint(Text(entry.account.tooltip(for: entry.connection, status: status)))
-                    .accessibilityLabel("\(status.name) account \(entry.account.badge)")
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(PlainButtonStyle())
+                .onHover { isNameHovered = $0 }
+                .accessibilityLabel("\(status.name) \(entry.account.badge) actions")
+                .accessibilityHint(Text(subscription))
                 Spacer(minLength: 8)
-                Menu {
-                    if entry.isSetup {
-                        Button("Set up connection…") {
-                            SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
-                        }
-                    } else {
-                    if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil, entry.isCurrentCLI == true {
-                        Button("Save current login") { codexProfiles.saveCurrentLogin(entry.account) }
-                            .disabled(codexProfiles.refreshing)
-                        Divider()
-                    }
-                    if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) != nil {
-                        Button("Switch") { codexProfiles.switchAccount(entry.account) }
-                            .disabled(codexProfiles.refreshing)
-                            .help("The next codex command uses this account. Running sessions keep their current accounts.")
-                        Divider()
-                    }
-                    if !entry.usesAccountLogin {
-                        Button("Switch") {
-                            if entry.account.badge.isEmpty {
-                                SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
-                            } else {
-                                providerLaunch.switchAccount(entry.account, providerID: status.providerID,
-                                    global: service.status(for: status.providerID))
-                            }
-                        }.disabled(providerLaunch.busy)
-                        .help("Applies to the next launch. Running agents keep their current accounts.")
-                        Divider()
-                    }
-                    Button(entry.usesAccountLogin && codexProfiles.profile(for: entry.account) == nil ? "Connect separate login…" : "Sign in…") {
-                        if entry.usesAccountLogin {
-                            if entry.account.badge.isEmpty {
-                                SettingsNavigation.shared.addAccount(for: "codex")
-                                openSettings()
-                            } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
-                        }
-                        else { providerLaunch.signIn(entry.account, providerID: status.providerID) }
-                    }
-                    .disabled(entry.usesAccountLogin && codexProfiles.refreshing)
-                    .help("Sign in to this account. Existing terminal sessions keep their current login.")
-                    if entry.usesAccountLogin {
-                        if let profile = codexProfiles.profile(for: entry.account), status.authentication == .signedIn {
-                            Button("Sign out", role: .destructive) { codexProfiles.signOut(profile) }
-                                .disabled(codexProfiles.refreshing)
-                        }
-                    } else if entry.isSelected || (service.signOutFailedProvider == status.providerID && service.globalAccountIDs[status.providerID] == entry.account.id) {
-                        Button(service.signOutFailedProvider == status.providerID ? "Retry sign out" : "Sign out", role: .destructive) {
-                            providerLaunch.signOut(entry.account, providerID: status.providerID)
-                        }
-                    }
-                    }
-                } label: { Image(systemName: "ellipsis").frame(width: 18, height: 20) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil)
-                .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
+                if isNameHovered, !subscription.isEmpty {
+                    Text(subscription)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(FleetPalette.muted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {
@@ -472,34 +456,114 @@ struct ProviderLimitRow: View {
                 }
                 .padding(.leading, FleetRowMetrics.detailIndent)
             } else {
-                // The reason keeps the height of this provider's usual quota lines.
                 Text(presentation.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(color).fixedSize(horizontal: false, vertical: true)
-                    .frame(minHeight: CGFloat(reservedLines) * FleetRowMetrics.quotaLineHeight
-                           + CGFloat(reservedLines - 1) * FleetRowMetrics.quotaLineSpacing, alignment: .topLeading)
                     .padding(.leading, FleetRowMetrics.detailIndent)
             }
         }
-        .overlay(alignment: .topLeading) {
-            if isBadgeHovered {
-                let tooltip = entry.account.tooltip(for: entry.connection, status: status)
-                if !tooltip.isEmpty {
-                    Text(tooltip)
-                        .font(.system(size: 11))
-                        .foregroundColor(FleetPalette.value)
-                        .frame(maxWidth: 240, alignment: .leading)
-                        .fixedSize(horizontal: true, vertical: true)
-                        .padding(8)
-                        .background(FleetPalette.background, in: RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(FleetPalette.border))
-                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
-                        .offset(x: 52, y: 22)
-                        .allowsHitTesting(false)
-                }
+    }
+
+    /// Email and plan for this connection, shown beside the name while hovering it.
+    private var subscription: String {
+        entry.account.tooltip(for: entry.connection, status: status)
+            .split(separator: "\n").joined(separator: " · ")
+    }
+
+    private var actionsBusy: Bool {
+        providerLaunch.busy || service.signingOutProvider != nil || accounts.codexSigningIn
+            || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil
+    }
+
+    /// Native menu at the pointer: Sign in or Sign out, then Switch.
+    private func showActions() {
+        let busy = actionsBusy
+        var items: [ActionMenu.Item?] = []
+        if entry.isSetup {
+            items.append(.init(title: "Set up connection…", enabled: !busy) {
+                SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
+            })
+        } else if entry.usesAccountLogin {
+            let profile = codexProfiles.profile(for: entry.account)
+            if let profile, status.authentication == .signedIn {
+                items.append(.init(title: "Sign out", enabled: !busy && !codexProfiles.refreshing) {
+                    codexProfiles.signOut(profile)
+                })
+            } else {
+                items.append(.init(title: "Sign in…", enabled: !busy && !codexProfiles.refreshing) {
+                    if entry.account.badge.isEmpty {
+                        SettingsNavigation.shared.addAccount(for: "codex"); openSettings()
+                    } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
+                })
             }
+            if profile != nil {
+                items.append(nil)
+                items.append(.init(title: "Switch", enabled: !busy && !codexProfiles.refreshing) {
+                    codexProfiles.switchAccount(entry.account)
+                })
+            }
+        } else {
+            let signOutFailed = service.signOutFailedProvider == status.providerID
+                && service.globalAccountIDs[status.providerID] == entry.account.id
+            if entry.isSelected || signOutFailed {
+                items.append(.init(title: "Sign out", enabled: !busy) {
+                    providerLaunch.signOut(entry.account, providerID: status.providerID)
+                })
+            } else {
+                items.append(.init(title: "Sign in…", enabled: !busy) {
+                    providerLaunch.signIn(entry.account, providerID: status.providerID)
+                })
+            }
+            items.append(nil)
+            items.append(.init(title: "Switch", enabled: !busy) {
+                if entry.account.badge.isEmpty {
+                    SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
+                } else {
+                    providerLaunch.switchAccount(entry.account, providerID: status.providerID,
+                        global: service.status(for: status.providerID))
+                }
+            })
         }
-        .zIndex(isBadgeHovered ? 1 : 0)
+        let menu = ActionMenu(items: items)
+        withExtendedLifetime(menu) { menu.popUpAtPointer() }
+    }
+}
+
+/// A small native menu built from closures, opened at the pointer.
+@MainActor
+final class ActionMenu: NSObject {
+    struct Item {
+        let title: String
+        var enabled = true
+        let action: () -> Void
+    }
+
+    private let items: [Item?]
+
+    init(items: [Item?]) {
+        self.items = items
+    }
+
+    func popUpAtPointer() {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        for (index, item) in items.enumerated() {
+            guard let item else {
+                menu.addItem(.separator())
+                continue
+            }
+            let menuItem = NSMenuItem(title: item.title, action: #selector(run(_:)), keyEquivalent: "")
+            menuItem.target = self
+            menuItem.tag = index
+            menuItem.isEnabled = item.enabled
+            menu.addItem(menuItem)
+        }
+        // Synchronous: `self` stays alive until the menu closes.
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func run(_ sender: NSMenuItem) {
+        items[sender.tag]?.action()
     }
 }
 
@@ -524,7 +588,7 @@ struct LimitWindowLine: View {
                 .frame(width: 34, alignment: .trailing)
 
             resetCell
-                .padding(.leading, 8)
+                .padding(.leading, 16)
 
             Spacer(minLength: 0)
         }
@@ -532,18 +596,17 @@ struct LimitWindowLine: View {
 
     /// Hovering a date shows the remaining time in the same fixed cell; nothing else moves.
     private var resetCell: some View {
-        Group {
-            if isResetHovered, blockingWindow == nil, case .upcoming = QuotaResetState(resetAt: window.resetAt, now: Date()) {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    HStack(spacing: 4) {
-                        Image(systemName: "timer").font(.system(size: 9, weight: .semibold))
-                        Text(QuotaResetState(resetAt: window.resetAt, now: context.date).text(now: context.date))
+        // The date always sets the cell size; the countdown is only an overlay on top of it.
+        Text(resetText)
+            .opacity(showsCountdown ? 0 : 1)
+            .overlay(alignment: .leading) {
+                if showsCountdown {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text("⏱ " + QuotaResetState(resetAt: window.resetAt, now: context.date).text(now: context.date))
+                            .fixedSize()
                     }
                 }
-            } else {
-                Text(resetText)
             }
-        }
         .font(limitWindowFont)
         .foregroundColor(resetColor)
         .lineLimit(1)
@@ -583,6 +646,12 @@ struct LimitWindowLine: View {
             return "-"
         }
         return "\(window.remainingPercent)%"
+    }
+
+    private var showsCountdown: Bool {
+        guard isResetHovered, blockingWindow == nil,
+              case .upcoming = QuotaResetState(resetAt: window.resetAt, now: Date()) else { return false }
+        return true
     }
 
     private var resetText: String {
@@ -707,6 +776,37 @@ struct LegendSection: View {
             Circle().fill(color).frame(width: 6, height: 6)
             Text(label).foregroundColor(FleetPalette.value)
         }
+    }
+}
+
+struct AccountsLegendSection: View {
+    struct Account: Hashable {
+        let badge: String
+        let email: String
+        var providers: [String]
+    }
+    let accounts: [Account]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Accounts")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(FleetPalette.label)
+            ForEach(accounts, id: \.self) { account in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(account.badge).fontWeight(.semibold)
+                        Text(account.email.isEmpty ? "email unknown" : account.email)
+                            .foregroundColor(account.email.isEmpty ? FleetPalette.muted : FleetPalette.value)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                    ForEach(account.providers, id: \.self) { provider in
+                        Text("• " + provider).foregroundColor(FleetPalette.muted).padding(.leading, 14)
+                    }
+                }
+            }
+        }
+        .font(.system(size: 10.5, weight: .medium))
     }
 }
 

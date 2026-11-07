@@ -15,7 +15,10 @@ Tracks real product and release progress.
 - Move account notes and errors from under rows into the ⓘ card; keep sign-in progress with Cancel in the header.
 - Route menu shortcuts through the panel key monitor instead of hidden buttons.
 - Show a live countdown on reset-date hover in a fixed cell; shorten dates to `10:58` today or `9 Nov 10:58`.
-- Keep unavailable reasons visible while reserving the provider's usual quota height.
+- Keep unavailable reasons visible on one line with equal spacing between provider blocks.
+- Open account actions by clicking the provider name; show email and plan inline on hover; remove per-row ellipsis buttons and badge popups.
+- Pulse ⓘ red or orange when notes need attention and list accounts with plans at the bottom of its card.
+- Draw the reset countdown over the date so hovering never resizes the menu.
 - Draw → as the turned ↓ glyph, unscale legend text, space reset dates from values, and rename unknown login to "Login status unknown".
 
 
