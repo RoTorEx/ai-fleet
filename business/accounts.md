@@ -10,14 +10,19 @@ A Greek badge identifies one real account, independent of provider or credential
 storage. Provider rows use only `Provider (badge)` in the compact menu, Settings
 and account statistics. One account may connect several different providers but
 may contain at most one connection for each provider. Internal fallback metadata
-is not a visible account and consumes no Greek badge. New real accounts start
-at α; later additions receive the next unused badge. Existing real badges stay
-stable except when the user explicitly requests reassignment.
+is not a visible account and consumes no Greek badge. Letters express the
+user's order: the first account is α, the next β, and so on. A new account takes
+the next letter after the last; dragging an account in Settings → Accounts
+renumbers every account to its new position, and removal closes the gap. Profiles,
+logins and selections are keyed by account ID, never by letter.
 
-Settings → Accounts owns one account picker and a Connect provider form. The
-form chooses a provider and either Existing account or New account before login.
-An already-connected provider cannot be added again to the selected account.
-Cancel creates nothing. Existing account IDs, associations, and labels remain
+Settings → Accounts lists every account as a block: drag handle, letter, name
+(and email when it differs), then its connected providers with status and their
+Sign In/Switch/Sign Out buttons. Add Account asks for an email and optional name,
+and may connect a provider immediately or import a confirmed terminal login. Each
+account's Connect Provider menu lists its unconnected enabled providers; Edit…
+renames it (email only while no provider is connected). Remove Account… and
+Disconnect… always ask for confirmation. Cancel creates nothing. Existing account IDs, associations, and labels remain
 stored when hidden; provider visibility controls do not log out or delete data.
 
 Codex saved authorizations belong to these same account IDs. There is no separate
@@ -141,7 +146,8 @@ suffix; the account's existing Sign in action remains available.
 
 - `fleet.accounts` and `fleet.nextBadge` store labels, stable IDs, and provider
   associations. A `globalAssociation` connection is metadata with a unique row
-  ID and no custom configuration directory. Removed badges are not reused.
+  ID and no custom configuration directory. Badge indexes are positions and are
+  renumbered on reorder and removal.
 - Exactly one native-default connection per provider is retained. Removing an
   account preserves any native-default connection on another identity. Legacy
   `fleet.selections` is retained for recovery, but is not the active-login source.
@@ -219,7 +225,7 @@ are optional UUIDs; absent values retain legacy account/profile directories. Cod
 launch selection uses the credential-home UUID, while ownership markers retain the
 real account UUID. New paths remain inside existing protected provider roots.
 
-Disconnect provider forgets that association and its command selection. Remove
+Disconnect forgets that association and its command selection. Remove
 account does so for its connections; neither performs logout or terminates sessions.
 Sign out remains a separate native operation. Authentication and removal respect
 the existing Switch/busy guards. Real-account acceptance is deferred until after

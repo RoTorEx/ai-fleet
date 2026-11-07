@@ -224,7 +224,7 @@ struct AIFleetMenuView: View {
 
     private var optionsMenu: some View {
         Menu {
-            Button("Statistics") { openStatistics() }
+            Button("Statistics") { openStatistics() }.keyboardShortcut("s")
             Button("Settings…") { openSettings() }.keyboardShortcut(",")
             Divider()
             Button("Quit") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
@@ -1009,8 +1009,8 @@ struct LegendSection: View {
             GridRow {
                 title("Keys")
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 9) { legendKey("⌘R", "refresh"); legendKey("Click", "jump to agent") }
-                    HStack(spacing: 9) { legendKey("← →", "tabs"); legendKey("⌘,", "settings"); legendKey("Esc", "close") }
+                    HStack(spacing: 9) { legendKey("⌘R", "refresh"); legendKey("⌘S", "statistics"); legendKey("⌘,", "settings") }
+                    HStack(spacing: 9) { legendKey("← →", "tabs"); legendKey("Click", "jump to agent"); legendKey("Esc", "close") }
                 }
             }
         }

@@ -322,6 +322,9 @@ final class StatusBarController: NSObject {
                 case ",":
                     self.openSettingsFromMenu()
                     return nil
+                case "s":
+                    self.openStatisticsFromMenu()
+                    return nil
                 case "q":
                     NSApplication.shared.terminate(nil)
                     return nil
@@ -360,6 +363,14 @@ final class StatusBarController: NSObject {
         closePanel()
         DispatchQueue.main.async { [weak self] in
             self?.openSettings(anchorFrame)
+        }
+    }
+
+    private func openStatisticsFromMenu() {
+        let anchorFrame = panel.frame
+        closePanel()
+        DispatchQueue.main.async { [weak self] in
+            self?.openStatistics(anchorFrame)
         }
     }
 

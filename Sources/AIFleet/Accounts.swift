@@ -97,10 +97,15 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
 
 struct FleetAccount: Codable, Identifiable, Equatable {
     let id: String
-    let badgeIndex: Int
+    /// Position among labeled accounts: α is first. Reordering and removal renumber it.
+    fileprivate(set) var badgeIndex: Int
     var name: String
     var email: String
     var connections: [ProviderConnection]
+
+    init(id: String, badgeIndex: Int, name: String, email: String, connections: [ProviderConnection]) {
+        self.id = id; self.badgeIndex = badgeIndex; self.name = name; self.email = email; self.connections = connections
+    }
 
     static let defaultID = "default"
     static let current = FleetAccount(id: defaultID, badgeIndex: -1, name: "Default", email: "",
@@ -201,7 +206,8 @@ final class AccountStore: ObservableObject {
                 ?? values.first { $0.connection(for: provider.id) != nil }?.id
         }
         selections = selected
-        nextBadge = max(defaults.integer(forKey: "fleet.nextBadge"), (values.map(\.badgeIndex).max() ?? -1) + 1)
+        nextBadge = 0
+        renumber()
     }
 
     var visibleAccounts: [FleetAccount] {
@@ -223,6 +229,20 @@ final class AccountStore: ObservableObject {
         save()
         return account
     }
+    /// Applies a new order of `visibleAccounts`; Greek letters follow the order, starting at α.
+    func reorder(_ ids: [String]) {
+        let order = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+        for index in accounts.indices where accounts[index].badgeIndex >= 0 {
+            accounts[index].badgeIndex = order[accounts[index].id] ?? ids.count + accounts[index].badgeIndex
+        }
+        renumber()
+        save()
+    }
+    func moveAccounts(from source: IndexSet, to destination: Int) {
+        var ids = visibleAccounts.map(\.id)
+        ids.move(fromOffsets: source, toOffset: destination)
+        reorder(ids)
+    }
     func update(_ id: String, name: String, email: String) {
         guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
         accounts[index].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -238,6 +258,7 @@ final class AccountStore: ObservableObject {
                                            email: account.email, connections: account.connections)
             nextBadge += 1
         }
+        renumber()
         save()
     }
     @discardableResult
@@ -396,6 +417,7 @@ final class AccountStore: ObservableObject {
             accounts[index] = FleetAccount(id: FleetAccount.defaultID, badgeIndex: -1, name: "Default", email: "",
                 connections: account.connections.filter { $0.isNativeDefault })
             for provider in ProviderCatalog.all { repairSelection(provider.id) }
+            renumber()
             save()
             return
         }
@@ -411,7 +433,15 @@ final class AccountStore: ObservableObject {
             }
         }
         for provider in ProviderCatalog.all { repairSelection(provider.id) }
+        renumber()
         save()
+    }
+    /// Closes gaps so labeled accounts read α, β, γ… in their current order.
+    private func renumber() {
+        let ordered = accounts.indices.filter { accounts[$0].badgeIndex >= 0 }
+            .sorted { accounts[$0].badgeIndex < accounts[$1].badgeIndex }
+        for (position, index) in ordered.enumerated() { accounts[index].badgeIndex = position }
+        nextBadge = ordered.count
     }
     private func repairSelection(_ providerID: String) {
         selections[providerID] = selected(for: providerID)?.id

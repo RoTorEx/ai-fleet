@@ -23,18 +23,24 @@ struct SettingsView: View {
     @State private var isAddingThreshold = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             Picker("Settings", selection: $navigation.tab) {
                 Text("General").tag("general")
                 Text("Accounts").tag("accounts")
-            }.pickerStyle(.segmented)
-            ScrollView {
-                if navigation.tab == "accounts" { AccountsSettingsView() }
-                else { generalSettings }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 240)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+            if navigation.tab == "accounts" {
+                AccountsSettingsView().padding(.horizontal, 20).padding(.vertical, 12)
+            } else {
+                generalSettings
             }
         }
-        .padding(20)
-        .frame(width: 500, height: 640)
+        .frame(width: 520, height: 620)
         .onAppear {
             service.refreshNotificationSettings()
             service.refresh()
@@ -42,109 +48,78 @@ struct SettingsView: View {
     }
 
     private var generalSettings: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ForEach(["codex", "claude"], id: \.self) { provider in
-                settingsRow("\(provider.capitalized) Switch") {
-                    SwitchPolicyPicker(provider: provider)
-                }
-            }
-            settingsRow("Menu shortcut") {
-                HotkeyRecorder(settings: settings)
-            }
-
-            settingsRow("Menu") {
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Close when clicking outside", isOn: $settings.menuClosesOnOutsideClick)
-                        .font(.system(size: 11.5, weight: .medium))
+        Form {
+            Section {
+                LabeledContent("Open menu") { HotkeyRecorder(settings: settings) }
+                Toggle(isOn: $settings.menuClosesOnOutsideClick) {
+                    Text("Close on outside click")
                     Text("When off, the menu stays open until Esc, the menu bar icon or the shortcut.")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
+            } header: { Text("Menu") }
+
+            Section {
+                ForEach(ProviderCatalog.all.sorted { $0.name < $1.name }) { provider in
+                    Toggle(provider.name, isOn: Binding(
+                        get: { settings.isEnabled(provider.id) },
+                        set: { settings.setEnabled($0, for: provider.id); service.refresh() }
+                    ))
+                }
+            } header: { Text("Providers in menu") }
+
+            Section {
+                ForEach(["codex", "claude"], id: \.self) { provider in
+                    SwitchPolicyPicker(provider: provider, title: provider.capitalized)
+                }
+            } header: { Text("Switching") } footer: {
+                Text("What happens to running sessions when you switch account.")
             }
 
-            settingsRow("Notifications") {
-                VStack(alignment: .leading, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 4) {
+            Section {
+                LabeledContent("Alert at") {
+                    HStack(spacing: 6) {
                         ForEach(settings.notificationThresholds, id: \.self) { threshold in
-                            HStack(spacing: 8) {
-                                Text("\(threshold)% remaining")
-                                    .font(.system(size: 11.5, weight: .medium))
-                                    .frame(width: 96, alignment: .leading)
-                                Button {
-                                    settings.removeNotificationThreshold(threshold)
-                                    service.resetNotificationThresholdState()
-                                } label: {
-                                    Image(systemName: "minus.circle")
+                            HStack(spacing: 3) {
+                                Text("\(threshold)%").monospacedDigit()
+                                if settings.notificationThresholds.count > 1 {
+                                    Button {
+                                        settings.removeNotificationThreshold(threshold)
+                                        service.resetNotificationThresholdState()
+                                    } label: { Image(systemName: "xmark").font(.system(size: 8, weight: .bold)) }
+                                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove \(threshold)%")
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .help("Remove threshold")
-                                .disabled(settings.notificationThresholds.count <= 1)
                             }
+                            .font(.system(size: 11.5, weight: .medium))
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(Color.primary.opacity(0.08), in: Capsule())
                         }
+                        addThresholdControl
                     }
-
-                    addThresholdControl
-
-                    Text("Alerts fire when remaining quota crosses a threshold.")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.secondary)
-
+                }
+                LabeledContent("Permission") {
                     HStack(spacing: 8) {
                         Text(service.notificationStatusText)
-                            .font(.system(size: 10.5, weight: .medium))
-                            .foregroundColor(service.notificationsEnabled ? .secondary : .red)
+                            .foregroundStyle(service.notificationsEnabled ? Color.secondary : Color.red)
                         Button("Test") {
                             service.refreshNotificationSettings()
                             service.sendTestNotification()
                         }
-                        .font(.system(size: 10.5, weight: .semibold))
-                        Button("System") {
-                            openNotificationSettings()
-                        }
-                        .font(.system(size: 10.5, weight: .semibold))
+                        Button("System Settings…", action: openNotificationSettings)
                     }
+                    .controlSize(.small)
                 }
+            } header: { Text("Notifications") } footer: {
+                Text("An alert fires when an account's remaining quota crosses a threshold.")
             }
 
-            settingsRow("Statistics") {
-                VStack(alignment: .leading, spacing: 7) {
-                    Toggle("Refresh daily", isOn: $settings.analyticsAutoRefreshEnabled)
-                        .font(.system(size: 11.5, weight: .medium))
-
-                    HStack(spacing: 8) {
-                        Text("Local time")
-                            .font(.system(size: 10.5))
-                            .foregroundColor(.secondary)
-                        DatePicker(
-                            "",
-                            selection: analyticsRefreshTimeBinding,
-                            displayedComponents: .hourAndMinute
-                        )
-                        .labelsHidden()
-                        .disabled(!settings.analyticsAutoRefreshEnabled)
-                    }
-
-                    Text("Runs quietly in the background and reuses unchanged session files.")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            Section {
+                Toggle("Refresh daily", isOn: $settings.analyticsAutoRefreshEnabled)
+                DatePicker("At", selection: analyticsRefreshTimeBinding, displayedComponents: .hourAndMinute)
+                    .disabled(!settings.analyticsAutoRefreshEnabled)
+            } header: { Text("Statistics") } footer: {
+                Text("Runs quietly in the background and rereads only changed session files.")
             }
         }
-    }
-
-    private func settingsRow<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondary)
-                .frame(width: 110, alignment: .leading)
-            content()
-        }
+        .formStyle(.grouped)
     }
 
     private var analyticsRefreshTimeBinding: Binding<Date> {
@@ -162,45 +137,22 @@ struct SettingsView: View {
     }
 
     private var addThresholdControl: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                newThresholdText = "\(newThreshold)"
-                isAddingThreshold.toggle()
-            } label: {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .buttonStyle(PlainButtonStyle())
-            .help("Add threshold")
-
+        HStack(spacing: 4) {
             if isAddingThreshold {
-                HStack(spacing: 8) {
-                    TextField("Percent", text: $newThresholdText)
-                        .font(.system(size: 11.5, weight: .medium, design: .monospaced))
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .frame(width: 72)
-                        .onSubmit(addThresholdFromInput)
-
-                    Text("% remaining")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.secondary)
-
-                    Button(action: addThresholdFromInput) {
-                        Image(systemName: "checkmark.circle")
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Save threshold")
-                    .disabled(parsedNewThreshold == nil)
-
-                    Button {
-                        isAddingThreshold = false
-                    } label: {
-                        Image(systemName: "xmark.circle")
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Cancel")
-                }
+                TextField("%", text: $newThresholdText)
+                    .textFieldStyle(.roundedBorder).frame(width: 44)
+                    .onSubmit(addThresholdFromInput)
+                    .onExitCommand { isAddingThreshold = false }
             }
+            Button {
+                if isAddingThreshold { addThresholdFromInput() } else {
+                    newThresholdText = "\(newThreshold)"
+                    isAddingThreshold = true
+                }
+            } label: { Image(systemName: isAddingThreshold ? "checkmark.circle" : "plus.circle") }
+            .buttonStyle(.plain)
+            .help(isAddingThreshold ? "Save threshold" : "Add threshold")
+            .disabled(isAddingThreshold && parsedNewThreshold == nil)
         }
     }
 
@@ -291,12 +243,12 @@ struct HotkeyRecorder: View {
 
 struct SwitchPolicyPicker: View {
     let provider: String
+    let title: String
     @State private var policy = SwitchPolicy.graceful
     var body: some View {
-        Picker("Switch policy", selection: $policy) {
+        Picker(title, selection: $policy) {
             ForEach(SwitchPolicy.allCases) { Text($0.title).tag($0) }
         }
-        .labelsHidden()
         .onAppear { policy = SwitchCoordinator.policy(provider) }
         .onChange(of: policy) { UserDefaults.standard.set($0.rawValue, forKey: "switch.policy.\(provider)") }
     }

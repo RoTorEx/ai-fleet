@@ -80,8 +80,8 @@ subscription charges.
   remains separate. Shared Codex credential replacement stays blocked while Codex runs. Explicit,
   confirmed Stop/Force Quit controls are available in the Processes tab,
   independently of account selection.
-  Management stays in Settings → Accounts with one account editor and an
-  existing/new account choice when connecting a provider. Small parenthesized
+  Management stays in Settings → Accounts: draggable account blocks in Greek-letter
+  order with their providers, Add Account, and confirmed removal. Small parenthesized
   badges follow the provider name; clicking the name opens email, plan and
   account actions below it; hovering highlights it. One leading mark per row: ↓ lowest positive
   quota anywhere, → current account of a multi-account provider, • working, ×/?

@@ -94,8 +94,9 @@ Each Greek letter identifies an account. The same letter follows every provider
 connected to it: for example **Codex (α)** and **Claude (α)** belong to the same
 account. One account can connect each provider only once.
 
-Open **Settings → Accounts → Connect provider…**, choose the provider, then choose
-**Existing account** or **New account**. Codex **Sign in…** saves authorization
+Open **Settings → Accounts → Add Account**, enter the email, and optionally pick
+a provider to connect; an existing account's **Connect Provider** menu adds more.
+Drag accounts to reorder them; the letters follow the order. Codex **Sign in…** saves authorization
 for the selected account through its own browser flow. Sign in once per account
 to retain each account's remaining quota while using another. Running terminal
 sessions keep their current authorization. **Sign out** clears only the selected
@@ -132,7 +133,8 @@ unavailable (gray even with a configured CLI login). Important account notes
 appear in the Status section of the ⓘ card.
 The header shows whether AI Fleet monitoring is Active or Paused, with Refresh
 (⌘R) and Options (⋯) on the right. Tabs Providers (with a `measured/saved`
-count such as `1/6`), Agents and Processes switch by click or ← / →. The footer shows the
+count such as `1/6`), Agents and Processes (with its count) switch by click or ← / →.
+Options also opens Statistics (⌘S) and Settings (⌘,). The footer shows the
 last refresh and the version. Hover ⓘ next to the status for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
 Marks and Keys. **Statistics → Codex →
@@ -299,8 +301,8 @@ reporting guidance.
 ## Account connections
 
 Codex and Claude terminal logins with confirmed identities import on Refresh.
-Disconnect provider keeps credentials and history; Import Codex login or Import
-Claude login explicitly restores an intentionally removed native connection.
+Disconnect keeps credentials and history; **Add Account → Import** explicitly
+restores an intentionally removed native terminal login.
 A second account's Sign in uses an isolated credential home. A wrong browser
 identity or failed login preserves the previous connection. After successful
 sign-in, use Switch to select that connection for ordinary commands.

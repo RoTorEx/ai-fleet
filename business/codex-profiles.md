@@ -50,9 +50,8 @@ borrow the shared local history's model/cost accounting.
 
 Each saved login has an accountID linking it to the existing FleetAccount and
 its Greek badge. The label is internal legacy metadata, not another account.
-Settings → Accounts chooses the account; Sign in on its Codex connection starts
-the browser flow. Connect provider first selects an existing or new account and
-rejects a duplicate provider association. The same `Codex (badge)` appears in the
+In Settings → Accounts, Sign In on an account's Codex row starts the browser
+flow. Connect Provider never adds a duplicate provider association. The same `Codex (badge)` appears in the
 menu, Settings and Statistics → Codex → Accounts. Internal auth homes and the
 standard CLI login are never presented as additional user accounts.
 
@@ -113,7 +112,7 @@ logout deadlines. Native logout acts only on that profile's credential store;
 other profiles, the standard ~/.codex home, and session history are preserved.
 After any auth outcome, old measurements are discarded and native state is
 reconciled; cancellation is not a rollback of a login that already completed.
-Remove account forgets the corresponding metadata and saved-login association,
+Remove Account forgets the corresponding metadata and saved-login association,
 leaving credential directories and history intact. Sign out first to clear login.
 
 ## Measurement and accounting

@@ -29,7 +29,7 @@ final class AccountsTests: XCTestCase {
         restarted.remove(work.id)
         XCTAssertEqual(restarted.selected(for: "claude")?.id, FleetAccount.defaultID)
         XCTAssertTrue(FileManager.default.fileExists(atPath: login.path))
-        XCTAssertEqual(restarted.add().badge, "β", "Removing α must not reassign its badge to a new account")
+        XCTAssertEqual(restarted.add().badge, "α", "Letters follow order, so the only account is α again")
     }
 
     @MainActor
@@ -89,7 +89,7 @@ final class AccountsTests: XCTestCase {
         defaults.set(data, forKey: "claude.profiles")
         defaults.set("work", forKey: "claude.selectedProfile")
         let migrated = AccountStore(defaults: defaults)
-        XCTAssertEqual(migrated.selected(for: "claude")?.badge, "β")
+        XCTAssertEqual(migrated.selected(for: "claude")?.badge, "α", "The only labeled account is first")
         XCTAssertEqual(migrated.selected(for: "claude")?.connection(for: "claude")?.configDirectory, legacy[1].configDirectory)
         XCTAssertEqual(migrated.selected(for: "claude")?.connection(for: "claude")?.id, legacy[1].id)
         XCTAssertEqual(migrated.linkedAccounts(for: "codex").count, 1)

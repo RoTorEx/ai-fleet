@@ -32,8 +32,9 @@ MenuLegendSection provides semantic sections for future design composition.
 ## Stable account badges
 
 The first ten real accounts use α β γ δ ε ζ η θ ι κ. Existing full-alphabet
-support remains; ten is a tested capacity, not a maximum. Removed badges are
-not recycled. Restarts and provider selection do not renumber accounts.
+support remains; ten is a tested capacity, not a maximum. Letters follow the
+user's order: reordering renumbers, removal closes the gap, and restarts or
+provider selection never renumber accounts.
 
 ## Signing and permission diagnosis
 

@@ -3,7 +3,7 @@ import XCTest
 
 final class MenuContractTests: XCTestCase {
     @MainActor
-    func testTenBadgesPersistWithoutRecycling() throws {
+    func testBadgesFollowOrderAcrossRemovalReorderAndRestart() throws {
         let suite = "stage5-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -14,8 +14,19 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(accounts.map(\.badge), Array("αβγδεζηθικ").map(String.init))
         store.remove(accounts[4].id)
         let restarted = AccountStore(defaults: defaults, homeDirectory: root)
-        XCTAssertEqual(restarted.accounts.filter { !$0.badge.isEmpty }.map(\.badge), accounts.filter { $0.id != accounts[4].id }.map(\.badge))
-        XCTAssertEqual(restarted.add().badge, "λ")
+        let remaining = accounts.filter { $0.id != accounts[4].id }.map(\.id)
+        XCTAssertEqual(restarted.visibleAccounts.map(\.id), remaining, "Removal keeps the order")
+        XCTAssertEqual(restarted.visibleAccounts.map(\.badge), Array("αβγδεζηθι").map(String.init), "and closes the gap")
+        XCTAssertEqual(restarted.add().badge, "κ")
+
+        // Dragging the last account to the top makes it α and shifts the rest down.
+        let last = restarted.visibleAccounts.last!
+        restarted.moveAccounts(from: IndexSet(integer: restarted.visibleAccounts.count - 1), to: 0)
+        let reordered = AccountStore(defaults: defaults, homeDirectory: root)
+        XCTAssertEqual(reordered.visibleAccounts.first?.id, last.id)
+        XCTAssertEqual(reordered.visibleAccounts.first?.badge, "α")
+        XCTAssertEqual(reordered.visibleAccounts.dropFirst().first?.id, remaining.first)
+        XCTAssertEqual(reordered.visibleAccounts.dropFirst().first?.badge, "β")
     }
 
     @MainActor
