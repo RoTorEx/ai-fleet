@@ -4,7 +4,7 @@ import SwiftUI
 struct AIFleetMenuView: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
-    var openProcesses: () -> Void = {}
+    @ObservedObject var screen: FleetMenuScreen
     @ObservedObject var agents: AgentSessionsService
 
     @EnvironmentObject var service: StatusService
@@ -37,24 +37,28 @@ struct AIFleetMenuView: View {
             FleetDivider()
                 .padding(.top, 10)
 
-            // Two columns: providers never scroll; only the Agents list on the right does.
-            HStack(alignment: .top, spacing: 0) {
-                VStack(alignment: .leading, spacing: 10) {
-                    MenuSectionTitle(title: "Providers",
-                                     count: "\(monitoringSummary.measured)/\(monitoringSummary.total)")
-                    providerRows
+            MenuTabBar(screen: screen, tabs: [
+                .init(tab: .providers, title: "Providers",
+                      count: "\(monitoringSummary.measured)/\(monitoringSummary.total)", attention: false),
+                .init(tab: .agents, title: "Agents", count: "\(agents.sessions.count)",
+                      attention: !agents.isStale && agents.sessions.contains(where: \.needsYou)),
+                .init(tab: .processes, title: "Processes", count: nil, attention: false),
+            ])
+            .padding(.horizontal, 16)
+            .padding(.top, 9)
+            .padding(.bottom, 10)
+
+            // Only the active tab's content scrolls, once the menu reaches 80% of the screen.
+            MenuRowsViewport(maxHeight: tabBudget) {
+                switch screen.tab {
+                case .providers:
+                    providerRows.padding(.horizontal, 16).padding(.bottom, 10)
+                case .agents:
+                    MenuAgentsSection(service: agents)
+                case .processes:
+                    CodexProcessesView()
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .frame(width: FleetMenuLayout.providersWidth, alignment: .leading)
-
-                Rectangle().fill(FleetPalette.divider).frame(width: 1)
-
-                MenuAgentsSection(service: agents, maxListHeight: agentsListBudget)
-                    .padding(.top, 10)
-                    .frame(width: FleetMenuLayout.agentsWidth, alignment: .leading)
             }
-            .fixedSize(horizontal: false, vertical: true)
 
             FleetDivider()
                 .padding(.bottom, 8)
@@ -90,11 +94,11 @@ struct AIFleetMenuView: View {
     }
 
     /// The menu may grow to 80% of the screen's visible height; past that only the
-    /// Agents list scrolls. Header, providers and footer always stay whole.
-    private var agentsListBudget: CGFloat {
+    /// active tab scrolls. Header, tabs and footer always stay whole.
+    private var tabBudget: CGFloat {
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
-        // Header, footer, dividers, paddings and the Agents title around the list.
-        let chrome: CGFloat = 130
+        // Header, tab bar, footer, dividers and paddings around the content.
+        let chrome: CGFloat = 120
         return max(160, screenHeight * 0.8 - chrome)
     }
 
@@ -218,7 +222,6 @@ struct AIFleetMenuView: View {
         Menu {
             Button("Statistics") { openStatistics() }
             Button("Settings…") { openSettings() }.keyboardShortcut(",")
-            Button("Processes") { openProcesses() }
             Divider()
             Button("Quit") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
         } label: {
@@ -314,10 +317,8 @@ struct MenuRowsViewport<Content: View>: View {
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: MenuRowsHeightKey.self, value: geometry.size.height)
                 })
+                .background(OverlayScrollers())
         }
-        // A legacy scroller paints an opaque track over the glass; a soft fade
-        // at the bottom edge says "more below" instead.
-        .scrollIndicators(.hidden)
         .mask {
             VStack(spacing: 0) {
                 Color.black
@@ -330,21 +331,81 @@ struct MenuRowsViewport<Content: View>: View {
     }
 }
 
-enum FleetMenuLayout {
-    static let providersWidth: CGFloat = 340
-    static let agentsWidth: CGFloat = 400
-    static let width = providersWidth + 1 + agentsWidth
+/// Terminal-style scrolling: the scroller slides in while scrolling and fades out,
+/// even when System Settings asks for always-visible (legacy) scroll bars, whose
+/// opaque track would cover the glass.
+private struct OverlayScrollers: NSViewRepresentable {
+    func makeNSView(context: Context) -> OverlayScrollersView { OverlayScrollersView() }
+    func updateNSView(_ view: OverlayScrollersView, context: Context) { view.apply() }
 }
 
-/// Shared column heading: "Providers 3/4", "Agents 15".
-struct MenuSectionTitle: View {
-    let title: String
-    let count: String
+private final class OverlayScrollersView: NSView {
+    private var observer: NSObjectProtocol?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        apply()
+        guard observer == nil, window != nil else { return }
+        // The scroll view resets its style when the system preference changes.
+        observer = NotificationCenter.default.addObserver(forName: NSScroller.preferredScrollerStyleDidChangeNotification,
+                                                          object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async { self?.apply() }
+        }
+    }
+
+    func apply() {
+        guard let scrollView = enclosingScrollView else { return }
+        if scrollView.scrollerStyle != .overlay { scrollView.scrollerStyle = .overlay }
+        scrollView.autohidesScrollers = true
+        scrollView.hasHorizontalScroller = false
+    }
+
+    deinit {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
+}
+
+enum FleetMenuLayout {
+    static let width: CGFloat = 354
+}
+
+/// Tabs are the section titles themselves: "Providers 3/4  Agents 15  Processes".
+/// The active one is bright; an orange dot flags agents waiting for the user.
+struct MenuTabBar: View {
+    struct Item {
+        let tab: MenuTab
+        let title: String
+        let count: String?
+        let attention: Bool
+    }
+    @ObservedObject var screen: FleetMenuScreen
+    let tabs: [Item]
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundColor(FleetPalette.value)
-            Text(count).font(.system(size: 11.5, weight: .medium).monospacedDigit()).foregroundColor(FleetPalette.muted)
+        HStack(spacing: 16) {
+            ForEach(tabs, id: \.tab) { item in
+                let active = screen.tab == item.tab
+                Button { screen.tab = item.tab } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text(item.title).font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(active ? FleetPalette.value : FleetPalette.muted)
+                        if let count = item.count {
+                            Text(count).font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                                .foregroundColor(FleetPalette.muted.opacity(active ? 1 : 0.7))
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if item.attention {
+                            Circle().fill(FleetPalette.warning).frame(width: 6, height: 6).offset(x: 7, y: -1)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("\(item.title) (← →)")
+                .accessibilityAddTraits(active ? .isSelected : [])
+            }
+            Spacer(minLength: 0)
         }
     }
 }
@@ -840,7 +901,7 @@ struct LegendSection: View {
                 title("Keys")
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 9) { legendKey("⌘R", "refresh"); legendKey("Click", "jump to agent") }
-                    HStack(spacing: 9) { legendKey("⌘,", "settings"); legendKey("Esc", "close") }
+                    HStack(spacing: 9) { legendKey("← →", "tabs"); legendKey("⌘,", "settings"); legendKey("Esc", "close") }
                 }
             }
         }

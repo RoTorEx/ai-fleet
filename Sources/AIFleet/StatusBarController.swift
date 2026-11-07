@@ -7,8 +7,21 @@ final class FleetMenuScreen: ObservableObject {
     /// Content exists only while the panel is open, so a closed menu runs no
     /// timers, animations or SwiftUI updates.
     @Published var isOpen = false
-    @Published var showsAgents = false
-    @Published var agentsSection = "Sessions"
+    /// The last tab is remembered across openings and restarts.
+    @Published var tab: MenuTab = MenuTab(rawValue: UserDefaults.standard.string(forKey: "menu.tab") ?? "") ?? .providers {
+        didSet { UserDefaults.standard.set(tab.rawValue, forKey: "menu.tab") }
+    }
+
+    /// ← / → move between tabs and stop at the ends.
+    func step(_ delta: Int) {
+        let all = MenuTab.allCases
+        guard let index = all.firstIndex(of: tab) else { return }
+        tab = all[min(max(index + delta, 0), all.count - 1)]
+    }
+}
+
+enum MenuTab: String, CaseIterable {
+    case providers, agents, processes
 }
 
 struct FleetMenuRoot: View {
@@ -17,18 +30,14 @@ struct FleetMenuRoot: View {
     let service: StatusService
     let openSettings: () -> Void
     let openStatistics: () -> Void
-    let toggleAgents: () -> Void
-    let openProcesses: () -> Void
 
     var body: some View {
         Group {
             if !screen.isOpen {
                 Color.clear.frame(width: 1, height: 1)
-            } else if screen.showsAgents {
-                AgentsView(service: agents, section: screen.agentsSection, back: toggleAgents)
             } else {
                 AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics,
-                                openProcesses: openProcesses, agents: agents)
+                                screen: screen, agents: agents)
                     .environmentObject(service)
                     .environmentObject(AppSettings.shared)
             }
@@ -159,15 +168,13 @@ final class StatusBarController: NSObject {
         self.openSettings = openSettings
         self.openStatistics = openStatistics
         // The root view is built before `self` exists; its actions resolve through this box.
-        var actions: (settings: () -> Void, statistics: () -> Void, agents: () -> Void, processes: () -> Void) = ({}, {}, {}, {})
+        var actions: (settings: () -> Void, statistics: () -> Void) = ({}, {})
         hostingController = NSHostingController(rootView: FleetMenuRoot(
             screen: screen,
             agents: agents,
             service: service,
             openSettings: { actions.settings() },
-            openStatistics: { actions.statistics() },
-            toggleAgents: { actions.agents() },
-            openProcesses: { actions.processes() }
+            openStatistics: { actions.statistics() }
         ))
         hostingController.sizingOptions = [.preferredContentSize]
         panel = FleetMenuPanel(content: hostingController.view)
@@ -182,11 +189,6 @@ final class StatusBarController: NSObject {
                 DispatchQueue.main.async { [weak self] in
                     self?.openStatistics(anchorFrame)
                 }
-            },
-            agents: { [weak self] in self?.toggleAgents() },
-            processes: { [weak self] in
-                self?.screen.agentsSection = "Processes"
-                self?.toggleAgents()
             }
         )
 
@@ -210,16 +212,6 @@ final class StatusBarController: NSObject {
         } else {
             showPanel()
         }
-    }
-
-    /// Switches between the main menu (with embedded Agents) and the Processes screen.
-    func toggleAgents() {
-        screen.showsAgents.toggle()
-        if !screen.showsAgents {
-            screen.agentsSection = "Sessions"
-            agents.start()
-        }
-        panel.makeKey()
     }
 
     @objc private func statusItemClicked() {
@@ -287,8 +279,6 @@ final class StatusBarController: NSObject {
         stopClickMonitor()
         agents.stop()
         screen.isOpen = false
-        screen.showsAgents = false
-        screen.agentsSection = "Sessions"
     }
 
     private func startClickMonitor() {
@@ -312,6 +302,13 @@ final class StatusBarController: NSObject {
 
             if event.type == .keyDown, event.keyCode == UInt16(kVK_Escape), NSApplication.shared.modalWindow == nil {
                 self.closePanel()
+                return nil
+            }
+
+            if event.type == .keyDown, NSApplication.shared.modalWindow == nil, event.window === self.panel,
+               event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+               [UInt16(kVK_LeftArrow), UInt16(kVK_RightArrow)].contains(event.keyCode) {
+                self.screen.step(event.keyCode == UInt16(kVK_LeftArrow) ? -1 : 1)
                 return nil
             }
 

@@ -78,7 +78,7 @@ subscription charges.
   or change their shared CLI authorization. Claude, Kimi, Qwen and Gemini use account-specific launch profiles under the
   [universal Switch contract](business/provider-switching.md); native browser login
   remains separate. Shared Codex credential replacement stays blocked while Codex runs. Explicit,
-  confirmed Stop/Force Quit controls are available in Agents → Processes,
+  confirmed Stop/Force Quit controls are available in the Processes tab,
   independently of account selection.
   Management stays in Settings → Accounts with one account editor and an
   existing/new account choice when connecting a provider. Small parenthesized
@@ -210,14 +210,14 @@ subscription charges.
   Summary and detail panels remain within the default window size.
 - All windows follow the current macOS light or dark appearance.
 - The menu header is one line: a status dot with Active/Paused and ⓘ, then
-  Refresh (⌘R) and Options. Below it the Providers column heading carries
-  `measured/saved` (for example `1/6`: saved accounts with a current limit out
-  of all saved accounts of enabled providers), like the Agents heading carries its count.
+  Refresh (⌘R) and Options. Below it the tabs Providers, Agents and Processes;
+  the Providers tab carries `measured/saved` (for example `1/6`: saved accounts
+  with a current limit out of all saved accounts of enabled providers) and the
+  Agents tab its session count.
   Sign-in progress and errors add one detail line below it; a manual refresh spins the
   Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status. Options is a native menu:
-  Statistics, Settings…, Processes, Quit. Agents is the right column next
-  to the providers; the menu grows to 80% of the screen's visible height, after which
-  only the Agents list scrolls (header, providers and footer never scroll). The menu has no Update command. The footer shows
+  Statistics, Settings…, Quit. The menu grows to 80% of the screen's visible
+  height, after which only the active tab scrolls (header, tabs and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not
   permanent: hovering the ⓘ after the status shows it as a card over the menu,
   grouping Monitoring, Quota, Access, Marks and Keys under aligned titles.

@@ -2,11 +2,14 @@
 
 ## Workflow
 
-The configured global shortcut opens AI Fleet. The main menu has two columns:
-Providers on the left and Agents on the right, grouped by collapsible location; the session engine
-runs while the menu is open. The menu grows up to 80% of the screen's visible
-height; past that only the Agents list scrolls. Processes opens from Options as
-a separate screen with Back. No Command-A registration remains.
+The configured global shortcut opens AI Fleet. The menu has three tabs under
+the header: Providers, Agents (grouped by collapsible location) and Processes.
+Click a tab title or press ← / →; the last tab is remembered across openings
+and restarts. An orange dot on Agents flags a session waiting for approval or
+an answer. The session engine runs while the menu is open so that dot stays
+current; Processes rescans only while its tab is visible. The menu grows up to
+80% of the screen's visible height; past that only the active tab scrolls, with
+a terminal-style overlay scroller. No Command-A registration remains.
 
 Each row shows the terminal session name without spinner glyphs or the iTerm
 job suffix such as "(codex)"; provider and model sit on the second line. The
@@ -26,7 +29,7 @@ relationships are never guessed from a directory or title.
 
 Click opens the exact existing iTerm2 window/tab/split and leaves the overview
 open. Session Jump never sends text, approvals, stop commands or tab closure.
-The separate Processes section offers explicit process termination as described below.
+The Processes tab offers explicit process termination as described below.
 Escape, outside click (unless disabled in General) or the global toggle closes
 the menu. Ambiguous/exited links report an error rather than choosing a similar title.
 Opening a pane does not prove the user read its response.
@@ -83,7 +86,7 @@ checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls
 
-Agents has Sessions and Processes sections. Processes lists the current user's recognized Codex and Claude executables,
+The Processes tab lists the current user's recognized Codex and Claude executables,
 including native version-named Claude binaries and known installed Node entrypoints.
 Detached processes can remain after terminals close; their exact role/account
 remains unknown without evidence. Native libproc discovery uses

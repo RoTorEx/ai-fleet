@@ -131,8 +131,8 @@ several, ↓ the lowest remaining quota anywhere, × sign-in required and ? limi
 unavailable (gray even with a configured CLI login). Important account notes
 appear in the Status section of the ⓘ card.
 The header shows whether AI Fleet monitoring is Active or Paused, with Refresh
-(⌘R) and Options (⋯) on the right. Providers (left, with a `measured/saved`
-count such as `1/6`) and Agents (right) sit in two columns. The footer shows the
+(⌘R) and Options (⋯) on the right. Tabs Providers (with a `measured/saved`
+count such as `1/6`), Agents and Processes switch by click or ← / →. The footer shows the
 last refresh and the version. Hover ⓘ next to the status for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
 Marks and Keys. **Statistics → Codex →

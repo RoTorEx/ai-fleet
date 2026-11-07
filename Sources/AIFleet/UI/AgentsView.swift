@@ -1,200 +1,41 @@
 import AppKit
 import SwiftUI
 
-struct AgentsView: View {
-    @ObservedObject var service: AgentSessionsService
-    let back: () -> Void
-    @State private var filter = "All"
-    @State private var collapsed = Set<String>()
-    @State private var section: String
-
-    init(service: AgentSessionsService, section: String = "Sessions", back: @escaping () -> Void) {
-        self.service = service
-        self.back = back
-        _section = State(initialValue: section)
-    }
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let filters = ["All", "Needs you", "Working", "Idle", "Unknown"]
-
-    private var visible: [AgentSession] {
-        service.sessions.filter { session in
-            switch filter {
-            case "Needs you": return session.needsYou
-            case "Working": return session.isWorking
-            case "Idle": return ["Untracked", "Opened", "New reply"].contains(session.state)
-            case "Unknown": return session.state == "Unknown" || session.location == nil
-            default: return true
-            }
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 9) {
-                Image(systemName: "waveform.path.ecg").foregroundStyle(.green)
-                Text("Agents").font(.system(size: 15, weight: .semibold))
-                Text("\(service.sessions.count)").font(.system(size: 11, weight: .bold, design: .rounded))
-                    .padding(.horizontal, 7).padding(.vertical, 3).background(.quaternary, in: Capsule())
-                Spacer()
-                if section == "Sessions" {
-                    if service.isLoading { ProgressView().controlSize(.small) }
-                    Button { service.refresh(force: true) } label: { Image(systemName: "arrow.clockwise") }
-                        .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
-                }
-                Button(action: back) {
-                    HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Back") }
-                }.buttonStyle(.plain).help("Return to the main menu")
-            }.padding(.horizontal, 16).padding(.top, 15).padding(.bottom, 10)
-
-            Picker("View", selection: $section) {
-                Text("Sessions").tag("Sessions")
-                Text("Processes").tag("Processes")
-            }.pickerStyle(.segmented).padding(.horizontal, 14).padding(.bottom, 10)
-
-            if section == "Processes" {
-                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
-                    CodexProcessesView()
-                }
-            } else {
-                HStack(spacing: 4) {
-                    ForEach(filters, id: \.self) { item in
-                        Button { filter = item } label: {
-                            Text(item).font(.system(size: 10.5, weight: .medium))
-                                .padding(.horizontal, 8).padding(.vertical, 5)
-                                .foregroundStyle(filter == item ? Color.primary : Color.secondary)
-                                .background(filter == item ? Color.primary.opacity(0.09) : Color.clear, in: Capsule())
-                        }.buttonStyle(.plain)
-                    }
-                    Spacer(minLength: 0)
-                }.padding(.horizontal, 12).padding(.bottom, 9)
-                Divider()
-
-                if let error = service.error {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                } else if !service.sessions.isEmpty, service.sessions.allSatisfy({ $0.location == nil }) {
-                    Text(service.sessions.first?.linkReason ?? "No confirmed iTerm2 links. Check Automation permission in System Settings.")
-                        .font(.caption).foregroundStyle(.orange).lineLimit(3)
-                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                MenuRowsViewport(maxHeight: min(550, max(210, (NSScreen.main?.visibleFrame.height ?? 800) - 220))) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if visible.isEmpty {
-                            VStack(spacing: 10) {
-                                Image(systemName: service.isLoading ? "antenna.radiowaves.left.and.right" : "terminal")
-                                    .font(.system(size: 28)).foregroundStyle(.secondary)
-                                Text(service.isLoading ? "Finding live sessions…" : emptyTitle).font(.headline)
-                                Text(service.sessions.isEmpty ? "Open Codex or Claude in iTerm2.\nYour usual launch commands stay the same." : "Choose another filter to see more sessions.")
-                                    .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            }.frame(maxWidth: .infinity).padding(.vertical, 55)
-                        }
-                        ForEach(AgentGroup.make(visible)) { group in
-                            Button {
-                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                                    if !collapsed.insert(group.id).inserted { collapsed.remove(group.id) }
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down").font(.system(size: 8, weight: .bold))
-                                    Image(systemName: "folder")
-                                    Text(group.name).lineLimit(1).truncationMode(.middle)
-                                    Text("\(group.sessions.count)").foregroundStyle(.tertiary)
-                                    Spacer()
-                                }.font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
-                                    .padding(.horizontal, 9).padding(.top, 11).padding(.bottom, 4)
-                                    .contentShape(Rectangle())
-                            }.buttonStyle(.plain).help(group.id)
-                            if !collapsed.contains(group.id) {
-                                ForEach(group.sessions) { session in
-                                    AgentSessionRow(session: session,
-                                        selected: service.selectedID == session.id,
-                                        jumping: service.jumpingID == session.id,
-                                        stale: service.isStale,
-                                        observedAt: service.observedAt,
-                                        canJump: service.jumpingID == nil) {
-                                        service.jump(to: session)
-                                    }
-                                }
-                            }
-                        }
-                    }.padding(.horizontal, 9).padding(.bottom, 12)
-                }
-
-                Divider()
-                if let error = service.jumpError {
-                    Text(error).font(.caption).foregroundStyle(.orange)
-                        .padding(.horizontal, 14).padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                HStack(spacing: 7) {
-                    Circle().fill(service.isStale ? Color.orange : Color.green).frame(width: 5, height: 5)
-                    Text(service.isStale ? "Stale · refresh to verify" : (service.isLoading ? "Connecting to iTerm2…" : "Live · local iTerm2 sessions"))
-                    Spacer()
-                    Text("Click to jump · Esc to close")
-                }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 11)
-            }
-        }
-        .frame(width: 520)
-        .onAppear { if section == "Processes" { service.stop() } }
-        .onChange(of: section) { section in
-            if section == "Processes" { service.stop() } else { service.start() }
-        }
-    }
-
-    private var emptyTitle: String { service.sessions.isEmpty ? "No linked agents yet" : "No sessions in this filter" }
-}
-
-/// Live agent sessions in the right column of the main menu, grouped by location.
-/// The caller bounds its height; this is the only scrolling block of the menu.
+/// Live agent sessions on the Agents tab, grouped by location. The tab's
+/// viewport bounds the height and scrolls.
 struct MenuAgentsSection: View {
     @ObservedObject var service: AgentSessionsService
-    let maxListHeight: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                MenuSectionTitle(title: "Agents", count: "\(service.sessions.count)")
-                if service.isLoading { ProgressView().controlSize(.mini) }
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-
+        VStack(alignment: .leading, spacing: 4) {
             if let error = service.error ?? service.jumpError {
                 Text(error).font(.system(size: 10.5)).foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 16)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
             }
-
             if service.sessions.isEmpty {
                 Text(service.isLoading ? "Finding live sessions…" : "No live Codex or Claude sessions in iTerm2.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 16).padding(.bottom, 10)
-            } else {
-                MenuRowsViewport(maxHeight: maxListHeight) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(AgentGroup.make(service.sessions)) { group in
-                            groupHeader(group)
-                            if !service.collapsedGroups.contains(group.id) {
-                                ForEach(group.sessions) { session in
-                                    AgentSessionRow(session: session,
-                                        selected: service.selectedID == session.id,
-                                        jumping: service.jumpingID == session.id,
-                                        stale: service.isStale,
-                                        observedAt: service.observedAt,
-                                        canJump: service.jumpingID == nil,
-                                        expanded: expansion(for: session.id)) {
-                                        service.jump(to: session)
-                                    }
-                                }
-                            }
+                    .font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 4)
+            }
+            ForEach(AgentGroup.make(service.sessions)) { group in
+                groupHeader(group)
+                if !service.collapsedGroups.contains(group.id) {
+                    ForEach(group.sessions) { session in
+                        AgentSessionRow(session: session,
+                            selected: service.selectedID == session.id,
+                            jumping: service.jumpingID == session.id,
+                            stale: service.isStale,
+                            observedAt: service.observedAt,
+                            canJump: service.jumpingID == nil,
+                            expanded: expansion(for: session.id)) {
+                            service.jump(to: session)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
                 }
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
     }
 
     private func groupHeader(_ group: AgentGroup) -> some View {
@@ -281,7 +122,7 @@ private struct AgentSessionRow: View {
                             .font(.system(size: 9, weight: .bold))
                             .rotationEffect(.degrees(expanded.wrappedValue ? 180 : 0))
                             .foregroundStyle(hovering || expanded.wrappedValue ? tint : Color.secondary.opacity(0.6))
-                            .frame(width: 18, height: 30)
+                            .frame(width: 16, height: 28)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -291,55 +132,46 @@ private struct AgentSessionRow: View {
             }
             if expanded?.wrappedValue == true {
                 AgentMessages(session: session, contract: contract, tint: tint)
-                    .padding(.leading, 40).padding(.top, 7).padding(.trailing, 6)
+                    .padding(.leading, 35).padding(.top, 6).padding(.trailing, 6)
             }
             AgentActivityLine(color: tint, active: live)
                 .frame(height: 2)
-                .padding(.leading, 40).padding(.top, 5)
-                .opacity(live ? 1 : 0)
+                .padding(.leading, 35).padding(.top, 3).padding(.trailing, 22)
         }
-        .padding(.leading, 9).padding(.trailing, 4).padding(.top, 7).padding(.bottom, 5)
-        .background(
-            LinearGradient(colors: [tint.opacity(hovering ? 0.22 : (selected ? 0.17 : 0.13)),
-                                    tint.opacity(hovering ? 0.08 : 0.035)],
-                           startPoint: .leading, endPoint: .trailing),
-            in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .strokeBorder(tint.opacity(hovering || selected ? 0.5 : 0.16), lineWidth: 1))
+        .padding(.leading, 9).padding(.trailing, 3).padding(.vertical, 6)
+        .background(tint.opacity(hovering ? 0.14 : (selected ? 0.09 : 0.035)), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(tint.opacity(hovering || selected ? 0.45 : 0.08), lineWidth: 1))
         .onHover { hovering = $0 }
     }
 
     private var summary: some View {
         HStack(spacing: 10) {
             ZStack {
-                Circle().fill(LinearGradient(colors: [tint.opacity(0.42), tint.opacity(0.16)],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                Circle().fill(tint.opacity(0.12))
                 if live {
                     AgentOrbit(color: tint)
                 } else {
-                    Circle().strokeBorder(tint.opacity(0.45), lineWidth: 1)
+                    Circle().stroke(tint.opacity(0.35), lineWidth: 1)
                 }
-                Image(systemName: symbol).font(.system(size: 10.5, weight: .bold))
-                    .foregroundStyle(session.needsYou ? statusColor : tint)
+                Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(statusColor)
             }
-            .frame(width: 28, height: 28)
+            .frame(width: 25, height: 25)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
                     Text(AgentRowText.title(session.title, provider: session.provider))
-                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.primary)
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
                         .lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 3)
                     if jumping { ProgressView().controlSize(.mini) }
                     else { AgentTimeLabel(contract: contract, fallback: session.updatedAt) }
                 }
                 HStack(spacing: 5) {
-                    Text(session.provider.capitalized).fontWeight(.medium).foregroundStyle(tint)
+                    Text(session.provider.capitalized).foregroundStyle(tint)
                     if let model = session.model { Text("· \(model)").lineLimit(1) }
                     Spacer(minLength: 4)
                     Text(session.location == nil ? "Unlinked" : (stale ? "Stale" : session.state))
-                        .fontWeight(live || session.needsYou ? .semibold : .regular)
                         .foregroundStyle(statusColor).lineLimit(1)
-                }.font(.system(size: 10.5)).foregroundStyle(.secondary)
+                }.font(.system(size: 10)).foregroundStyle(.secondary)
             }
         }
     }

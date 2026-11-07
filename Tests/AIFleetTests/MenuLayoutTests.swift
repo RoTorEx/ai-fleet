@@ -26,7 +26,7 @@ final class MenuLayoutTests: XCTestCase {
         let screen = FleetMenuScreen()
         let service = StatusService(session: URLSession(configuration: .ephemeral))
         let host = NSHostingController(rootView: FleetMenuRoot(screen: screen, agents: AgentSessionsService(), service: service,
-            openSettings: {}, openStatistics: {}, toggleAgents: {}, openProcesses: {}))
+            openSettings: {}, openStatistics: {}))
         host.sizingOptions = [.preferredContentSize]
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 400),
                               styleMask: [.borderless], backing: .buffered, defer: false)
@@ -129,7 +129,7 @@ final class MenuLayoutTests: XCTestCase {
             anchor.appearance = NSAppearance(named: appearance)
             let service = StatusService(session: URLSession(configuration: .ephemeral))
             let host = NSHostingController(rootView:
-                AIFleetMenuView(openSettings: {}, openStatistics: {}, agents: AgentSessionsService())
+                AIFleetMenuView(openSettings: {}, openStatistics: {}, screen: FleetMenuScreen(), agents: AgentSessionsService())
                     .environmentObject(service).environmentObject(AppSettings.shared)
                     .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))
             host.sizingOptions = [.preferredContentSize]
@@ -156,6 +156,20 @@ final class MenuLayoutTests: XCTestCase {
             }
             popover.performClose(nil)
         }
+    }
+
+    @MainActor
+    func testArrowsStepThroughTabsAndTheLastTabIsRemembered() {
+        let saved = UserDefaults.standard.string(forKey: "menu.tab")
+        defer { UserDefaults.standard.set(saved, forKey: "menu.tab") }
+        let screen = FleetMenuScreen()
+        screen.tab = .providers
+        screen.step(-1)
+        XCTAssertEqual(screen.tab, .providers)
+        screen.step(1); screen.step(1); screen.step(1)
+        XCTAssertEqual(screen.tab, .processes)
+        screen.step(-1)
+        XCTAssertEqual(FleetMenuScreen().tab, .agents)
     }
 
     @MainActor

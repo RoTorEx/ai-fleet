@@ -8,13 +8,8 @@ struct CodexProcessesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Provider processes").font(.headline)
-                Spacer()
-                if service.refreshing { ProgressView().controlSize(.small) }
-                Button("Refresh") { service.refresh() }.keyboardShortcut("r")
-            }
-            Text("Includes Codex and Claude processes, including detached processes left after terminal windows close. Select an individual process for manual recovery; account identity may be unknown.")
+            // The tab title names the list; it rescans every 3 seconds while visible.
+            Text("Codex and Claude processes, including ones left after terminals close. Account identity may be unknown.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if let error = service.error {
                 Text(error).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -61,7 +56,8 @@ struct CodexProcessesView: View {
                     .font(.caption).padding(.top, 4)
             }
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
         .disabled(!service.stopping.isEmpty)
         .onAppear { service.start() }
         .onDisappear { service.stopMonitoring() }

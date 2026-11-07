@@ -54,13 +54,13 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertEqual(contract.lastMessageAt, Date(timeIntervalSince1970: 1799999990))
         XCTAssertEqual(contract.state, .working)
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-            let host = NSHostingController(rootView: AgentsView(service: service, back: {}))
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 700),
+            let host = NSHostingController(rootView: MenuAgentsSection(service: service).frame(width: 354))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 700),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: appearance)
             window.contentViewController = host
             host.view.layoutSubtreeIfNeeded()
-            XCTAssertEqual(host.view.fittingSize.width, 520, accuracy: 1)
+            XCTAssertEqual(host.view.fittingSize.width, 354, accuracy: 1)
             XCTAssertLessThan(host.view.fittingSize.height, NSScreen.main?.visibleFrame.height ?? 1000)
             if let capture = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
                let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
