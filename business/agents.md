@@ -2,10 +2,11 @@
 
 ## Workflow
 
-The configured global shortcut opens AI Fleet. Agents is the first Options item
-until it is embedded in the main menu. Command-A toggles Usage/Agents while the menu is open, also
-after Jump transfers focus to iTerm2. The temporary Command-A registration is
-removed on close. The existing configured global shortcut is preserved.
+The configured global shortcut opens AI Fleet. Agents is a block under the
+providers in the main menu, grouped by collapsible location; the session engine
+runs while the menu is open. The menu grows up to 80% of the screen's visible
+height; past that only the Agents list scrolls. Processes opens from Options as
+a separate screen with Back. No Command-A registration remains.
 
 The compact colorful view follows the user's IMG_1195.MP4 reference: project
 headings, collapsible groups, stable session rows, provider/model when known,
@@ -17,8 +18,8 @@ relationships are never guessed from a directory or title.
 Click opens the exact existing iTerm2 window/tab/split and leaves the overview
 open. Session Jump never sends text, approvals, stop commands or tab closure.
 The separate Processes section offers explicit process termination as described below.
-Command-A returns to Usage. Escape, outside click or the global toggle closes the
-menu. Ambiguous/exited links report an error rather than choosing a similar title.
+Escape, outside click (unless disabled in General) or the global toggle closes
+the menu. Ambiguous/exited links report an error rather than choosing a similar title.
 Opening a pane does not prove the user read its response.
 
 ## Ownership and data

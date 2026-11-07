@@ -23,9 +23,8 @@ No dock icon. AI Fleet monitors and opens native sign-in for each provider’s g
 
 ## Agents
 
-Choose **Agents** in the **Options** (⋯) menu, or press **Command-A** in the open menu.
-The same shortcut returns to Usage, including after Jump transfers focus to iTerm2.
-The colorful list groups live Codex/Claude sessions by project, with filters,
+The **Agents** block sits under the providers in the main menu and is the only
+part that scrolls once the menu reaches 80% of the screen height. The list groups live Codex/Claude sessions by project, with filters,
 collapsible groups, observed statuses and animated working indicators. Click a row
 to open its exact iTerm2 window/tab/split; the overview stays open. Escape or an
 outside click closes it. The engine ships inside the app; no separate Hub CLI or

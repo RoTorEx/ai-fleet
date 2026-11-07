@@ -4,12 +4,13 @@ import SwiftUI
 struct AIFleetMenuView: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
-    var openAgents: () -> Void = {}
     var openProcesses: () -> Void = {}
+    @ObservedObject var agents: AgentSessionsService
 
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
     @State private var isLegendShown = false
+    @State private var fixedContentHeight: CGFloat = 0
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
@@ -32,26 +33,33 @@ struct AIFleetMenuView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            VStack(alignment: .leading, spacing: 0) {
+                header
 
-            FleetDivider()
-                .padding(.top, 10)
-                .padding(.bottom, 8)
+                FleetDivider()
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
 
-            if connections.count > 3 || connections.reduce(0, { $0 + max(1, $1.status.limitWindows.count) }) > 6 {
-                MenuRowsViewport(maxHeight: min(340, max(180, (NSScreen.main?.visibleFrame.height ?? 700) - 350))) {
-                    providerRows
-                }
-            } else {
+                // Providers never scroll; only Agents below does.
                 providerRows
             }
+            .background(GeometryReader { geometry in
+                Color.clear.preference(key: MenuFixedHeightKey.self, value: geometry.size.height)
+            })
 
             FleetDivider()
                 .padding(.top, 11)
                 .padding(.bottom, 8)
 
+            MenuAgentsSection(service: agents, maxListHeight: agentsListBudget)
+
+            FleetDivider()
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+
             footer
         }
+        .onPreferenceChange(MenuFixedHeightKey.self) { fixedContentHeight = $0 }
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(width: 354)
@@ -80,8 +88,17 @@ struct AIFleetMenuView: View {
         }
     }
 
+    /// The menu may grow to 80% of the screen's visible height; past that only the
+    /// Agents list scrolls. Header, providers and footer always stay whole.
+    private var agentsListBudget: CGFloat {
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+        // Paddings, dividers, the Agents title and the footer around the list.
+        let chrome: CGFloat = 112
+        return max(120, screenHeight * 0.8 - fixedContentHeight - chrome)
+    }
+
     private var providerRows: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 9) {
             ForEach(connections) { entry in
                 ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
             }
@@ -203,7 +220,6 @@ struct AIFleetMenuView: View {
 
     private var optionsMenu: some View {
         Menu {
-            Button("Agents") { openAgents() }.keyboardShortcut("a")
             Button("Statistics") { openStatistics() }
             Button("Settings…") { openSettings() }.keyboardShortcut(",")
             Button("Processes") { openProcesses() }
@@ -303,6 +319,13 @@ struct MenuRowsViewport<Content: View>: View {
         }
         .frame(height: min(maxHeight, contentHeight))
         .onPreferenceChange(MenuRowsHeightKey.self) { contentHeight = max(1, $0) }
+    }
+}
+
+private struct MenuFixedHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -426,8 +449,9 @@ struct ProviderLimitRow: View {
                         }
                     }
                     .foregroundColor(color)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
+                    .padding(.leading, 6)
+                    .padding(.trailing, 4)
+                    .padding(.vertical, 2)
                     // Hover highlight shows the name is clickable.
                     .background(
                         RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -441,7 +465,8 @@ struct ProviderLimitRow: View {
                     })
                 }
                 .buttonStyle(PlainButtonStyle())
-                .padding(.horizontal, -5)
+                .padding(.leading, -6)
+                .padding(.trailing, -4)
                 .onHover { isNameHovered = $0 }
                 .accessibilityLabel("\(status.name) \(entry.account.badge) actions")
                 .accessibilityHint(Text(subscription))
@@ -762,7 +787,7 @@ struct LegendSection: View {
             GridRow {
                 title("Keys")
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 9) { legendKey("⌘R", "refresh"); legendKey("⌘A", "agents") }
+                    HStack(spacing: 9) { legendKey("⌘R", "refresh"); legendKey("Click", "jump to agent") }
                     HStack(spacing: 9) { legendKey("⌘,", "settings"); legendKey("Esc", "close") }
                 }
             }

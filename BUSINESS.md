@@ -7,8 +7,8 @@ subscription charges.
 
 ## Actors and flows
 
-- The developer switches Usage/Agents with Command-A in the open menu, reviews
-  local live Codex/Claude sessions and jumps to an exact iTerm2 pane without
+- The developer sees live local Codex/Claude sessions in the Agents block under
+  the providers of the main menu, reviews them and jumps to an exact iTerm2 pane without
   closing the overview. [Agents](business/agents.md) owns this integration.
 
 - A local developer reads quota state from the menu and receives threshold
@@ -214,8 +214,9 @@ subscription charges.
   of all saved accounts of enabled providers), then Refresh (⌘R) and Options.
   Sign-in progress and errors add one detail line below it; refreshing spins the
   Refresh icon instead of replacing the status. Options is a native menu:
-  Agents (temporary until Agents is embedded), Statistics, Settings…,
-  Processes, Quit. The menu has no Update command. The footer shows
+  Statistics, Settings…, Processes, Quit. Agents is embedded below the
+  providers; the menu grows to 80% of the screen's visible height, after which
+  only the Agents list scrolls (header, providers and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not
   permanent: hovering the ⓘ after the count shows it as a card over the menu,
   grouping Monitoring, Quota, Access, Marks and Keys under aligned titles.

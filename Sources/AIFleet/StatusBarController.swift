@@ -23,7 +23,7 @@ struct FleetMenuRoot: View {
                 AgentsView(service: agents, section: screen.agentsSection, back: toggleAgents)
             } else {
                 AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics,
-                                openAgents: toggleAgents, openProcesses: openProcesses)
+                                openProcesses: openProcesses, agents: agents)
                     .environmentObject(service)
                     .environmentObject(AppSettings.shared)
             }
@@ -136,7 +136,6 @@ final class StatusBarController: NSObject {
     private var lastOutsideDismissal = Date.distantPast
     private let screen = FleetMenuScreen()
     private let agents = AgentSessionsService()
-    private var agentsHotKey: GlobalHotKey?
 
     init(
         service: StatusService,
@@ -199,11 +198,13 @@ final class StatusBarController: NSObject {
         }
     }
 
+    /// Switches between the main menu (with embedded Agents) and the Processes screen.
     func toggleAgents() {
         screen.showsAgents.toggle()
-        if screen.showsAgents { agents.start() } else { agents.stop(); screen.agentsSection = "Sessions" }
-        // Jump transfers focus to iTerm2. The same shortcut brings the menu back.
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        if !screen.showsAgents {
+            screen.agentsSection = "Sessions"
+            agents.start()
+        }
         panel.makeKey()
     }
 
@@ -228,9 +229,7 @@ final class StatusBarController: NSObject {
         panel.makeKeyAndOrderFront(nil)
         statusItem.button?.highlight(true)
         startClickMonitor()
-        agentsHotKey = GlobalHotKey(keyCode: UInt32(kVK_ANSI_A), modifiers: UInt32(cmdKey), id: 2) { [weak self] in
-            self?.toggleAgents()
-        }
+        agents.start()
     }
 
     private func layoutPanel() {
@@ -266,8 +265,6 @@ final class StatusBarController: NSObject {
         statusItem.button?.highlight(false)
         stopClickMonitor()
         agents.stop()
-        agentsHotKey?.unregister()
-        agentsHotKey = nil
         screen.showsAgents = false
         screen.agentsSection = "Sessions"
     }
@@ -312,13 +309,6 @@ final class StatusBarController: NSObject {
                 default:
                     break
                 }
-            }
-
-            // Carbon can also deliver a local key event. Use one route per press.
-            if self.agentsHotKey == nil, event.type == .keyDown, event.keyCode == UInt16(kVK_ANSI_A),
-               event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
-                self.toggleAgents()
-                return nil
             }
 
             if event.type.isMouseDown,

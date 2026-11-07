@@ -19,6 +19,7 @@ Tracks real product and release progress.
 - Open account actions below the provider name with email and plan on top; highlight the name on hover; remove per-row ellipsis buttons and badge popups.
 - Pulse ⓘ red or orange when notes need attention and list accounts with plans at the bottom of its card.
 - Draw the reset countdown over the date so hovering never resizes the menu.
+- Embed live Agents under the providers; only the Agents list scrolls once the menu reaches 80% of the screen height; remove the Command-A screen toggle and the provider scroll area.
 - Draw → as the turned ↓ glyph, unscale legend text, space reset dates from values, and rename unknown login to "Login status unknown".
 
 

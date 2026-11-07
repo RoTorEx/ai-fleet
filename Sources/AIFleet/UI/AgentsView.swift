@@ -42,8 +42,8 @@ struct AgentsView: View {
                         .buttonStyle(.plain).help("Refresh sessions (⌘R)").keyboardShortcut("r")
                 }
                 Button(action: back) {
-                    HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Usage"); Text("⌘A").foregroundStyle(.secondary) }
-                }.buttonStyle(.plain).help("Return to the main menu (⌘A)")
+                    HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Back") }
+                }.buttonStyle(.plain).help("Return to the main menu")
             }.padding(.horizontal, 16).padding(.top, 15).padding(.bottom, 10)
 
             Picker("View", selection: $section) {
@@ -142,6 +142,74 @@ struct AgentsView: View {
     }
 
     private var emptyTitle: String { service.sessions.isEmpty ? "No linked agents yet" : "No sessions in this filter" }
+}
+
+/// Live agent sessions embedded at the bottom of the main menu, grouped by location.
+/// The caller bounds its height; this is the only scrolling block of the menu.
+struct MenuAgentsSection: View {
+    @ObservedObject var service: AgentSessionsService
+    let maxListHeight: CGFloat
+    @State private var collapsed = Set<String>()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Agents").font(.system(size: 12.5, weight: .semibold))
+                Text("\(service.sessions.count)")
+                    .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.secondary)
+                if service.isLoading { ProgressView().controlSize(.mini) }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+
+            if let error = service.error ?? service.jumpError {
+                Text(error).font(.system(size: 10.5)).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 16)
+            }
+
+            if service.sessions.isEmpty {
+                Text(service.isLoading ? "Finding live sessions…" : "No live Codex or Claude sessions in iTerm2.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+            } else {
+                MenuRowsViewport(maxHeight: maxListHeight) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(AgentGroup.make(service.sessions)) { group in
+                            Button {
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                    if !collapsed.insert(group.id).inserted { collapsed.remove(group.id) }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down")
+                                        .font(.system(size: 8, weight: .bold))
+                                    Text(group.name).lineLimit(1).truncationMode(.middle)
+                                    Text("\(group.sessions.count)").foregroundStyle(.tertiary)
+                                    Spacer()
+                                }
+                                .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
+                                .padding(.horizontal, 4).padding(.top, 6).padding(.bottom, 2)
+                                .contentShape(Rectangle())
+                            }.buttonStyle(.plain).help(group.id)
+                            if !collapsed.contains(group.id) {
+                                ForEach(group.sessions) { session in
+                                    AgentSessionRow(session: session,
+                                        selected: service.selectedID == session.id,
+                                        jumping: service.jumpingID == session.id,
+                                        stale: service.isStale,
+                                        canJump: service.jumpingID == nil) {
+                                        service.jump(to: session)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+            }
+        }
+    }
 }
 
 private struct AgentSessionRow: View {
