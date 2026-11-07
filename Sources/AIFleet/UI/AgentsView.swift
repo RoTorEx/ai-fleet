@@ -34,8 +34,7 @@ struct MenuAgentsSection: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 8)
     }
 
     private func groupHeader(_ group: AgentGroup) -> some View {

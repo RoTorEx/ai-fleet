@@ -4,8 +4,9 @@
 
 The configured global shortcut opens AI Fleet. The menu has three tabs under
 the header: Providers, Agents (grouped by collapsible location) and Processes.
-Click a tab title or press ← / →; the last tab is remembered across openings
-and restarts. An orange dot on Agents flags a session waiting for approval or
+Tabs split the full width and look like bookmarks: the active tab and its page
+are one shape. Click a tab or press ← / →, which wrap around; the last tab is
+remembered across openings and restarts. An orange dot on Agents flags a session waiting for approval or
 an answer. The session engine runs while the menu is open so that dot stays
 current; Processes rescans only while its tab is visible. The menu grows up to
 80% of the screen's visible height; past that only the active tab scrolls, with
@@ -86,6 +87,10 @@ checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls
 
+Process rows are three thin lines: kind and PID with a ⋯ menu (Stop, Force
+Quit, copy, account and start details), the executable path (click to copy)
+and account with start time. All/Codex/Claude filters and newest/oldest sort
+sit above the list; provider-wide and background stops are in one ⋯ menu.
 The Processes tab lists the current user's recognized Codex and Claude executables,
 including native version-named Claude binaries and known installed Node entrypoints.
 Detached processes can remain after terminals close; their exact role/account

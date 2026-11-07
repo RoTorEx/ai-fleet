@@ -34,34 +34,30 @@ struct AIFleetMenuView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
-            FleetDivider()
-                .padding(.top, 10)
-
+            // Bookmark tabs: the active tab and its page are one shape.
             MenuTabBar(screen: screen, tabs: [
                 .init(tab: .providers, title: "Providers",
                       count: "\(monitoringSummary.measured)/\(monitoringSummary.total)", attention: false),
                 .init(tab: .agents, title: "Agents", count: "\(agents.sessions.count)",
                       attention: !agents.isStale && agents.sessions.contains(where: \.needsYou)),
                 .init(tab: .processes, title: "Processes", count: nil, attention: false),
-            ])
-            .padding(.horizontal, 16)
-            .padding(.top, 9)
-            .padding(.bottom, 10)
-
-            // Only the active tab's content scrolls, once the menu reaches 80% of the screen.
-            MenuRowsViewport(maxHeight: tabBudget) {
-                switch screen.tab {
-                case .providers:
-                    providerRows.padding(.horizontal, 16).padding(.bottom, 10)
-                case .agents:
-                    MenuAgentsSection(service: agents)
-                case .processes:
-                    CodexProcessesView()
+            ]) {
+                // Only the active tab's content scrolls, once the menu reaches 80% of the screen.
+                MenuRowsViewport(maxHeight: tabBudget) {
+                    switch screen.tab {
+                    case .providers:
+                        providerRows.padding(.horizontal, 10)
+                    case .agents:
+                        MenuAgentsSection(service: agents)
+                    case .processes:
+                        CodexProcessesView().padding(.horizontal, 8)
+                    }
                 }
+                .padding(.vertical, 10)
             }
-
-            FleetDivider()
-                .padding(.bottom, 8)
+            .padding(.horizontal, 8)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
 
             footer
         }
@@ -369,9 +365,10 @@ enum FleetMenuLayout {
     static let width: CGFloat = 354
 }
 
-/// Tabs are the section titles themselves: "Providers 3/4  Agents 15  Processes".
-/// The active one is bright; an orange dot flags agents waiting for the user.
-struct MenuTabBar: View {
+/// Tabs look like bookmarks sticking out of one page: the active tab and the
+/// content below share a single filled shape; the others stay flat text.
+/// Tabs split the full width; an orange dot flags agents waiting for the user.
+struct MenuTabBar<Content: View>: View {
     struct Item {
         let tab: MenuTab
         let title: String
@@ -380,33 +377,73 @@ struct MenuTabBar: View {
     }
     @ObservedObject var screen: FleetMenuScreen
     let tabs: [Item]
+    let content: Content
+
+    init(screen: FleetMenuScreen, tabs: [Item], @ViewBuilder content: () -> Content) {
+        self.screen = screen
+        self.tabs = tabs
+        self.content = content()
+    }
 
     var body: some View {
-        HStack(spacing: 16) {
-            ForEach(tabs, id: \.tab) { item in
-                let active = screen.tab == item.tab
-                Button { screen.tab = item.tab } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text(item.title).font(.system(size: 12.5, weight: .semibold))
-                            .foregroundColor(active ? FleetPalette.value : FleetPalette.muted)
-                        if let count = item.count {
-                            Text(count).font(.system(size: 11.5, weight: .medium).monospacedDigit())
-                                .foregroundColor(FleetPalette.muted.opacity(active ? 1 : 0.7))
-                        }
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        if item.attention {
-                            Circle().fill(FleetPalette.warning).frame(width: 6, height: 6).offset(x: 7, y: -1)
-                        }
-                    }
-                    .contentShape(Rectangle())
+        let index = tabs.firstIndex { $0.tab == screen.tab } ?? 0
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(tabs, id: \.tab) { item in
+                    tab(item, active: item.tab == screen.tab)
                 }
-                .buttonStyle(.plain)
-                .help("\(item.title) (← →)")
-                .accessibilityAddTraits(active ? .isSelected : [])
             }
-            Spacer(minLength: 0)
+            .frame(height: BookmarkPage.tabHeight)
+            content
         }
+        .background(BookmarkPage(index: index, count: tabs.count).fill(FleetPalette.page))
+    }
+
+    private func tab(_ item: Item, active: Bool) -> some View {
+        Button { screen.tab = item.tab } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(item.title).font(.system(size: 11.5, weight: active ? .semibold : .medium))
+                    .foregroundColor(active ? FleetPalette.value : FleetPalette.muted)
+                if let count = item.count {
+                    Text(count).font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                        .foregroundColor(FleetPalette.muted.opacity(active ? 1 : 0.75))
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if item.attention {
+                    Circle().fill(FleetPalette.warning).frame(width: 6, height: 6).offset(x: 7, y: -1)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(item.title) (← →)")
+        .accessibilityAddTraits(active ? .isSelected : [])
+    }
+}
+
+/// One outline for the active tab and its page, so they read as a single sheet.
+struct BookmarkPage: Shape {
+    static let tabHeight: CGFloat = 28
+    let index: Int
+    let count: Int
+
+    func path(in rect: CGRect) -> Path {
+        let radius: CGFloat = 9
+        let width = rect.width / CGFloat(max(count, 1))
+        let tab = CGRect(x: rect.minX + width * CGFloat(index), y: rect.minY, width: width, height: Self.tabHeight + radius)
+        let page = CGRect(x: rect.minX, y: rect.minY + Self.tabHeight, width: rect.width, height: rect.height - Self.tabHeight)
+        var path = Path(roundedRect: page, cornerRadius: radius, style: .continuous)
+        path.addPath(Path(roundedRect: tab, cornerRadius: radius, style: .continuous))
+        // Square the page corner the tab grows out of at either edge.
+        if index == 0 {
+            path.addRect(CGRect(x: page.minX, y: page.minY, width: radius, height: radius))
+        }
+        if index == count - 1 {
+            path.addRect(CGRect(x: page.maxX - radius, y: page.minY, width: radius, height: radius))
+        }
+        return path
     }
 }
 
@@ -1030,6 +1067,7 @@ private enum FleetPalette {
     static let ready = Color(nsColor: .systemGreen)
     static let warning = Color(nsColor: .systemOrange)
     static let danger = Color(nsColor: .systemRed)
+    static let page = Color.primary.opacity(0.07)
 }
 
 private func rowColor(for status: ProviderStatus) -> Color {

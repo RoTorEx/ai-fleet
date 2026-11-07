@@ -26,6 +26,7 @@ Tracks real product and release progress.
 - Stop SwiftUI from opening Settings at launch; launching the running app again shows the menu.
 - Spin Refresh only for a manual refresh, hide the focus ring on open, and draw agent stopwatch and rough age in one style.
 - Organize the menu into Providers, Agents and Processes tabs (click or ← / →, last tab remembered, orange dot when an agent needs you); move Processes out of Options; move the count from the header to the Providers tab.
+- Draw tabs as full-width bookmarks joined to their page; ← / → wrap around; slim Processes into three-line rows with a ⋯ action menu, click-to-copy paths, provider filters, start-time sort and one bulk-stop menu.
 - Expand an agent card to see the last request and reply with times; show state icons; use terminal-style overlay scrollers with a bottom fade.
 - Cut idle CPU: run the ⓘ attention pulse in Core Animation and unload menu content while the panel is closed.
 

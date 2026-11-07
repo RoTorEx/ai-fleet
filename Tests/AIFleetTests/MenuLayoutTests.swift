@@ -159,16 +159,16 @@ final class MenuLayoutTests: XCTestCase {
     }
 
     @MainActor
-    func testArrowsStepThroughTabsAndTheLastTabIsRemembered() {
+    func testArrowsCycleThroughTabsAndTheLastTabIsRemembered() {
         let saved = UserDefaults.standard.string(forKey: "menu.tab")
         defer { UserDefaults.standard.set(saved, forKey: "menu.tab") }
         let screen = FleetMenuScreen()
         screen.tab = .providers
         screen.step(-1)
-        XCTAssertEqual(screen.tab, .providers)
-        screen.step(1); screen.step(1); screen.step(1)
-        XCTAssertEqual(screen.tab, .processes)
-        screen.step(-1)
+        XCTAssertEqual(screen.tab, .processes, "← on the first tab wraps to the last")
+        screen.step(1)
+        XCTAssertEqual(screen.tab, .providers, "→ on the last tab wraps to the first")
+        screen.step(1)
         XCTAssertEqual(FleetMenuScreen().tab, .agents)
     }
 

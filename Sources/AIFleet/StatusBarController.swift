@@ -12,11 +12,11 @@ final class FleetMenuScreen: ObservableObject {
         didSet { UserDefaults.standard.set(tab.rawValue, forKey: "menu.tab") }
     }
 
-    /// ← / → move between tabs and stop at the ends.
+    /// ← / → move between tabs and wrap around at the ends.
     func step(_ delta: Int) {
         let all = MenuTab.allCases
         guard let index = all.firstIndex(of: tab) else { return }
-        tab = all[min(max(index + delta, 0), all.count - 1)]
+        tab = all[(index + delta + all.count) % all.count]
     }
 }
 
