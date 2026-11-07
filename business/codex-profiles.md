@@ -52,7 +52,7 @@ Each saved login has an accountID linking it to the existing FleetAccount and
 its Greek badge. The label is internal legacy metadata, not another account.
 In Settings → Accounts, Sign In on an account's Codex row starts the browser
 flow. Connect Provider never adds a duplicate provider association. The same `Codex (badge)` appears in the
-menu, Settings and Statistics → Codex → Accounts. Internal auth homes and the
+menu, Settings and Statistics → Provider reports. Internal auth homes and the
 standard CLI login are never presented as additional user accounts.
 
 A uniquely matching standard CLI login can provide read-only quota when no

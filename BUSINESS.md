@@ -102,15 +102,17 @@ subscription charges.
   parsing displays it automatically.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
-- Kimi and Qwen have separate Statistics tabs with local token/cache accounting,
-  model/day tables, periods, and Activity grouped in the computer's time zone.
-  Kimi keeps its separate account quota windows and their usage/reset details.
+- Statistics is one screen for all providers. Provider chips (All, Codex,
+  Claude, Kimi, Qwen; Option-click shows one) choose what the totals, By provider
+  bars, models, days and Activity include; the choice persists and never hides a
+  provider from the menu. Kimi and Qwen contribute local token/cache accounting.
+  Kimi's account quota windows appear under Provider reports.
   No Qwen quota integration or provider API prices are implied. Missing prices
   show no cost estimate, and empty history is explicitly labelled.
   [Provider statistics](business/provider-statistics.md) owns formats, accounting
   boundaries, and verification.
-- Claude has a separate Statistics tab with the same periods, token/cache cards,
-  model/day tables, and Activity heatmap as Codex. All Claude metrics are local
+- Claude statistics use the same periods, token/cache cards, model/day rows and
+  Activity as the other providers. All Claude metrics are local
   to `~/.claude/projects/**/*.jsonl`, including nested subagent transcripts;
   they are not subscription-wide history and are independent of current login.
   Input includes uncached input, cache reads and cache creation; Output includes
@@ -119,7 +121,7 @@ subscription charges.
   count once per file, keeping the most complete usage sample. Missing/malformed
   records and synthetic messages are skipped. Refresh scans all four providers at
   background priority, reuses unchanged per-file aggregates, and preserves old
-  Codex-only snapshots. Opening or switching tabs never scans logs.
+  Codex-only snapshots. Opening Statistics or changing chips never scans logs.
 - Claude API-equivalent estimates use standard USD-per-million-token rates from
   [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing),
   encoded in `ClaudeAPIRates`. Supported families match exact model names or
@@ -143,20 +145,21 @@ subscription charges.
   cache, reasoning, Models, Events, and Files also remain local. `Account` and
   `Local` labels identify the actual source. Refresh rereads changed files;
   per-file aggregates from another or unknown time zone are rebuilt from logs.
-- Period controls remain unboxed and accounting values are grouped by meaning.
-  The lower Statistics region has two arrow-controlled pages: `Models + Days`
-  and `Activity`. There is no surrounding vertical scroll view, so the compact
-  model/day lists scroll only themselves and cannot chain into the page. The day
-  table omits zero-activity dates. Activity's GitHub-style day squares may scroll
-  horizontally for long histories and expose exact date, token activity, and
-  the API-equivalent daily estimate when available. Each month is a distinct
-  mini-grid with a standard abbreviated label centered over that month's cells
-  and visible inter-month spacing, so labels never wrap into vertical letters.
-  Before the first anniversary, the grid extends with empty future days through
-  the end of the first year measured from the first recorded vibecoding day.
-  After that anniversary it extends through the end of the current month, opens
-  with that month at the right, and keeps older history available by scrolling
-  left. Cell sizing fits one vibecoding year in the default window, while the
+- The screen scrolls as a whole and uses the menu's block style. Top row:
+  provider chips on the left, 7d/30d/90d/All chips, last scan time and Refresh on
+  the right. Then four summary blocks (Total tokens with events and active days;
+  Input with uncached/cached/cache writes; Output with reasoning; API estimate
+  with price coverage), By provider bars, Models and Days side by side (each
+  scrolls itself), Activity, and Provider reports. A partially priced total or
+  day shows its known part as `≥ $…`. The day table omits zero-activity dates.
+  Activity's day squares may scroll horizontally for long histories and expose
+  exact date, tokens, and the known daily estimate. Each month is a distinct
+  mini-grid with its label centered over its cells. Before the first anniversary,
+  the grid extends with empty future days through the end of the first year
+  measured from the first recorded vibecoding day; after it, through the end of
+  the current month, opening with that month at the right.
+  Provider reports (Codex accounts, Kimi quota windows) are identity-bound and
+  never enter the local totals above.
   Activity panel uses only its content height instead of filling empty space.
 - Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
@@ -197,17 +200,6 @@ subscription charges.
   boundary in a short first paragraph before a separate book-scale paragraph.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
-- Statistics groups each headline with its own accounting details in one aligned
-  three-column grid. Estimate occupies the first column and Total spans the two
-  columns above Input and Output; Sources sits beneath Estimate. All second-row
-  content aligns to the top, both rows use equal card heights, and column widths
-  are calculated explicitly instead of relying on SwiftUI spanning-cell layout.
-  The second row reserves enough bottom space for Input's three accounting rows,
-  so its final Cache writes line never touches or crosses the card boundary.
-- The compact period selector sits at the upper right directly below account
-  and local refresh timestamps in its own trailing row, leaving the content grid
-  unobstructed and keeping its label and segments aligned as one compact unit.
-  Summary and detail panels remain within the default window size.
 - All windows follow the current macOS light or dark appearance.
 - The menu header is one line: a status dot with Active/Paused and ⓘ, then
   Refresh (⌘R) and Options. Below it the tabs Providers, Agents and Processes;

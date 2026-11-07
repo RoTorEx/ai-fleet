@@ -1,546 +1,339 @@
 import AppKit
 import SwiftUI
 
+/// One screen for every provider's local history; provider chips choose what the totals include.
 struct StatisticsView: View {
     @ObservedObject private var analytics = UsageAnalyticsService.shared
     @ObservedObject private var service = StatusService.shared
-    @State private var tab: AnalyticsTab = .codex
-    @State private var period: AnalyticsPeriod = .allTime
-    @State private var detailPage: StatisticsDetailPage = .tables
-    @State private var showsKimiQuotas = false
-    @State private var showsCodexAccounts = false
+    @ObservedObject private var settings = AppSettings.shared
+    @State private var period = StatisticsPeriod(rawValue: UserDefaults.standard.string(forKey: "statistics.period") ?? "") ?? .allTime
 
-    private var snapshot: UsageAnalyticsSnapshot { analytics.snapshot }
-
-    private var localAnalytics: CodexUsageAnalytics {
-        switch tab {
-        case .codex: return snapshot.codex
-        case .claude: return snapshot.claude ?? .empty
-        case .kimi: return snapshot.kimiUsage ?? LocalUsageProvider.kimi.analytics(from: [])
-        case .qwen: return snapshot.qwen ?? LocalUsageProvider.qwen.analytics(from: [])
-        }
+    private var enabled: [StatisticsProvider] {
+        StatisticsProvider.allCases.filter { settings.isEnabled($0.rawValue) }
     }
-
-    private var selection: CodexUsageSelection {
-        let bounds = period.bounds()
-        return codexUsageSelection(from: localAnalytics, start: bounds.start, end: bounds.end)
-    }
-
-    private var periodDetail: String {
-        guard period == .allTime, let first = selection.daily.first?.day, let last = selection.daily.last?.day else {
-            return period.label
-        }
-        return "\(rangeDate(first)) – \(rangeDate(last))"
-    }
+    private var chosen: Set<StatisticsProvider> { analytics.selectedProviders.intersection(enabled) }
+    private var stats: LocalStatistics { analytics.localStatistics(providers: chosen, days: period.days) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
-            if tab == .codex && showsCodexAccounts {
-                let bounds = period.bounds()
-                ScrollView(.vertical) {
-                    CodexProfilesView(nativeStatus: service.codex,
-                                      start: bounds.start, end: bounds.end,
-                                      refreshNative: { analytics.refreshAccountUsage(); service.refresh() })
+        let stats = stats
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                if chosen.isEmpty {
+                    Text("Choose at least one provider above.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 200)
+                } else {
+                    scopeLine(stats)
+                    summary(stats)
+                    providerBreakdown
+                    HStack(alignment: .top, spacing: 10) {
+                        ModelTablePanel(models: stats.models).frame(minWidth: 420, maxWidth: .infinity)
+                        DailyTablePanel(daily: stats.daily).frame(minWidth: 300, maxWidth: .infinity)
+                    }
+                    ActivityHeatmap(
+                        days: selectedDays(stats),
+                        sourceLabel: "Local",
+                        displayThrough: period == .allTime ? stats.daily.first.map { heatmapHorizon(startingAt: $0.day) } : nil
+                    )
                 }
-            } else {
-                codexContent
+                providerReports
             }
+            .padding(16)
         }
-        .padding(16)
         .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
+        .modifier(StatisticsNoFocusRing())
         .onAppear {
             analytics.updateKimi(kimi: service.kimi)
             analytics.refreshAccountUsageIfNeeded()
         }
+        .onChange(of: period) { UserDefaults.standard.set($0.rawValue, forKey: "statistics.period") }
     }
+
+    // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 16) {
-                AnalyticsTabControl(selection: $tab)
-                Spacer(minLength: 20)
-                RefreshStatus(
-                    progress: analytics.progress,
-                    refreshedAt: snapshot.refreshedAt,
-                    accountRefreshedAt: localAnalytics.accountUsage?.fetchedAt,
-                    showsAccount: tab == .codex,
-                    isRefreshing: analytics.isRefreshing,
-                    refresh: { analytics.refresh(kimi: service.kimi) }
-                )
+        HStack(alignment: .center, spacing: 6) {
+            Chip(title: "All", selected: chosen.count == enabled.count && !enabled.isEmpty) {
+                analytics.selectedProviders = Set(enabled)
             }
-            HStack {
-                if tab == .codex {
-                    Picker("Codex view", selection: $showsCodexAccounts) {
-                        Text("Usage").tag(false)
-                        Text("Accounts").tag(true)
+            ForEach(enabled, id: \.self) { provider in
+                Chip(title: provider.title, color: provider.color, selected: chosen.contains(provider)) {
+                    var next = analytics.selectedProviders
+                    if next.contains(provider) { next.remove(provider) } else { next.insert(provider) }
+                    analytics.selectedProviders = next
+                }
+                .help("Option-click to show only \(provider.title)")
+                .simultaneousGesture(TapGesture().modifiers(.option).onEnded { analytics.selectedProviders = [provider] })
+            }
+            Spacer(minLength: 16)
+            ForEach(StatisticsPeriod.allCases) { item in
+                Chip(title: item.rawValue, selected: period == item) { period = item }
+            }
+            RefreshStatus(progress: analytics.progress, refreshedAt: analytics.snapshot.refreshedAt,
+                          isRefreshing: analytics.isRefreshing,
+                          refresh: { analytics.refresh(kimi: service.kimi) })
+                .padding(.leading, 8)
+        }
+    }
+
+    private func scopeLine(_ stats: LocalStatistics) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Local history on this Mac · \(rangeText(stats))")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            ForEach(stats.sourceIssues, id: \.self) { issue in
+                Label(issue, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 10.5)).foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private func rangeText(_ stats: LocalStatistics) -> String {
+        if period == .allTime, let first = stats.daily.first?.day, let last = stats.daily.last?.day {
+            return "\(rangeDate(first)) – \(rangeDate(last))"
+        }
+        return period == .allTime ? "no recorded days" : "last \(period.days ?? 0) days"
+    }
+
+    // MARK: Summary
+
+    private func summary(_ stats: LocalStatistics) -> some View {
+        let totals = stats.totals
+        return HStack(alignment: .top, spacing: 8) {
+            StatCard(title: "Total tokens", value: compactCount(totals.totalTokens),
+                     help: tokenVolumeHelpExamples(totals.totalTokens, metric: .total)) {
+                detailRow("Events", groupedInteger(stats.dailyModels.reduce(0) { $0 + $1.events }))
+                detailRow("Active days", groupedInteger(stats.daily.filter { $0.totals.totalTokens > 0 }.count))
+            }
+            .frame(maxWidth: .infinity)
+            StatCard(title: "Input", value: compactCount(totals.inputTokens),
+                     help: tokenVolumeHelpExamples(totals.inputTokens, metric: .input)) {
+                detailRow("Uncached", compactCount(totals.billableInputTokens))
+                detailRow("Cached", compactCount(totals.cachedInputTokens))
+                detailRow("Cache writes", compactCount(totals.cacheWriteInputTokens))
+            }
+            .frame(maxWidth: .infinity)
+            StatCard(title: "Output", value: compactCount(totals.outputTokens),
+                     help: tokenVolumeHelpExamples(totals.outputTokens, metric: .output)) {
+                detailRow("Reasoning", compactCount(totals.reasoningOutputTokens))
+            }
+            .frame(maxWidth: .infinity)
+            StatCard(title: "API estimate", value: costText(stats.cost),
+                     help: ["API-equivalent value of the recorded tokens at standard model rates. It is not a subscription charge. Unknown model prices are left out, so a partial total shows as a minimum with its price coverage."]) {
+                detailRow("Priced", stats.cost.coverage.map { "\(Int(($0 * 100).rounded(.down)))% of tokens" } ?? "—")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func costText(_ cost: StatisticsCost) -> String {
+        if let full = cost.fullEstimateUSD { return money(full) }
+        return cost.knownEstimateUSD > 0 ? "≥ " + money(cost.knownEstimateUSD) : "—"
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack(spacing: 6) {
+            Text(label).foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Text(value).font(.system(size: 10.5, weight: .medium, design: .monospaced)).lineLimit(1)
+        }
+        .font(.system(size: 10.5))
+    }
+
+    // MARK: Providers
+
+    private var providerBreakdown: some View {
+        let rows = chosen.sorted { $0.rawValue < $1.rawValue }.map { provider in
+            (provider, analytics.localStatistics(providers: [provider], days: period.days))
+        }.sorted { $0.1.totals.totalTokens > $1.1.totals.totalTokens }
+        let maximum = max(1, rows.map(\.1.totals.totalTokens).max() ?? 1)
+        return VStack(alignment: .leading, spacing: 6) {
+            PanelTitle("By provider")
+            ForEach(rows, id: \.0) { provider, stats in
+                HStack(spacing: 10) {
+                    Circle().fill(provider.color).frame(width: 7, height: 7)
+                    Text(provider.title).font(.system(size: 12, weight: .medium)).frame(width: 60, alignment: .leading)
+                    GeometryReader { geometry in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(provider.color.opacity(0.75))
+                            .frame(width: max(2, geometry.size.width * CGFloat(stats.totals.totalTokens) / CGFloat(maximum)))
                     }
-                    .pickerStyle(.segmented).frame(width: 190)
-                }
-                Spacer(minLength: 0)
-                PeriodToolbar(period: $period)
-            }
-        }
-    }
-
-    private var codexContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            summaryGrid
-            if tab == .kimi { kimiQuotaSummary }
-            if localAnalytics.eventCount == 0 {
-                Text("No recorded \(tab.rawValue) token usage. Refresh after using the CLI; only locally retained accounting records are included.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
-            DetailPageControl(page: $detailPage)
-            switch detailPage {
-            case .tables:
-                HStack(alignment: .top, spacing: 10) {
-                    ModelTablePanel(models: selection.models, usesAccountUsage: selection.usesAccountUsage, showsMissingReasoning: tab != .codex)
-                        .frame(minWidth: 430, maxWidth: .infinity)
-                    DailyTablePanel(daily: selection.daily)
-                        .frame(minWidth: 330, maxWidth: .infinity)
-                }
-            case .activity:
-                ActivityHeatmap(
-                    days: selection.daily,
-                    sourceLabel: "Local",
-                    displayThrough: period == .allTime
-                        ? selection.daily.first.map { heatmapHorizon(startingAt: $0.day) }
-                        : nil
-                )
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private var summaryGrid: some View {
-        GeometryReader { geometry in
-            let spacing: CGFloat = 8
-            let columnWidth = max(0, (geometry.size.width - spacing * 2) / 3)
-            VStack(spacing: spacing) {
-                HStack(spacing: spacing) {
-                    MetricCard(
-                        title: "Estimate",
-                        sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                        value: tab.hasTokenPrices && selection.totals.hasCostEstimate ? money(selection.estimatedCostUSD) : "—",
-                        help: !tab.hasTokenPrices
-                            ? "Token usage comes from local CLI accounting records. API-equivalent prices are not configured for this provider; a missing estimate does not mean free usage. Quotas and subscription charges are separate."
-                            : selection.usesAccountUsage
-                            ? "Estimated from the all-time Codex account token total, multiplied by the average API-equivalent cost per token observed in local sessions. Date-filtered estimates use local session timestamps and model rates in the computer’s time zone. Codex does not provide account-wide model or input/output breakdowns, so this is an extrapolation—not a subscription charge."
-                            : tab == .claude
-                                ? "Unknown model prices show no estimate. Standard rates exclude tool charges, fast mode, long-context and platform premiums. Cache writes use their reported 5m/1h duration, defaulting to 5m when absent. Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge."
-                                : "Calculated from local session logs: uncached input × input rate + cached input × cached rate + cache writes × write rate + output × output rate. This is not a subscription charge.",
-                        rows: [AccountingRow(label: "Basis", value: selection.usesAccountUsage ? "account total × local rate" : "model rates")],
-                        fixedHeight: 98
-                    )
-                    .frame(width: columnWidth)
-                    MetricCard(
-                        title: "Total tokens",
-                        sourceLabel: selection.usesAccountUsage ? "Account" : "Local",
-                        value: billionsCount(selection.totalTokens),
-                        detail: periodDetail,
-                        helpExamples: tokenVolumeHelpExamples(selection.totalTokens, metric: selection.usesAccountUsage ? .accountTotal : .total),
-                        fixedHeight: 98
-                    )
-                    .frame(width: columnWidth * 2 + spacing)
-                }
-                HStack(spacing: spacing) {
-                    DatasetCard(codex: localAnalytics, eventCount: selection.eventCount, providerName: tab.rawValue)
-                        .frame(width: columnWidth)
-                    MetricCard(
-                        title: "Input",
-                        sourceLabel: "Local",
-                        value: compactCount(selection.totals.inputTokens),
-                        helpExamples: tokenVolumeHelpExamples(selection.totals.inputTokens, metric: .input),
-                        rows: [
-                            AccountingRow(label: "Uncached", value: compactCount(selection.totals.billableInputTokens), help: "Input tokens minus cached reads and cache writes."),
-                            AccountingRow(label: "Cached", value: compactCount(selection.totals.cachedInputTokens), help: "Input tokens served from the prompt cache."),
-                            AccountingRow(label: "Cache writes", value: compactCount(selection.totals.cacheWriteInputTokens), help: "Input tokens written into the prompt cache.")
-                        ],
-                        fixedHeight: 122
-                    )
-                    .frame(width: columnWidth)
-                    MetricCard(
-                        title: "Output",
-                        sourceLabel: "Local",
-                        value: compactCount(selection.totals.outputTokens),
-                        helpExamples: tokenVolumeHelpExamples(selection.totals.outputTokens, metric: .output).map {
-                            tab == .codex ? $0 : $0.replacingOccurrences(of: "reported by Codex", with: "recorded by the CLI when available")
-                        },
-                        rows: [
-                            AccountingRow(label: "Reasoning", value: tab != .codex && selection.totals.reasoningOutputTokens == 0 ? "—" : compactCount(selection.totals.reasoningOutputTokens), help: "Internally processed tokens reported as a subset of output.")
-                        ],
-                        fixedHeight: 122
-                    )
-                    .frame(width: columnWidth)
+                    .frame(height: 8)
+                    Text(compactCount(stats.totals.totalTokens))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced)).frame(width: 70, alignment: .trailing)
+                    Text(costText(stats.cost))
+                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)
                 }
             }
         }
-        .frame(height: 228)
+        .padding(10)
+        .fleetCard(hovering: false)
     }
 
-    private var kimiQuotaSummary: some View {
-        HStack(spacing: 12) {
-            Button("Kimi quotas") { showsKimiQuotas.toggle() }
-                .buttonStyle(.plain)
-                .font(.system(size: 11, weight: .semibold))
-                .help("Show quota usage counts and reset times")
-                .popover(isPresented: $showsKimiQuotas) {
-                    KimiTablePanel(windows: snapshot.kimi.windows)
+    private func selectedDays(_ stats: LocalStatistics) -> [CodexSelectedDay] {
+        stats.daily.map {
+            CodexSelectedDay(day: $0.day, tokens: $0.totals.totalTokens,
+                             estimatedCostUSD: $0.totals.estimatedCostUSD > 0 ? $0.totals.estimatedCostUSD : nil)
+        }
+    }
+
+    // MARK: Provider reports
+
+    @ViewBuilder private var providerReports: some View {
+        if settings.isEnabled("codex") || (settings.isEnabled("kimi") && !analytics.snapshot.kimi.windows.isEmpty) {
+            VStack(alignment: .leading, spacing: 8) {
+                PanelTitle("Provider reports")
+                Text("Reported by the provider for each account, separate from the local history above.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                if settings.isEnabled("codex") {
+                    let bounds = period.bounds()
+                    CodexProfilesView(nativeStatus: service.codex, start: bounds.start, end: bounds.end,
+                                      refreshNative: { analytics.refreshAccountUsage(); service.refresh() })
                         .padding(10)
-                        .frame(width: 650)
+                        .fleetCard(hovering: false)
                 }
-            if snapshot.kimi.windows.isEmpty {
-                Text("No quota measurement available").foregroundColor(.secondary)
+                if settings.isEnabled("kimi"), !analytics.snapshot.kimi.windows.isEmpty {
+                    KimiTablePanel(windows: analytics.snapshot.kimi.windows)
+                }
             }
-            ForEach(snapshot.kimi.windows) { window in
-                Text("\(window.label): \(window.remainingPercent)% remaining")
-                    .help(kimiQuotaHelp(window))
-            }
-            Spacer(minLength: 0)
+            .padding(.top, 6)
         }
-        .font(.system(size: 11))
     }
-
-    private func kimiQuotaHelp(_ window: KimiQuotaWindow) -> String {
-        let usage = window.used.flatMap { used in window.limit.map { "\(groupedInteger(used))/\(groupedInteger($0)) used" } } ?? "Usage count unavailable"
-        let reset = window.resetAt.map { "Resets \(dateTimeText($0))" } ?? "Reset time unavailable"
-        return "\(usage)\n\(reset)\n\(snapshot.kimi.source)"
-    }
-
 }
 
-private enum AnalyticsTab: String, CaseIterable, Identifiable {
-    case codex = "Codex"
-    case claude = "Claude"
-    case kimi = "Kimi"
-    case qwen = "Qwen"
-    var hasTokenPrices: Bool { self == .codex || self == .claude }
-    var id: String { rawValue }
+extension StatisticsProvider {
+    var title: String { rawValue == "qwen" ? "Qwen" : rawValue.capitalized }
+    var color: Color {
+        switch self {
+        case .codex: return .teal
+        case .claude: return .orange
+        case .kimi: return .purple
+        case .qwen: return .indigo
+        }
+    }
 }
 
-private enum AnalyticsPeriod: String, CaseIterable, Identifiable {
+private enum StatisticsPeriod: String, CaseIterable, Identifiable {
     case sevenDays = "7d"
     case thirtyDays = "30d"
     case ninetyDays = "90d"
     case allTime = "All"
 
     var id: String { rawValue }
-    var label: String { self == .allTime ? "all recorded days" : rawValue }
+    var days: Int? {
+        switch self {
+        case .sevenDays: return 7
+        case .thirtyDays: return 30
+        case .ninetyDays: return 90
+        case .allTime: return nil
+        }
+    }
 
     func bounds(calendar: Calendar = .autoupdatingCurrent) -> (start: Date?, end: Date?) {
         let today = calendar.startOfDay(for: Date())
-        switch self {
-        case .sevenDays: return (calendar.date(byAdding: .day, value: -6, to: today), today)
-        case .thirtyDays: return (calendar.date(byAdding: .day, value: -29, to: today), today)
-        case .ninetyDays: return (calendar.date(byAdding: .day, value: -89, to: today), today)
-        case .allTime: return (nil, nil)
-        }
+        guard let days else { return (nil, nil) }
+        return (calendar.date(byAdding: .day, value: -(days - 1), to: today), today)
     }
 }
 
-private enum StatisticsDetailPage: Int, CaseIterable {
-    case tables
-    case activity
-
-    var label: String {
-        switch self {
-        case .tables: return "Models + Days"
-        case .activity: return "Activity"
-        }
+private struct StatisticsNoFocusRing: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) { content.focusEffectDisabled() } else { content }
     }
 }
 
-private struct AnalyticsTabControl: View {
-    @Binding var selection: AnalyticsTab
-    @ObservedObject private var settings = AppSettings.shared
+/// Filter chip in the menu's style: a soft capsule, a colored dot when the item has a color.
+private struct Chip: View {
+    let title: String
+    var color: Color?
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(AnalyticsTab.allCases.filter { settings.isEnabled($0.rawValue.lowercased()) }) { tab in
-                Button { selection = tab } label: {
-                    Text(tab.rawValue)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(selection == tab ? .white : .primary)
-                        .padding(.horizontal, 17)
-                        .padding(.vertical, 7)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(selection == tab ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                        )
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let color {
+                    Circle().fill(selected ? color : color.opacity(0.3)).frame(width: 7, height: 7)
                 }
-                .buttonStyle(.plain)
+                Text(title).font(.system(size: 11.5, weight: .medium))
             }
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .foregroundStyle(selected ? Color.primary : Color.secondary)
+            .background(Color.primary.opacity(selected ? 0.12 : (hovering ? 0.07 : 0.035)), in: Capsule())
+            .overlay(Capsule().stroke(Color.primary.opacity(selected ? 0.14 : 0.06)))
+            .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+private struct PanelTitle: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+    }
+}
+
+private struct StatCard<Details: View>: View {
+    let title: String
+    let value: String
+    let help: [String]
+    @ViewBuilder let details: Details
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                Text(title)
+                HoverInfoTip(texts: help)
+            }
+            .font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                .lineLimit(1).minimumScaleFactor(0.6)
+            Divider().padding(.vertical, 1)
+            details
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .fleetCard(hovering: hovering)
+        .onHover { hovering = $0 }
     }
 }
 
 private struct RefreshStatus: View {
     let progress: UsageAnalyticsLoadProgress
     let refreshedAt: Date?
-    let accountRefreshedAt: Date?
-    let showsAccount: Bool
     let isRefreshing: Bool
     let refresh: () -> Void
+    @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 3) {
-            HStack(spacing: 9) {
-                if isRefreshing {
-                    ProgressView(value: progress.fractionCompleted ?? 0)
-                        .progressViewStyle(.linear)
-                        .frame(width: 90)
-                    Text(progress.totalFiles > 0 ? "files \(groupedInteger(progress.processedFiles))/\(groupedInteger(progress.totalFiles))" : "preparing")
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                } else if let duration = progress.lastDuration {
-                    Label(durationText(duration), systemImage: "stopwatch")
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-
-                Button(action: refresh) {
-                    Image(systemName: "arrow.clockwise").frame(width: 18, height: 18)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(isRefreshing)
-                .help("Refresh local Codex, Claude, Kimi and Qwen statistics and Codex account usage")
+        HStack(spacing: 6) {
+            if isRefreshing {
+                ProgressView(value: progress.fractionCompleted ?? 0).progressViewStyle(.linear).frame(width: 70)
+                Text(progress.totalFiles > 0 ? "\(groupedInteger(progress.processedFiles))/\(groupedInteger(progress.totalFiles))" : "preparing")
+            } else {
+                Text(refreshedAt.map(dateTimeText) ?? "Not scanned")
             }
-
-            HStack(spacing: 8) {
-                if showsAccount {
-                    Text(accountRefreshedAt.map { "Account \(dateTimeText($0))" } ?? "Account not synced")
-                }
-                Text(refreshedAt.map { "Local \(dateTimeText($0))" } ?? "Local not scanned")
-            }
-            .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-            .foregroundColor(.secondary)
-        }
-    }
-}
-
-private struct PeriodToolbar: View {
-    @Binding var period: AnalyticsPeriod
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text("Period").font(.system(size: 12, weight: .semibold)).foregroundColor(.secondary)
-            Picker("Period", selection: $period) {
-                ForEach(AnalyticsPeriod.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 260)
-        }
-        .frame(height: 30)
-        .fixedSize(horizontal: true, vertical: false)
-    }
-}
-
-private struct DetailPageControl: View {
-    @Binding var page: StatisticsDetailPage
-
-    private var index: Int { page.rawValue }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(page.label)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundColor(.secondary)
-            Spacer()
-            Button {
-                if let previous = StatisticsDetailPage(rawValue: index - 1) { page = previous }
-            } label: {
-                Image(systemName: "chevron.left")
+            Button(action: refresh) {
+                Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    .background(Color.primary.opacity(hovering ? 0.12 : 0), in: RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
-            .disabled(index == 0)
-            .accessibilityLabel("Previous statistics page")
-
-            Text("\(index + 1) / \(StatisticsDetailPage.allCases.count)")
-                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                .foregroundColor(.secondary)
-                .frame(width: 36)
-
-            Button {
-                if let next = StatisticsDetailPage(rawValue: index + 1) { page = next }
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .buttonStyle(.plain)
-            .disabled(index == StatisticsDetailPage.allCases.count - 1)
-            .accessibilityLabel("Next statistics page")
+            .onHover { hovering = $0 }
+            .disabled(isRefreshing)
+            .help("Rescan local Codex, Claude, Kimi and Qwen history and Codex account usage")
         }
-        .frame(height: 20)
-    }
-}
-
-private struct MetricCard: View {
-    let title: String
-    let sourceLabel: String?
-    let value: String
-    let detail: String?
-    let fixedHeight: CGFloat?
-    var helpExamples = ["Current provider value for this metric."]
-    var rows: [AccountingRow] = []
-
-    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, help: String = "Current provider value for this metric.", rows: [AccountingRow] = [], fixedHeight: CGFloat? = nil) {
-        self.title = title
-        self.sourceLabel = sourceLabel
-        self.value = value
-        self.detail = detail
-        self.fixedHeight = fixedHeight
-        helpExamples = [help]
-        self.rows = rows
-    }
-
-    init(title: String, sourceLabel: String? = nil, value: String, detail: String? = nil, helpExamples: [String], rows: [AccountingRow] = [], fixedHeight: CGFloat? = nil) {
-        self.title = title
-        self.sourceLabel = sourceLabel
-        self.value = value
-        self.detail = detail
-        self.fixedHeight = fixedHeight
-        self.helpExamples = helpExamples
-        self.rows = rows
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 5) {
-                Text(title)
-                if let sourceLabel { SourceBadge(text: sourceLabel) }
-                HoverInfoTip(texts: helpExamples)
-            }
-            .font(.system(size: 11.5, weight: .semibold))
-            .foregroundColor(.secondary)
-            .frame(height: 15, alignment: .leading)
-            Text(value)
-                .font(.system(size: 18, weight: .semibold, design: .monospaced))
-                .lineLimit(1)
-                .frame(height: 22, alignment: .leading)
-            if let detail {
-                Text(detail)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            if !rows.isEmpty {
-                Divider().padding(.vertical, 1)
-                ForEach(rows) { row in
-                    AccountingRowView(row: row)
-                }
-            }
-        }
-        .padding(9)
-        .frame(
-            minWidth: 0,
-            maxWidth: .infinity,
-            minHeight: fixedHeight ?? (rows.isEmpty ? 66 : 118),
-            maxHeight: fixedHeight,
-            alignment: .topLeading
-        )
-        .panelStyle()
-    }
-}
-
-private struct DatasetCard: View {
-    let codex: CodexUsageAnalytics
-    let eventCount: Int
-    var providerName = "Codex"
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 5) {
-                Text("Sources")
-                HoverInfoTip(text: providerName != "Codex"
-                    ? "\(providerName) statistics come from local CLI accounting records on this Mac. Days follow the computer’s time zone. Events count recorded model requests, with repeated usage records counted once. History is independent of login and is not recovered from your subscription. Missing model prices show no estimate."
-                    : "The all-time total comes from your Codex account. Days, Activity, date-filtered totals, and detailed accounting come from local sessions, grouped from midnight to midnight in this computer’s time zone. Refresh to include new session activity.")
-            }
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundColor(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                DatasetValue(label: "All-time total", value: "Local logs")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                DatasetValue(label: "Details", value: "Local sessions", help: "Days, Activity, date-filtered totals, input, output, cache, reasoning, models, events, and costs come from local session logs. Days follow the computer’s time zone.")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                DatasetValue(label: "Files", value: groupedInteger(codex.fileCount))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                DatasetValue(label: "Events", value: groupedInteger(eventCount), help: "Distinct usage samples found in local session logs.")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(9)
-        .frame(maxWidth: .infinity, minHeight: 122, maxHeight: 122, alignment: .topLeading)
-        .panelStyle()
-    }
-}
-
-private struct SourceBadge: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 8.5, weight: .semibold))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.18)))
-            .accessibilityLabel("Source: \(text)")
-    }
-}
-
-private struct DatasetValue: View {
-    let label: String
-    let value: String
-    var help: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 4) {
-                Text(label)
-                if let help { HoverInfoTip(text: help) }
-            }
-            .font(.system(size: 10.5, weight: .medium))
-            .foregroundColor(.secondary)
-            Text(value)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-    }
-}
-
-private struct AccountingRow: Identifiable {
-    let label: String
-    let value: String
-    var help: String?
-    var id: String { label }
-}
-
-private struct AccountingRowView: View {
-    let row: AccountingRow
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(row.label)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(.secondary)
-            if let help = row.help { HoverInfoTip(text: help) }
-            Spacer(minLength: 4)
-            Text(row.value)
-                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
+        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -583,107 +376,89 @@ private struct HoverInfoTip: View {
 
 private struct ModelTablePanel: View {
     let models: [ModelUsage]
-    var usesAccountUsage = false
-    var showsMissingReasoning = false
+    private var sorted: [ModelUsage] { models.sorted { $0.totals.totalTokens > $1.totals.totalTokens } }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
-                Text("Models")
-                SourceBadge(text: "Local")
-                HoverInfoTip(text: usesAccountUsage
-                    ? "Models and their row estimates come from local sessions. The headline account estimate can be larger because it applies the observed blended local rate to all Codex account tokens. Reasoning is the internally processed subset of output."
-                    : "Models and API-equivalent estimates come from local sessions. Estimates use standard model rates, not subscription charges. Unknown prices show no estimate. Reasoning is a reported subset of output; missing Claude reasoning is not inferred.")
+                PanelTitle("Models")
+                HoverInfoTip(text: "Models and API-equivalent estimates come from local sessions at standard model rates, not subscription charges. Unknown prices show no estimate. Reasoning is a reported subset of output; missing reasoning is not inferred.")
             }
-            .font(.system(size: 12.5, weight: .semibold))
-            .foregroundColor(.secondary)
-            compactModelRow(model: "Model", tokens: "Tokens", reasoning: "Reasoning", estimate: "Estimate", isHeader: true)
+            row(provider: nil, model: "Model", tokens: "Tokens", reasoning: "Reasoning", estimate: "Estimate", header: true)
             Divider()
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
-                    ForEach(models) { model in
-                        compactModelRow(
-                            model: model.model,
+                    ForEach(sorted) { model in
+                        let parts = model.model.components(separatedBy: " · ")
+                        row(provider: StatisticsProvider(rawValue: parts.first ?? ""),
+                            model: parts.count > 1 ? parts.dropFirst().joined(separator: " · ") : model.model,
                             tokens: compactCount(model.totals.totalTokens),
-                            reasoning: showsMissingReasoning && model.totals.reasoningOutputTokens == 0 ? "—" : compactCount(model.totals.reasoningOutputTokens),
+                            reasoning: model.totals.reasoningOutputTokens == 0 ? "—" : compactCount(model.totals.reasoningOutputTokens),
                             estimate: model.totals.hasCostEstimate ? money(model.totals.estimatedCostUSD) : "—",
-                            isHeader: false
-                        )
-                        Divider()
+                            header: false)
                     }
                 }
             }
-            .frame(height: 160)
+            .frame(height: 200)
         }
-        .padding(9)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .panelStyle()
+        .padding(10)
+        .fleetCard(hovering: false)
     }
 
-    private func compactModelRow(
-        model: String,
-        tokens: String,
-        reasoning: String,
-        estimate: String,
-        isHeader: Bool
-    ) -> some View {
+    private func row(provider: StatisticsProvider?, model: String, tokens: String, reasoning: String, estimate: String, header: Bool) -> some View {
         HStack(spacing: 8) {
-            Text(model).frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+            Circle().fill(provider?.color ?? .clear).frame(width: 6, height: 6)
+            Text(model).lineLimit(1).frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
             Text(tokens).frame(width: 76, alignment: .trailing)
-            Text(reasoning).frame(width: 78, alignment: .trailing)
+            Text(reasoning).frame(width: 74, alignment: .trailing)
             Text(estimate).frame(width: 68, alignment: .trailing)
         }
-        .font(.system(size: isHeader ? 10.5 : 11, weight: isHeader ? .semibold : .medium, design: isHeader ? .default : .monospaced))
-        .foregroundColor(isHeader ? .secondary : .primary)
-        .padding(.horizontal, 4)
-        .padding(.vertical, isHeader ? 3 : 5)
+        .font(.system(size: header ? 10.5 : 11, weight: header ? .semibold : .medium, design: header ? .default : .monospaced))
+        .foregroundStyle(header ? Color.secondary : Color.primary)
+        .padding(.horizontal, 2)
+        .padding(.vertical, header ? 2 : 4)
     }
 }
 
 private struct DailyTablePanel: View {
-    let daily: [CodexSelectedDay]
-    private var newestFirst: [CodexSelectedDay] {
-        Array(daily.filter { $0.tokens > 0 }.reversed())
-    }
+    let daily: [DailyUsage]
+    private var newestFirst: [DailyUsage] { Array(daily.filter { $0.totals.totalTokens > 0 }.reversed()) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 5) {
-                Text("Days")
-                SourceBadge(text: "Local")
-            }
-            .font(.system(size: 12.5, weight: .semibold))
-            .foregroundColor(.secondary)
-            compactDayRow(date: "Date", tokens: "Tokens", estimate: "Estimate", isHeader: true)
+            PanelTitle("Days")
+            row(date: "Date", tokens: "Tokens", estimate: "Estimate", header: true)
             Divider()
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
-                    ForEach(newestFirst) { day in
-                        compactDayRow(
-                            date: shortDate(day.day),
-                            tokens: compactCount(day.tokens),
-                            estimate: day.estimatedCostUSD.map(money) ?? "—",
-                            isHeader: false
-                        )
-                        Divider()
+                    ForEach(newestFirst, id: \.day) { day in
+                        row(date: shortDate(day.day), tokens: compactCount(day.totals.totalTokens),
+                            estimate: estimate(day.totals), header: false)
                     }
                 }
             }
-            .frame(height: 160)
+            .frame(height: 200)
         }
-        .padding(9)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .panelStyle()
+        .padding(10)
+        .fleetCard(hovering: false)
     }
 
-    private func compactDayRow(date: String, tokens: String, estimate: String, isHeader: Bool) -> some View {
+    /// Days mixing priced and unpriced models show the known part as a minimum.
+    private func estimate(_ totals: UsageTotals) -> String {
+        guard totals.estimatedCostUSD > 0 else { return "—" }
+        return (totals.hasCostEstimate ? "" : "≥ ") + money(totals.estimatedCostUSD)
+    }
+
+    private func row(date: String, tokens: String, estimate: String, header: Bool) -> some View {
         HStack(spacing: 10) {
             Text(date).frame(maxWidth: .infinity, alignment: .leading)
-            Text(tokens).frame(width: 105, alignment: .trailing)
-            Text(estimate).frame(width: 76, alignment: .trailing)
+            Text(tokens).frame(width: 90, alignment: .trailing)
+            Text(estimate).frame(width: 70, alignment: .trailing)
         }
-        .font(.system(size: isHeader ? 10.5 : 11, weight: isHeader ? .semibold : .medium, design: isHeader ? .default : .monospaced))
-        .foregroundColor(isHeader ? .secondary : .primary)
-        .padding(.horizontal, 4)
-        .padding(.vertical, isHeader ? 3 : 5)
+        .font(.system(size: header ? 10.5 : 11, weight: header ? .semibold : .medium, design: header ? .default : .monospaced))
+        .foregroundStyle(header ? Color.secondary : Color.primary)
+        .padding(.horizontal, 2)
+        .padding(.vertical, header ? 2 : 4)
     }
 }
 
@@ -703,7 +478,6 @@ private struct ActivityHeatmap: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 5) {
                 Text("Activity")
-                SourceBadge(text: sourceLabel)
                 Spacer()
                 Text("Less")
                     .font(.system(size: 9.5, weight: .medium))
@@ -755,8 +529,8 @@ private struct ActivityHeatmap: View {
                 }
             }
         }
-        .padding(9)
-        .panelStyle()
+        .padding(10)
+        .fleetCard(hovering: false)
     }
 
     @ViewBuilder
@@ -895,10 +669,10 @@ func heatmapLevel(tokens: Int, maximum: Int) -> Int {
 
 private func heatmapColor(level: Int) -> Color {
     switch level {
-    case 1: return Color.accentColor.opacity(0.25)
-    case 2: return Color.accentColor.opacity(0.45)
-    case 3: return Color.accentColor.opacity(0.70)
-    case 4: return Color.accentColor
+    case 1: return Color.teal.opacity(0.3)
+    case 2: return Color.teal.opacity(0.5)
+    case 3: return Color.teal.opacity(0.75)
+    case 4: return Color.teal
     default: return Color(nsColor: .separatorColor).opacity(0.35)
     }
 }
@@ -916,8 +690,8 @@ private struct KimiTablePanel: View {
             }
             .frame(minHeight: 190)
         }
-        .padding(12)
-        .panelStyle()
+        .padding(10)
+        .fleetCard(hovering: false)
     }
 
     private func usageText(_ window: KimiQuotaWindow) -> String {
@@ -926,12 +700,6 @@ private struct KimiTablePanel: View {
     }
 }
 
-private extension View {
-    func panelStyle() -> some View {
-        background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
-    }
-}
 
 
 

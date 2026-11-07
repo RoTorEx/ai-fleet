@@ -34,6 +34,7 @@ Tracks real product and release progress.
 - Rebuild Settings: General as a grouped form (menu, providers, switching, notifications, statistics); Accounts as draggable blocks with providers, Add Account, Connect Provider and confirmed removal.
 - Make Greek letters follow the account order: dragging renumbers and removal closes the gap.
 - Open Statistics with ⌘S from the menu.
+- Merge Statistics into one screen in the menu's block style: provider chips, shared totals, By provider bars, models, days, Activity and separate Provider reports.
 - Fix routed Codex launches writing state to a relative `\/Users\/…/.codex` folder in the working directory: `sqlite_home` no longer carries JSON slash escapes.
 - Cut idle CPU: run the ⓘ attention pulse in Core Animation and unload menu content while the panel is closed.
 

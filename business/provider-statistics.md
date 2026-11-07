@@ -6,10 +6,11 @@ formatting. Its backend supports Codex, Claude, Kimi and Qwen; design and combin
 user acceptance are separate. Only standard roots are in scope.
 
 Statistics reads retained local accounting history independently of login and
-quota monitoring. Each provider has input/cache/output cards, model and daily
+quota monitoring. Chosen providers share input/cache/output blocks, model and daily
 tables, periods, and Activity. Days use the computer's time zone, from local
 midnight to the next local midnight, including daylight-saving transitions.
-Opening Statistics and switching periods or tabs uses cached aggregates;
+Statistics shows all chosen providers on one screen. Opening it and switching
+periods or provider chips uses cached aggregates;
 manual and scheduled refreshes scan metadata and parse only changed files.
 
 ## Sources and accounting

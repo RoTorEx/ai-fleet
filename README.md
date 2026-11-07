@@ -137,9 +137,8 @@ count such as `1/6`), Agents and Processes (with its count) switch by click or �
 Options also opens Statistics (⌘S) and Settings (⌘,). The footer shows the
 last refresh and the version. Hover ⓘ next to the status for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
-Marks and Keys. **Statistics → Codex →
-Accounts** compares tokens and quotas under the same account letters for `7d`,
-`30d`, `90d` and `All`. These account totals come from provider-reported dates;
+Marks and Keys. **Statistics → Provider reports** compares Codex tokens and
+quotas under the same account letters for the chosen period. These account totals come from provider-reported dates;
 shared local model history and cost estimates are not split between accounts.
 A wrong browser email is reported instead of showing another account's quota.
 
@@ -181,15 +180,14 @@ Detailed usage data remains available in **Statistics…**.
 
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
-**Statistics…** provides `7d`, `30d`, `90d`, and all-time ranges.
-Choose **Kimi** or **Qwen** for local token history with the same periods,
-input/cache/output cards, models, days, and Activity. Kimi reads `wire.jsonl`
+**Statistics** (⌘S) is one screen with `7d`, `30d`, `90d`, and all-time ranges.
+Provider chips choose which local histories the totals, By provider bars, models,
+days and Activity include; Option-click a chip to see only that provider. Kimi reads `wire.jsonl`
 under `~/.kimi-code/sessions` and legacy `~/.kimi/sessions`; Qwen reads JSONL
 chat records under `~/.qwen/projects/*/chats`. Refresh scans retained logs;
-opening or switching tabs uses the cache. Missing history is labelled, and API
-prices are not configured for these two tabs, so their Estimate reads `—`.
-Kimi's quota summary remains available; click **Kimi quotas** for usage counts
-and reset times. Local token statistics do not provide Qwen subscription quotas.
+opening Statistics or changing chips uses the cache. API prices are not
+configured for Kimi and Qwen, so a total that includes them shows its priced part
+as `≥ $…`. Kimi's quota windows appear under **Provider reports**. Local token statistics do not provide Qwen subscription quotas.
 See [provider statistics](business/provider-statistics.md) for format support.
 
 Choose **Claude** for local Claude Code tokens, input/cache/output breakdowns,
