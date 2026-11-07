@@ -131,7 +131,8 @@ limits are loaded, × requests sign-in, and ? with a gray row means limits are
 unavailable, even if the CLI has a configured login. The row explains why.
 The header shows whether AI Fleet monitoring is Active or Paused and a
 `measured/saved` count such as `1/6`, with Refresh (⌘R) and Options (⋯) on the
-right. The footer shows the last refresh and the version. The legend groups
+right. The footer shows the last refresh and the version. Hover ⓘ next to the
+count for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
 Marks (→ default, ↓ lowest remaining) and Keys. **Statistics → Codex →
 Accounts** compares tokens and quotas under the same account letters for `7d`,

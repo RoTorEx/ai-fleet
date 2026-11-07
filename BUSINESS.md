@@ -215,8 +215,9 @@ subscription charges.
   Refresh icon instead of replacing the status. Options is a native menu:
   Agents (temporary until Agents is embedded), Statistics, Settings…,
   Processes, Quit. The menu has no Update command. The footer shows
-  `Last refresh` on the left and the version on the right. The legend groups
-  Monitoring, Quota, Access, Marks and Keys under aligned titles.
+  `Last refresh` on the left and the version on the right. The legend is not
+  permanent: hovering the ⓘ after the count shows it as a card over the menu,
+  grouping Monitoring, Quota, Access, Marks and Keys under aligned titles.
 - The menu is a borderless panel below the menu-bar icon: no arrow, no open or
   close animation, 12 pt corners and the native menu glass on macOS 26+ (menu
   blur with a hairline outline on older systems), matching native menu-bar

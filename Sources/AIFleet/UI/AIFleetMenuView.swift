@@ -9,6 +9,7 @@ struct AIFleetMenuView: View {
 
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
+    @State private var isLegendShown = false
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
@@ -47,13 +48,6 @@ struct AIFleetMenuView: View {
 
             FleetDivider()
                 .padding(.top, 11)
-                .padding(.bottom, 9)
-
-            LegendSection()
-                .padding(.horizontal, 16)
-
-            FleetDivider()
-                .padding(.top, 9)
                 .padding(.bottom, 8)
 
             footer
@@ -62,6 +56,18 @@ struct AIFleetMenuView: View {
         .padding(.bottom, 10)
         .frame(width: 354)
         .background(menuShortcuts)
+        .overlay(alignment: .topLeading) {
+            if isLegendShown {
+                LegendSection()
+                    .padding(12)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(FleetPalette.border))
+                    .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 38)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     private var providerRows: some View {
@@ -89,6 +95,13 @@ struct AIFleetMenuView: View {
                 Text("\(monitoringSummary.measured)/\(monitoringSummary.total)")
                     .font(.system(size: 12.5, weight: .medium).monospacedDigit())
                     .foregroundColor(FleetPalette.muted)
+                Image(systemName: "info.circle")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(isLegendShown ? FleetPalette.value : FleetPalette.muted)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+                    .onHover { isLegendShown = $0 }
+                    .accessibilityLabel("Legend")
                 Spacer(minLength: 8)
                 HeaderIconButton(systemName: "arrow.clockwise", help: "Refresh (⌘R)", spinning: isRefreshing) {
                     refresh()
@@ -585,11 +598,7 @@ struct HeaderIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12.5, weight: .medium))
-                .foregroundColor(FleetPalette.muted)
-                .rotationEffect(.degrees(spinning ? 360 : 0))
-                .animation(spinning ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: spinning)
+            icon
                 .frame(width: 22, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -601,6 +610,19 @@ struct HeaderIconButton: View {
         .help(help)
         .accessibilityLabel(help)
         .onHover { isHovered = $0 }
+    }
+
+    @ViewBuilder private var icon: some View {
+        let image = Image(systemName: systemName)
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundColor(FleetPalette.muted)
+        if #available(macOS 15.0, *) {
+            image.symbolEffect(.rotate.byLayer, options: .repeat(.continuous), isActive: spinning)
+        } else if spinning {
+            ProgressView().controlSize(.mini)
+        } else {
+            image
+        }
     }
 }
 
