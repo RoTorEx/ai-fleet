@@ -18,7 +18,7 @@ struct CodexProcess: Identifiable, Equatable {
     }
     var kind: String {
         if name == "codex-code-mode-host" { return "Code Mode helper" }
-        return "\(providerID.capitalized) " + (isBackground ? "detached process · role unknown" : "terminal process")
+        return "\(providerID.capitalized) " + (isBackground ? "detached" : "terminal")
     }
 }
 

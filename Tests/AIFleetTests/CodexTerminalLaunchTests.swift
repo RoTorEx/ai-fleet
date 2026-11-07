@@ -74,6 +74,9 @@ final class CodexTerminalLaunchTests: XCTestCase {
         let next = try CodexTerminalLaunch.plan(arguments: ["resume", "retained-session"], home: f.home, environment: f.environment)
         XCTAssertEqual(next.environment["CODEX_HOME"], alphaHome.path)
         XCTAssertEqual(next.environment["CODEX_SQLITE_HOME"], f.home.appendingPathComponent(".codex").path)
+        let sqliteHome = f.home.appendingPathComponent(".codex").path
+        XCTAssertTrue(next.arguments.contains("sqlite_home=\"\(sqliteHome)\""),
+                      "sqlite_home must be an absolute TOML path without JSON slash escapes")
         XCTAssertEqual(old.environment["CODEX_HOME"], f.home.appendingPathComponent(".codex").path)
         XCTAssertEqual(try Data(contentsOf: sharedAuth), betaAuth)
         XCTAssertEqual(try Data(contentsOf: alphaHome.appendingPathComponent("auth.json")), alphaAuth)

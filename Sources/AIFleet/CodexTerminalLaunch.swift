@@ -341,7 +341,11 @@ enum CodexTerminalLaunch {
         }
     }
 
+    /// A TOML basic string. TOML has no `\/` escape, so slashes stay literal; otherwise Codex
+    /// read `sqlite_home` as a relative `\/Users\/…` directory under the working directory.
     private static func jsonString(_ value: String) -> String {
-        String(data: try! JSONEncoder().encode(value), encoding: .utf8)!
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        return String(data: try! encoder.encode(value), encoding: .utf8)!
     }
 }

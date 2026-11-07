@@ -30,6 +30,8 @@ Tracks real product and release progress.
 - Shrink process rows to two lines with a copyable PID, hover highlights, a copy notice and path/account details in the ⋯ menu; add All / Needs you / Working / Idle filters to Agents.
 - Give providers, agents and processes one block style; show an agent's last request and reply in a hover popover; give processes a hover-revealed, copyable path icon, seconds in start times and a small Stop/Force Quit menu; show state icons; use terminal-style overlay scrollers with a bottom fade.
 - Show the process count on the Processes tab and tighten the provider name hover highlight.
+- Shorten process kinds to "Codex terminal" / "Codex detached".
+- Fix routed Codex launches writing state to a relative `\/Users\/…/.codex` folder in the working directory: `sqlite_home` no longer carries JSON slash escapes.
 - Cut idle CPU: run the ⓘ attention pulse in Core Animation and unload menu content while the panel is closed.
 
 

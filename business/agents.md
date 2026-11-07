@@ -97,7 +97,7 @@ sit above the list; provider-wide and background stops are in one ⋯ menu.
 The Processes tab lists the current user's recognized Codex and Claude executables,
 including native version-named Claude binaries and known installed Node entrypoints.
 Detached processes can remain after terminals close; their exact role/account
-remains unknown without evidence. Native libproc discovery uses
+remains unknown without evidence, so rows say only "terminal" or "detached". Native libproc discovery uses
 executable paths, UID, controlling-terminal presence and microsecond start identity;
 Prompts and environment are not exported or logged; a Node runtime entry argument
 may be read solely to match an installed provider executable. The visible list
