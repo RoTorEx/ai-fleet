@@ -49,4 +49,17 @@ final class AgentSessionContractTests: XCTestCase {
         XCTAssertEqual(result.workingDirectory, "/work/project/subdir")
         XCTAssertEqual(result.stateSource, "terminalHeuristic")
     }
+
+    func testRowTitleDropsSpinnerAndJobSuffixButKeepsRealParentheses() {
+        XCTAssertEqual(AgentRowText.title("Thira (codex)", provider: "codex"), "Thira")
+        XCTAssertEqual(AgentRowText.title("⁝ Thira (codex)", provider: "codex"), "Thira")
+        XCTAssertEqual(AgentRowText.title("✳ Fix login (urgent)", provider: "claude"), "Fix login (urgent)")
+        XCTAssertEqual(AgentRowText.title("(claude)", provider: "claude"), "(claude)")
+    }
+    func testIdleAgeUsesOneRoughUnit() {
+        XCTAssertEqual(AgentRowText.roughAge(42), "~42s")
+        XCTAssertEqual(AgentRowText.roughAge(5 * 60 + 59), "~5m")
+        XCTAssertEqual(AgentRowText.roughAge(16 * 3600 + 35 * 60), "~16h")
+        XCTAssertEqual(AgentRowText.roughAge(3 * 86_400 + 5), "~3d")
+    }
 }

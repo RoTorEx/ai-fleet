@@ -22,6 +22,29 @@ final class MenuLayoutTests: XCTestCase {
     }
 
     @MainActor
+    func testClosedMenuHoldsNoContentAndOpensAtFullSizeInOneLayout() {
+        let screen = FleetMenuScreen()
+        let service = StatusService(session: URLSession(configuration: .ephemeral))
+        let host = NSHostingController(rootView: FleetMenuRoot(screen: screen, agents: AgentSessionsService(), service: service,
+            openSettings: {}, openStatistics: {}, toggleAgents: {}, openProcesses: {}))
+        host.sizingOptions = [.preferredContentSize]
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 400),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentViewController = host
+        defer { window.contentViewController = nil }
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertLessThan(host.view.fittingSize.height, 2)
+        // showPanel measures right after opening; the first layout must already be the menu.
+        screen.isOpen = true
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(host.view.fittingSize.width, 354, accuracy: 1)
+        XCTAssertGreaterThan(host.view.fittingSize.height, 250)
+        screen.isOpen = false
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertLessThan(host.view.fittingSize.height, 2)
+    }
+
+    @MainActor
     func testBlockedSwitchDetailsExpandAndCollapseInBothAppearances() async throws {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let state = SwitchNoticeState()

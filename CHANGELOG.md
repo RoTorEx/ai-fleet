@@ -21,6 +21,9 @@ Tracks real product and release progress.
 - Draw the reset countdown over the date so hovering never resizes the menu.
 - Embed live Agents under the providers; only the Agents list scrolls once the menu reaches 80% of the screen height; remove the Command-A screen toggle and the provider scroll area.
 - Draw → as the turned ↓ glyph, unscale legend text, space reset dates from values, and rename unknown login to "Login status unknown".
+- Show agent session names without spinner glyphs or the provider job suffix; tick an exact stopwatch while working and a rough `~5m` age otherwise.
+- Sort accounts in the ⓘ card by Greek badge.
+- Cut idle CPU: run the ⓘ attention pulse in Core Animation and unload menu content while the panel is closed.
 
 
 - Keep enabled providers visible without a CLI and expose setup-only rows without creating accounts.

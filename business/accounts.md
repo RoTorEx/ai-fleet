@@ -121,7 +121,7 @@ retried with the same Sign out.
 Row-level notes are not shown under rows: important notes (quota notices,
 sign-in/switch failures, terminal rehash) appear in the Status section of the ⓘ
 card. ⓘ pulses red for errors and orange for warnings (static under Reduce
-Motion) and stays still otherwise. The card ends with an Accounts section: each
+Motion) and stays still otherwise. The card ends with an Accounts section in Greek badge order: each
 badge with its email and a bullet per provider with its plan. Sign-in progress
 with Cancel stays in the header detail line. Login actions retain actual
 authentication state. Account-specific errors cannot borrow another account's limits or tokens.

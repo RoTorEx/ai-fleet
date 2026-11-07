@@ -132,7 +132,8 @@ struct AIFleetMenuView: View {
             let plan = entry.status.account?.planLabel
             byID[id]?.providers.append(plan.map { "\(entry.status.name) (\($0))" } ?? entry.status.name)
         }
-        return order.compactMap { byID[$0] }
+        // Badges are Greek letters, so code-point order is alphabetical: α, β, γ, δ…
+        return order.compactMap { byID[$0] }.sorted { $0.badge < $1.badge }
     }
 
     /// ⓘ glows red for errors and orange for warnings; info-only notes keep it still.
@@ -375,18 +376,50 @@ struct MenuStatusNote: Hashable {
 struct InfoIndicator: View {
     let attention: Color?
     let highlighted: Bool
-    @State private var glowing = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let pulses = attention != nil && !reduceMotion
-        Image(systemName: "info.circle")
-            .font(.system(size: 12, weight: attention == nil ? .regular : .semibold))
-            .foregroundColor(attention ?? (highlighted ? FleetPalette.value : FleetPalette.muted))
-            .opacity(pulses && !glowing ? 0.35 : 1)
-            .shadow(color: (attention ?? .clear).opacity(pulses && glowing ? 0.9 : 0), radius: 3)
-            .animation(pulses ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true) : .default, value: glowing)
-            .onAppear { glowing = true }
+        if let attention, !reduceMotion {
+            InfoPulse(color: NSColor(attention)).fixedSize()
+        } else {
+            Image(systemName: "info.circle")
+                .font(.system(size: 12, weight: attention == nil ? .regular : .semibold))
+                .foregroundColor(attention ?? (highlighted ? FleetPalette.value : FleetPalette.muted))
+        }
+    }
+}
+
+/// The glow runs as a Core Animation layer animation: a SwiftUI repeatForever
+/// animation re-renders the whole menu every frame (measured ~80% CPU vs ~0.1%).
+private struct InfoPulse: NSViewRepresentable {
+    let color: NSColor
+
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "Status details")?
+            .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold))
+        view.wantsLayer = true
+        view.layer?.shadowOffset = .zero
+        view.layer?.shadowRadius = 3
+        let opacity = CABasicAnimation(keyPath: "opacity")
+        opacity.fromValue = 0.35
+        opacity.toValue = 1
+        let glow = CABasicAnimation(keyPath: "shadowOpacity")
+        glow.fromValue = 0
+        glow.toValue = 0.9
+        let pulse = CAAnimationGroup()
+        pulse.animations = [opacity, glow]
+        pulse.duration = 1.1
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        view.layer?.add(pulse, forKey: "pulse")
+        return view
+    }
+
+    func updateNSView(_ view: NSImageView, context: Context) {
+        view.contentTintColor = color
+        view.layer?.shadowColor = color.cgColor
     }
 }
 

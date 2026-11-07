@@ -112,6 +112,7 @@ struct AgentsView: View {
                                         selected: service.selectedID == session.id,
                                         jumping: service.jumpingID == session.id,
                                         stale: service.isStale,
+                                        observedAt: service.observedAt,
                                         canJump: service.jumpingID == nil) {
                                         service.jump(to: session)
                                     }
@@ -149,7 +150,6 @@ struct AgentsView: View {
 struct MenuAgentsSection: View {
     @ObservedObject var service: AgentSessionsService
     let maxListHeight: CGFloat
-    @State private var collapsed = Set<String>()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -178,11 +178,11 @@ struct MenuAgentsSection: View {
                         ForEach(AgentGroup.make(service.sessions)) { group in
                             Button {
                                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                                    if !collapsed.insert(group.id).inserted { collapsed.remove(group.id) }
+                                    if !service.collapsedGroups.insert(group.id).inserted { service.collapsedGroups.remove(group.id) }
                                 }
                             } label: {
                                 HStack(spacing: 6) {
-                                    Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down")
+                                    Image(systemName: service.collapsedGroups.contains(group.id) ? "chevron.right" : "chevron.down")
                                         .font(.system(size: 8, weight: .bold))
                                     Text(group.name).lineLimit(1).truncationMode(.middle)
                                     Text("\(group.sessions.count)").foregroundStyle(.tertiary)
@@ -192,12 +192,13 @@ struct MenuAgentsSection: View {
                                 .padding(.horizontal, 4).padding(.top, 6).padding(.bottom, 2)
                                 .contentShape(Rectangle())
                             }.buttonStyle(.plain).help(group.id)
-                            if !collapsed.contains(group.id) {
+                            if !service.collapsedGroups.contains(group.id) {
                                 ForEach(group.sessions) { session in
                                     AgentSessionRow(session: session,
                                         selected: service.selectedID == session.id,
                                         jumping: service.jumpingID == session.id,
                                         stale: service.isStale,
+                                        observedAt: service.observedAt,
                                         canJump: service.jumpingID == nil) {
                                         service.jump(to: session)
                                     }
@@ -217,10 +218,14 @@ private struct AgentSessionRow: View {
     let selected: Bool
     let jumping: Bool
     let stale: Bool
+    let observedAt: Date?
     let canJump: Bool
     let jump: () -> Void
     @State private var hovering = false
     private var tint: Color { AgentColors.color(for: session.id) }
+    private var contract: AgentSessionContract {
+        AgentSessionContract(session: session, observedAt: observedAt, stale: stale)
+    }
     private var statusColor: Color {
         if stale || session.location == nil { return .secondary }
         if session.needsYou { return session.state == "Blocked" ? .red : .orange }
@@ -253,14 +258,12 @@ private struct AgentSessionRow: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
-                        Text(session.title).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
+                        Text(AgentRowText.title(session.title, provider: session.provider))
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
                             .lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 3)
                         if jumping { ProgressView().controlSize(.mini) }
-                        else if let updated = session.updatedAt {
-                            Text(Date(timeIntervalSince1970: updated), style: .relative)
-                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
-                        }
+                        else { AgentTimeLabel(contract: contract, fallback: session.updatedAt) }
                     }
                     HStack(spacing: 5) {
                         Text(session.provider.capitalized).foregroundStyle(tint)
@@ -283,6 +286,63 @@ private struct AgentSessionRow: View {
         .help("\(session.explanation)\n\(session.locationLabel)\n\(String((session.request ?? "").prefix(600)))")
         .accessibilityLabel("\(session.title), \(session.state), \(session.locationLabel)")
         .accessibilityHint("Open the existing iTerm2 pane; keep Agents visible")
+    }
+}
+
+/// Working sessions tick an exact stopwatch; anything else shows a rough age so idle
+/// rows stay quiet and cheap to redraw.
+private struct AgentTimeLabel: View {
+    let contract: AgentSessionContract
+    let fallback: Double?
+
+    var body: some View {
+        Group {
+            if let start = contract.workStartedAt {
+                Text(start, style: .timer).foregroundStyle(.primary)
+            } else if let since = contract.lastMessageAt ?? fallback.map(Date.init(timeIntervalSince1970:)) {
+                TimelineView(.periodic(from: .now, by: 10)) { context in
+                    Text(AgentRowText.roughAge(context.date.timeIntervalSince(since)))
+                }
+            }
+        }
+        .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+    }
+}
+
+enum AgentRowText {
+    /// Terminal titles carry spinner glyphs and the iTerm job suffix, e.g. "⠂ Thira (codex)".
+    /// The provider already has its own line, so show only the session's own name.
+    static func title(_ raw: String, provider: String) -> String {
+        var text = raw.trimmingCharacters(in: .whitespaces)
+        while let first = text.unicodeScalars.first, isDecoration(first) {
+            text = String(text.unicodeScalars.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        let jobs: Set<String> = [provider.lowercased(), "codex", "claude", "node"]
+        if text.hasSuffix(")"), let open = text.lastIndex(of: "(") {
+            let job = text[text.index(after: open)..<text.index(before: text.endIndex)].lowercased()
+            let name = text[..<open].trimmingCharacters(in: .whitespaces)
+            if jobs.contains(job), !name.isEmpty { text = name }
+        }
+        return text.isEmpty ? raw : text
+    }
+
+    /// One coarse unit with a tilde: ~40s, ~5m, ~16h, ~3d.
+    static func roughAge(_ seconds: TimeInterval) -> String {
+        let value = max(0, Int(seconds))
+        switch value {
+        case ..<60: return "~\(value)s"
+        case ..<3600: return "~\(value / 60)m"
+        case ..<86_400: return "~\(value / 3600)h"
+        default: return "~\(value / 86_400)d"
+        }
+    }
+
+    private static func isDecoration(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x2800...0x28FF, 0x2700...0x27BF, 0x25A0...0x25FF: return true // braille spinners, dingbats ✳✻, shapes
+        case 0x00B7, 0x2022, 0x2025, 0x2026, 0x205D, 0x22EE: return true // · • ‥ … ⁝ ⋮
+        default: return false
+        }
     }
 }
 

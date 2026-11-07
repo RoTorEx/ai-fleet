@@ -4,6 +4,9 @@ import SwiftUI
 
 @MainActor
 final class FleetMenuScreen: ObservableObject {
+    /// Content exists only while the panel is open, so a closed menu runs no
+    /// timers, animations or SwiftUI updates.
+    @Published var isOpen = false
     @Published var showsAgents = false
     @Published var agentsSection = "Sessions"
 }
@@ -19,7 +22,9 @@ struct FleetMenuRoot: View {
 
     var body: some View {
         Group {
-            if screen.showsAgents {
+            if !screen.isOpen {
+                Color.clear.frame(width: 1, height: 1)
+            } else if screen.showsAgents {
                 AgentsView(service: agents, section: screen.agentsSection, back: toggleAgents)
             } else {
                 AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics,
@@ -225,6 +230,7 @@ final class StatusBarController: NSObject {
 
         // Activate so the panel becomes key and its buttons receive clicks.
         NSApplication.shared.activate(ignoringOtherApps: true)
+        screen.isOpen = true
         layoutPanel()
         panel.makeKeyAndOrderFront(nil)
         statusItem.button?.highlight(true)
@@ -265,6 +271,7 @@ final class StatusBarController: NSObject {
         statusItem.button?.highlight(false)
         stopClickMonitor()
         agents.stop()
+        screen.isOpen = false
         screen.showsAgents = false
         screen.agentsSection = "Sessions"
     }

@@ -132,6 +132,8 @@ final class AgentSessionsService: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var jumpingID: String?
     @Published private(set) var selectedID: String?
+    /// Lives here rather than in the view: menu content is rebuilt on every open.
+    @Published var collapsedGroups = Set<String>()
     private var transport: AgentTransport?
     private var timer: Timer?
     private var generation = UUID()

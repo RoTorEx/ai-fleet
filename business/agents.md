@@ -8,6 +8,12 @@ runs while the menu is open. The menu grows up to 80% of the screen's visible
 height; past that only the Agents list scrolls. Processes opens from Options as
 a separate screen with Back. No Command-A registration remains.
 
+Each row shows the terminal session name without spinner glyphs or the iTerm
+job suffix such as "(codex)"; provider and model sit on the second line. The
+top-right time is an exact running stopwatch while the session works and a
+rough one-unit age (~40s, ~5m, ~16h, ~3d) since the last message or observed
+change otherwise. Collapsed groups persist while Fleet runs.
+
 The compact colorful view follows the user's IMG_1195.MP4 reference: project
 headings, collapsible groups, stable session rows, provider/model when known,
 explicit status, last-event time, rotating working indicators and indeterminate
