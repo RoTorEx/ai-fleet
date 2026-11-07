@@ -83,8 +83,9 @@ subscription charges.
   Management stays in Settings → Accounts with one account editor and an
   existing/new account choice when connecting a provider. Small parenthesized
   badges follow the provider name; the ellipsis exposes account login actions.
-  Hover shows email and plan. The Capacity/Access/Marks legend remains
-  visible, and ↓ marks the exact lowest positive current quota connection.
+  Hover shows email and plan. One leading mark per row: ↓ lowest positive
+  quota anywhere, → current account of a multi-account provider, • working, ×/?
+  unavailable.
   Legacy isolated files and metadata remain preserved. See
   [Accounts](business/accounts.md) for matching, ordering and storage rules.
 
@@ -225,9 +226,8 @@ subscription charges.
   not draw a second background or rounded panel. Outside clicks close it by
   default; General can turn that off so it stays open until Esc, the icon or the
   shortcut. Esc always closes it. Quota availability counts current measurements independently of
-  login, and authentication progress/errors belong to the affected account row.
-  Current measured limits use ○; missing limits use ? and gray even when a CLI
-  login is configured. See Accounts for the full contract.
+  login. Account notes and errors live in the ⓘ card's Status section; missing
+  limits use ? and gray even when a CLI login is configured. See Accounts for the full contract.
 - Remaining-quota color states in the compact menu are red at `10%` or below,
   orange from `11%` through `25%` inclusive, and normal at `26%` or above.
   The boundaries make the warning band more visible before an account becomes

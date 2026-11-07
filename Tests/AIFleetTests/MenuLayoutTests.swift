@@ -65,9 +65,9 @@ final class MenuLayoutTests: XCTestCase {
     }
 
     @MainActor
-    func testCurrentAndLowestMarksHaveEqualRenderedArrowLengths() throws {
-        func inkSize(_ kind: FleetMark.Kind, size: CGFloat) throws -> CGSize {
-            let renderer = ImageRenderer(content: FleetMark(kind: kind, size: size).foregroundColor(.black))
+    func testLeadingMarksShareOneVisualSize() throws {
+        func ink(_ mark: String) throws -> CGRect {
+            let renderer = ImageRenderer(content: RowMark(mark: mark).foregroundColor(.black))
             renderer.scale = 4
             let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
             var minX = bitmap.pixelsWide, minY = bitmap.pixelsHigh, maxX = -1, maxY = -1
@@ -77,15 +77,14 @@ final class MenuLayoutTests: XCTestCase {
                     minY = min(minY, y); maxY = max(maxY, y)
                 }
             }
-            XCTAssertGreaterThan(maxX, minX)
-            XCTAssertGreaterThan(maxY, minY)
-            return CGSize(width: maxX - minX + 1, height: maxY - minY + 1)
+            XCTAssertGreaterThan(maxX, minX, mark)
+            return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+                .applying(CGAffineTransform(scaleX: 0.25, y: 0.25))
         }
-        for size: CGFloat in [10.5, 13] {
-            let current = try inkSize(.current, size: size)
-            let lowest = try inkSize(.lowest, size: size)
-            XCTAssertEqual(current.width, lowest.height, accuracy: 1, "Arrow lengths must match after rotation")
-            XCTAssertEqual(current.height, lowest.width, accuracy: 1, "Arrowhead spans must match after rotation")
+        let cross = try ink("×")
+        for mark in ["→", "↓", "•", "?"] {
+            let box = try ink(mark)
+            XCTAssertEqual(box.midY, cross.midY, accuracy: 0.5, "\(mark) must share the × optical center")
         }
     }
 

@@ -55,10 +55,16 @@ struct AIFleetMenuView: View {
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(width: 354)
-        .background(menuShortcuts)
         .overlay(alignment: .topLeading) {
             if isLegendShown {
-                LegendSection()
+                VStack(alignment: .leading, spacing: 9) {
+                    if !statusNotes.isEmpty {
+                        StatusNotesSection(notes: statusNotes)
+                        Rectangle().fill(FleetPalette.divider).frame(height: 1)
+                    }
+                    LegendSection()
+                }
+                    .frame(maxWidth: 330, alignment: .leading)
                     .padding(12)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(FleetPalette.border))
@@ -73,11 +79,53 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, isLowest: entry.isSelected && entry.status.id == lowestProvider?.id, openSettings: openSettings)
+                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
             }
 
         }
         .padding(.horizontal, 16)
+    }
+
+    /// One leading mark per row: ↓ lowest positive quota anywhere, → the current account of a
+    /// provider with several accounts, • any other working connection, × / ? unavailable.
+    private func mark(for entry: MenuAccountConnection) -> String {
+        let state = MenuConnectionState(status: entry.status)
+        guard state.available else { return state.marker }
+        if entry.status.id == lowestProvider?.id { return "↓" }
+        let siblings = connections.filter { $0.status.providerID == entry.status.providerID && !$0.isSetup }
+        if siblings.count > 1, entry.isCurrentCLI ?? entry.isSelected { return "→" }
+        return "•"
+    }
+
+    /// Account notes worth reading, shown at the top of the ⓘ card instead of under rows.
+    private var statusNotes: [MenuStatusNote] {
+        var notes: [MenuStatusNote] = []
+        func label(_ entry: MenuAccountConnection) -> String {
+            entry.account.badge.isEmpty ? entry.status.name : "\(entry.status.name) (\(entry.account.badge))"
+        }
+        for entry in connections {
+            if let notice = entry.status.quotaNotice {
+                notes.append(.init(label: label(entry), text: notice, warning: entry.isSelected))
+            }
+            if providerLaunch.messageIsError, let message = providerLaunch.message,
+               providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == entry.status.providerID {
+                notes.append(.init(label: label(entry), text: message, warning: true))
+            }
+            if entry.usesAccountLogin, let error = codexProfiles.error,
+               codexProfiles.profiles.first(where: { $0.id == codexProfiles.errorProfileID })?.accountID == entry.account.id {
+                let text = codexProfiles.switchBlockedProcessIDs == nil ? error
+                    : "Switch blocked while Codex is running. Stop it in Processes, then retry."
+                notes.append(.init(label: label(entry), text: text, warning: true))
+            }
+        }
+        if let error = accounts.launchError {
+            let provider = accounts.launchProviderID.flatMap { ProviderCatalog.definition(for: $0)?.name } ?? "Sign-in"
+            notes.append(.init(label: provider, text: error, warning: true))
+        }
+        if codexProfiles.terminalSetupNotice {
+            notes.append(.init(label: "Codex", text: "Terminals opened earlier: run rehash once.", warning: false))
+        }
+        return notes
     }
 
     /// One compact line: monitoring state and measured/saved count, then Refresh and Options.
@@ -99,6 +147,14 @@ struct AIFleetMenuView: View {
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(isLegendShown ? FleetPalette.value : FleetPalette.muted)
                     .frame(width: 18, height: 18)
+                    .overlay(alignment: .topTrailing) {
+                        if !statusNotes.isEmpty {
+                            Circle()
+                                .fill(statusNotes.contains(where: \.warning) ? FleetPalette.warning : FleetPalette.muted)
+                                .frame(width: 5, height: 5)
+                                .offset(x: -1, y: 2)
+                        }
+                    }
                     .contentShape(Rectangle())
                     .onHover { isLegendShown = $0 }
                     .accessibilityLabel("Legend")
@@ -109,10 +165,19 @@ struct AIFleetMenuView: View {
                 optionsMenu
             }
             if let detail = operationStatus.detail {
-                Text(detail).font(.system(size: 11))
-                    .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.muted)
-                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                    .padding(.leading, 14)
+                HStack(spacing: 8) {
+                    Text(detail).font(.system(size: 11))
+                        .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if codexProfiles.authenticatingID != nil || accounts.codexSigningIn {
+                        Button("Cancel") {
+                            if codexProfiles.authenticatingID != nil { codexProfiles.cancelAuthentication() }
+                            else { accounts.cancelCodexSignIn() }
+                        }
+                        .buttonStyle(.link).font(.system(size: 11))
+                    }
+                }
+                .padding(.leading, 14)
             }
         }
         .padding(.horizontal, 16)
@@ -138,18 +203,6 @@ struct AIFleetMenuView: View {
         .fixedSize()
         .help("Options")
         .accessibilityLabel("Options")
-    }
-
-    /// Shortcuts that work while the Options menu is closed. ⌘A is routed by the status bar controller.
-    private var menuShortcuts: some View {
-        ZStack {
-            Button("") { refresh() }.keyboardShortcut("r")
-            Button("") { openSettings() }.keyboardShortcut(",")
-            Button("") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
-        }
-        .opacity(0)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     private var footer: some View {
@@ -242,9 +295,52 @@ private struct MenuRowsHeightKey: PreferenceKey {
     }
 }
 
+/// Leading row mark. Every mark uses one monospaced font so arrows, ×, ? and • stay
+/// consistent; arrows may run longer but share the × optical center.
+struct RowMark: View {
+    let mark: String
+
+    var body: some View {
+        Text(mark)
+            .font(.system(size: 14, weight: .medium, design: .monospaced))
+            .offset(y: mark == "→" ? 0.5 : 0)
+    }
+}
+
+enum FleetRowMetrics {
+    static let markWidth: CGFloat = 14
+    static let markSpacing: CGFloat = 5
+    /// Quota rows sit a little inside the provider name, like a nested list.
+    static let detailIndent: CGFloat = markWidth + markSpacing + 10
+}
+
+struct MenuStatusNote: Hashable {
+    let label: String
+    let text: String
+    let warning: Bool
+}
+
+struct StatusNotesSection: View {
+    let notes: [MenuStatusNote]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Status")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(FleetPalette.label)
+            ForEach(notes, id: \.self) { note in
+                (Text(note.label + "  ").fontWeight(.semibold) + Text(note.text))
+                    .font(.system(size: 10.5))
+                    .foregroundColor(note.warning ? FleetPalette.warning : FleetPalette.value)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 struct ProviderLimitRow: View {
     let entry: MenuAccountConnection
-    let isLowest: Bool
+    let mark: String
     let openSettings: () -> Void
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
@@ -254,21 +350,23 @@ struct ProviderLimitRow: View {
     private var status: ProviderStatus { entry.status }
     private var presentation: MenuConnectionState { MenuConnectionState(status: status) }
     private var color: Color { presentation.available ? rowColor(for: status) : FleetPalette.muted }
+    private var markAccessibility: String {
+        switch mark {
+        case "↓": return "lowest remaining quota"
+        case "→": return "current account"
+        case "•": return "connected"
+        case "×": return "sign in required"
+        default: return "unavailable"
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    FleetMark(kind: .current)
-                        .opacity((entry.isCurrentCLI ?? entry.isSelected) ? 1 : 0)
-                        .foregroundColor(color)
-                        .accessibilityLabel((entry.isCurrentCLI ?? entry.isSelected) ? "\(status.name) account \(entry.account.badge), current" : "")
-                    FleetMark(kind: .lowest).opacity(isLowest ? 1 : 0)
-                        .foregroundColor(color)
-                    Text(presentation.marker)
-                        .font(.system(size: 14, weight: .medium, design: .monospaced))
-                        .foregroundColor(color).frame(width: 14)
-                }
+            HStack(alignment: .firstTextBaseline, spacing: FleetRowMetrics.markSpacing) {
+                RowMark(mark: mark)
+                    .foregroundColor(color)
+                    .frame(width: FleetRowMetrics.markWidth, alignment: .center)
+                    .accessibilityLabel(markAccessibility)
                 Text(status.name)
                     .font(.system(size: 13, weight: .semibold)).foregroundColor(color)
                 if !entry.account.badge.isEmpty {
@@ -350,43 +448,12 @@ struct ProviderLimitRow: View {
                         }
                     }
                 }
-                .padding(.leading, 52)
+                .padding(.leading, FleetRowMetrics.detailIndent)
             } else {
                 Text(presentation.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(color).fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 52)
-            }
-            if let notice = status.quotaNotice {
-                Text(notice).font(.system(size: 10.5))
-                    .foregroundColor(entry.isSelected ? FleetPalette.warning : FleetPalette.muted)
-                    .lineLimit(2).padding(.leading, 52)
-            }
-            if entry.usesAccountLogin, codexProfiles.profile(for: entry.account) == nil,
-               status.hasCurrentQuota || !status.limitWindows.isEmpty {
-                Text(status.hasCurrentQuota ? "Linked to terminal login" : status.detail)
-                    .font(.system(size: 10.5)).foregroundColor(FleetPalette.muted)
-                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
-                    .help("Connect a separate login to keep this account available when the terminal login changes.")
-            }
-            if entry.usesAccountLogin {
-                CodexAccountAuthenticationStatus(store: codexProfiles, accounts: accounts, accountID: entry.account.id)
-                    .padding(.leading, 52)
-            }
-            if providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == status.providerID,
-               let message = providerLaunch.message {
-                Text(message).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
-            }
-            if accounts.launchProviderID == status.providerID &&
-                (accounts.launchAccountID == entry.account.id || (accounts.launchAccountID == nil && entry.isCurrentCLI == true)) {
-                if accounts.codexSigningIn && status.providerID == "codex" && entry.isCurrentCLI == true {
-                    CodexSignInProgress(accounts: accounts).padding(.leading, 52)
-                }
-                if let error = accounts.launchError {
-                    Text("Sign-in: \(error)").font(.caption).foregroundColor(FleetPalette.danger)
-                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 52)
-                }
+                    .padding(.leading, FleetRowMetrics.detailIndent)
             }
         }
         .overlay(alignment: .topLeading) {
@@ -419,17 +486,16 @@ struct LimitWindowLine: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
-            if showsLabel {
-                Text(window.label)
-                    .font(limitWindowFont)
-                    .foregroundColor(windowColor)
-                    .frame(width: 26, alignment: .leading)
-            }
+            // Fixed columns keep periods, values and reset dates aligned across providers.
+            Text(showsLabel ? window.label : "")
+                .font(limitWindowFont)
+                .foregroundColor(windowColor)
+                .frame(width: 26, alignment: .leading)
 
             Text(windowValueText)
                 .font(limitWindowFont)
                 .foregroundColor(windowColor)
-                .frame(width: 40, alignment: .leading)
+                .frame(width: 34, alignment: .trailing)
 
             Text(resetText)
                 .font(limitWindowFont)
@@ -504,19 +570,6 @@ struct LimitWindowLine: View {
     }
 }
 
-/// Both marks use one vector rotated in a square, so their arrow lengths match.
-struct FleetMark: View {
-    enum Kind { case current, lowest }
-    let kind: Kind
-    var size: CGFloat = 13
-    var body: some View {
-        Image(systemName: "arrow.right")
-            .font(.system(size: size, weight: .medium))
-            .rotationEffect(.degrees(kind == .lowest ? 90 : 0))
-            .frame(width: size + 1, height: size + 1)
-    }
-}
-
 /// Grouped legend: one titled row per topic, aligned in a shared column.
 struct LegendSection: View {
     var body: some View {
@@ -544,24 +597,21 @@ struct LegendSection: View {
                 }
             }
             GridRow {
-                title("Access")
-                HStack(spacing: 4) {
-                    Text("○ ready").foregroundColor(FleetPalette.value)
-                    Text("·").foregroundColor(FleetPalette.muted)
-                    Text("× sign in").foregroundColor(FleetPalette.value)
-                    Text("·").foregroundColor(FleetPalette.muted)
-                    Text("? unavailable").foregroundColor(FleetPalette.muted)
-                }
-            }
-            GridRow {
                 title("Marks")
-                HStack(spacing: 5) {
-                    FleetMark(kind: .current, size: 10.5)
-                    Text("default")
-                    Text("·").foregroundColor(FleetPalette.muted)
-                    FleetMark(kind: .lowest, size: 10.5)
-                    Text("lowest remaining")
-                }.foregroundColor(FleetPalette.value)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 4) {
+                        Text("• working").foregroundColor(FleetPalette.value)
+                        Text("·").foregroundColor(FleetPalette.muted)
+                        Text("→ current account").foregroundColor(FleetPalette.value)
+                        Text("·").foregroundColor(FleetPalette.muted)
+                        Text("↓ lowest").foregroundColor(FleetPalette.value)
+                    }
+                    HStack(spacing: 4) {
+                        Text("× sign in").foregroundColor(FleetPalette.value)
+                        Text("·").foregroundColor(FleetPalette.muted)
+                        Text("? unavailable").foregroundColor(FleetPalette.muted)
+                    }
+                }
             }
             GridRow {
                 title("Keys")

@@ -117,7 +117,7 @@ final class AccountProviderPresentationTests: XCTestCase {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let host = NSHostingController(rootView: VStack(alignment: .leading, spacing: 8) {
                 ForEach(sorted) { entry in
-                    ProviderLimitRow(entry: entry, isLowest: entry.account.id == work.id, openSettings: {})
+                    ProviderLimitRow(entry: entry, mark: entry.account.id == work.id ? "↓" : "•", openSettings: {})
                 }
             }.padding(16).frame(width: 354).background(Color(nsColor: .windowBackgroundColor))
                 .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))

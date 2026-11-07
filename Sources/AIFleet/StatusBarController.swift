@@ -161,14 +161,7 @@ final class StatusBarController: NSObject {
         super.init()
 
         actions = (
-            settings: { [weak self] in
-                guard let self else { return }
-                let anchorFrame = self.panel.frame
-                self.closePanel()
-                DispatchQueue.main.async { [weak self] in
-                    self?.openSettings(anchorFrame)
-                }
-            },
+            settings: { [weak self] in self?.openSettingsFromMenu() },
             statistics: { [weak self] in
                 guard let self else { return }
                 let anchorFrame = self.panel.frame
@@ -303,6 +296,24 @@ final class StatusBarController: NSObject {
                 return nil
             }
 
+            if event.type == .keyDown, NSApplication.shared.modalWindow == nil,
+               event.window === self.panel || event.window == nil,
+               event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
+                switch event.charactersIgnoringModifiers {
+                case "r":
+                    StatusService.shared.refresh(); CodexMonitoringStore.shared.refresh(force: true)
+                    return nil
+                case ",":
+                    self.openSettingsFromMenu()
+                    return nil
+                case "q":
+                    NSApplication.shared.terminate(nil)
+                    return nil
+                default:
+                    break
+                }
+            }
+
             // Carbon can also deliver a local key event. Use one route per press.
             if self.agentsHotKey == nil, event.type == .keyDown, event.keyCode == UInt16(kVK_ANSI_A),
                event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
@@ -332,6 +343,14 @@ final class StatusBarController: NSObject {
         if let localEventMonitor {
             NSEvent.removeMonitor(localEventMonitor)
             self.localEventMonitor = nil
+        }
+    }
+
+    private func openSettingsFromMenu() {
+        let anchorFrame = panel.frame
+        closePanel()
+        DispatchQueue.main.async { [weak self] in
+            self?.openSettings(anchorFrame)
         }
     }
 

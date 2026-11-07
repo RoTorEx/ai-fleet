@@ -11,6 +11,9 @@ Tracks real product and release progress.
 - Add a General setting to keep the menu open on outside clicks.
 - Compress the menu summary into one status line with a measured/saved count, Refresh and an Options menu.
 - Move last refresh and version into a footer, show a grouped legend on ⓘ hover, and remove the Update command.
+- Lead each provider row with one mark (• → ↓ × ?) and align quota periods, values and reset dates in shared columns.
+- Move account notes and errors from under rows into the ⓘ card; keep sign-in progress with Cancel in the header.
+- Route menu shortcuts through the panel key monitor instead of hidden buttons.
 
 
 - Keep enabled providers visible without a CLI and expose setup-only rows without creating accounts.

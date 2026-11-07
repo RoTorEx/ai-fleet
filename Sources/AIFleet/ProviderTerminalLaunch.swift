@@ -230,7 +230,11 @@ final class ProviderLaunchStore: ObservableObject {
     static let shared = ProviderLaunchStore()
     @Published private(set) var profiles: [ProviderLaunchProfile]
     @Published private(set) var selected: [String: String]
-    @Published private(set) var message: String?
+    @Published private(set) var message: String? {
+        didSet { messageIsError = false }
+    }
+    /// Set after `message` for failures; confirmations stay out of the menu.
+    @Published private(set) var messageIsError = false
     @Published private(set) var messageAccountID: String?
     @Published private(set) var messageProviderID: String?
     @Published private(set) var busy = false
@@ -251,7 +255,7 @@ final class ProviderLaunchStore: ObservableObject {
     func installCommandIntegration() {
         for provider in ProviderTerminalLaunch.providers {
             do { try ProviderTerminalLaunch.installShim(provider, home: home, application: Bundle.main.bundleURL) }
-            catch { messageProviderID = provider; message = "\(provider): \(error.localizedDescription)" }
+            catch { messageProviderID = provider; message = "\(provider): \(error.localizedDescription)"; messageIsError = true }
         }
     }
 
@@ -290,7 +294,7 @@ final class ProviderLaunchStore: ObservableObject {
                     selected[providerID] = account.id
                     save()
                     message = "Account selected for the next Claude command."
-                }, failure: { [weak self] error in self?.message = error.localizedDescription })
+                }, failure: { [weak self] error in self?.message = error.localizedDescription; self?.messageIsError = true })
             } else {
             try ProviderTerminalLaunch.choose(profile, home: home, application: Bundle.main.bundleURL, environment: environment)
             if existing == nil { profiles.append(profile) }
@@ -298,7 +302,7 @@ final class ProviderLaunchStore: ObservableObject {
             save()
             message = "Default for the next \(providerID) launch. Running agents keep their accounts."
             }
-        } catch { message = error.localizedDescription }
+        } catch { message = error.localizedDescription; messageIsError = true }
     }
 
     func signIn(_ account: FleetAccount, providerID: String) {
@@ -348,9 +352,10 @@ final class ProviderLaunchStore: ObservableObject {
                     profiles.append(profile); save()
                 }
                 message = verified ? "Sign-in finished. Use Switch to choose this account for new launches." : "Sign-in failed or identity did not match. Previous connection is preserved. Retry native browser sign-in."
+                messageIsError = !verified
                 StatusService.shared.refresh()
             }
-        } catch { message = error.localizedDescription }
+        } catch { message = error.localizedDescription; messageIsError = true }
     }
 
     func signOut(_ account: FleetAccount, providerID: String) {
@@ -391,7 +396,7 @@ final class ProviderLaunchStore: ObservableObject {
                 busy = false; message = result ?? "This account's local login was cleared. Other account homes were retained."
                 StatusService.shared.refresh()
             }
-        } catch { message = error.localizedDescription }
+        } catch { message = error.localizedDescription; messageIsError = true }
     }
 
     func forget(_ accountID: String) throws {

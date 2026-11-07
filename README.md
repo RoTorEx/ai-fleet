@@ -126,15 +126,17 @@ and helpers. Use
 the confirmation. The app verifies process identity and checks exit. Account
 selection follows the chosen Switch policy; stopping requires confirmation.
 
-The menu shows each account's remaining 5h/7d limits. A circle means current
-limits are loaded, × requests sign-in, and ? with a gray row means limits are
-unavailable, even if the CLI has a configured login. The row explains why.
+The menu shows each account's remaining 5h/7d limits in aligned columns. One
+mark leads each row: • working, → the current account when a provider has
+several, ↓ the lowest remaining quota anywhere, × sign-in required and ? limits
+unavailable (gray even with a configured CLI login). Important account notes
+appear in the Status section of the ⓘ card.
 The header shows whether AI Fleet monitoring is Active or Paused and a
 `measured/saved` count such as `1/6`, with Refresh (⌘R) and Options (⋯) on the
 right. The footer shows the last refresh and the version. Hover ⓘ next to the
 count for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
-Marks (→ default, ↓ lowest remaining) and Keys. **Statistics → Codex →
+Marks and Keys. **Statistics → Codex →
 Accounts** compares tokens and quotas under the same account letters for `7d`,
 `30d`, `90d` and `All`. These account totals come from provider-reported dates;
 shared local model history and cost estimates are not split between accounts.
