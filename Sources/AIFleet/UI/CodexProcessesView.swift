@@ -116,8 +116,8 @@ struct CodexProcessesView: View {
     }
 }
 
-/// Two thin lines: kind with its PID (click to copy) and a ⋯ action menu, then
-/// account on the left and start time on the right. The path lives in the menu.
+/// Two thin lines: kind, PID and path icon (each click-to-copy, path shown on
+/// hover) with a ⋯ Stop/Force Quit menu, then account and start time.
 private struct ProcessRow: View {
     let process: CodexProcess
     let stopping: Bool
@@ -126,6 +126,7 @@ private struct ProcessRow: View {
     @State private var hovering = false
     @State private var pidHovered = false
     @State private var moreHovered = false
+    @State private var pathHovered = false
     @State private var moreFrame = CGRect.zero
 
     private var account: String? {
@@ -135,8 +136,19 @@ private struct ProcessRow: View {
         return "\(account.badge) · \(account.name)"
     }
 
+    /// `14:03:14` today, `7 Nov 14:03:14` earlier.
     private var started: String {
-        TimeInterval(process.started).map { formatResetTime(Date(timeIntervalSince1970: $0)) } ?? process.started
+        guard let seconds = TimeInterval(process.started) else { return process.started }
+        let date = Date(timeIntervalSince1970: seconds)
+        return (Calendar.current.isDateInToday(date) ? Self.today : Self.earlier).string(from: date)
+    }
+
+    private static let today = formatter("HH:mm:ss")
+    private static let earlier = formatter("d MMM HH:mm:ss")
+    private static func formatter(_ format: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = format
+        return formatter
     }
 
     var body: some View {
@@ -153,6 +165,23 @@ private struct ProcessRow: View {
                         .background(Color.accentColor.opacity(pidHovered ? 0.14 : 0), in: RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain).onHover { pidHovered = $0 }.help("Copy PID")
+                Button { copy(process.executable, label: "path") } label: {
+                    Image(systemName: "folder").font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(pathHovered ? Color.accentColor : Color.secondary)
+                        .frame(width: 18, height: 16)
+                        .background(Color.accentColor.opacity(pathHovered ? 0.14 : 0), in: RoundedRectangle(cornerRadius: 4))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).onHover { pathHovered = $0 }
+                .hoverPopover {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(process.executable).font(.system(size: 10.5, design: .monospaced))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Click to copy").font(.system(size: 9.5)).foregroundStyle(.secondary)
+                    }
+                    .frame(width: 280, alignment: .leading).padding(10)
+                }
+                .accessibilityLabel("Copy path")
                 Spacer(minLength: 4)
                 if stopping { ProgressView().controlSize(.mini) }
                 Button(action: showActions) {
@@ -168,7 +197,7 @@ private struct ProcessRow: View {
                     Color.clear.onAppear { moreFrame = geometry.frame(in: .global) }
                         .onChange(of: geometry.frame(in: .global)) { moreFrame = $0 }
                 })
-                .help("Stop, force quit, copy and details")
+                .help("Stop or force quit")
             }
             HStack(spacing: 6) {
                 Text(account ?? "Account unknown").lineLimit(1)
@@ -179,25 +208,15 @@ private struct ProcessRow: View {
             .padding(.leading, 20).padding(.trailing, 4)
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
-        .background(Color.primary.opacity(hovering ? 0.12 : 0.075), in: RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.primary.opacity(0.08)))
+        .fleetCard(hovering: hovering)
         .onHover { hovering = $0 }
     }
 
     private func showActions() {
-        let path = process.executable
-        let shortPath = path.count > 56 ? "…" + path.suffix(55) : path
         ActionMenu(items: [
             .init(title: "Stop") { stop(false) },
             .init(title: "Force Quit") { stop(true) },
-            nil,
-            .init(title: "Copy PID") { copy(String(process.pid), label: "PID \(process.pid)") },
-            .init(title: "Copy Path") { copy(path, label: "path") },
-            nil,
-            .info(shortPath),
-            .info(account.map { "Account \($0)" } ?? "Account unknown · manual selection required"),
-            .info("Started \(process.startedLabel)"),
-        ]).popUp(below: moreFrame)
+        ], fontSize: 12).popUp(below: moreFrame)
     }
 
     private func copy(_ text: String, label: String) {

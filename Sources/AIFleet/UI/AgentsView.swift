@@ -32,8 +32,7 @@ struct MenuAgentsSection: View {
                             jumping: service.jumpingID == session.id,
                             stale: service.isStale,
                             observedAt: service.observedAt,
-                            canJump: service.jumpingID == nil,
-                            expanded: expansion(for: session.id)) {
+                            canJump: service.jumpingID == nil) {
                             service.jump(to: session)
                         }
                     }
@@ -85,12 +84,6 @@ struct MenuAgentsSection: View {
             .contentShape(Rectangle())
         }.buttonStyle(.plain).help(group.id)
     }
-
-    private func expansion(for id: String) -> Binding<Bool> {
-        Binding(get: { service.expandedSessions.contains(id) }, set: { open in
-            if open { service.expandedSessions.insert(id) } else { service.expandedSessions.remove(id) }
-        })
-    }
 }
 
 private struct AgentSessionRow: View {
@@ -100,7 +93,6 @@ private struct AgentSessionRow: View {
     let stale: Bool
     let observedAt: Date?
     let canJump: Bool
-    var expanded: Binding<Bool>? = nil
     let jump: () -> Void
     @State private var hovering = false
     private var tint: Color { AgentColors.color(for: session.id) }
@@ -128,45 +120,29 @@ private struct AgentSessionRow: View {
     }
 
     init(session: AgentSession, selected: Bool, jumping: Bool, stale: Bool, observedAt: Date?, canJump: Bool,
-         expanded: Binding<Bool>? = nil, jump: @escaping () -> Void) {
+         jump: @escaping () -> Void) {
         self.session = session; self.selected = selected; self.jumping = jumping; self.stale = stale
-        self.observedAt = observedAt; self.canJump = canJump; self.expanded = expanded; self.jump = jump
+        self.observedAt = observedAt; self.canJump = canJump; self.jump = jump
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 4) {
-                Button(action: jump) { summary.contentShape(Rectangle()) }
-                    .buttonStyle(.plain).disabled(session.location == nil || !canJump)
-                    .help("\(session.explanation)\n\(session.locationLabel)")
-                    .accessibilityLabel("\(session.title), \(session.state), \(session.locationLabel)")
-                    .accessibilityHint("Open the existing iTerm2 pane; keep Agents visible")
-                if let expanded {
-                    Button { expanded.wrappedValue.toggle() } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .bold))
-                            .rotationEffect(.degrees(expanded.wrappedValue ? 180 : 0))
-                            .foregroundStyle(hovering || expanded.wrappedValue ? tint : Color.secondary.opacity(0.6))
-                            .frame(width: 16, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(expanded.wrappedValue ? "Hide last messages" : "Show last request and reply")
-                    .accessibilityLabel("Last messages")
-                }
-            }
-            if expanded?.wrappedValue == true {
-                AgentMessages(session: session, contract: contract, tint: tint)
-                    .padding(.leading, 35).padding(.top, 6).padding(.trailing, 6)
-            }
+            Button(action: jump) { summary.contentShape(Rectangle()) }
+                .buttonStyle(.plain).disabled(session.location == nil || !canJump)
+                .accessibilityLabel("\(session.title), \(session.state), \(session.locationLabel)")
+                .accessibilityHint("Open the existing iTerm2 pane; keep Agents visible")
             AgentActivityLine(color: tint, active: live)
                 .frame(height: 2)
-                .padding(.leading, 35).padding(.top, 3).padding(.trailing, 22)
+                .padding(.leading, 35).padding(.top, 3)
         }
-        .padding(.leading, 9).padding(.trailing, 3).padding(.vertical, 6)
-        .background(tint.opacity(hovering ? 0.14 : (selected ? 0.09 : 0.035)), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(tint.opacity(hovering || selected ? 0.45 : 0.08), lineWidth: 1))
+        .padding(.horizontal, 9).padding(.vertical, 6)
+        .fleetCard(hovering: hovering, accent: selected ? tint : nil)
         .onHover { hovering = $0 }
+        // Hovering shows the last request and reply without clicking.
+        .hoverPopover(enabled: session.request != nil || session.answer != nil) {
+            AgentMessages(session: session, contract: contract, tint: tint)
+                .frame(width: 300).padding(12)
+        }
     }
 
     private var summary: some View {

@@ -99,9 +99,11 @@ struct AIFleetMenuView: View {
     }
 
     private var providerRows: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 5) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
+                ProviderCard {
+                    ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
+                }
             }
         }
     }
@@ -358,6 +360,61 @@ private final class OverlayScrollersView: NSView {
 
     deinit {
         if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
+}
+
+/// The shared block look of menu rows (providers, agents, processes).
+private struct FleetCard: ViewModifier {
+    let hovering: Bool
+    let accent: Color?
+
+    func body(content: Content) -> some View {
+        content
+            .background(Color.primary.opacity(hovering ? 0.12 : 0.075), in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(accent?.opacity(0.45) ?? Color.primary.opacity(0.08)))
+    }
+}
+
+/// Shows a popover after the pointer rests on the view and hides it when it leaves.
+private struct HoverPopover<Popover: View>: ViewModifier {
+    let enabled: Bool
+    let popover: () -> Popover
+    @State private var hovering = false
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                hovering = inside
+                guard inside else { shown = false; return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    if hovering && enabled { shown = true }
+                }
+            }
+            .popover(isPresented: $shown, arrowEdge: .leading) { popover() }
+    }
+}
+
+extension View {
+    func fleetCard(hovering: Bool, accent: Color? = nil) -> some View {
+        modifier(FleetCard(hovering: hovering, accent: accent))
+    }
+
+    func hoverPopover<Popover: View>(enabled: Bool = true, @ViewBuilder _ popover: @escaping () -> Popover) -> some View {
+        modifier(HoverPopover(enabled: enabled, popover: popover))
+    }
+}
+
+private struct ProviderCard<Content: View>: View {
+    @ViewBuilder let content: Content
+    @State private var hovering = false
+
+    var body: some View {
+        content
+            .padding(.horizontal, 8).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fleetCard(hovering: hovering)
+            .onHover { hovering = $0 }
     }
 }
 
@@ -733,9 +790,11 @@ final class ActionMenu: NSObject {
     }
 
     private let items: [Item?]
+    private let fontSize: CGFloat?
 
-    init(items: [Item?]) {
+    init(items: [Item?], fontSize: CGFloat? = nil) {
         self.items = items
+        self.fontSize = fontSize
     }
 
     /// Opens below `frame` (SwiftUI global coordinates of the menu panel), so another
@@ -743,6 +802,7 @@ final class ActionMenu: NSObject {
     func popUp(below frame: CGRect) {
         let menu = NSMenu()
         menu.autoenablesItems = false
+        if let fontSize { menu.font = .menuFont(ofSize: fontSize) }
         for (index, item) in items.enumerated() {
             guard let item else {
                 menu.addItem(.separator())
