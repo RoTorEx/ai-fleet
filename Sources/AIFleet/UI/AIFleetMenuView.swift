@@ -395,6 +395,7 @@ struct ProviderLimitRow: View {
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
     @State private var isNameHovered = false
+    @State private var nameFrame: CGRect = .zero
     private var status: ProviderStatus { entry.status }
     private var presentation: MenuConnectionState { MenuConnectionState(status: status) }
     private var color: Color { presentation.available ? rowColor(for: status) : FleetPalette.muted }
@@ -425,20 +426,26 @@ struct ProviderLimitRow: View {
                         }
                     }
                     .foregroundColor(color)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    // Hover highlight shows the name is clickable.
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.primary.opacity(isNameHovered ? 0.12 : 0))
+                    )
                     .contentShape(Rectangle())
+                    .background(GeometryReader { geometry in
+                        Color.clear
+                            .onAppear { nameFrame = geometry.frame(in: .global) }
+                            .onChange(of: geometry.frame(in: .global)) { nameFrame = $0 }
+                    })
                 }
                 .buttonStyle(PlainButtonStyle())
+                .padding(.horizontal, -5)
                 .onHover { isNameHovered = $0 }
                 .accessibilityLabel("\(status.name) \(entry.account.badge) actions")
                 .accessibilityHint(Text(subscription))
                 Spacer(minLength: 8)
-                if isNameHovered, !subscription.isEmpty {
-                    Text(subscription)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(FleetPalette.muted)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
             }
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {
@@ -464,10 +471,17 @@ struct ProviderLimitRow: View {
         }
     }
 
-    /// Email and plan for this connection, shown beside the name while hovering it.
+    /// Email and plan for this connection, shown at the top of its actions menu.
     private var subscription: String {
         entry.account.tooltip(for: entry.connection, status: status)
             .split(separator: "\n").joined(separator: " · ")
+    }
+
+    private var identityLines: [String] {
+        let email = status.account?.email ?? entry.account.email
+        var lines = email.isEmpty ? [] : [email]
+        if let plan = status.account?.planLabel { lines.append("(\(plan))") }
+        return lines
     }
 
     private var actionsBusy: Bool {
@@ -475,10 +489,11 @@ struct ProviderLimitRow: View {
             || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil
     }
 
-    /// Native menu at the pointer: Sign in or Sign out, then Switch.
+    /// Native menu below the name: email, (plan), separator, Sign in or Sign out, then Switch.
     private func showActions() {
         let busy = actionsBusy
-        var items: [ActionMenu.Item?] = []
+        var items: [ActionMenu.Item?] = identityLines.map { ActionMenu.Item(title: $0, enabled: false) {} }
+        if !items.isEmpty { items.append(nil) }
         if entry.isSetup {
             items.append(.init(title: "Set up connection…", enabled: !busy) {
                 SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
@@ -525,7 +540,7 @@ struct ProviderLimitRow: View {
             })
         }
         let menu = ActionMenu(items: items)
-        withExtendedLifetime(menu) { menu.popUpAtPointer() }
+        withExtendedLifetime(menu) { menu.popUp(below: nameFrame) }
     }
 }
 
@@ -544,7 +559,9 @@ final class ActionMenu: NSObject {
         self.items = items
     }
 
-    func popUpAtPointer() {
+    /// Opens below `frame` (SwiftUI global coordinates of the menu panel), so another
+    /// click on the same name lands outside the menu and simply closes it.
+    func popUp(below frame: CGRect) {
         let menu = NSMenu()
         menu.autoenablesItems = false
         for (index, item) in items.enumerated() {
@@ -558,8 +575,14 @@ final class ActionMenu: NSObject {
             menuItem.isEnabled = item.enabled
             menu.addItem(menuItem)
         }
-        // Synchronous: `self` stays alive until the menu closes.
-        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        // Synchronous: the caller keeps `self` alive until the menu closes.
+        if let host = (NSApplication.shared.keyWindow as? FleetMenuPanel)?.hostingView, frame != .zero {
+            let flipped = host.isFlipped
+            let point = NSPoint(x: frame.minX, y: flipped ? frame.maxY + 3 : host.bounds.height - frame.maxY - 3)
+            menu.popUp(positioning: nil, at: point, in: host)
+        } else {
+            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        }
     }
 
     @objc private func run(_ sender: NSMenuItem) {

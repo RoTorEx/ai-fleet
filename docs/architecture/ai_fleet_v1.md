@@ -123,7 +123,7 @@ receive no current row; the provider summary retains the actual native status.
   current limit availability independently of configured authentication.
   Each row reports its own missing-limit reason, login progress and errors.
   Name-click actions (native `ActionMenu`) preserve actual login state and per-account
-  Codex isolation. Name hover shows email/plan inline. `MenuOperationStatus` combines the actual monitoring lifecycle
+  Codex isolation. The menu opens below the name and starts with email and plan. `MenuOperationStatus` combines the actual monitoring lifecycle
   (Active/Paused) with transient operations and update errors; Checked shows the last check and Limits counts
   current measurements. The legend uses Capacity, Access and Marks, with shared rotated vector arrows.
   Commands remain compact; the menu panel's blur mask owns the corners;

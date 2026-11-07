@@ -111,8 +111,10 @@ gap from the value. An unavailable row shows its short reason on one line.
 means the CLI confirmed no login. Provider blocks are separated by one equal
 spacing, never lines; a block grows only by its own content.
 The provider name and badge form one target (the mark is excluded): hovering it
-shows email · plan on the right of the same line, and clicking it opens a native
-menu with Sign in… or Sign out, then Switch (Set up connection… for setup rows).
+highlights it, and clicking it opens a native menu anchored below the name, so a
+second click on the name closes it. The menu lists the email, then the plan in
+parentheses, a separator, Sign in… or Sign out, then Switch (Set up connection…
+for setup rows).
 There are no per-row ellipsis buttons or overlapping hover popups. Saving the
 current terminal login stays in Settings → Accounts; a failed sign-out is
 retried with the same Sign out.
