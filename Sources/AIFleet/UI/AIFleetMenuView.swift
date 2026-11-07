@@ -79,7 +79,8 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(connections) { entry in
-                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
+                ProviderLimitRow(entry: entry, mark: mark(for: entry), reservedLines: reservedLines(for: entry),
+                                 openSettings: openSettings)
             }
 
         }
@@ -95,6 +96,15 @@ struct AIFleetMenuView: View {
         let siblings = connections.filter { $0.status.providerID == entry.status.providerID && !$0.isSetup }
         if siblings.count > 1, entry.isCurrentCLI ?? entry.isSelected { return "→" }
         return "•"
+    }
+
+    /// Unavailable rows reserve as many lines as this provider's measured accounts show,
+    /// or its usual 5h/7d pair, so rows stay balanced.
+    private func reservedLines(for entry: MenuAccountConnection) -> Int {
+        let measured = connections.filter { $0.status.providerID == entry.status.providerID }
+            .map(\.status.limitWindows.count).max() ?? 0
+        if measured > 0 { return measured }
+        return ["codex", "claude"].contains(entry.status.providerID) ? 2 : 1
     }
 
     /// Account notes worth reading, shown at the top of the ⓘ card instead of under rows.
@@ -152,7 +162,7 @@ struct AIFleetMenuView: View {
                             Circle()
                                 .fill(statusNotes.contains(where: \.warning) ? FleetPalette.warning : FleetPalette.muted)
                                 .frame(width: 5, height: 5)
-                                .offset(x: -1, y: 2)
+                                .offset(x: 2, y: -1)
                         }
                     }
                     .contentShape(Rectangle())
@@ -317,6 +327,10 @@ struct RowMark: View {
 enum FleetRowMetrics {
     static let markWidth: CGFloat = 14
     static let markSpacing: CGFloat = 5
+    /// Wide enough for `↻ 12 Nov 10:58` and the `6d 23h 59m 59s` countdown.
+    static let resetWidth: CGFloat = 112
+    static let quotaLineHeight: CGFloat = 13
+    static let quotaLineSpacing: CGFloat = 3
     /// Quota rows sit a little inside the provider name, like a nested list.
     static let detailIndent: CGFloat = markWidth + markSpacing + 10
 }
@@ -348,6 +362,7 @@ struct StatusNotesSection: View {
 struct ProviderLimitRow: View {
     let entry: MenuAccountConnection
     let mark: String
+    var reservedLines = 1
     let openSettings: () -> Void
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
@@ -442,7 +457,7 @@ struct ProviderLimitRow: View {
                 .accessibilityLabel("\(entry.account.badge) \(status.name) actions")
             }
             if !status.limitWindows.isEmpty {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {
                     ForEach(status.limitWindows) { window in
                         if status.providerID == "gemini" {
                             VStack(alignment: .leading, spacing: 2) {
@@ -457,9 +472,12 @@ struct ProviderLimitRow: View {
                 }
                 .padding(.leading, FleetRowMetrics.detailIndent)
             } else {
+                // The reason keeps the height of this provider's usual quota lines.
                 Text(presentation.detail)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(color).fixedSize(horizontal: false, vertical: true)
+                    .frame(minHeight: CGFloat(reservedLines) * FleetRowMetrics.quotaLineHeight
+                           + CGFloat(reservedLines - 1) * FleetRowMetrics.quotaLineSpacing, alignment: .topLeading)
                     .padding(.leading, FleetRowMetrics.detailIndent)
             }
         }
@@ -490,6 +508,7 @@ struct LimitWindowLine: View {
     let status: ProviderStatus
     var isActive = true
     var showsLabel = true
+    @State private var isResetHovered = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -504,15 +523,34 @@ struct LimitWindowLine: View {
                 .foregroundColor(windowColor)
                 .frame(width: 34, alignment: .trailing)
 
-            Text(resetText)
-                .font(limitWindowFont)
-                .foregroundColor(resetColor)
+            resetCell
                 .padding(.leading, 8)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
 
             Spacer(minLength: 0)
         }
+    }
+
+    /// Hovering a date shows the remaining time in the same fixed cell; nothing else moves.
+    private var resetCell: some View {
+        Group {
+            if isResetHovered, blockingWindow == nil, case .upcoming = QuotaResetState(resetAt: window.resetAt, now: Date()) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    HStack(spacing: 4) {
+                        Image(systemName: "timer").font(.system(size: 9, weight: .semibold))
+                        Text(QuotaResetState(resetAt: window.resetAt, now: context.date).text(now: context.date))
+                    }
+                }
+            } else {
+                Text(resetText)
+            }
+        }
+        .font(limitWindowFont)
+        .foregroundColor(resetColor)
+        .lineLimit(1)
+        .frame(width: FleetRowMetrics.resetWidth, alignment: .leading)
+        .contentShape(Rectangle())
+        .onHover { isResetHovered = $0 }
+        .transaction { $0.animation = nil }
     }
 
     private var limitWindowFont: Font {
@@ -552,8 +590,8 @@ struct LimitWindowLine: View {
             return "-"
         }
         switch QuotaResetState(resetAt: window.resetAt, now: Date()) {
-        case .notReported: return "Not reported"
-        case .due: return "Reset due"
+        case .notReported: return "—"
+        case .due: return "due"
         case .upcoming(let date): return "↻ \(formatResetTime(date))"
         }
     }
@@ -617,6 +655,17 @@ struct LegendSection: View {
                         legendMark("?", "unavailable")
                     }
                 }
+            }
+            GridRow {
+                title("Reset")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("↻ next reset · hover for the time left")
+                    HStack(spacing: 9) {
+                        legendKey("—", "not reported")
+                        legendKey("due", "updates on next check")
+                    }
+                }
+                .foregroundColor(FleetPalette.value)
             }
             GridRow {
                 title("Keys")
@@ -732,6 +781,9 @@ private func rowColor(for status: ProviderStatus) -> Color {
     return FleetPalette.value
 }
 
-private func formatResetTime(_ date: Date) -> String {
-    date.formatted(.dateTime.month(.abbreviated).day().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+/// Today's resets show only the time; other days add the date: `10:58`, `9 Nov 10:58`.
+func formatResetTime(_ date: Date, now: Date = Date(), calendar: Calendar = .autoupdatingCurrent) -> String {
+    let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    if calendar.isDate(date, inSameDayAs: now) { return time }
+    return date.formatted(.dateTime.day().month(.abbreviated)) + " " + time
 }

@@ -14,6 +14,8 @@ Tracks real product and release progress.
 - Lead each provider row with one mark (• → ↓ × ?) and align quota periods, values and reset dates in shared columns.
 - Move account notes and errors from under rows into the ⓘ card; keep sign-in progress with Cancel in the header.
 - Route menu shortcuts through the panel key monitor instead of hidden buttons.
+- Show a live countdown on reset-date hover in a fixed cell; shorten dates to `10:58` today or `9 Nov 10:58`.
+- Keep unavailable reasons visible while reserving the provider's usual quota height.
 - Draw → as the turned ↓ glyph, unscale legend text, space reset dates from values, and rename unknown login to "Login status unknown".
 
 

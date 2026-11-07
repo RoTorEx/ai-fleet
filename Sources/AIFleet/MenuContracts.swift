@@ -42,10 +42,12 @@ enum QuotaResetState: Equatable {
             guard interval > 0 else { return "Reset due" }
             guard interval < Double(Int.max) else { return "Not reported" }
             var seconds = Int(interval)
-            return [(86400, "d"), (3600, "h"), (60, "m"), (1, "s")].compactMap { unit, suffix in
+            let parts = [(86400, "d"), (3600, "h"), (60, "m"), (1, "s")].map { unit, suffix -> (Int, String) in
                 let value = seconds / unit; seconds %= unit
-                return value > 0 ? "\(value)\(suffix)" : nil
-            }.joined(separator: " ")
+                return (value, suffix)
+            }
+            // Only leading zero units are dropped: `2h 0m 5s`, never `0d 2h 0m 5s`.
+            return parts.drop { $0.0 == 0 }.map { "\($0.0)\($0.1)" }.joined(separator: " ")
         }
     }
 }

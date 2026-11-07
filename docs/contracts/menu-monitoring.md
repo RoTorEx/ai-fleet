@@ -22,7 +22,11 @@ subscription percentages and Open Platform currency balances remain distinct.
 
 QuotaResetState distinguishes Not reported, upcoming and Reset due. A passed
 date never proves quota replenishment. Countdown helpers use injected time,
-round positive fractions up to seconds and omit zero d/h/m/s components.
+round positive fractions up to seconds and omit only leading zero d/h/m/s
+components (`2h 0m 5s`, `1d 0h 0m 0s`). The menu shows Not reported as `—` and
+Reset due as `due`; a reset today shows its time (`10:58`), other days add the
+date (`9 Nov 10:58`). Hovering a date swaps the same fixed-width cell to a
+live countdown without tooltip, animation or row movement.
 MenuLegendSection provides semantic sections for future design composition.
 
 ## Stable account badges

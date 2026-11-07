@@ -105,7 +105,11 @@ optical center (arrows may run longer than × and •):
 Unavailable marks win over → and •. Any connection without current limits is
 gray, even if its CLI reports a configured login; a missing measurement never
 looks ready. Quota rows sit in shared columns (period, right-aligned remaining,
-reset) indented slightly inside the provider name; providers are separated by
+reset) indented slightly inside the provider name. An unavailable row keeps its
+short reason visible and reserves the height of the provider's usual quota lines
+(its measured accounts' count, else 5h/7d for Codex and Claude, else one) so rows
+stay balanced. "Login status unknown" means the login check gave no answer;
+"Sign in required" means the CLI confirmed no login; providers are separated by
 spacing, not lines. Row-level notes are not shown under rows: important notes
 (quota notices, sign-in/switch failures, terminal rehash) appear briefly in the
 Status section of the ⓘ card, and a dot on ⓘ (orange for problems) shows they

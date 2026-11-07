@@ -44,6 +44,15 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(QuotaResetState(resetAt: now, now: now).text(now: now), "Reset due")
         XCTAssertEqual(QuotaResetState(resetAt: now.addingTimeInterval(0.1), now: now).text(now: now), "1s")
         XCTAssertEqual(QuotaResetState(resetAt: now.addingTimeInterval(90061), now: now).text(now: now), "1d 1h 1m 1s")
+        XCTAssertEqual(QuotaResetState(resetAt: now.addingTimeInterval(7205), now: now).text(now: now), "2h 0m 5s")
+        XCTAssertEqual(QuotaResetState(resetAt: now.addingTimeInterval(86400), now: now).text(now: now), "1d 0h 0m 0s")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Warsaw")!
+        let morning = calendar.date(from: DateComponents(year: 2026, month: 11, day: 7, hour: 9))!
+        let laterToday = calendar.date(byAdding: .hour, value: 2, to: morning)!
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: laterToday)!
+        XCTAssertFalse(formatResetTime(laterToday, now: morning, calendar: calendar).contains("Nov"))
+        XCTAssertTrue(formatResetTime(tomorrow, now: morning, calendar: calendar).contains("Nov"))
         let status = ClaudeQuota.unavailable("arbitrary provider text", reason: .rateLimited).withAuthentication(.signedIn)
         let mapped = ProviderConnection.global("claude").status(from: status).withAccount(nil)
         XCTAssertEqual(mapped.quotaFailureReason, .rateLimited)
