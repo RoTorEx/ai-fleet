@@ -35,6 +35,7 @@ Tracks real product and release progress.
 - Make Greek letters follow the account order: dragging renumbers and removal closes the gap.
 - Drop the working dot from provider rows, make tabs outrank provider names, keep a Claude 5h row with a blank value when the API omits it, unbox provider rows, and return focus to the previous app on Esc or the toggle.
 - Open Statistics with ⌘S from the menu.
+- Price Claude Fable 5.1, Fable 5 and Haiku 5.5 in Statistics estimates.
 - Merge Statistics into one screen in the menu's block style: provider chips, shared totals, By provider bars, models, days, Activity and separate Provider reports.
 - Fix routed Codex launches writing state to a relative `\/Users\/…/.codex` folder in the working directory: `sqlite_home` no longer carries JSON slash escapes.
 - Cut idle CPU: run the ⓘ attention pulse in Core Animation and unload menu content while the panel is closed.

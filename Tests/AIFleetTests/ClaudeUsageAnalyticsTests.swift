@@ -74,4 +74,11 @@ final class ClaudeUsageAnalyticsTests: XCTestCase {
         XCTAssertEqual(restored.claude?.total.inputTokens, 123)
         XCTAssertTrue(restored.codex.total.hasCostEstimate)
     }
+
+    func testCurrentModelsArePricedAndHaikuFollowsPromptLength() throws {
+        XCTAssertEqual(try XCTUnwrap(ClaudeAPIRates.rates(for: "claude-fable-5-1")).cached, 0.25)
+        XCTAssertEqual(try XCTUnwrap(ClaudeAPIRates.rates(for: "claude-fable-5")).cached, 1)
+        XCTAssertEqual(try XCTUnwrap(ClaudeAPIRates.rates(for: "claude-haiku-5-5", promptTokens: 100_000)).input, 0.10)
+        XCTAssertEqual(try XCTUnwrap(ClaudeAPIRates.rates(for: "claude-haiku-5-5", promptTokens: 100_001)).input, 0.50)
+    }
 }

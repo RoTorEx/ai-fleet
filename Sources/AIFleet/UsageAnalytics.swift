@@ -889,7 +889,7 @@ func nextDailyRefreshDate(
 }
 
 enum CodexAPIRates {
-    static let revision = "2026-11-06-standard-v1"
+    static let revision = "2026-11-09-standard-v2"
     // USD per million, standard short-context comparison; not subscription charges.
     // https://developers.openai.com/api/docs/pricing (checked 2026-11-06)
     struct Rates { let input: Double; let cachedInput: Double; let cacheWrite: Double; let output: Double }

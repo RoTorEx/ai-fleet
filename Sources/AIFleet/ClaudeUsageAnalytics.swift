@@ -48,7 +48,7 @@ struct ClaudeUsageLogReader {
             let uncached = max(0, usage.input_tokens ?? 0)
             let output = max(0, usage.output_tokens ?? 0)
             let oneHour = min(writes, max(0, usage.cache_creation?.ephemeral_1h_input_tokens ?? 0))
-            let rates = ClaudeAPIRates.rates(for: model)
+            let rates = ClaudeAPIRates.rates(for: model, promptTokens: checkedStatisticsSum([uncached, cached, writes]) ?? 0)
             var totals = UsageTotals(
                 inputTokens: checkedStatisticsSum([uncached, cached, writes]) ?? 0,
                 cachedInputTokens: cached, cacheWriteInputTokens: writes,
@@ -108,11 +108,13 @@ enum ClaudeAPIRates {
         let cached: Double
     }
 
-    /// Catalog checked 2026-11-06; standard USD per million tokens; excludes tools, fast mode and platform premiums.
+    /// Catalog checked 2026-11-09; standard USD per million tokens; excludes tools, fast mode and platform premiums.
     /// Source: https://platform.claude.com/docs/en/about-claude/pricing
-    static func rates(for model: String) -> Rates? {
+    static func rates(for model: String, promptTokens: Int = 0) -> Rates? {
         let model = model.lowercased()
         let families: [(String, Double, Double, Double)] = [
+            ("claude-fable-5-1", 10, 50, 0.25),
+            ("claude-fable-5", 10, 50, 1),
             ("claude-opus-5-5", 4, 20, 0.20),
             ("claude-sonnet-5-5", 2, 10, 0.10),
             ("claude-opus-4-5", 5, 25, 0.50),
@@ -126,11 +128,14 @@ enum ClaudeAPIRates {
             ("claude-sonnet-4-5", 3, 15, 0.30),
             ("claude-sonnet-4", 3, 15, 0.30),
             ("claude-sonnet-5", 2, 10, 0.20),
+            ("claude-haiku-5-5", 0.10, 0.50, 0.01),
             ("claude-haiku-4-5", 1, 5, 0.10),
         ]
         guard let match = families.first(where: {
             model == $0.0 || (model.hasPrefix($0.0 + "-") && model.dropFirst($0.0.count + 1).count == 8 && model.suffix(8).allSatisfy(\.isNumber))
         }) else { return nil }
+        // Haiku 5.5 prices each request by its whole prompt, cache reads and writes included.
+        if match.0 == "claude-haiku-5-5", promptTokens > 100_000 { return Rates(input: 0.50, output: 2.50, cached: 0.05) }
         return Rates(input: match.1, output: match.2, cached: match.3)
     }
 }
