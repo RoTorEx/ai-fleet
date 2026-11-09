@@ -145,4 +145,22 @@ final class ProviderTerminalLaunchTests: XCTestCase {
         XCTAssertEqual(service.subscriptions.first { $0.id == legacy.statusID }?.remainingPercent, 80,
                        "An existing native-default connection keeps its original row identity after independent login")
     }
+
+    func testCodexShimRefreshFollowsTheAppAndLeavesOtherCommandsAlone() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let shim = root.appendingPathComponent(".local/bin/codex")
+        let current = URL(fileURLWithPath: "/Applications/AIFleet.app")
+
+        try CodexTerminalLaunch.refreshShimIfInstalled(home: root, application: current)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shim.path))
+
+        try CodexTerminalLaunch.installShim(home: root, application: URL(fileURLWithPath: "/Old/AIFleet.app"))
+        try CodexTerminalLaunch.refreshShimIfInstalled(home: root, application: current)
+        XCTAssertTrue(try String(contentsOf: shim, encoding: .utf8).contains("'/Applications/AIFleet.app/Contents/MacOS/AIFleet'"))
+
+        try "#!/bin/sh\nexec other\n".write(to: shim, atomically: true, encoding: .utf8)
+        try CodexTerminalLaunch.refreshShimIfInstalled(home: root, application: current)
+        XCTAssertEqual(try String(contentsOf: shim, encoding: .utf8), "#!/bin/sh\nexec other\n")
+    }
 }

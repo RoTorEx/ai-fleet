@@ -253,6 +253,8 @@ final class ProviderLaunchStore: ObservableObject {
     }
 
     func installCommandIntegration() {
+        do { try CodexTerminalLaunch.refreshShimIfInstalled(home: home, application: Bundle.main.bundleURL) }
+        catch { messageProviderID = "codex"; message = "codex: \(error.localizedDescription)"; messageIsError = true }
         for provider in ProviderTerminalLaunch.providers {
             do { try ProviderTerminalLaunch.installShim(provider, home: home, application: Bundle.main.bundleURL) }
             catch { messageProviderID = provider; message = "\(provider): \(error.localizedDescription)"; messageIsError = true }

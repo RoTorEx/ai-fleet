@@ -176,6 +176,12 @@ enum CodexTerminalLaunch {
         try atomicWrite(Data(script.utf8), to: shim, mode: 0o700)
     }
 
+    /// Keeps an existing shim on the running app; never creates one or replaces another command.
+    static func refreshShimIfInstalled(home: URL, application: URL) throws {
+        guard isShim(home.appendingPathComponent(".local/bin/codex")) else { return }
+        try installShim(home: home, application: application)
+    }
+
     static func checkPath(_ url: URL) throws {
         guard url.resolvingSymlinksInPath().path == url.standardizedFileURL.path else { throw Failure.redirectedPath }
         // Foundation may leave dangling links unresolved. Inspect each existing component too.
