@@ -93,10 +93,10 @@ a fixed column and the PID pressed against a small ⋯ menu for Stop and Force Q
 The folder and PID share one hover card with the value and "Click to copy", and
 copy on click. The second line has account on the left and start time with
 seconds on the right. A short "Copied …" notice confirms each copy.
-Agents and processes share one neutral block style; provider rows are unboxed. All/Codex/Claude filters and newest/oldest sort
+Agents and processes share one neutral block style; provider rows are unboxed. All and per-provider filters (only providers with a running process) and newest/oldest sort
 sit above the list; provider-wide and background stops are in one ⋯ menu.
-The Processes tab lists the current user's recognized Codex and Claude executables,
-including native version-named Claude binaries and known installed Node entrypoints.
+The Processes tab lists the current user's recognized provider executables,
+including native version-named Claude binaries and installed Node entrypoints such as Kimi and Gemini.
 Detached processes can remain after terminals close; their exact role/account
 remains unknown without evidence, so rows say only "terminal" or "detached". Native libproc discovery uses
 executable paths, UID, controlling-terminal presence and microsecond start identity;

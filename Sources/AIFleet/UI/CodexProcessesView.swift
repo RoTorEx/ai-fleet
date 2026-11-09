@@ -11,8 +11,14 @@ struct CodexProcessesView: View {
     @State private var toast: String?
     @State private var toastID = UUID()
 
+    /// Only providers with a running process get a filter and a bulk section.
+    private var providers: [String] {
+        let running = Set(service.processes.map(\.providerID))
+        return ProviderCatalog.all.map(\.id).filter(running.contains)
+    }
+
     private var visible: [CodexProcess] {
-        let rows = service.processes.filter { filter == "All" || $0.providerID == filter.lowercased() }
+        let rows = service.processes.filter { !providers.contains(filter.lowercased()) || $0.providerID == filter.lowercased() }
         let start = { (process: CodexProcess) in TimeInterval(process.started) ?? 0 }
         return rows.sorted { newestFirst ? start($0) > start($1) : start($0) < start($1) }
     }
@@ -21,21 +27,27 @@ struct CodexProcessesView: View {
         VStack(alignment: .leading, spacing: 6) {
             // The tab title names the list; it rescans every 3 seconds while visible.
             HStack(spacing: 4) {
-                ForEach(["All", "Codex", "Claude"], id: \.self) { item in
+                ForEach(["All"] + providers.map(\.capitalized), id: \.self) { item in
+                    let selected = item == "All" ? !providers.contains(filter.lowercased()) : filter == item
                     let count = item == "All" ? service.processes.count
                         : service.processes.filter { $0.providerID == item.lowercased() }.count
                     Button { filter = item } label: {
                         Text("\(item) \(count)").font(.system(size: 10.5, weight: .medium).monospacedDigit())
                             .padding(.horizontal, 8).padding(.vertical, 3)
-                            .foregroundStyle(filter == item ? Color.primary : Color.secondary)
-                            .background(filter == item ? Color.primary.opacity(0.1) : .clear, in: Capsule())
+                            .foregroundStyle(selected ? Color.primary : Color.secondary)
+                            .background(selected ? Color.primary.opacity(0.1) : .clear, in: Capsule())
                     }.buttonStyle(.plain)
                 }
                 Spacer(minLength: 4)
                 Button { newestFirst.toggle() } label: {
-                    Label(newestFirst ? "Newest" : "Oldest", systemImage: "arrow.up.arrow.down")
-                        .font(.system(size: 10.5, weight: .medium))
-                }.buttonStyle(.plain).foregroundStyle(.secondary).help("Sort by start time")
+                    // Several provider filters leave room for the icon only.
+                    if providers.count > 2 {
+                        Image(systemName: "arrow.up.arrow.down").font(.system(size: 10.5, weight: .medium))
+                    } else {
+                        Label(newestFirst ? "Newest" : "Oldest", systemImage: "arrow.up.arrow.down")
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                }.buttonStyle(.plain).foregroundStyle(.secondary).help(newestFirst ? "Newest first" : "Oldest first")
                 bulkMenu
             }
             if let error = service.error {
@@ -79,7 +91,7 @@ struct CodexProcessesView: View {
     /// Provider-wide and background actions live in one menu instead of a stack of buttons.
     private var bulkMenu: some View {
         Menu {
-            ForEach(["codex", "claude"], id: \.self) { provider in
+            ForEach(providers, id: \.self) { provider in
                 let rows = service.processes.filter { $0.providerID == provider }
                 Section(provider.capitalized) {
                     Button("Stop all \(provider.capitalized) (\(rows.count))…") { request(rows, force: false) }

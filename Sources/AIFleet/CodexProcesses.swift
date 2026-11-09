@@ -71,13 +71,14 @@ enum CodexProcessControl {
     static func provider(executable: String, script: String?) -> String? {
         let name = URL(fileURLWithPath: executable).lastPathComponent
         if ["codex", "codex-code-mode-host"].contains(name) { return "codex" }
-        if name == "claude" { return "claude" }
+        if let native = ProviderCatalog.all.first(where: { $0.id != "codex" && $0.executableNames.contains(name) }) { return native.id }
         let versions = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/claude/versions").path
         if URL(fileURLWithPath: executable).deletingLastPathComponent().path == versions { return "claude" }
         guard name == "node", let script, script.hasPrefix("/") else { return nil }
-        for provider in ["claude", "codex"] {
-            guard let native = ProviderTerminalLaunch.nativeExecutable(provider, environment: ProcessInfo.processInfo.environment) else { continue }
-            if native.resolvingSymlinksInPath().path == URL(fileURLWithPath: script).resolvingSymlinksInPath().path { return provider }
+        let entry = URL(fileURLWithPath: script).resolvingSymlinksInPath().path
+        for provider in ProviderCatalog.all {
+            guard let native = ProviderCatalog.executableURL(for: provider) else { continue }
+            if native.resolvingSymlinksInPath().path == entry { return provider.id }
         }
         return nil
     }

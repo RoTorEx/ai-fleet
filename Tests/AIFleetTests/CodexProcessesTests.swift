@@ -4,6 +4,13 @@ import XCTest
 @testable import AIFleet
 
 final class CodexProcessesTests: XCTestCase {
+    func testProviderExecutablesAreRecognizedByName() {
+        XCTAssertEqual(CodexProcessControl.provider(executable: "/opt/bin/kimi", script: nil), "kimi")
+        XCTAssertEqual(CodexProcessControl.provider(executable: "/opt/bin/grok", script: nil), "grok")
+        XCTAssertEqual(CodexProcessControl.provider(executable: "/opt/bin/claude", script: nil), "claude")
+        XCTAssertNil(CodexProcessControl.provider(executable: "/opt/bin/vim", script: nil))
+    }
+
     func testReplacedPidOrOtherOwnerNeverReceivesSignal() throws {
         let current = CodexProcess(pid: 12345, uid: getuid(), terminal: "??", started: "original", executable: "/bin/codex")
         let replacement = CodexProcess(pid: current.pid, uid: getuid(), terminal: "??", started: "replacement", executable: current.executable)

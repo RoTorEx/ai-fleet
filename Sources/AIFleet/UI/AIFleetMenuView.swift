@@ -449,7 +449,8 @@ struct MenuTabBar<Content: View>: View {
     private func tab(_ item: Item, active: Bool) -> some View {
         Button { screen.tab = item.tab } label: {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(item.title).font(.system(size: 13, weight: active ? .semibold : .medium))
+                // One weight for every state: a heavier active title would shift the row.
+                Text(item.title).font(.system(size: 13, weight: .semibold))
                     .foregroundColor(active ? FleetPalette.value : FleetPalette.muted)
                 if let count = item.count {
                     Text(count).font(.system(size: 11, weight: .medium).monospacedDigit())
