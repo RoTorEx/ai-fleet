@@ -84,7 +84,7 @@ subscription charges.
   order with their providers, Add Account, and confirmed removal. Small parenthesized
   badges follow the provider name; clicking the name opens email, plan and
   account actions below it; hovering highlights it. One leading mark per row: ↓ lowest positive
-  quota anywhere, → current account of a multi-account provider, • working, ×/?
+  quota anywhere, → current account of a multi-account provider, none when simply working, ×/?
   unavailable.
   Legacy isolated files and metadata remain preserved. See
   [Accounts](business/accounts.md) for matching, ordering and storage rules.

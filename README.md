@@ -127,7 +127,7 @@ the confirmation. The app verifies process identity and checks exit. Account
 selection follows the chosen Switch policy; stopping requires confirmation.
 
 The menu shows each account's remaining 5h/7d limits in aligned columns. One
-mark leads each row: • working, → the current account when a provider has
+mark leads a row when it says something: → the current account when a provider has
 several, ↓ the lowest remaining quota anywhere, × sign-in required and ? limits
 unavailable (gray even with a configured CLI login). Important account notes
 appear in the Status section of the ⓘ card.

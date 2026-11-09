@@ -115,14 +115,14 @@ struct AIFleetMenuView: View {
     }
 
     /// One leading mark per row: ↓ lowest positive quota anywhere, → the current account of a
-    /// provider with several accounts, • any other working connection, × / ? unavailable.
+    /// provider with several accounts, none for any other working connection, × / ? unavailable.
     private func mark(for entry: MenuAccountConnection) -> String {
         let state = MenuConnectionState(status: entry.status)
         guard state.available else { return state.marker }
         if entry.status.id == lowestProvider?.id { return "↓" }
         let siblings = connections.filter { $0.status.providerID == entry.status.providerID && !$0.isSetup }
         if siblings.count > 1, entry.isCurrentCLI ?? entry.isSelected { return "→" }
-        return "•"
+        return ""
     }
 
     /// Saved accounts by badge with their email and each provider's plan.
@@ -465,10 +465,10 @@ struct MenuTabBar<Content: View>: View {
     private func tab(_ item: Item, active: Bool) -> some View {
         Button { screen.tab = item.tab } label: {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(item.title).font(.system(size: 11.5, weight: active ? .semibold : .medium))
+                Text(item.title).font(.system(size: 13, weight: active ? .semibold : .medium))
                     .foregroundColor(active ? FleetPalette.value : FleetPalette.muted)
                 if let count = item.count {
-                    Text(count).font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    Text(count).font(.system(size: 11, weight: .medium).monospacedDigit())
                         .foregroundColor(FleetPalette.muted.opacity(active ? 1 : 0.75))
                 }
             }
@@ -639,7 +639,7 @@ struct ProviderLimitRow: View {
         switch mark {
         case "↓": return "lowest remaining quota"
         case "→": return "current account"
-        case "•": return "connected"
+        case "": return "connected"
         case "×": return "sign in required"
         default: return "unavailable"
         }
@@ -655,10 +655,10 @@ struct ProviderLimitRow: View {
                 Button(action: showActions) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(status.name)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 12, weight: .medium))
                         if !entry.account.badge.isEmpty {
                             Text("(\(entry.account.badge))")
-                                .font(.system(size: 10.5, weight: .medium))
+                                .font(.system(size: 10, weight: .medium))
                         }
                     }
                     .foregroundColor(color)
@@ -685,6 +685,9 @@ struct ProviderLimitRow: View {
             }
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {
+                    if status.providerID == "claude", !status.limitWindows.contains(where: { $0.label == "5h" }) {
+                        MissingLimitLine(label: "5h")
+                    }
                     ForEach(status.limitWindows) { window in
                         if status.providerID == "gemini" {
                             VStack(alignment: .leading, spacing: 2) {
@@ -837,6 +840,22 @@ final class ActionMenu: NSObject {
     }
 }
 
+/// A window the provider left out of its reply, shown in the same columns as a measured one.
+private struct MissingLimitLine: View {
+    let label: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Text(label).frame(width: 26, alignment: .leading)
+            Text("—").frame(width: 34, alignment: .trailing)
+            Text("not reported").padding(.leading, 16)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 11, weight: .medium, design: .monospaced))
+        .foregroundColor(FleetPalette.muted)
+    }
+}
+
 struct LimitWindowLine: View {
     let window: ProviderLimitWindow
     let status: ProviderStatus
@@ -985,7 +1004,6 @@ struct LegendSection: View {
                 title("Marks")
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 9) {
-                        legendMark("•", "working")
                         legendMark("→", "current account")
                         legendMark("↓", "lowest")
                     }

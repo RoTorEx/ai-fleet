@@ -105,7 +105,7 @@ optical center (arrows may run longer than × and •):
 - → the current account of a provider with several saved accounts, meaning the
   account the next ordinary provider command uses after terminal integration,
   not the identity of existing processes;
-- • any other connection with current limits (including 0%);
+- no mark on any other connection with current limits (including 0%);
 - × sign-in required; ? limits unavailable or unknown.
 Unavailable marks win over → and •. Any connection without current limits is
 gray, even if its CLI reports a configured login; a missing measurement never

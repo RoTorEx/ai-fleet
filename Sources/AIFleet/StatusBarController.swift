@@ -151,6 +151,7 @@ final class StatusBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: 18)
     private let hostingController: NSHostingController<FleetMenuRoot>
     private let panel: FleetMenuPanel
+    private var previousApp: NSRunningApplication?
     private let openSettings: (NSRect?) -> Void
     private let openStatistics: (NSRect?) -> Void
     private var globalClickMonitor: Any?
@@ -208,7 +209,7 @@ final class StatusBarController: NSObject {
 
     func togglePopover() {
         if panel.isVisible {
-            closePanel()
+            closePanel(restoringFocus: true)
         } else {
             showPanel()
         }
@@ -229,6 +230,8 @@ final class StatusBarController: NSObject {
         }
         StatusService.shared.refresh()
 
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        previousApp = frontmost?.processIdentifier == getpid() ? nil : frontmost
         // Activate so the panel becomes key and its buttons receive clicks.
         NSApplication.shared.activate(ignoringOtherApps: true)
         screen.isOpen = true
@@ -270,7 +273,9 @@ final class StatusBarController: NSObject {
         }
     }
 
-    private func closePanel() {
+    /// Esc and the toggle hand focus back to the app that had it; an outside click already moved
+    /// focus, and Settings or Statistics take it themselves.
+    private func closePanel(restoringFocus: Bool = false) {
         guard panel.isVisible else {
             return
         }
@@ -279,6 +284,10 @@ final class StatusBarController: NSObject {
         stopClickMonitor()
         agents.stop()
         screen.isOpen = false
+        if restoringFocus, let previousApp, !previousApp.isTerminated {
+            if #available(macOS 14.0, *) { previousApp.activate() } else { previousApp.activate(options: .activateIgnoringOtherApps) }
+        }
+        previousApp = nil
     }
 
     private func startClickMonitor() {
@@ -301,7 +310,7 @@ final class StatusBarController: NSObject {
             }
 
             if event.type == .keyDown, event.keyCode == UInt16(kVK_Escape), NSApplication.shared.modalWindow == nil {
-                self.closePanel()
+                self.closePanel(restoringFocus: true)
                 return nil
             }
 

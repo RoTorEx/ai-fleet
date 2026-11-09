@@ -108,7 +108,7 @@ final class MenuLayoutTests: XCTestCase {
         let cross = try ink("×")
         let right = try ink("→"), down = try ink("↓")
         XCTAssertEqual(right.width, down.height, accuracy: 0.5, "→ must be as long as ↓")
-        for mark in ["→", "↓", "•", "?"] {
+        for mark in ["→", "↓", "?"] {
             let box = try ink(mark)
             XCTAssertEqual(box.midY, cross.midY, accuracy: 0.5, "\(mark) must share the × optical center")
         }
