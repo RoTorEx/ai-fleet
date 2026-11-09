@@ -239,6 +239,11 @@ final class CodexMonitoringStore: ObservableObject {
                 terminalSetupNotice = !installed
                 error = nil
                 errorProfileID = nil
+            }, resolved: { [weak self] in
+                guard let self, self.error == SwitchRecoveryError.unknownProcesses.localizedDescription ||
+                    self.error == SwitchRecoveryError.timedOut.localizedDescription else { return }
+                self.error = nil
+                self.errorProfileID = nil
             }, failure: { [weak self] error in
                 self?.errorProfileID = self?.profile(for: account)?.id
                 self?.error = error.localizedDescription

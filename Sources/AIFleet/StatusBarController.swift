@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import Combine
 import SwiftUI
 
 @MainActor
@@ -165,6 +166,7 @@ private final class MenuPanelOutline: NSView {
 @MainActor
 final class StatusBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: 18)
+    private var attentionObservation: AnyCancellable?
     private let hostingController: NSHostingController<FleetMenuRoot>
     private let panel: FleetMenuPanel
     private var previousApp: NSRunningApplication?
@@ -218,9 +220,36 @@ final class StatusBarController: NSObject {
             button.action = #selector(statusItemClicked)
         }
 
+        let changes = [service.objectWillChange, AccountStore.shared.objectWillChange,
+                       CodexMonitoringStore.shared.objectWillChange, ProviderLaunchStore.shared.objectWillChange,
+                       AppSettings.shared.objectWillChange]
+        attentionObservation = Publishers.MergeMany(changes)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateAttention(service: service) }
+        updateAttention(service: service)
+
         sizeObservation = hostingController.observe(\.preferredContentSize) { [weak self] _, _ in
             Task { @MainActor in self?.layoutPanel() }
         }
+    }
+
+    private func updateAttention(service: StatusService) {
+        let rows = menuProviderRows(accounts: AccountStore.shared.accounts,
+            enabled: AppSettings.shared.isEnabled, global: service.status(for:),
+            statusForConnection: service.status(for:), codex: CodexMonitoringStore.shared)
+        let notes = fleetStatusNotes(connections: rows, accounts: AccountStore.shared,
+            codexProfiles: CodexMonitoringStore.shared, providerLaunch: ProviderLaunchStore.shared)
+        let severity = MenuStatusNote.attention(in: notes)
+        guard let button = statusItem.button else { return }
+        statusItem.length = severity == nil ? 18 : 30
+        button.imagePosition = severity == nil ? .imageOnly : .imageLeading
+        button.attributedTitle = NSAttributedString(string: severity == nil ? "" : "!", attributes: [
+            .foregroundColor: severity == .error ? NSColor.systemRed : NSColor.systemOrange,
+            .font: NSFont.systemFont(ofSize: 12, weight: .bold)
+        ])
+        button.toolTip = "AI Fleet (\(AppSettings.shared.hotkey.displayString))" +
+            (severity == nil ? "" : " — Status needs attention")
+        button.setAccessibilityLabel(severity == nil ? "AI Fleet" : "AI Fleet: status needs attention")
     }
 
     func togglePopover() {

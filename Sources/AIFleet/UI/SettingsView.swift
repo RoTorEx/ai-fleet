@@ -244,7 +244,7 @@ struct HotkeyRecorder: View {
 struct SwitchPolicyPicker: View {
     let provider: String
     let title: String
-    @State private var policy = SwitchPolicy.graceful
+    @State private var policy = SwitchPolicy.nextLaunch
     var body: some View {
         Picker(title, selection: $policy) {
             ForEach(SwitchPolicy.allCases) { Text($0.title).tag($0) }

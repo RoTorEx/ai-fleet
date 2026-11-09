@@ -24,7 +24,7 @@ struct FleetSessionOwner: Codable, Equatable {
     let started: String
 }
 
-enum SwitchRecoveryError: LocalizedError {
+enum SwitchRecoveryError: LocalizedError, Equatable {
     case unknownProcesses, timedOut, identity, cancelled
     var errorDescription: String? {
         switch self {
@@ -65,6 +65,12 @@ enum SwitchRecovery {
             if binding.accountID == accountID { result.append(row) }
         }
         return result
+    }
+
+    static func processBlockResolved(_ inventory: [CodexProcess]?, provider: String,
+                                     current: String?, owner: (CodexProcess) -> FleetSessionOwner?) -> Bool {
+        guard let inventory else { return false }
+        return (try? targets(inventory, providerID: provider, accountID: current, owner: owner).isEmpty) == true
     }
 
     @MainActor
@@ -131,15 +137,39 @@ final class SwitchCoordinator: ObservableObject {
     @Published private(set) var active = Set<String>()
     @Published private(set) var detail: String?
     private var tasks: [String: Task<Void, Never>] = [:]
+    private var blocked: [String: (current: String?, resolved: () -> Void)] = [:]
+    private var recoveryTask: Task<Void, Never>?
 
-    static func policy(_ provider: String) -> SwitchPolicy {
-        SwitchPolicy(rawValue: UserDefaults.standard.string(forKey: "switch.policy.\(provider)") ?? "") ?? .graceful
+    /// Recheck only failed process transitions; never retry selection or signal a process.
+    private func watchBlockedProcesses() {
+        guard recoveryTask == nil else { return }
+        recoveryTask = Task {
+            defer { recoveryTask = nil }
+            while !blocked.isEmpty {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                let inventory = await Task.detached(priority: .utility) {
+                    try? CodexProcessControl.allInventory()
+                }.value
+                let roots = Self.sessionRoots(home: FileManager.default.homeDirectoryForCurrentUser)
+                for (provider, state) in blocked {
+                    if SwitchRecovery.processBlockResolved(inventory, provider: provider, current: state.current,
+                        owner: { SwitchRecovery.owner(of: $0, roots: roots) }) {
+                        blocked.removeValue(forKey: provider)
+                        state.resolved()
+                    }
+                }
+            }
+        }
+    }
+
+    static func policy(_ provider: String, defaults: UserDefaults = .standard) -> SwitchPolicy {
+        SwitchPolicy(rawValue: defaults.string(forKey: "switch.policy.\(provider)") ?? "") ?? .nextLaunch
     }
 
     func cancel(_ provider: String) { tasks[provider]?.cancel() }
 
     func perform(provider: String, current: String?, validate: @escaping () async throws -> Void,
-                 commit: @escaping () throws -> Void, failure: @escaping (Error) -> Void) {
+                 commit: @escaping () throws -> Void, resolved: @escaping () -> Void = {}, failure: @escaping (Error) -> Void) {
         guard !active.contains(provider) else { return }
         guard StatusService.shared.signingOutProvider == nil,
               !AccountStore.shared.codexSigningIn,
@@ -148,6 +178,7 @@ final class SwitchCoordinator: ObservableObject {
             failure(CodexAuthenticationError.busy)
             return
         }
+        blocked.removeValue(forKey: provider)
         active.insert(provider)
         tasks[provider] = Task {
             defer { active.remove(provider); tasks.removeValue(forKey: provider); StatusService.shared.refresh() }
@@ -180,7 +211,15 @@ final class SwitchCoordinator: ObservableObject {
                         try await SwitchRecovery.waitForExit(timeout: timeout, read: read)
                     }, commit: commit)
                 detail = "Account selected for the next command. Refreshing limits…"
-            } catch { detail = error.localizedDescription; failure(error) }
+            } catch {
+                detail = error.localizedDescription
+                failure(error)
+                if let reason = error as? SwitchRecoveryError,
+                   reason == .unknownProcesses || reason == .timedOut {
+                    blocked[provider] = (current, resolved)
+                    watchBlockedProcesses()
+                }
+            }
         }
     }
 

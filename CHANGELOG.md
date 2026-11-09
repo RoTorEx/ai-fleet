@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Select an Xcode with the macOS 26 SDK in release CI so the native glass menu can compile.
+- Default account switching to Next launch only, preserving running sessions and explicitly saved policies.
+- Clear resolved process-blocking switch errors automatically without retrying the switch.
+- Show warning/error attention in the menu bar and replace the header info icon with an exclamation mark, keeping details in the existing status card.
+
 ## [1.4.0] - 2026-11-09
 
 - Show Claude model-specific weekly limits such as `7d (Fable)` and drop the 5h line when the provider does not report that window.

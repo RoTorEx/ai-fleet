@@ -105,7 +105,7 @@ account's saved Codex login, and is refused while its Fleet sessions are running
 Use **Save current login** to retain an already authenticated Codex account.
 **Switch** selects the account for your next ordinary `codex`
 or `codex resume` command, including in the same terminal. Codex and Claude use the policy selected in Settings → General: Next launch
-only, Wait for exit, Stop gracefully (default), or Force quit. Stopping policies
+only (default), Wait for exit, Stop gracefully, or Force quit. Stopping policies
 show the affected PIDs and require confirmation. Unverified account ownership
 requires manual review in Processes. See [Switch recovery](business/switch-recovery.md). After the first installation of command
 integration, run `rehash` once in terminals already open; later account changes

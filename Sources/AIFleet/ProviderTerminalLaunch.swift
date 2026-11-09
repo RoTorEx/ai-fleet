@@ -296,6 +296,10 @@ final class ProviderLaunchStore: ObservableObject {
                     selected[providerID] = account.id
                     save()
                     message = "Account selected for the next Claude command."
+                }, resolved: { [weak self] in
+                    guard let self, self.message == SwitchRecoveryError.unknownProcesses.localizedDescription ||
+                        self.message == SwitchRecoveryError.timedOut.localizedDescription else { return }
+                    self.message = nil
                 }, failure: { [weak self] error in self?.message = error.localizedDescription; self?.messageIsError = true })
             } else {
             try ProviderTerminalLaunch.choose(profile, home: home, application: Bundle.main.bundleURL, environment: environment)

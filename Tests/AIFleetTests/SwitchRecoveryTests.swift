@@ -17,6 +17,20 @@ final class SwitchRecoveryTests: XCTestCase {
         XCTAssertThrowsError(try SwitchRecovery.targets([one, two], providerID: "codex", accountID: "alpha", owner: { $0.pid == 20 ? owner($0) : nil }))
     }
 
+    func testProcessErrorRecoveryRequiresReadableInventoryAndNoBlockingTargets() {
+        let codex = CodexProcess(pid: 20, uid: getuid(), terminal: "??", started: "1", executable: "/fixture/codex")
+        let claude = CodexProcess(pid: 21, uid: getuid(), terminal: "??", started: "2", executable: "/fixture/claude")
+        let owner: (CodexProcess) -> FleetSessionOwner? = {
+            FleetSessionOwner(providerID: $0.providerID, accountID: "beta", profileID: "p", pid: $0.pid, started: $0.started)
+        }
+        XCTAssertFalse(SwitchRecovery.processBlockResolved(nil, provider: "codex", current: "alpha", owner: owner))
+        XCTAssertFalse(SwitchRecovery.processBlockResolved([codex], provider: "codex", current: "alpha", owner: { _ in nil }))
+        XCTAssertFalse(SwitchRecovery.processBlockResolved([codex], provider: "codex", current: "beta", owner: owner))
+        XCTAssertTrue(SwitchRecovery.processBlockResolved([codex], provider: "codex", current: "alpha", owner: owner))
+        XCTAssertTrue(SwitchRecovery.processBlockResolved([claude], provider: "codex", current: nil, owner: { _ in nil }))
+        XCTAssertTrue(SwitchRecovery.processBlockResolved([], provider: "codex", current: nil, owner: owner))
+    }
+
     func testOwnershipSidecarRequiresExactStartAndUnambiguousBinding() throws {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -78,6 +92,39 @@ final class SwitchRecoveryTests: XCTestCase {
 
 @MainActor
 final class SwitchTransactionTests: XCTestCase {
+    func testNextLaunchDefaultPreservesExplicitPolicy() {
+        let name = "SwitchPolicyTests." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        XCTAssertEqual(SwitchCoordinator.policy("codex", defaults: defaults), .nextLaunch)
+        defaults.set("invalid", forKey: "switch.policy.codex")
+        XCTAssertEqual(SwitchCoordinator.policy("codex", defaults: defaults), .nextLaunch)
+        for policy in SwitchPolicy.allCases {
+            defaults.set(policy.rawValue, forKey: "switch.policy.codex")
+            XCTAssertEqual(SwitchCoordinator.policy("codex", defaults: defaults), policy)
+        }
+    }
+
+    func testNextLaunchNeverInspectsOrStopsExistingProcesses() async throws {
+        var selected = false
+        try await SwitchRecovery.transition(policy: .nextLaunch, validate: {},
+            read: { XCTFail("Next launch inspected existing processes"); throw SwitchRecoveryError.unknownProcesses },
+            confirm: { _, _ in XCTFail(); return false }, stop: { _, _ in XCTFail() },
+            wait: { _, _ in XCTFail() }, commit: { selected = true })
+        XCTAssertTrue(selected)
+    }
+
+    func testAttentionUsesErrorsBeforeWarningsAndIgnoresInformationalNotes() {
+        let info = MenuStatusNote(label: "Codex", text: "Setup hint", severity: .info)
+        let warning = MenuStatusNote(label: "Claude", text: "Quota delayed", severity: .warning)
+        let error = MenuStatusNote(label: "Codex", text: "Switch blocked", severity: .error)
+        XCTAssertNil(MenuStatusNote.attention(in: [info]))
+        XCTAssertEqual(MenuStatusNote.attention(in: [info, warning]), .warning)
+        XCTAssertEqual(MenuStatusNote.attention(in: [warning, error]), .error)
+        XCTAssertEqual(MenuStatusNote.attention(in: [error, warning]), .error)
+        XCTAssertNil(MenuStatusNote.attention(in: []))
+    }
+
     func testInvalidTargetNeverStopsOrCommits() async {
         do {
             try await SwitchRecovery.transition(policy: .force, validate: { throw SwitchRecoveryError.identity },

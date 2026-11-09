@@ -7,7 +7,7 @@ are separate observations. A quota transport failure does not establish logout.
 ## Policies
 
 Each provider stores its policy in `switch.policy.<provider>`; missing or invalid
-values use graceful stop. Next launch changes only the command selection. Wait
+values use next launch only. Explicitly saved policies are retained. Next launch changes only the command selection. Wait
 sends no signal and waits at most 60 seconds. Graceful stop confirms the process
 list, sends SIGTERM and waits at most 10 seconds. Force quit confirms separately,
 sends SIGKILL and waits at most 3 seconds. Graceful stop never escalates itself.
@@ -82,3 +82,9 @@ credential source even if structured auth status omits configDirectory.
 Out-of-range numeric quota counts are unavailable rather than a trapping Int
 conversion. QuotaRecoveryRegressionTests exercises these boundaries with owned
 local fixtures, including an app-server that ignores SIGTERM.
+
+Failed process transitions are rechecked every three seconds while unresolved.
+A successful inventory that establishes no remaining outgoing-account targets
+clears only that process-blocking error. Unknown ownership or inventory failure
+keeps it visible. Recovery never retries selection, signals a process, or clears
+an unrelated authentication failure.

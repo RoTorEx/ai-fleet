@@ -142,40 +142,17 @@ struct AIFleetMenuView: View {
 
     /// ⓘ glows red for errors and orange for warnings; info-only notes keep it still.
     private var attentionColor: Color? {
-        if statusNotes.contains(where: { $0.severity == .error }) { return FleetPalette.danger }
-        if statusNotes.contains(where: { $0.severity == .warning }) { return FleetPalette.warning }
-        return nil
+        switch MenuStatusNote.attention(in: statusNotes) {
+        case .error: return FleetPalette.danger
+        case .warning: return FleetPalette.warning
+        default: return nil
+        }
     }
 
     /// Account notes worth reading, shown at the top of the ⓘ card instead of under rows.
     private var statusNotes: [MenuStatusNote] {
-        var notes: [MenuStatusNote] = []
-        func label(_ entry: MenuAccountConnection) -> String {
-            entry.account.badge.isEmpty ? entry.status.name : "\(entry.status.name) (\(entry.account.badge))"
-        }
-        for entry in connections {
-            if let notice = entry.status.quotaNotice {
-                notes.append(.init(label: label(entry), text: notice, severity: entry.isSelected ? .warning : .info))
-            }
-            if providerLaunch.messageIsError, let message = providerLaunch.message,
-               providerLaunch.messageAccountID == entry.account.id, providerLaunch.messageProviderID == entry.status.providerID {
-                notes.append(.init(label: label(entry), text: message, severity: .error))
-            }
-            if entry.usesAccountLogin, let error = codexProfiles.error,
-               codexProfiles.profiles.first(where: { $0.id == codexProfiles.errorProfileID })?.accountID == entry.account.id {
-                let text = codexProfiles.switchBlockedProcessIDs == nil ? error
-                    : "Switch blocked while Codex is running. Stop it in Processes, then retry."
-                notes.append(.init(label: label(entry), text: text, severity: .error))
-            }
-        }
-        if let error = accounts.launchError {
-            let provider = accounts.launchProviderID.flatMap { ProviderCatalog.definition(for: $0)?.name } ?? "Sign-in"
-            notes.append(.init(label: provider, text: error, severity: .error))
-        }
-        if codexProfiles.terminalSetupNotice {
-            notes.append(.init(label: "Codex", text: "Terminals opened earlier: run rehash once.", severity: .info))
-        }
-        return notes
+        fleetStatusNotes(connections: connections, accounts: accounts,
+                         codexProfiles: codexProfiles, providerLaunch: providerLaunch)
     }
 
     /// One compact line: monitoring state and measured/saved count, then Refresh and Options.
@@ -193,7 +170,7 @@ struct AIFleetMenuView: View {
                     .frame(width: 18, height: 18)
                     .contentShape(Rectangle())
                     .onHover { isLegendShown = $0 }
-                    .accessibilityLabel("Legend")
+                    .accessibilityLabel(attentionColor == nil ? "Legend" : "Status needs attention")
                 Spacer(minLength: 8)
                 HeaderIconButton(systemName: "arrow.clockwise", help: "Refresh (⌘R)", spinning: isRefreshing) {
                     refresh()
@@ -547,7 +524,7 @@ struct InfoIndicator: View {
         if let attention, !reduceMotion {
             InfoPulse(color: NSColor(attention)).fixedSize()
         } else {
-            Image(systemName: "info.circle")
+            Image(systemName: attention == nil ? "info.circle" : "exclamationmark.circle")
                 .font(.system(size: 12, weight: attention == nil ? .regular : .semibold))
                 .foregroundColor(attention ?? (highlighted ? FleetPalette.value : FleetPalette.muted))
         }
@@ -561,7 +538,7 @@ private struct InfoPulse: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSImageView {
         let view = NSImageView()
-        view.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "Status details")?
+        view.image = NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: "Status details")?
             .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold))
         view.wantsLayer = true
         view.layer?.shadowOffset = .zero

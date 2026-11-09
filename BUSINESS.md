@@ -211,7 +211,7 @@ subscription charges.
   Statistics, Settings…, Quit. The menu grows to 80% of the screen's visible
   height, after which only the active tab scrolls (header, tabs and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not
-  permanent: hovering the ⓘ after the status shows it as a card over the menu,
+  permanent: hovering the status indicator shows it as a card over the menu,
   grouping Monitoring, Quota, Access, Marks and Keys under aligned titles.
 - The menu is a borderless panel below the menu-bar icon: no arrow, no open or
   close animation, 12 pt corners and the native menu glass on macOS 26+ (menu
@@ -220,7 +220,7 @@ subscription charges.
   not draw a second background or rounded panel. Outside clicks close it by
   default; General can turn that off so it stays open until Esc, the icon or the
   shortcut. Esc always closes it. Quota availability counts current measurements independently of
-  login. Account notes and errors live in the ⓘ card's Status section; missing
+  login. Account notes and errors live in the status card's Status section; missing
   limits use ? and gray even when a CLI login is configured. See Accounts for the full contract.
 - Remaining-quota color states in the compact menu are red at `10%` or below,
   orange from `11%` through `25%` inclusive, and normal at `26%` or above.
@@ -273,3 +273,11 @@ subscription charges.
 - Kimi and Qwen local accounting: `Sources/AIFleet/ProviderUsageAnalytics.swift`
 - Analytics and caches: `Sources/AIFleet/UsageAnalytics.swift`
 - User interfaces: `Sources/AIFleet/UI/*`
+
+Warnings and errors replace the menu header's ⓘ with an orange or red
+exclamation mark in a circle. The menu-bar Fleet icon also shows a static,
+color-matched exclamation mark, including while the menu is closed. Both use
+the same current status notes, with errors taking precedence over warnings;
+info-only notes do not request attention. Details remain in the existing status
+card, with no additional error banner. Resolved process blocking clears after
+an authoritative process recheck, without selecting an account automatically.
