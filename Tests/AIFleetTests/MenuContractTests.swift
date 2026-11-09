@@ -29,6 +29,11 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(reordered.visibleAccounts.dropFirst().first?.badge, "β")
     }
 
+    func testMonthLabelIsNotReadAsMinutes() {
+        XCTAssertEqual(durationSeconds(for: "1M"), 2_592_000)
+        XCTAssertEqual(durationSeconds(for: "1m"), 60)
+    }
+
     func testUnavailableProviderRowsSinkAndEachHalfKeepsItsOrder() {
         func row(_ provider: String, _ state: ProviderStatus.State) -> MenuAccountConnection {
             let account = FleetAccount(id: provider, badgeIndex: 0, name: "", email: "", connections: [])

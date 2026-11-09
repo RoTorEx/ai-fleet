@@ -182,6 +182,8 @@ func durationSeconds(for label: String) -> Double? {
         return value * 60 * 60
     case "d":
         return value * 60 * 60 * 24
+    case "M":
+        return value * 60 * 60 * 24 * 30
     default:
         return nil
     }
