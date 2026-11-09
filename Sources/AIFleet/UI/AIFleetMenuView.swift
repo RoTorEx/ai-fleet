@@ -736,7 +736,6 @@ struct ProviderLimitRow: View {
                 })
             }
             if profile != nil {
-                items.append(nil)
                 items.append(.init(title: "Switch", enabled: !busy && !codexProfiles.refreshing) {
                     codexProfiles.switchAccount(entry.account)
                 })
@@ -753,7 +752,6 @@ struct ProviderLimitRow: View {
                     providerLaunch.signIn(entry.account, providerID: status.providerID)
                 })
             }
-            items.append(nil)
             items.append(.init(title: "Switch", enabled: !busy) {
                 if entry.account.badge.isEmpty {
                     SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
