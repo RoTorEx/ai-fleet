@@ -668,6 +668,10 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                     candidates.append(candidate)
                 }
             }
+            if let month = decoded.usages?.tightestMonth, let used = month.usedRatio {
+                candidates.append(LimitCandidate(id: "monthly", label: "1mo", remaining: max(0, min(100, Int(((1 - used) * 100).rounded()))),
+                                                 resetAt: parseISO8601(month.resetTime), usedCount: nil, limitCount: nil, unit: nil))
+            }
             guard let selected = candidates.min(by: { $0.remaining < $1.remaining }) else {
                 return ProviderStatus(id: "kimi", name: "Kimi", state: .ok, detail: "No usage data", lastUpdated: Date())
             }

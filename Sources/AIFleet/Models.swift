@@ -202,6 +202,29 @@ struct KimiBalanceResponse: Codable {
 struct KimiCodeUsageResponse: Codable {
     let usage: UsageWindow?
     let limits: [RateLimitWindow]?
+    var usages: PlanUsages? = nil
+
+    /// Plans with a monthly allowance report used ratios under their own snake_case keys.
+    struct PlanUsages: Codable {
+        let limitMonthCode: PlanWindow?
+        let limitMonthTotal: PlanWindow?
+        var tightestMonth: PlanWindow? {
+            [limitMonthCode, limitMonthTotal].compactMap { $0 }.max { ($0.usedRatio ?? 0) < ($1.usedRatio ?? 0) }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case limitMonthCode = "limit_month_code", limitMonthTotal = "limit_month_total"
+        }
+    }
+
+    struct PlanWindow: Codable {
+        let usedRatio: Double?
+        let resetTime: String?
+
+        enum CodingKeys: String, CodingKey {
+            case usedRatio = "used_ratio", resetTime = "reset_time"
+        }
+    }
 
     struct UsageWindow: Codable {
         let limit: Int?
