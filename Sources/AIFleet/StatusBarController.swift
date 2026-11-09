@@ -79,6 +79,8 @@ final class FleetMenuPanel: NSPanel {
         content.translatesAutoresizingMaskIntoConstraints = true
         content.autoresizingMask = [.width, .height]
         if #available(macOS 26.0, *) {
+            // The window shadow drew a dark edge around the glass, which supplies its own.
+            hasShadow = false
             let glass = NSGlassEffectView()
             glass.style = .regular
             glass.cornerRadius = Self.cornerRadius
