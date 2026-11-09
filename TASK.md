@@ -13,7 +13,7 @@
 - After design, also verify agent state, process/log binding, message timestamps and work-duration provenance through the final interface.
 - After design, validate the unified local statistics, selected-provider coverage, source warnings, model names and separate account reports against representative retained history.
 - After design, verify enabled-provider setup rows, ten account badges, quota reasons/counts and reset transitions; permission persistence remains dependent on a stable signing identity and authorized installation.
-- Track automated implementation separately from user-confirmed behavior; do not publish a release.
+- Track automated implementation separately from user-confirmed behavior.
 
 
 ## Account statistics

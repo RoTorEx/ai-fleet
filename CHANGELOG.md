@@ -4,6 +4,15 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Show Claude model-specific weekly limits such as `7d (Fable)` and drop the 5h line when the provider does not report that window.
+- Read Kimi Code region-scoped login slots and show its monthly limit as `1m`.
+- Add optional Grok detection and sign-in, hidden by default.
+- List working providers before unavailable ones and mark the current account of every provider, including single-account ones.
+- Use one set of account action labels: Sign in, Sign out, Switch to Provider (badge) and Set up connection.
+- List Kimi, Qwen, Gemini and Grok in Processes with per-provider filters for running providers.
+- Keep the Codex command on the running app after it moves.
+- Remove the square backdrop behind the glass menu and stop tab titles from shifting.
+- Price Claude Fable 5, Fable 5.1 and Haiku 5.5, and estimate Codex Auto Review at GPT-6.1 Sol rates.
 - Resolve Claude quota credentials from the requested profile when native auth omits its directory.
 - Drain CLI auth output during execution and bound cleanup of owned Codex usage helpers that ignore termination.
 - Reject unrepresentable quota counts without crashing.
