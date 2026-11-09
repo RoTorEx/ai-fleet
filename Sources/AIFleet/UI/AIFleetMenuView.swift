@@ -883,7 +883,7 @@ struct LimitWindowLine: View {
     }
 
     private var blockingWindow: ProviderLimitWindow? {
-        guard let windowDuration = durationSeconds(for: window.label) else {
+        guard let windowDuration = window.durationSeconds else {
             return nil
         }
 
@@ -891,14 +891,14 @@ struct LimitWindowLine: View {
             .filter { candidate in
                 guard candidate.id != window.id,
                       candidate.remainingPercent <= 0,
-                      let candidateDuration = durationSeconds(for: candidate.label) else {
+                      let candidateDuration = candidate.durationSeconds else {
                     return false
                 }
                 return candidateDuration > windowDuration
             }
             .min {
-                let lhs = durationSeconds(for: $0.label) ?? .greatestFiniteMagnitude
-                let rhs = durationSeconds(for: $1.label) ?? .greatestFiniteMagnitude
+                let lhs = $0.durationSeconds ?? .greatestFiniteMagnitude
+                let rhs = $1.durationSeconds ?? .greatestFiniteMagnitude
                 return lhs < rhs
             }
     }

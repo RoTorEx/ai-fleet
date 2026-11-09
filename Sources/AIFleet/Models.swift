@@ -167,6 +167,13 @@ struct ProviderStatus: Identifiable, Equatable {
 
 }
 
+extension ProviderLimitWindow {
+    /// The monthly window is labeled "1m", which on its own would read as one minute.
+    var durationSeconds: Double? {
+        id == "monthly" ? 30 * 24 * 60 * 60 : AIFleet.durationSeconds(for: label)
+    }
+}
+
 func durationSeconds(for label: String) -> Double? {
     guard label.count >= 2,
           let value = Double(label.dropLast()) else {
@@ -182,8 +189,6 @@ func durationSeconds(for label: String) -> Double? {
         return value * 60 * 60
     case "d":
         return value * 60 * 60 * 24
-    case "M":
-        return value * 60 * 60 * 24 * 30
     default:
         return nil
     }

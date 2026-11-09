@@ -30,8 +30,10 @@ final class MenuContractTests: XCTestCase {
     }
 
     func testMonthLabelIsNotReadAsMinutes() {
-        XCTAssertEqual(durationSeconds(for: "1M"), 2_592_000)
-        XCTAssertEqual(durationSeconds(for: "1m"), 60)
+        let month = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 98, resetAt: nil)
+        let minute = ProviderLimitWindow(id: "primary", label: "1m", remainingPercent: 98, resetAt: nil)
+        XCTAssertEqual(month.durationSeconds, 2_592_000)
+        XCTAssertEqual(minute.durationSeconds, 60)
     }
 
     func testUnavailableProviderRowsSinkAndEachHalfKeepsItsOrder() {
