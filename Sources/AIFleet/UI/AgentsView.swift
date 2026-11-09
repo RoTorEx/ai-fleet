@@ -237,7 +237,7 @@ private struct AgentTimeLabel: View {
                 }
             }
         }
-        .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+        .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
     }
 }
 

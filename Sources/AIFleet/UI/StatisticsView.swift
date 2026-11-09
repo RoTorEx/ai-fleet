@@ -408,7 +408,7 @@ private struct ModelTablePanel: View {
     private func row(provider: StatisticsProvider?, model: String, tokens: String, reasoning: String, estimate: String, header: Bool) -> some View {
         HStack(spacing: 8) {
             Circle().fill(provider?.color ?? .clear).frame(width: 6, height: 6)
-            Text(model).lineLimit(1).frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+            ModelNameCell(name: model)
             Text(tokens).frame(width: 76, alignment: .trailing)
             Text(reasoning).frame(width: 74, alignment: .trailing)
             Text(estimate).frame(width: 68, alignment: .trailing)
@@ -417,6 +417,25 @@ private struct ModelTablePanel: View {
         .foregroundStyle(header ? Color.secondary : Color.primary)
         .padding(.horizontal, 2)
         .padding(.vertical, header ? 2 : 4)
+    }
+}
+
+/// Shows the full model name on hover, only when the column cut it off.
+private struct ModelNameCell: View {
+    let name: String
+    @State private var truncated = false
+
+    var body: some View {
+        Text(name).lineLimit(1).frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+            .background(GeometryReader { column in
+                Text(name).fixedSize().hidden().background(GeometryReader { full in
+                    let overflow = full.size.width > column.size.width + 0.5
+                    Color.clear.onAppear { truncated = overflow }.onChange(of: overflow) { truncated = $0 }
+                })
+            })
+            .hoverPopover(enabled: truncated) {
+                Text(name).font(.system(size: 11, weight: .medium, design: .monospaced)).padding(9)
+            }
     }
 }
 
@@ -560,6 +579,8 @@ private struct HeatmapCell: View {
     let level: Int
     @State private var isPresented = false
 
+    private var isFuture: Bool { day.day > Calendar.current.startOfDay(for: Date()) }
+
     var body: some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(heatmapColor(level: level))
@@ -570,16 +591,18 @@ private struct HeatmapCell: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(rangeDate(day.day))
                         .font(.system(size: 11, weight: .semibold))
-                    Text("\(millionsCount(day.tokens)) tokens")
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text(day.estimatedCostUSD.map { "\(money($0)) estimated cost" } ?? "Cost estimate unavailable")
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
+                    if !isFuture {
+                        Text("\(millionsCount(day.tokens)) tokens")
+                            .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Text(day.estimatedCostUSD.map { "\(money($0)) estimated cost" } ?? "Cost estimate unavailable")
+                            .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(9)
             }
-            .accessibilityLabel(
+            .accessibilityLabel(isFuture ? rangeDate(day.day) :
                 "\(rangeDate(day.day)), \(millionsCount(day.tokens)) tokens, "
                     + (day.estimatedCostUSD.map { "\(money($0)) estimated cost" } ?? "cost estimate unavailable")
             )

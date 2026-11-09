@@ -158,27 +158,29 @@ private struct ProcessRow: View {
                 Text(process.kind).font(.system(size: 11.5, weight: .medium)).lineLimit(1).layoutPriority(-1)
                 Spacer(minLength: 4)
                 if stopping { ProgressView().controlSize(.mini) }
-                Button { copy(process.executable, label: "path") } label: {
-                    Image(systemName: "folder").font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(pathHovered ? Color.accentColor : Color.secondary)
-                        .frame(width: 18, height: 16)
-                        .background(Color.accentColor.opacity(pathHovered ? 0.14 : 0), in: RoundedRectangle(cornerRadius: 4))
-                        .contentShape(Rectangle())
+                HStack(spacing: 1) {
+                    Button { copy(process.executable, label: "path") } label: {
+                        Image(systemName: "folder").font(.system(size: 9.5, weight: .medium))
+                            .foregroundStyle(pathHovered ? Color.accentColor : Color.secondary)
+                            .frame(width: 18, height: 16)
+                            .background(Color.accentColor.opacity(pathHovered ? 0.14 : 0), in: RoundedRectangle(cornerRadius: 4))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).onHover { pathHovered = $0 }
+                    .hoverPopover { copyHint(process.executable, width: 280) }
+                    .accessibilityLabel("Copy path")
+                    // A fixed block keeps the folder in place; shorter PIDs center inside it.
+                    Button { copy(String(process.pid), label: "PID \(process.pid)") } label: {
+                        Text(String(process.pid)).font(.system(size: 9.5).monospacedDigit())
+                            .foregroundStyle(pidHovered ? Color.accentColor : Color.secondary)
+                            .padding(.horizontal, 3).padding(.vertical, 1)
+                            .background(Color.accentColor.opacity(pidHovered ? 0.14 : 0), in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    .buttonStyle(.plain).onHover { pidHovered = $0 }
+                    .hoverPopover { copyHint(String(process.pid), width: nil) }
+                    .accessibilityLabel("Copy PID")
+                    .frame(width: 36)
                 }
-                .buttonStyle(.plain).onHover { pathHovered = $0 }
-                .hoverPopover { copyHint(process.executable, width: 280) }
-                .accessibilityLabel("Copy path")
-                // A fixed column keeps the folder in place however many digits the PID has.
-                Button { copy(String(process.pid), label: "PID \(process.pid)") } label: {
-                    Text(String(process.pid)).font(.system(size: 9.5).monospacedDigit())
-                        .foregroundStyle(pidHovered ? Color.accentColor : Color.secondary)
-                        .padding(.horizontal, 3).padding(.vertical, 1)
-                        .background(Color.accentColor.opacity(pidHovered ? 0.14 : 0), in: RoundedRectangle(cornerRadius: 4))
-                }
-                .buttonStyle(.plain).onHover { pidHovered = $0 }
-                .hoverPopover { copyHint(String(process.pid), width: nil) }
-                .accessibilityLabel("Copy PID")
-                .frame(width: 42, alignment: .trailing)
                 Button(action: showActions) {
                     Image(systemName: "ellipsis").font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(moreHovered ? Color.primary : Color.secondary)

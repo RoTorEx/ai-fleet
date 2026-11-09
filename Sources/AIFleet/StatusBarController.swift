@@ -63,6 +63,7 @@ final class FleetMenuPanel: NSPanel {
     static let screenMargin: CGFloat = 8
 
     let hostingView: NSView
+    private var glassView: NSView?
 
     init(content: NSView) {
         hostingView = content
@@ -85,7 +86,15 @@ final class FleetMenuPanel: NSPanel {
             glass.style = .regular
             glass.cornerRadius = Self.cornerRadius
             glass.contentView = content
-            contentView = glass
+            // Clips anything square behind the glass to the panel's own corners.
+            let clip = NSView()
+            clip.wantsLayer = true
+            clip.layer?.cornerRadius = Self.cornerRadius
+            clip.layer?.cornerCurve = .continuous
+            clip.layer?.masksToBounds = true
+            clip.addSubview(glass)
+            glassView = glass
+            contentView = clip
         } else {
             let effect = NSVisualEffectView()
             effect.material = .menu
@@ -105,6 +114,7 @@ final class FleetMenuPanel: NSPanel {
 
     func layout(contentSize: NSSize, below anchor: NSRect, in visibleFrame: NSRect) {
         setFrame(Self.frame(contentSize: contentSize, below: anchor, in: visibleFrame), display: true)
+        if let glassView, let bounds = contentView?.bounds { glassView.frame = bounds }
         hostingView.frame = hostingView.superview?.bounds ?? hostingView.frame
         invalidateShadow()
     }
