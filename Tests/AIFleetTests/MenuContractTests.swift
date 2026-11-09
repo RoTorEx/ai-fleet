@@ -29,6 +29,20 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(reordered.visibleAccounts.dropFirst().first?.badge, "β")
     }
 
+    func testProviderRowsGroupByAccountInBadgeOrderWithUnlabeledLast() {
+        func row(_ account: FleetAccount, _ provider: String) -> MenuAccountConnection {
+            let connection = ProviderConnection(id: account.id + provider, providerID: provider, configDirectory: nil)
+            return MenuAccountConnection(account: account, connection: connection,
+                                         status: ProviderStatus(id: provider, name: provider, state: .ok, detail: "", lastUpdated: Date()), isSelected: false)
+        }
+        let alpha = FleetAccount(id: "a", badgeIndex: 0, name: "A", email: "", connections: [])
+        let beta = FleetAccount(id: "b", badgeIndex: 1, name: "B", email: "", connections: [])
+        let none = FleetAccount(id: "default", badgeIndex: -1, name: "Default", email: "", connections: [])
+        let groups = menuAccountGroups([row(none, "qwen"), row(beta, "codex"), row(alpha, "claude"), row(alpha, "codex")])
+        XCTAssertEqual(groups.map(\.account?.id), ["a", "b", nil])
+        XCTAssertEqual(groups[0].rows.map(\.connection.providerID), ["claude", "codex"])
+    }
+
     @MainActor
     func testSetupRowsHaveNoSavedAccountAndDoNotCount() throws {
         let suite = "stage5-\(UUID())"

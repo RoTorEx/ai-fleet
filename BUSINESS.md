@@ -26,8 +26,9 @@ subscription charges.
   history is never split by those badges.
 
 - Greek letters identify real accounts. One account can own several providers,
-  with at most one connection per provider. Provider rows and account statistics
-  use the same `Provider (badge)` identity. Internal credential homes and the
+  with at most one connection per provider. The menu groups provider rows under
+  account headers in the Settings order; Settings and account statistics use the
+  `Provider (badge)` identity. Internal credential homes and the
   standard CLI login are not separate visible accounts. Connect provider chooses
   an existing or new account before login; hidden providers retain stored data.
 - Each Codex account can keep an independent saved browser login. Its quota and

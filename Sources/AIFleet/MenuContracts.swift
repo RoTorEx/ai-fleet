@@ -11,6 +11,21 @@ struct MenuAccountConnection: Identifiable {
     var id: String { connection.statusID }
 }
 
+/// Rows under one account header; `account` is nil for rows with no labeled account.
+struct MenuAccountGroup: Identifiable {
+    let account: FleetAccount?
+    let rows: [MenuAccountConnection]
+    var id: String { account?.id ?? "unlabeled" }
+}
+
+/// Follows the Settings order: α first, then rows without a labeled account.
+func menuAccountGroups(_ rows: [MenuAccountConnection]) -> [MenuAccountGroup] {
+    let labeled = Dictionary(grouping: rows.filter { !$0.account.badge.isEmpty }, by: \.account.id).values
+        .sorted { $0[0].account.badgeIndex < $1[0].account.badgeIndex }
+        .map { MenuAccountGroup(account: $0[0].account, rows: $0) }
+    let unlabeled = rows.filter { $0.account.badge.isEmpty }
+    return labeled + (unlabeled.isEmpty ? [] : [MenuAccountGroup(account: nil, rows: unlabeled)])
+}
 
 struct MonitoringSummary {
     let monitoring: Bool
