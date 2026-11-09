@@ -105,29 +105,11 @@ struct AIFleetMenuView: View {
     }
 
     private var providerRows: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(menuAccountGroups(connections)) { group in
-                VStack(alignment: .leading, spacing: 7) {
-                    accountHeader(group.account)
-                    ForEach(group.rows) { entry in
-                        ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings, showsBadge: false)
-                            .padding(.leading, 10)
-                    }
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(connections) { entry in
+                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
             }
         }
-    }
-
-    private func accountHeader(_ account: FleetAccount?) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: FleetRowMetrics.markSpacing) {
-            Text(account?.badge ?? "")
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: FleetRowMetrics.markWidth, alignment: .center)
-            Text(account?.name ?? "Other")
-                .font(.system(size: 11.5, weight: .semibold))
-                .lineLimit(1).truncationMode(.middle)
-        }
-        .foregroundColor(FleetPalette.muted)
     }
 
     /// One leading mark per row: ↓ lowest positive quota anywhere, → the current account of a
@@ -629,7 +611,6 @@ struct ProviderLimitRow: View {
     let entry: MenuAccountConnection
     let mark: String
     let openSettings: () -> Void
-    var showsBadge = true
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
@@ -660,7 +641,7 @@ struct ProviderLimitRow: View {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(status.name)
                             .font(.system(size: 12, weight: .medium))
-                        if showsBadge, !entry.account.badge.isEmpty {
+                        if !entry.account.badge.isEmpty {
                             Text("(\(entry.account.badge))")
                                 .font(.system(size: 10, weight: .medium))
                         }
