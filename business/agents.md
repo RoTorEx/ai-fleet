@@ -88,10 +88,11 @@ checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls
 
-Process rows are two thin lines: kind, the PID in parentheses (click to copy)
-and a folder icon that shows the full path on hover and copies it on click,
-with a small ⋯ menu for Stop and Force Quit; then account on the left and start
-time with seconds on the right. A short "Copied …" notice confirms each copy.
+Process rows are two thin lines: kind on the left; on the right a folder icon in
+a fixed column and the PID pressed against a small ⋯ menu for Stop and Force Quit.
+The folder and PID share one hover card with the value and "Click to copy", and
+copy on click. The second line has account on the left and start time with
+seconds on the right. A short "Copied …" notice confirms each copy.
 Agents and processes share one neutral block style; provider rows are unboxed. All/Codex/Claude filters and newest/oldest sort
 sit above the list; provider-wide and background stops are in one ⋯ menu.
 The Processes tab lists the current user's recognized Codex and Claude executables,
