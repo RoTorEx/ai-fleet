@@ -889,7 +889,7 @@ func nextDailyRefreshDate(
 }
 
 enum CodexAPIRates {
-    static let revision = "2026-11-09-standard-v2"
+    static let revision = "2026-11-09-standard-v3"
     // USD per million, standard short-context comparison; not subscription charges.
     // https://developers.openai.com/api/docs/pricing (checked 2026-11-06)
     struct Rates { let input: Double; let cachedInput: Double; let cacheWrite: Double; let output: Double }
@@ -898,7 +898,9 @@ enum CodexAPIRates {
             "gpt-6-astra": Rates(input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50),
             "gpt-6.1-sol": Rates(input: 2, cachedInput: 0.1, cacheWrite: 2.5, output: 10),
             "gpt-6.1-terra": Rates(input: 1, cachedInput: 0.05, cacheWrite: 1.25, output: 5),
-            "gpt-6-luna": Rates(input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5)
+            "gpt-6-luna": Rates(input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5),
+            // No published rate; estimated at GPT-6.1 Sol by the user's choice.
+            "codex-auto-review": Rates(input: 2, cachedInput: 0.1, cacheWrite: 2.5, output: 10)
         ]
         return entries[model.lowercased()]
     }

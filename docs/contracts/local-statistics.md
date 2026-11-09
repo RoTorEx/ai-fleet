@@ -52,10 +52,10 @@ not free. Overflow marks an incomplete result rather than wrapping or crashing.
 
 One fixed standard-rate comparison catalog applies across the selected period;
 this is neither historical invoicing nor subscription billing. The catalog
-revision is 2026-11-09-standard-v2. Exact supported Codex names are GPT-6 Astra,
+revision is 2026-11-09-standard-v3. Exact supported Codex names are GPT-6 Astra,
 GPT-6.1 Sol, GPT-6.1 Terra and GPT-6 Luna. Other names remain unpriced rather than
-inheriting a similar model; the hidden Codex Auto Review reviewer has no published
-rate and stays unpriced. Codex write estimates use the standard 30-minute
+inheriting a similar model. The one exception is the hidden Codex Auto Review
+reviewer: it has no published rate and is estimated at GPT-6.1 Sol. Codex write estimates use the standard 30-minute
 comparison rate; extended-retention, long-context, fast/batch and platform/tool
 premiums are outside this comparison. Claude retains its explicit supported
 families, including the per-request Haiku 5.5 price above 100,000 prompt tokens, and recorded 5-minute/1-hour write split. Unsupported legacy Claude
