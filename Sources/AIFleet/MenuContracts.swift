@@ -11,6 +11,12 @@ struct MenuAccountConnection: Identifiable {
     var id: String { connection.statusID }
 }
 
+/// Working connections first; each half keeps its existing order.
+func menuRowsAvailableFirst(_ rows: [MenuAccountConnection]) -> [MenuAccountConnection] {
+    let available = rows.filter { MenuConnectionState(status: $0.status).available }
+    return available + rows.filter { !MenuConnectionState(status: $0.status).available }
+}
+
 
 struct MonitoringSummary {
     let monitoring: Bool

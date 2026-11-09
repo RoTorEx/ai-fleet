@@ -29,6 +29,17 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(reordered.visibleAccounts.dropFirst().first?.badge, "β")
     }
 
+    func testUnavailableProviderRowsSinkAndEachHalfKeepsItsOrder() {
+        func row(_ provider: String, _ state: ProviderStatus.State) -> MenuAccountConnection {
+            let account = FleetAccount(id: provider, badgeIndex: 0, name: "", email: "", connections: [])
+            return MenuAccountConnection(account: account, connection: .global(provider),
+                                         status: ProviderStatus(id: provider, name: provider, state: state, detail: "", lastUpdated: Date(),
+                                                                remainingPercent: state == .ok || state == .limited ? 50 : nil), isSelected: false)
+        }
+        let rows = [row("claude", .noKey), row("codex", .ok), row("gemini", .notInstalled), row("kimi", .limited)]
+        XCTAssertEqual(menuRowsAvailableFirst(rows).map(\.connection.providerID), ["codex", "kimi", "claude", "gemini"])
+    }
+
     @MainActor
     func testSetupRowsHaveNoSavedAccountAndDoNotCount() throws {
         let suite = "stage5-\(UUID())"

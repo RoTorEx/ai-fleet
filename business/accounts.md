@@ -9,7 +9,8 @@ Claude, Codex, Kimi, Qwen, and Gemini. Labels are app metadata, not credentials.
 A Greek badge identifies one real account, independent of provider or credential
 storage. Provider rows use only `Provider (badge)` in the compact menu, Settings
 and account statistics. One account may connect several different providers but
-may contain at most one connection for each provider. Internal fallback metadata
+may contain at most one connection for each provider. The Providers tab lists working
+connections first and unavailable ones after them. Internal fallback metadata
 is not a visible account and consumes no Greek badge. Letters express the
 user's order: the first account is α, the next β, and so on. A new account takes
 the next letter after the last; dragging an account in Settings → Accounts

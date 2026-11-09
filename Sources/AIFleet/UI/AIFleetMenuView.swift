@@ -106,7 +106,7 @@ struct AIFleetMenuView: View {
 
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(connections) { entry in
+            ForEach(menuRowsAvailableFirst(connections)) { entry in
                 ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
             }
         }
