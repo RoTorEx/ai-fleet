@@ -110,7 +110,9 @@ final class ProviderLogoutTests: XCTestCase {
 
     func testKimiMonthlyPlanUsesTheTighterAllowance() throws {
         let json = #"{"limits":[],"usages":{"limit_month_code":{"used_ratio":0.2,"reset_time":"a"},"limit_month_total":{"used_ratio":0.5,"reset_time":"b"}}}"#
-        let month = try JSONDecoder().decode(KimiCodeUsageResponse.self, from: Data(json.utf8)).usages?.tightestMonth
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let month = try decoder.decode(KimiCodeUsageResponse.self, from: Data(json.utf8)).usages?.tightestMonth
         XCTAssertEqual(month?.usedRatio, 0.5)
         XCTAssertEqual(month?.resetTime, "b")
     }
