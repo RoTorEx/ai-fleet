@@ -615,7 +615,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return Self.unavailableStatus(for: ProviderCatalog.kimi)
         }
 
-        let status = await fetchKimiCodeStatus(accessToken: token)
+        let status = await fetchKimiCodeStatus(accessToken: token, connection: connection)
         if status.state != .noKey {
             return status
         }
@@ -623,7 +623,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         switch await refreshKimiCodeAuth(auth: activeAuth, connection: connection) {
         case .refreshed(let refreshed):
             guard let token = refreshed.accessToken else { return status }
-            return await fetchKimiCodeStatus(accessToken: token)
+            return await fetchKimiCodeStatus(accessToken: token, connection: connection)
         case .unauthorized:
             return Self.unavailableStatus(for: ProviderCatalog.kimi)
         case .failed:
@@ -631,8 +631,12 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
 
-    private func fetchKimiCodeStatus(accessToken token: String) async -> ProviderStatus {
-        let url = URL(string: "https://api.kimi.com/coding/v1/usages")!
+    private func kimiEnvironment(_ connection: ProviderConnection) -> KimiCodeEnvironment {
+        KimiCodeEnvironment(root: connection.credentialURL()!.deletingLastPathComponent().deletingLastPathComponent())
+    }
+
+    private func fetchKimiCodeStatus(accessToken token: String, connection: ProviderConnection) async -> ProviderStatus {
+        let url = kimiEnvironment(connection).usagesURL
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -696,7 +700,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return .unauthorized
         }
 
-        let url = URL(string: "https://auth.kimi.com/api/oauth/token")!
+        let url = kimiEnvironment(connection).tokenURL
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")

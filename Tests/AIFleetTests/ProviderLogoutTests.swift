@@ -89,6 +89,40 @@ final class ProviderLogoutTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(".kimi-code/credentials/kimi-code.json").path))
     }
 
+    func testKimiUsesTheSlotAndRegionFromConfigAndSignOutRemovesIt() throws {
+        let home = try fixtureHome()
+        try write("""
+        [providers."managed:kimi-code"]
+        base_url = "https://api.kimi.ai/coding/v1"
+        [providers."managed:kimi-code".oauth]
+        key = "oauth/kimi-code-env-abc123"
+        oauth_host = "https://auth.kimi.ai"
+        """, ".kimi-code/config.toml", home: home)
+        try write("fixture", ".kimi-code/credentials/kimi-code-env-abc123.json", home: home)
+        let root = home.appendingPathComponent(".kimi-code")
+        let environment = KimiCodeEnvironment(root: root)
+        XCTAssertEqual(ProviderConnection.global("kimi").credentialURL(home: home)?.lastPathComponent, "kimi-code-env-abc123.json")
+        XCTAssertEqual(environment.usagesURL.absoluteString, "https://api.kimi.ai/coding/v1/usages")
+        XCTAssertEqual(environment.tokenURL.absoluteString, "https://auth.kimi.ai/api/oauth/token")
+        try ProviderLogout(home: home, environment: [:], removeClaudeKeychain: {}).signOut("kimi")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("credentials/kimi-code-env-abc123.json").path))
+    }
+
+    func testKimiIgnoresForeignHostsAndUnsafeSlotNames() throws {
+        let home = try fixtureHome()
+        try write("""
+        [providers."managed:kimi-code"]
+        base_url = "https://evil.example/v1"
+        [providers."managed:kimi-code".oauth]
+        key = "oauth/../../secret"
+        oauth_host = "http://auth.kimi.ai"
+        """, ".kimi-code/config.toml", home: home)
+        let environment = KimiCodeEnvironment(root: home.appendingPathComponent(".kimi-code"))
+        XCTAssertEqual(environment.credentialFile, "credentials/kimi-code.json")
+        XCTAssertEqual(environment.usagesURL.host, "api.kimi.com")
+        XCTAssertEqual(environment.tokenURL.host, "auth.kimi.com")
+    }
+
     @MainActor
     func testLogoutWaitsForCancelledRefreshAndSuppressesNewRefreshes() async throws {
         let home = try fixtureHome()

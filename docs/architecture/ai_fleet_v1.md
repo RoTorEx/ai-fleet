@@ -163,7 +163,7 @@ receive no current row; the provider summary retains the actual native status.
 
 ## Configuration
 
-- Kimi Code credentials: `~/.kimi-code/credentials/kimi-code.json`.
+- Kimi Code credentials: the slot and region named in `~/.kimi-code/config.toml`, else `~/.kimi-code/credentials/kimi-code.json`.
 - Kimi API key fallback: `~/Library/Application Support/AI Fleet/config.json` (`kimiApiKey`) or `KIMI_API_KEY` environment variable.
 - Codex token: read automatically from `~/.codex/auth.json`.
 - Codex local usage analytics: numeric token-usage metadata from active

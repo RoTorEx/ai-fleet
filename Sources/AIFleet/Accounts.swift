@@ -79,7 +79,9 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
         let directory = configDirectory.map { URL(fileURLWithPath: $0) }
         switch providerID {
         case "codex": return (directory ?? home.appendingPathComponent(".codex")).appendingPathComponent("auth.json")
-        case "kimi": return (directory ?? home.appendingPathComponent(".kimi-code")).appendingPathComponent("credentials/kimi-code.json")
+        case "kimi":
+            let root = directory ?? home.appendingPathComponent(".kimi-code")
+            return root.appendingPathComponent(KimiCodeEnvironment(root: root).credentialFile)
         case "qwen": return (directory ?? home.appendingPathComponent(".qwen")).appendingPathComponent("oauth_creds.json")
         default: return nil
         }

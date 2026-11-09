@@ -53,7 +53,7 @@ This builds `~/construction_side/ai-fleet.noindex/dist/AIFleet.app`, stops any r
 
 ### Kimi
 
-The app first reuses Kimi Code credentials from `~/.kimi-code/credentials/kimi-code.json`.
+The app first reuses Kimi Code credentials from the login slot and region named in `~/.kimi-code/config.toml` (`credentials/kimi-code.json` when none is named).
 
 As a fallback, it reads your Kimi API key from `~/Library/Application Support/AI Fleet/config.json`:
 

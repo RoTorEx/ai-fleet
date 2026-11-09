@@ -35,7 +35,9 @@ struct ProviderLogout {
     func signOut(_ providerID: String) throws {
         guard let provider = ProviderCatalog.definition(for: providerID) else { throw Failure.unsupported }
         if providerID == "kimi", !(environment["KIMI_API_KEY"] ?? "").isEmpty { throw Failure.environmentKey }
-        let files = providerID == "claude" ? [".claude/.credentials.json"] : provider.credentialPaths
+        let kimiSlot = ".kimi-code/" + KimiCodeEnvironment(root: home.appendingPathComponent(".kimi-code")).credentialFile
+        let files = providerID == "claude" ? [".claude/.credentials.json"]
+            : providerID == "kimi" ? Array(Set(provider.credentialPaths + [kimiSlot])) : provider.credentialPaths
         // Validate every destination before the first mutation; never follow redirected directories.
         let metadata: [(String, String)] = providerID == "claude" ? [(".claude.json", "oauthAccount")]
             : providerID == "gemini" ? [(".gemini/google_accounts.json", "active")]
