@@ -92,7 +92,7 @@ Process rows are two thin lines: kind, the PID in parentheses (click to copy)
 and a folder icon that shows the full path on hover and copies it on click,
 with a small ⋯ menu for Stop and Force Quit; then account on the left and start
 time with seconds on the right. A short "Copied …" notice confirms each copy.
-Providers, agents and processes share one neutral block style. All/Codex/Claude filters and newest/oldest sort
+Agents and processes share one neutral block style; provider rows are unboxed. All/Codex/Claude filters and newest/oldest sort
 sit above the list; provider-wide and background stops are in one ⋯ menu.
 The Processes tab lists the current user's recognized Codex and Claude executables,
 including native version-named Claude binaries and known installed Node entrypoints.

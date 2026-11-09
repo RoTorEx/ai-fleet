@@ -105,11 +105,9 @@ struct AIFleetMenuView: View {
     }
 
     private var providerRows: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(connections) { entry in
-                ProviderCard {
-                    ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
-                }
+                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
             }
         }
     }
@@ -369,7 +367,7 @@ private final class OverlayScrollersView: NSView {
     }
 }
 
-/// The shared block look of menu rows (providers, agents, processes).
+/// The shared block look of menu rows (agents, processes).
 private struct FleetCard: ViewModifier {
     let hovering: Bool
     let accent: Color?
@@ -408,19 +406,6 @@ extension View {
 
     func hoverPopover<Popover: View>(enabled: Bool = true, @ViewBuilder _ popover: @escaping () -> Popover) -> some View {
         modifier(HoverPopover(enabled: enabled, popover: popover))
-    }
-}
-
-private struct ProviderCard<Content: View>: View {
-    @ViewBuilder let content: Content
-    @State private var hovering = false
-
-    var body: some View {
-        content
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fleetCard(hovering: hovering)
-            .onHover { hovering = $0 }
     }
 }
 
@@ -848,7 +833,7 @@ private struct MissingLimitLine: View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Text(label).frame(width: 26, alignment: .leading)
             Text("—").frame(width: 34, alignment: .trailing)
-            Text("not reported").padding(.leading, 16)
+            Text("↻").padding(.leading, 16)
             Spacer(minLength: 0)
         }
         .font(.system(size: 11, weight: .medium, design: .monospaced))
