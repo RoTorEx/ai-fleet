@@ -674,7 +674,7 @@ struct ProviderLimitRow: View {
                         MissingLimitLine(label: "5h")
                     }
                     ForEach(status.limitWindows) { window in
-                        if status.providerID == "gemini" {
+                        if status.providerID == "gemini" || window.id.hasPrefix("weekly_scoped_") {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(window.label).font(.system(size: 10, weight: .medium, design: .monospaced))
                                     .foregroundColor(color).lineLimit(1)

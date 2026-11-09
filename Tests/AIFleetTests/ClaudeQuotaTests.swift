@@ -121,4 +121,13 @@ private final class ClaudeQuotaURLProtocol: URLProtocol {
         } catch { client?.urlProtocol(self, didFailWithError: error) }
     }
     override func stopLoading() {}
+
+    func testModelWeeklyLimitIsShownAndDrivesTheTightestQuota() throws {
+        let status = try ClaudeQuota.decode(Data(#"{"five_hour":null,"seven_day":{"utilization":49},"limits":[{"kind":"weekly_all","percent":49,"scope":null},{"kind":"weekly_scoped","percent":91,"scope":{"model":{"display_name":"Fable"}}}]}"#.utf8))
+        XCTAssertEqual(status.limitWindows.map(\.label), ["7d", "Fable 7d"])
+        XCTAssertEqual(status.remainingPercent, 9)
+
+        let changedShape = try ClaudeQuota.decode(Data(#"{"seven_day":{"utilization":49},"limits":"unexpected"}"#.utf8))
+        XCTAssertEqual(changedShape.limitWindows.map(\.label), ["7d"])
+    }
 }

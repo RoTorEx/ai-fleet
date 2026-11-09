@@ -87,7 +87,7 @@ enum ClaudeQuota {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let plain = ISO8601DateFormatter()
-        let windows = [("five_hour", "5h", usage.five_hour), ("seven_day", "7d", usage.seven_day)]
+        let parsed = [("five_hour", "5h", usage.five_hour), ("seven_day", "7d", usage.seven_day)]
             .compactMap { id, label, window -> ProviderLimitWindow? in
                 guard let window, let used = window.utilization, used.isFinite,
                       (0...100).contains(used) else { return nil }
@@ -95,6 +95,10 @@ enum ClaudeQuota {
                 return ProviderLimitWindow(id: id, label: label,
                                            remainingPercent: Int((100 - used).rounded()), resetAt: reset)
             }
+        // A model's own weekly cap arrives separately and can run out before the overall one.
+        let parseDate = { (value: String?) in value.flatMap { fractional.date(from: $0) ?? plain.date(from: $0) } }
+        let windows = parsed + ((try? JSONDecoder().decode(ScopedLimits.self, from: data))?.limits ?? [])
+            .compactMap { $0.window(date: parseDate) }
         guard let selected = windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
             return unavailable("Signed in · no quota data", state: .ok)
         }
@@ -103,6 +107,27 @@ enum ClaudeQuota {
                               detail: "\(selected.remainingPercent)% left", lastUpdated: now,
                               remainingPercent: selected.remainingPercent, windowLabel: selected.label,
                               resetAt: selected.resetAt, limitWindows: windows)
+    }
+
+    private struct ScopedLimits: Decodable {
+        struct Limit: Decodable {
+            struct Scope: Decodable {
+                struct Model: Decodable { let display_name: String? }
+                let model: Model?
+            }
+            let kind: String?
+            let percent: Double?
+            let resets_at: String?
+            let scope: Scope?
+
+            func window(date: (String?) -> Date?) -> ProviderLimitWindow? {
+                guard kind == "weekly_scoped", let model = scope?.model?.display_name, !model.isEmpty,
+                      let percent, percent.isFinite, (0...100).contains(percent) else { return nil }
+                return ProviderLimitWindow(id: "weekly_scoped_\(model.lowercased())", label: "\(model) 7d",
+                                           remainingPercent: Int((100 - percent).rounded()), resetAt: date(resets_at))
+            }
+        }
+        let limits: [Limit]?
     }
 
     struct Result {

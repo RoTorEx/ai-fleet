@@ -1,5 +1,6 @@
 .PHONY: dist-dir build bundle-app run test check public-audit release release-push release-publish clean stop-app reinstall vibe-kernel-path vibe-kernel-set vibe-pull
 
+-include local.mk
 CODE_SIGN_IDENTITY ?= -
 
 APP_NAME := AIFleet

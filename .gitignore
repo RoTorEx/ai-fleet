@@ -51,3 +51,6 @@ temp/
 
 # Vibecoding Kernel source pointer (local machine path; must not be committed)
 .vibe/KERNEL_SOURCE
+
+# Machine-local build settings
+local.mk
