@@ -307,6 +307,10 @@ final class ProviderLaunchStore: ObservableObject {
 
     func signIn(_ account: FleetAccount, providerID: String) {
         guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
+        // Providers without per-account launch profiles share the native CLI login.
+        guard ProviderTerminalLaunch.providers.contains(providerID) || providerID == "codex" else {
+            AccountStore.shared.signInGlobally(providerID); return
+        }
         messageAccountID = account.id; messageProviderID = providerID
         do {
             var profile = ProviderLaunchProfile(providerID: providerID, accountID: account.id, email: account.email, native: false)

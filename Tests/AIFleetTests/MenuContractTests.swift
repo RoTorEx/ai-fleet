@@ -49,7 +49,7 @@ final class MenuContractTests: XCTestCase {
         let rows = menuProviderRows(accounts: [], enabled: { $0 != "qwen" }, global: {
             LocalProviderAuth.unknown.status(for: ProviderCatalog.definition(for: $0)!)
         }, statusForConnection: { _ in nil }, codex: codex)
-        XCTAssertEqual(rows.map { $0.status.name }, ["Claude", "Codex", "Gemini", "Kimi"])
+        XCTAssertEqual(rows.map { $0.status.name }, ["Claude", "Codex", "Gemini", "Grok", "Kimi"])
         XCTAssertTrue(rows.allSatisfy { $0.isSetup && $0.account.badge.isEmpty })
         XCTAssertEqual(MonitoringSummary(rows: rows, monitoring: true).total, 0)
         let account = FleetAccount(id: "test", badgeIndex: 9, name: "Test", email: "", connections: [])

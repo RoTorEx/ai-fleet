@@ -63,7 +63,7 @@ struct AccountsSettingsView: View {
         }
     }
 
-    /// "Set up connection…" in the menu lands here with its provider preselected.
+    /// "Set up connection" in the menu lands here with its provider preselected.
     private func consumeAddRequest() {
         guard let requested = navigation.addingProviderID else { return }
         sheet = .add(providerID: requested)
@@ -250,23 +250,25 @@ private struct ConnectionRow: View {
                         .help("Keep the current terminal login for this account")
                 }
                 if codex.profile(for: account) != nil {
-                    Button("Switch") { codex.switchAccount(account) }
+                    Button(switchActionTitle(provider: "Codex", badge: account.badge)) { codex.switchAccount(account) }
                         .help("The next codex command uses this account; running sessions keep theirs.")
                 }
                 if let profile = codex.profile(for: account), signedIn {
-                    Button("Sign Out") { codex.signOut(profile) }
+                    Button("Sign out") { codex.signOut(profile) }
                 } else {
-                    Button("Sign In…") { codex.signIn(codex.ensureProfile(for: account)) }
+                    Button("Sign in") { codex.signIn(codex.ensureProfile(for: account)) }
                 }
             } else {
-                Button("Switch") {
-                    providerLaunch.switchAccount(account, providerID: connection.providerID,
-                                                 global: service.status(for: connection.providerID))
+                if ProviderTerminalLaunch.providers.contains(connection.providerID) {
+                    Button(switchActionTitle(provider: ProviderCatalog.definition(for: connection.providerID)?.name ?? "", badge: account.badge)) {
+                        providerLaunch.switchAccount(account, providerID: connection.providerID,
+                                                     global: service.status(for: connection.providerID))
+                    }
                 }
                 if signedIn {
-                    Button("Sign Out") { providerLaunch.signOut(account, providerID: connection.providerID) }
+                    Button("Sign out") { providerLaunch.signOut(account, providerID: connection.providerID) }
                 } else {
-                    Button("Sign In…") { providerLaunch.signIn(account, providerID: connection.providerID) }
+                    Button("Sign in") { providerLaunch.signIn(account, providerID: connection.providerID) }
                 }
             }
         }
@@ -369,7 +371,7 @@ private struct AddAccountSheet: View {
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button(provider.isEmpty ? "Add" : "Add & Sign In…", action: submit)
+                Button(provider.isEmpty ? "Add" : "Add & Sign in", action: submit)
                     .keyboardShortcut(.defaultAction).disabled(!canSubmit)
             }
         }

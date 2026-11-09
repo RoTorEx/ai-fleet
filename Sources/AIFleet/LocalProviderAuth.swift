@@ -123,6 +123,16 @@ enum LocalCommandReader {
     }
 }
 
+enum GrokAuthReader {
+    // The CLI's cache format is private, so any non-empty object counts as a local login.
+    static func read(_ url: URL) -> LocalProviderAuth {
+        guard FileManager.default.fileExists(atPath: url.path) else { return .signedOut }
+        guard let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .unknown }
+        return object.isEmpty ? .signedOut : .signedIn
+    }
+}
+
 enum QwenAuthReader {
     // Local credentials indicate a configured OAuth login, not server-verified access.
     static func read(urls: [URL], now: Date = Date()) -> LocalProviderAuth {

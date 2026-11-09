@@ -35,6 +35,8 @@ Tracks real product and release progress.
 - Make Greek letters follow the account order: dragging renumbers and removal closes the gap.
 - Drop the working dot from provider rows, make tabs outrank provider names, keep a Claude 5h row with a blank value when the API omits it, unbox provider rows, and return focus to the previous app on Esc or the toggle.
 - Open Statistics with ⌘S from the menu.
+- Add Grok as a provider, hidden by default: local login detection and the native CLI login, with no quota or per-account Switch yet.
+- Name account commands consistently: Sign in, Sign out and Switch to Provider (badge), without ellipses.
 - Show the monthly Kimi limit beside its rolling windows.
 - List working providers first and sink unavailable ones to the bottom of the Providers tab.
 - Detect Kimi Code logins stored in region-scoped credential slots and use that region's quota and refresh hosts.

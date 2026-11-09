@@ -14,6 +14,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published private(set) var globalAccountIDs: [String: String] = [:]
     @Published var gemini: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.gemini)
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
+    @Published var grok: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.grok)
     @Published var lastError: String?
     @Published private(set) var isRefreshing = false
     /// Only a refresh the user asked for spins the menu's Refresh icon; the
@@ -141,6 +142,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return gemini
         case ProviderCatalog.qwen.id:
             return qwen
+        case ProviderCatalog.grok.id:
+            return grok
         default:
             return ProviderStatus(
                 id: providerID,
@@ -346,6 +349,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         claude = results.first { $0.providerID == "claude" } ?? Self.initialStatus(for: ProviderCatalog.claude)
         gemini = results.first { $0.providerID == "gemini" } ?? Self.initialStatus(for: ProviderCatalog.gemini)
         qwen = results.first { $0.providerID == "qwen" } ?? Self.initialStatus(for: ProviderCatalog.qwen)
+        grok = results.first { $0.providerID == "grok" } ?? Self.initialStatus(for: ProviderCatalog.grok)
     }
 
     private func checkConnection(_ connection: ProviderConnection) async -> ProviderStatus {
@@ -365,6 +369,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             result = await Self.checkClaudeProfile(connection.claudeProfile, executableURL: ProviderCatalog.executableURL(for: provider))
         case "codex": result = await checkCodex(connection: connection)
         case "kimi": result = await checkKimi(connection: connection)
+        case "grok": result = GrokAuthReader.read(connection.credentialURL()!).status(for: provider)
         case "qwen":
             let urls = connection.configDirectory == nil ? ProviderCatalog.credentialURLs(for: provider)
                 : [connection.credentialURL()!, URL(fileURLWithPath: connection.configDirectory!).appendingPathComponent("credentials.json")]

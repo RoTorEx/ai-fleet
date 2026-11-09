@@ -713,13 +713,13 @@ struct ProviderLimitRow: View {
             || accounts.signingInProviderID != nil || codexProfiles.authenticatingID != nil
     }
 
-    /// Native menu below the name: email, (plan), separator, Sign in or Sign out, then Switch.
+    /// Native menu below the name: email, (plan), separator, Sign in or Sign out, then Switch to.
     private func showActions() {
         let busy = actionsBusy
         var items: [ActionMenu.Item?] = identityLines.map { ActionMenu.Item(title: $0, enabled: false) {} }
         if !items.isEmpty { items.append(nil) }
         if entry.isSetup {
-            items.append(.init(title: "Set up connection…", enabled: !busy) {
+            items.append(.init(title: "Set up connection", enabled: !busy) {
                 SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
             })
         } else if entry.usesAccountLogin {
@@ -729,14 +729,14 @@ struct ProviderLimitRow: View {
                     codexProfiles.signOut(profile)
                 })
             } else {
-                items.append(.init(title: "Sign in…", enabled: !busy && !codexProfiles.refreshing) {
+                items.append(.init(title: "Sign in", enabled: !busy && !codexProfiles.refreshing) {
                     if entry.account.badge.isEmpty {
                         SettingsNavigation.shared.addAccount(for: "codex"); openSettings()
                     } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
                 })
             }
             if profile != nil {
-                items.append(.init(title: "Switch", enabled: !busy && !codexProfiles.refreshing) {
+                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy && !codexProfiles.refreshing) {
                     codexProfiles.switchAccount(entry.account)
                 })
             }
@@ -748,18 +748,20 @@ struct ProviderLimitRow: View {
                     providerLaunch.signOut(entry.account, providerID: status.providerID)
                 })
             } else {
-                items.append(.init(title: "Sign in…", enabled: !busy) {
+                items.append(.init(title: "Sign in", enabled: !busy) {
                     providerLaunch.signIn(entry.account, providerID: status.providerID)
                 })
             }
-            items.append(.init(title: "Switch", enabled: !busy) {
-                if entry.account.badge.isEmpty {
-                    SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
-                } else {
-                    providerLaunch.switchAccount(entry.account, providerID: status.providerID,
-                        global: service.status(for: status.providerID))
-                }
-            })
+            if ProviderTerminalLaunch.providers.contains(status.providerID) {
+                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy) {
+                    if entry.account.badge.isEmpty {
+                        SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
+                    } else {
+                        providerLaunch.switchAccount(entry.account, providerID: status.providerID,
+                            global: service.status(for: status.providerID))
+                    }
+                })
+            }
         }
         let menu = ActionMenu(items: items)
         withExtendedLifetime(menu) { menu.popUp(below: nameFrame) }

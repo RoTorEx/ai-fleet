@@ -61,6 +61,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
         case "kimi": return "KIMI_CODE_HOME"
         case "qwen": return "QWEN_HOME"
         case "gemini": return "GEMINI_CLI_HOME"
+        case "grok": return "GROK_HOME"
         default: return ""
         }
     }
@@ -70,6 +71,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
         case "codex": return [selector, "CODEX_SQLITE_HOME", "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"]
         case "kimi": return [selector, "KIMI_SHARE_DIR", "KIMI_API_KEY", "KIMI_BASE_URL", "KIMI_MODEL_NAME"]
         case "qwen": return [selector, "QWEN_RUNTIME_DIR", "QWEN_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"]
+        case "grok": return [selector, "XAI_API_KEY"]
         case "gemini": return [selector, "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI",
                                "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_GENAI_USE_GCA", "GEMINI_DEFAULT_AUTH_TYPE"]
         default: return []
@@ -83,6 +85,7 @@ struct ProviderConnection: Codable, Identifiable, Equatable {
             let root = directory ?? home.appendingPathComponent(".kimi-code")
             return root.appendingPathComponent(KimiCodeEnvironment(root: root).credentialFile)
         case "qwen": return (directory ?? home.appendingPathComponent(".qwen")).appendingPathComponent("oauth_creds.json")
+        case "grok": return (directory ?? home.appendingPathComponent(".grok")).appendingPathComponent("auth.json")
         default: return nil
         }
     }
@@ -355,7 +358,7 @@ final class AccountStore: ObservableObject {
             return
         }
         guard signingInProviderID == nil else { return }
-        guard providerID == "claude" || providerID == "kimi" else {
+        guard ["claude", "kimi", "grok"].contains(providerID) else {
             launchError = "Complete login in the provider CLI, then refresh AI Fleet. No terminal was opened."
             return
         }
@@ -466,7 +469,7 @@ enum AccountLaunch {
             // First run already opens native auth. Reopen its dialog only for an existing login.
             arguments = hasGeminiLogin ? " --prompt-interactive '/auth login'" : ""
         case ("claude", true): arguments = " auth login"
-        case ("codex", true), ("kimi", true): arguments = " login"
+        case ("codex", true), ("kimi", true), ("grok", true): arguments = " login"
         default: arguments = "" // Qwen performs login in its own interactive CLI.
         }
         return "cd \(quote(directory.path)) && /usr/bin/env \(unset)\(selector) \(quote(executable.path))\(arguments)"

@@ -37,7 +37,7 @@ struct CodexProfilesView: View {
                 }
                 if managesProfiles {
                     HStack {
-                        Button("Sign in…") { store.signIn(store.ensureProfile(for: account)) }
+                        Button("Sign in") { store.signIn(store.ensureProfile(for: account)) }
                         if let profile = store.profile(for: account), status.authentication == .signedIn {
                             Button("Sign out") { store.signOut(profile) }
                         }

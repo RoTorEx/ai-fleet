@@ -42,6 +42,21 @@ final class LocalProviderAuthTests: XCTestCase {
         XCTAssertEqual(QwenAuthReader.decode(Data("broken json".utf8), now: now), .unknown)
     }
 
+    func testGrokReadsTheCachedLoginAndStartsHidden() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("auth.json")
+        XCTAssertEqual(GrokAuthReader.read(url), .signedOut)
+        try Data("{}".utf8).write(to: url)
+        XCTAssertEqual(GrokAuthReader.read(url), .signedOut)
+        try Data("broken".utf8).write(to: url)
+        XCTAssertEqual(GrokAuthReader.read(url), .unknown)
+        try Data(#"{"session":{"token":"fixture"}}"#.utf8).write(to: url)
+        XCTAssertEqual(GrokAuthReader.read(url), .signedIn)
+        XCTAssertFalse(ProviderTerminalLaunch.providers.contains("grok"))
+    }
+
     func testQwenReadsCredentialsRatherThanFilePresence() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -4,6 +4,11 @@ func quotaAvailabilityText(_ statuses: [ProviderStatus]) -> String {
     statuses.isEmpty ? "none installed" : "\(statuses.filter(\.hasCurrentQuota).count)/\(statuses.count) loaded"
 }
 
+/// Names the target so the command reads on its own; a blank badge is an unlabeled connection.
+func switchActionTitle(provider: String, badge: String) -> String {
+    "Switch to \(provider)" + (badge.isEmpty ? "" : " (\(badge))")
+}
+
 struct MenuConnectionState {
     let status: ProviderStatus
     var available: Bool { status.hasCurrentQuota }

@@ -76,7 +76,7 @@ The app reads your ChatGPT OAuth token from `~/.codex/auth.json` (created automa
 ### Gemini
 
 Install the official CLI with `brew install gemini-cli`, then choose
-**Gemini → … → Sign in…** in AI Fleet and **Sign in with Google** in Terminal.
+**Gemini → … → Sign in** in AI Fleet and **Sign in with Google** in Terminal.
 The first run opens native login; subsequent sign-ins reopen its `/auth login`
 dialog. The standard global login is used. Corporate accounts may need the
 provider’s Google Cloud project setup.
@@ -96,7 +96,7 @@ account. One account can connect each provider only once.
 
 Open **Settings → Accounts → Add Account**, enter the email, and optionally pick
 a provider to connect; an existing account's **Connect Provider** menu adds more.
-Drag accounts to reorder them; the letters follow the order. Codex **Sign in…** saves authorization
+Drag accounts to reorder them; the letters follow the order. Codex **Sign in** saves authorization
 for the selected account through its own browser flow. Sign in once per account
 to retain each account's remaining quota while using another. Running terminal
 sessions keep their current authorization. **Sign out** clears only the selected
