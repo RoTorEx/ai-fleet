@@ -59,6 +59,27 @@ final class AccountProviderPresentationTests: XCTestCase {
     }
 
     @MainActor
+    func testProviderWithoutIdentityMarksItsOnlyAccountCurrent() throws {
+        let suite = "account-rows-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let accounts = AccountStore(defaults: defaults, homeDirectory: root)
+        let first = accounts.add(name: "Personal", email: "personal@example.test")
+        accounts.attachGlobal("kimi", to: first.id)
+        let codex = CodexMonitoringStore(defaults: defaults, root: root)
+        let kimi = ProviderStatus(id: "kimi", name: "Kimi", state: .ok, detail: "98% left", lastUpdated: Date(), remainingPercent: 98)
+        let rows = { accountProviderRows(accounts: accounts.accounts, providerID: "kimi", global: kimi,
+                                         statusForConnection: { $0.status(from: kimi) }, codex: codex) }
+        XCTAssertEqual(rows().map(\.isCurrentCLI), [true])
+
+        let second = accounts.add(name: "Work", email: "work@example.test")
+        accounts.attachGlobal("kimi", to: second.id)
+        XCTAssertEqual(rows().map(\.isCurrentCLI), [false, false], "Without an identity, two accounts stay undetermined")
+    }
+
+    @MainActor
     func testTwoCodexAccountsKeepTheirBadgesAndLimitsWhenWorkingAccountChanges() async throws {
         let suite = "account-rows-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

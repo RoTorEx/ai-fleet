@@ -112,14 +112,13 @@ struct AIFleetMenuView: View {
         }
     }
 
-    /// One leading mark per row: ↓ lowest positive quota anywhere, → the current account of a
-    /// provider with several accounts, none for any other working connection, × / ? unavailable.
+    /// One leading mark per row: ↓ lowest positive quota anywhere, → the provider's current
+    /// account, none for any other working connection, × / ? unavailable.
     private func mark(for entry: MenuAccountConnection) -> String {
         let state = MenuConnectionState(status: entry.status)
         guard state.available else { return state.marker }
         if entry.status.id == lowestProvider?.id { return "↓" }
-        let siblings = connections.filter { $0.status.providerID == entry.status.providerID && !$0.isSetup }
-        if siblings.count > 1, entry.isCurrentCLI ?? entry.isSelected { return "→" }
+        if entry.isCurrentCLI ?? entry.isSelected { return "→" }
         return ""
     }
 
@@ -670,7 +669,6 @@ struct ProviderLimitRow: View {
             }
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {
-                    let labelWidth = LimitWindowLine.labelWidth(for: status.limitWindows)
                     ForEach(status.limitWindows) { window in
                         if status.providerID == "gemini" {
                             VStack(alignment: .leading, spacing: 2) {
@@ -679,7 +677,7 @@ struct ProviderLimitRow: View {
                                 LimitWindowLine(window: window, status: status, isActive: presentation.available, showsLabel: false)
                             }
                         } else {
-                            LimitWindowLine(window: window, status: status, isActive: presentation.available, labelWidth: labelWidth)
+                            LimitWindowLine(window: window, status: status, isActive: presentation.available)
                         }
                     }
                 }
@@ -828,22 +826,15 @@ struct LimitWindowLine: View {
     let status: ProviderStatus
     var isActive = true
     var showsLabel = true
-    var labelWidth: CGFloat = 26
     @State private var isResetHovered = false
-
-    /// One width per provider, so a long label moves all of its values together.
-    static func labelWidth(for windows: [ProviderLimitWindow]) -> CGFloat {
-        max(26, ceil(CGFloat(windows.map(\.label.count).max() ?? 0) * 7.5))
-    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             // Fixed columns keep periods, values and reset dates aligned across providers.
-            Text(showsLabel ? window.label : "")
-                .font(limitWindowFont)
+            labelText
                 .foregroundColor(windowColor)
                 .lineLimit(1)
-                .frame(width: labelWidth, alignment: .leading)
+                .frame(width: 66, alignment: .leading)
 
             Text(windowValueText)
                 .font(limitWindowFont)
@@ -877,6 +868,14 @@ struct LimitWindowLine: View {
         .contentShape(Rectangle())
         .onHover { isResetHovered = $0 }
         .transaction { $0.animation = nil }
+    }
+
+    /// A qualifier such as "(Fable)" stays smaller than the period it narrows.
+    private var labelText: Text {
+        guard showsLabel else { return Text("") }
+        guard let split = window.label.range(of: " (") else { return Text(window.label).font(limitWindowFont) }
+        return Text(window.label[..<split.lowerBound]).font(limitWindowFont)
+            + Text(window.label[split.lowerBound...]).font(.system(size: 9, weight: .medium, design: .monospaced))
     }
 
     private var limitWindowFont: Font {

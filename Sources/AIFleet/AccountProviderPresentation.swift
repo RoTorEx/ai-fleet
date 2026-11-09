@@ -72,14 +72,18 @@ func accountProviderRows(accounts: [FleetAccount], providerID: String, global: P
                          codex: CodexMonitoringStore) -> [MenuAccountConnection] {
     let linked = accounts.filter { $0.connection(for: providerID) != nil }
     let named = linked.filter { $0.id != FleetAccount.defaultID || !$0.email.isEmpty }
-    return (named.isEmpty ? linked : named).compactMap { account in
+    let shown = named.isEmpty ? linked : named
+    return shown.compactMap { account in
         guard let connection = account.connection(for: providerID) else { return nil }
         let status = providerID == "codex" ? connection.status(from: codex.status(for: account, global: global, accounts: accounts))
             : statusForConnection(connection) ?? connection.status(from: LocalProviderAuth.unknown.status(for: ProviderCatalog.definition(for: providerID)!))
         let futureDefault = providerID == "codex" ? codex.nextLaunchAccountID : ProviderLaunchStore.shared.selected[providerID]
+        // A provider that reports no identity can only be matched when one account is linked.
+        let reportsIdentity = !(global.account?.email ?? "").isEmpty
         let currentCLI = futureDefault != nil ? futureDefault == account.id :
-            global.authentication == .signedIn && !account.email.isEmpty &&
-            global.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame
+            global.authentication == .signedIn && (reportsIdentity
+                ? !account.email.isEmpty && global.account?.email?.caseInsensitiveCompare(account.email) == .orderedSame
+                : shown.count == 1)
         return MenuAccountConnection(account: account, connection: connection, status: status,
             isSelected: status.authentication == .signedIn,
             isCurrentCLI: currentCLI, usesAccountLogin: providerID == "codex")
