@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-09
+
 - Show Claude model-specific weekly limits such as `7d (Fable)` and drop the 5h line when the provider does not report that window.
 - Read Kimi Code region-scoped login slots and show its monthly limit as `1m`.
 - Add optional Grok detection and sign-in, hidden by default.
