@@ -670,18 +670,16 @@ struct ProviderLimitRow: View {
             }
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {
-                    if status.providerID == "claude", !status.limitWindows.contains(where: { $0.label == "5h" }) {
-                        MissingLimitLine(label: "5h")
-                    }
+                    let labelWidth = LimitWindowLine.labelWidth(for: status.limitWindows)
                     ForEach(status.limitWindows) { window in
-                        if status.providerID == "gemini" || window.id.hasPrefix("weekly_scoped_") {
+                        if status.providerID == "gemini" {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(window.label).font(.system(size: 10, weight: .medium, design: .monospaced))
                                     .foregroundColor(color).lineLimit(1)
                                 LimitWindowLine(window: window, status: status, isActive: presentation.available, showsLabel: false)
                             }
                         } else {
-                            LimitWindowLine(window: window, status: status, isActive: presentation.available)
+                            LimitWindowLine(window: window, status: status, isActive: presentation.available, labelWidth: labelWidth)
                         }
                     }
                 }
@@ -825,27 +823,18 @@ final class ActionMenu: NSObject {
     }
 }
 
-/// A window the provider left out of its reply, shown in the same columns as a measured one.
-private struct MissingLimitLine: View {
-    let label: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text(label).frame(width: 26, alignment: .leading)
-            Text("—").frame(width: 34, alignment: .trailing)
-            Spacer(minLength: 0)
-        }
-        .font(.system(size: 11, weight: .medium, design: .monospaced))
-        .foregroundColor(FleetPalette.muted)
-    }
-}
-
 struct LimitWindowLine: View {
     let window: ProviderLimitWindow
     let status: ProviderStatus
     var isActive = true
     var showsLabel = true
+    var labelWidth: CGFloat = 26
     @State private var isResetHovered = false
+
+    /// One width per provider, so a long label moves all of its values together.
+    static func labelWidth(for windows: [ProviderLimitWindow]) -> CGFloat {
+        max(26, ceil(CGFloat(windows.map(\.label.count).max() ?? 0) * 7.5))
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -853,7 +842,8 @@ struct LimitWindowLine: View {
             Text(showsLabel ? window.label : "")
                 .font(limitWindowFont)
                 .foregroundColor(windowColor)
-                .frame(width: 26, alignment: .leading)
+                .lineLimit(1)
+                .frame(width: labelWidth, alignment: .leading)
 
             Text(windowValueText)
                 .font(limitWindowFont)
