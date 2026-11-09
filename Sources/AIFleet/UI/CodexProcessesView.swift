@@ -171,7 +171,7 @@ private struct ProcessRow: View {
                     .accessibilityLabel("Copy path")
                     // A fixed block keeps the folder in place; shorter PIDs center inside it.
                     Button { copy(String(process.pid), label: "PID \(process.pid)") } label: {
-                        Text(String(process.pid)).font(.system(size: 9.5).monospacedDigit())
+                        Text(String(process.pid)).font(.system(size: 9.5).monospacedDigit()).lineLimit(1).fixedSize()
                             .foregroundStyle(pidHovered ? Color.accentColor : Color.secondary)
                             .padding(.horizontal, 3).padding(.vertical, 1)
                             .background(Color.accentColor.opacity(pidHovered ? 0.14 : 0), in: RoundedRectangle(cornerRadius: 4))
@@ -179,7 +179,7 @@ private struct ProcessRow: View {
                     .buttonStyle(.plain).onHover { pidHovered = $0 }
                     .hoverPopover { copyHint(String(process.pid), width: nil) }
                     .accessibilityLabel("Copy PID")
-                    .frame(width: 36)
+                    .frame(width: 40)
                 }
                 Button(action: showActions) {
                     Image(systemName: "ellipsis").font(.system(size: 11, weight: .semibold))

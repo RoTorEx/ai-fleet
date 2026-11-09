@@ -29,6 +29,17 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(reordered.visibleAccounts.dropFirst().first?.badge, "β")
     }
 
+    @MainActor
+    func testPanelContentFollowsEveryResize() {
+        let panel = FleetMenuPanel(content: NSView())
+        let screen = NSRect(x: 0, y: 0, width: 1600, height: 1000)
+        let anchor = NSRect(x: 800, y: 980, width: 0, height: 0)
+        for height in [1, 300, 620, 240] as [CGFloat] {
+            panel.layout(contentSize: NSSize(width: 354, height: height), below: anchor, in: screen)
+            XCTAssertEqual(panel.hostingView.frame.size, NSSize(width: 354, height: height))
+        }
+    }
+
     func testMonthLabelIsNotReadAsMinutes() {
         let month = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 98, resetAt: nil)
         let minute = ProviderLimitWindow(id: "primary", label: "1m", remainingPercent: 98, resetAt: nil)

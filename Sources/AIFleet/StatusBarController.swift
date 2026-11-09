@@ -92,6 +92,7 @@ final class FleetMenuPanel: NSPanel {
             clip.layer?.cornerRadius = Self.cornerRadius
             clip.layer?.cornerCurve = .continuous
             clip.layer?.masksToBounds = true
+            glass.autoresizingMask = [.width, .height]
             clip.addSubview(glass)
             glassView = glass
             contentView = clip
@@ -114,8 +115,11 @@ final class FleetMenuPanel: NSPanel {
 
     func layout(contentSize: NSSize, below anchor: NSRect, in visibleFrame: NSRect) {
         setFrame(Self.frame(contentSize: contentSize, below: anchor, in: visibleFrame), display: true)
-        if let glassView, let bounds = contentView?.bounds { glassView.frame = bounds }
-        hostingView.frame = hostingView.superview?.bounds ?? hostingView.frame
+        // Glass lays out its content container lazily, so its bounds can lag behind the window.
+        let bounds = contentView?.bounds ?? NSRect(origin: .zero, size: frame.size)
+        glassView?.frame = bounds
+        glassView?.layoutSubtreeIfNeeded()
+        hostingView.frame = bounds
         invalidateShadow()
     }
 
