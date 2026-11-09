@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-09
+
 - Select an Xcode with the macOS 26 SDK in release CI so the native glass menu can compile.
 - Default account switching to Next launch only, preserving running sessions and explicitly saved policies.
 - Clear resolved process-blocking switch errors automatically without retrying the switch.
