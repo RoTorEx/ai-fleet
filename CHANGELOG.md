@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-11-11
+
 - Hide Switch for the current signed-in account in both the provider menu and Settings; other saved accounts remain switchable.
 
 ## [1.4.2] - 2026-11-11
