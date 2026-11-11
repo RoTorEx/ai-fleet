@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Restrict both account arrows to signed-in current accounts; the down arrow marks the lowest positive quota among those accounts only.
+- Disable Switch for the already current signed-in account in both the provider menu and Settings, while keeping other saved logins switchable.
+
 ## [1.4.1] - 2026-11-09
 
 - Select an Xcode with the macOS 26 SDK in release CI so the native glass menu can compile.

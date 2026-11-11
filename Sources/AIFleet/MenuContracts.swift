@@ -4,11 +4,17 @@ struct MenuAccountConnection: Identifiable {
     let account: FleetAccount
     let connection: ProviderConnection
     let status: ProviderStatus
+    /// Authentication of this saved connection, independently of the launch default.
     let isSelected: Bool
     var isCurrentCLI: Bool? = nil
     var usesAccountLogin = false
     var isSetup = false
     var id: String { connection.statusID }
+    /// A saved login is current only when selected for future commands and still signed in.
+    var isCurrentAccount: Bool {
+        !isSetup && status.authentication == .signedIn && isCurrentCLI == true
+    }
+    var canSwitch: Bool { !isSetup && !isCurrentAccount }
 }
 
 /// Working connections first; each half keeps its existing order.

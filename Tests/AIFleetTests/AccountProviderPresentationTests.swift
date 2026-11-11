@@ -21,6 +21,50 @@ final class AccountProviderPresentationTests: XCTestCase {
         XCTAssertEqual(MenuConnectionState(status: stale).marker, "?")
     }
 
+    func testArrowsAndSwitchDistinguishSelectedAccountsFromOtherSavedLogins() {
+        func row(_ id: String, provider: String = "codex", remaining: Int,
+                 current: Bool?, auth: ProviderStatus.Authentication = .signedIn,
+                 quota: ProviderStatus.QuotaState = .available) -> MenuAccountConnection {
+            let connection = ProviderConnection.global(provider)
+            let account = FleetAccount(id: id, badgeIndex: 0, name: id, email: id + "@example.test", connections: [connection])
+            let measured = ProviderStatus(id: provider, name: provider, state: .ok, detail: "Fixture",
+                lastUpdated: Date(), remainingPercent: remaining, authentication: auth, quotaState: quota)
+            return MenuAccountConnection(account: account, connection: ProviderConnection(id: id, providerID: provider),
+                status: measured, isSelected: auth == .signedIn, isCurrentCLI: current)
+        }
+        let personal = row("personal", remaining: 88, current: true)
+        let work = row("work", remaining: 24, current: false)
+        let claude = row("claude", provider: "claude", remaining: 71, current: true)
+        let rows = [personal, work, claude]
+        let lowest = lowestCurrentQuotaConnectionID(in: rows)
+        XCTAssertEqual(lowest, claude.id, "A lower saved login must never displace an active account")
+        XCTAssertEqual(rows.map { menuConnectionMark($0, lowestID: lowest) }, ["→", "", "↓"])
+        XCTAssertFalse(personal.canSwitch)
+        XCTAssertFalse(claude.canSwitch)
+        XCTAssertTrue(work.canSwitch, "Another signed-in account must still be switchable")
+
+        let selectedWork = row("work", remaining: 24, current: true)
+        let oldPersonal = row("personal", remaining: 88, current: false)
+        let switched = [oldPersonal, selectedWork, claude]
+        XCTAssertEqual(switched.map { menuConnectionMark($0, lowestID: lowestCurrentQuotaConnectionID(in: switched)) }, ["", "↓", "→"])
+        XCTAssertTrue(oldPersonal.canSwitch)
+        XCTAssertFalse(selectedWork.canSwitch)
+
+        for unavailable in [row("out", remaining: 1, current: true, auth: .signInRequired),
+                            row("unknown", remaining: 1, current: true, auth: .unknown),
+                            row("stale", remaining: 1, current: true, quota: .stale)] {
+            XCTAssertNil(lowestCurrentQuotaConnectionID(in: [unavailable]))
+            XCTAssertFalse(["→", "↓"].contains(menuConnectionMark(unavailable, lowestID: unavailable.id)))
+        }
+        let undetermined = row("undetermined", remaining: 1, current: nil)
+        XCTAssertTrue(undetermined.canSwitch)
+        XCTAssertEqual(menuConnectionMark(undetermined, lowestID: undetermined.id), "")
+        let exhausted = row("zero", remaining: 0, current: true, quota: .exhausted)
+        XCTAssertNil(lowestCurrentQuotaConnectionID(in: [exhausted]))
+        XCTAssertEqual(menuConnectionMark(exhausted, lowestID: nil), "→")
+        XCTAssertFalse(exhausted.canSwitch, "Exhausted quota does not change the selected login")
+    }
+
     func testMenuStatusDescribesApplicationOperationsAndKeepsUpdateFailureVisible() {
         XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: false).title, "Active")
         XCTAssertEqual(MenuOperationStatus.resolve(update: .idle, refreshing: false, monitoring: false).title, "Paused")
@@ -94,11 +138,12 @@ final class AccountProviderPresentationTests: XCTestCase {
         accounts.attachGlobal("codex", to: personal.id)
         accounts.attachGlobal("codex", to: work.id)
         accounts.attachGlobal("claude", to: third.id)
-        let codex = CodexMonitoringStore(defaults: defaults, root: root, measure: { directory in
+        let measure: (URL) async -> CodexMonitoringResult = { directory in
             let email = try! String(contentsOf: directory.appendingPathComponent("auth.json"))
             return CodexMonitoringResult(status: self.status(email, remaining: email == personal.email ? 87 : 42),
                                          usage: nil, usageError: nil)
-        })
+        }
+        let codex = CodexMonitoringStore(defaults: defaults, root: root, measure: measure)
         for account in [personal, work] {
             let profile = codex.ensureProfile(for: account)
             XCTAssertEqual(codex.ensureProfile(for: account).id, profile.id, "One Codex per account")
@@ -115,7 +160,20 @@ final class AccountProviderPresentationTests: XCTestCase {
             XCTAssertEqual(rows.map(\.status.remainingPercent), [87, 42])
             XCTAssertTrue(rows.allSatisfy(\.isSelected), "Both independently authenticated accounts remain available")
             XCTAssertEqual(rows.filter { $0.isCurrentCLI == true }.map(\.account.id), [current.id])
+            XCTAssertEqual(rows.filter { !$0.canSwitch }.map(\.account.id), [current.id])
+            XCTAssertEqual(rows.filter { !menuConnectionMark($0, lowestID: lowestCurrentQuotaConnectionID(in: rows)).isEmpty }
+                .map(\.account.id), [current.id])
         }
+        defaults.set(work.id, forKey: CodexTerminalLaunch.selectionKey)
+        let selectedCodex = CodexMonitoringStore(defaults: defaults, root: root, measure: measure)
+        selectedCodex.refresh(force: true)
+        for _ in 0..<200 where selectedCodex.refreshing { try await Task.sleep(nanoseconds: 10_000_000) }
+        let selectedRows = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
+            global: status(personal.email, remaining: 1), statusForConnection: { _ in nil }, codex: selectedCodex)
+        XCTAssertEqual(selectedRows.filter(\.isCurrentAccount).map(\.account.id), [work.id],
+                       "A saved next-launch selection wins over the old native login")
+        XCTAssertEqual(selectedRows.filter { !$0.canSwitch }.map(\.account.id), [work.id])
+        XCTAssertEqual(selectedRows.map { menuConnectionMark($0, lowestID: lowestCurrentQuotaConnectionID(in: selectedRows)) }, ["", "↓"])
         XCTAssertEqual(accounts.visibleAccounts.map(\.badge), ["α", "β", "γ"])
         XCTAssertEqual(codex.profiles.count, 2)
         let claude = ProviderStatus(id: "claude", name: "Claude", state: .ok, detail: "Measured", lastUpdated: Date(),
@@ -138,7 +196,7 @@ final class AccountProviderPresentationTests: XCTestCase {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let host = NSHostingController(rootView: VStack(alignment: .leading, spacing: 8) {
                 ForEach(sorted) { entry in
-                    ProviderLimitRow(entry: entry, mark: entry.account.id == work.id ? "↓" : "", openSettings: {})
+                    ProviderLimitRow(entry: entry, mark: menuConnectionMark(entry, lowestID: lowestCurrentQuotaConnectionID(in: sorted)), openSettings: {})
                 }
             }.padding(16).frame(width: 354).background(Color(nsColor: .windowBackgroundColor))
                 .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))

@@ -83,9 +83,10 @@ subscription charges.
   Management stays in Settings → Accounts: draggable account blocks in Greek-letter
   order with their providers, Add Account, and confirmed removal. Small parenthesized
   badges follow the provider name; clicking the name opens email, plan and
-  account actions below it; hovering highlights it. One leading mark per row: ↓ lowest positive
-  quota anywhere, → current account of a multi-account provider, none when simply working, ×/?
-  unavailable.
+  account actions below it; hovering highlights it. One leading mark per row:
+  ↓ current account with the lowest positive quota among current accounts,
+  → other signed-in current accounts, none on other saved logins, ×/? unavailable.
+  Switch is disabled for an already current signed-in account in both menu and Settings.
   Legacy isolated files and metadata remain preserved. See
   [Accounts](business/accounts.md) for matching, ordering and storage rules.
 

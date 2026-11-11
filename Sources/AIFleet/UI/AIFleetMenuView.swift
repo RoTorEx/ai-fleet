@@ -25,12 +25,7 @@ struct AIFleetMenuView: View {
 
     private var providers: [ProviderStatus] { connections.map(\.status) }
 
-    private var lowestProvider: ProviderStatus? {
-        providers
-            .filter(\.hasCurrentQuota)
-            .filter { ($0.remainingPercent ?? 0) > 0 }
-            .min { ($0.remainingPercent ?? 101) < ($1.remainingPercent ?? 101) }
-    }
+    private var lowestConnectionID: String? { lowestCurrentQuotaConnectionID(in: connections) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -112,14 +107,9 @@ struct AIFleetMenuView: View {
         }
     }
 
-    /// One leading mark per row: ↓ lowest positive quota anywhere, → the provider's current
-    /// account, none for any other working connection, × / ? unavailable.
+    /// Both arrows identify a signed-in account selected for the next provider command.
     private func mark(for entry: MenuAccountConnection) -> String {
-        let state = MenuConnectionState(status: entry.status)
-        guard state.available else { return state.marker }
-        if entry.status.id == lowestProvider?.id { return "↓" }
-        if entry.isCurrentCLI ?? entry.isSelected { return "→" }
-        return ""
+        menuConnectionMark(entry, lowestID: lowestConnectionID)
     }
 
     /// Saved accounts by badge with their email and each provider's plan.
@@ -599,7 +589,7 @@ struct ProviderLimitRow: View {
     private var color: Color { presentation.available ? rowColor(for: status) : FleetPalette.muted }
     private var markAccessibility: String {
         switch mark {
-        case "↓": return "lowest remaining quota"
+        case "↓": return "current account, lowest remaining quota"
         case "→": return "current account"
         case "": return "connected"
         case "×": return "sign in required"
@@ -710,7 +700,7 @@ struct ProviderLimitRow: View {
                 })
             }
             if profile != nil {
-                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy && !codexProfiles.refreshing) {
+                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy && !codexProfiles.refreshing && entry.canSwitch) {
                     codexProfiles.switchAccount(entry.account)
                 })
             }
@@ -727,7 +717,7 @@ struct ProviderLimitRow: View {
                 })
             }
             if ProviderTerminalLaunch.providers.contains(status.providerID) {
-                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy) {
+                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy && entry.canSwitch) {
                     if entry.account.badge.isEmpty {
                         SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
                     } else {
@@ -956,7 +946,7 @@ struct LegendSection: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 9) {
                         legendMark("→", "current account")
-                        legendMark("↓", "lowest")
+                        legendMark("↓", "current · lowest")
                     }
                     HStack(spacing: 9) {
                         legendMark("×", "sign in")

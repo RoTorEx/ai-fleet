@@ -9,6 +9,19 @@ func switchActionTitle(provider: String, badge: String) -> String {
     "Switch to \(provider)" + (badge.isEmpty ? "" : " (\(badge))")
 }
 
+/// Lowest quota is meaningful only among the accounts selected for provider commands.
+func lowestCurrentQuotaConnectionID(in rows: [MenuAccountConnection]) -> String? {
+    rows.filter { $0.isCurrentAccount && $0.status.hasCurrentQuota && ($0.status.remainingPercent ?? 0) > 0 }
+        .min { ($0.status.remainingPercent ?? 101) < ($1.status.remainingPercent ?? 101) }?.id
+}
+
+func menuConnectionMark(_ entry: MenuAccountConnection, lowestID: String?) -> String {
+    let state = MenuConnectionState(status: entry.status)
+    guard state.available else { return state.marker }
+    guard entry.isCurrentAccount else { return "" }
+    return entry.id == lowestID ? "↓" : "→"
+}
+
 struct MenuConnectionState {
     let status: ProviderStatus
     var available: Bool { status.hasCurrentQuota }

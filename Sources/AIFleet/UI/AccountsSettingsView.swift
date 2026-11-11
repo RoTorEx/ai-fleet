@@ -204,6 +204,11 @@ private struct ConnectionRow: View {
         isCodex ? codex.status(for: account, global: service.codex, accounts: store.visibleAccounts)
             : service.status(for: connection)
     }
+    private var canSwitch: Bool {
+        accountProviderRows(accounts: store.accounts, providerID: connection.providerID,
+            global: service.status(for: connection.providerID), statusForConnection: service.status(for:), codex: codex)
+            .first { $0.account.id == account.id }?.canSwitch ?? false
+    }
     private var signedIn: Bool { status?.authentication == .signedIn }
     private var sharedLogin: Bool { isCodex && codex.profile(for: account) == nil }
     private var busy: Bool {
@@ -251,6 +256,7 @@ private struct ConnectionRow: View {
                 }
                 if codex.profile(for: account) != nil {
                     Button(switchActionTitle(provider: "Codex", badge: account.badge)) { codex.switchAccount(account) }
+                        .disabled(!canSwitch)
                         .help("The next codex command uses this account; running sessions keep theirs.")
                 }
                 if let profile = codex.profile(for: account), signedIn {
@@ -264,6 +270,7 @@ private struct ConnectionRow: View {
                         providerLaunch.switchAccount(account, providerID: connection.providerID,
                                                      global: service.status(for: connection.providerID))
                     }
+                    .disabled(!canSwitch)
                 }
                 if signedIn {
                     Button("Sign out") { providerLaunch.signOut(account, providerID: connection.providerID) }

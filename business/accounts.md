@@ -102,14 +102,17 @@ identity. Historical manual selections do not determine status or login.
 Authentication and limit measurement remain independent internally. Each menu
 row has exactly one leading mark, all in one monospaced font and sharing the ×
 optical center (arrows may run longer than × and •):
-- ↓ the lowest positive current quota among all accounts, whichever it is;
-- → the current account of a provider with several saved accounts, meaning the
-  account the next ordinary provider command uses after terminal integration,
-  not the identity of existing processes;
+- ↓ the lowest positive current quota among signed-in accounts selected for
+  the next provider command; this also identifies that provider's current account;
+- → any other signed-in current account, including single-account providers.
+  Current means the account the next ordinary provider command uses after
+  terminal integration, not the identity of existing processes;
 - no mark on any other connection with current limits (including 0%);
 - × sign-in required; ? limits unavailable or unknown.
-Unavailable marks win over → and •. Any connection without current limits is
-gray, even if its CLI reports a configured login; a missing measurement never
+Unavailable marks win over arrows. Saved signed-in accounts that are not selected
+never receive an arrow. Switch is disabled for the signed-in current account in
+both the menu and Settings; another saved login remains switchable.
+Any connection without current limits is gray, even if its CLI reports a configured login; a missing measurement never
 looks ready. Quota rows sit in shared columns (period, right-aligned remaining,
 reset) indented slightly inside the provider name; the reset date keeps a clear
 gap from the value. An unavailable row shows its short reason on one line.
