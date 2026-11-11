@@ -127,9 +127,11 @@ the confirmation. The app verifies process identity and checks exit. Account
 selection follows the chosen Switch policy; stopping requires confirmation.
 
 The menu shows each account's remaining 5h/7d limits in aligned columns. One
-mark leads a row when it says something: → the current account when a provider has
-several, ↓ the lowest remaining quota anywhere, × sign-in required and ? limits
-unavailable (gray even with a configured CLI login). Important account notes
+mark leads a row when it says something: → a signed-in current account,
+↓ the lowest positive quota among signed-in current accounts, × sign-in required
+and ? limits unavailable (gray even with a configured CLI login). Other saved
+logins have no arrow. Switch is disabled for the current signed-in account in
+both the menu and Settings. Important account notes
 appear in the Status section of the ⓘ card.
 The header shows whether AI Fleet monitoring is Active or Paused, with Refresh
 (⌘R) and Options (⋯) on the right. Tabs Providers (with a `measured/saved`
