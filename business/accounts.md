@@ -110,7 +110,7 @@ optical center (arrows may run longer than × and •):
 - no mark on any other connection with current limits (including 0%);
 - × sign-in required; ? limits unavailable or unknown.
 Unavailable marks win over arrows. Saved signed-in accounts that are not selected
-never receive an arrow. Switch is disabled for the signed-in current account in
+never receive an arrow. Switch is hidden for the signed-in current account in
 both the menu and Settings; another saved login remains switchable.
 Any connection without current limits is gray, even if its CLI reports a configured login; a missing measurement never
 looks ready. Quota rows sit in shared columns (period, right-aligned remaining,

@@ -699,8 +699,8 @@ struct ProviderLimitRow: View {
                     } else { codexProfiles.signIn(codexProfiles.ensureProfile(for: entry.account)) }
                 })
             }
-            if profile != nil {
-                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy && !codexProfiles.refreshing && entry.canSwitch) {
+            if profile != nil && entry.canSwitch {
+                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy && !codexProfiles.refreshing) {
                     codexProfiles.switchAccount(entry.account)
                 })
             }
@@ -716,8 +716,8 @@ struct ProviderLimitRow: View {
                     providerLaunch.signIn(entry.account, providerID: status.providerID)
                 })
             }
-            if ProviderTerminalLaunch.providers.contains(status.providerID) {
-                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy && entry.canSwitch) {
+            if ProviderTerminalLaunch.providers.contains(status.providerID) && entry.canSwitch {
+                items.append(.init(title: switchActionTitle(provider: status.name, badge: entry.account.badge), enabled: !busy) {
                     if entry.account.badge.isEmpty {
                         SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
                     } else {

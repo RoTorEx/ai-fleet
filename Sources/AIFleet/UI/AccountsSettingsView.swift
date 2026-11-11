@@ -254,9 +254,8 @@ private struct ConnectionRow: View {
                     Button("Save Login") { codex.saveCurrentLogin(account) }
                         .help("Keep the current terminal login for this account")
                 }
-                if codex.profile(for: account) != nil {
+                if codex.profile(for: account) != nil && canSwitch {
                     Button(switchActionTitle(provider: "Codex", badge: account.badge)) { codex.switchAccount(account) }
-                        .disabled(!canSwitch)
                         .help("The next codex command uses this account; running sessions keep theirs.")
                 }
                 if let profile = codex.profile(for: account), signedIn {
@@ -265,12 +264,11 @@ private struct ConnectionRow: View {
                     Button("Sign in") { codex.signIn(codex.ensureProfile(for: account)) }
                 }
             } else {
-                if ProviderTerminalLaunch.providers.contains(connection.providerID) {
+                if ProviderTerminalLaunch.providers.contains(connection.providerID) && canSwitch {
                     Button(switchActionTitle(provider: ProviderCatalog.definition(for: connection.providerID)?.name ?? "", badge: account.badge)) {
                         providerLaunch.switchAccount(account, providerID: connection.providerID,
                                                      global: service.status(for: connection.providerID))
                     }
-                    .disabled(!canSwitch)
                 }
                 if signedIn {
                     Button("Sign out") { providerLaunch.signOut(account, providerID: connection.providerID) }

@@ -130,7 +130,7 @@ The menu shows each account's remaining 5h/7d limits in aligned columns. One
 mark leads a row when it says something: → a signed-in current account,
 ↓ the lowest positive quota among signed-in current accounts, × sign-in required
 and ? limits unavailable (gray even with a configured CLI login). Other saved
-logins have no arrow. Switch is disabled for the current signed-in account in
+logins have no arrow. Switch is hidden for the current signed-in account in
 both the menu and Settings. Important account notes
 appear in the Status section of the ⓘ card.
 The header shows whether AI Fleet monitoring is Active or Paused, with Refresh

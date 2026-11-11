@@ -86,7 +86,7 @@ subscription charges.
   account actions below it; hovering highlights it. One leading mark per row:
   ↓ current account with the lowest positive quota among current accounts,
   → other signed-in current accounts, none on other saved logins, ×/? unavailable.
-  Switch is disabled for an already current signed-in account in both menu and Settings.
+  Switch is hidden for an already current signed-in account in both menu and Settings.
   Legacy isolated files and metadata remain preserved. See
   [Accounts](business/accounts.md) for matching, ordering and storage rules.
 

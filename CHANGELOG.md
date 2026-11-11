@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Hide Switch for the current signed-in account in both the provider menu and Settings; other saved accounts remain switchable.
+
 ## [1.4.2] - 2026-11-11
 
 - Restrict both account arrows to signed-in current accounts; the down arrow marks the lowest positive quota among those accounts only.
