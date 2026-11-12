@@ -469,29 +469,27 @@ private struct MenuRowsHeightKey: PreferenceKey {
     }
 }
 
-/// Leading row mark. Every mark uses one monospaced font sharing the × optical center.
-/// The font's → is shorter than its ↓, so → is the same ↓ glyph turned a quarter.
+/// Every context uses the same mark font. The provider-name metrics own layout;
+/// the arrow can extend visually without changing a row's height or baseline.
 struct RowMark: View {
     let mark: String
-    var size: CGFloat = 14
 
     var body: some View {
-        // Keep the same font metrics and baseline even when no mark is visible.
-        glyph("↓").hidden().overlay {
-            if mark == "→" {
-                glyph("↓").rotationEffect(.degrees(-90)).offset(y: size * 0.07)
-            } else {
-                glyph(mark)
+        Text("×")
+            .font(.system(size: FleetRowMetrics.nameFontSize, weight: .medium))
+            .hidden()
+            .overlay {
+                Text(mark == "→" ? "↓" : mark)
+                    .font(.system(size: FleetRowMetrics.nameFontSize, weight: .medium, design: .monospaced))
+                    .rotationEffect(.degrees(mark == "→" ? -90 : 0))
+                    .offset(y: mark == "→" ? FleetRowMetrics.nameFontSize * 0.07 : 0)
+                    .fixedSize()
             }
-        }
-    }
-
-    private func glyph(_ text: String) -> some View {
-        Text(text).font(.system(size: size, weight: .medium, design: .monospaced))
     }
 }
 
 enum FleetRowMetrics {
+    static let nameFontSize: CGFloat = 12
     static let markWidth: CGFloat = 14
     static let markSpacing: CGFloat = 5
     /// Wide enough for `↻ 12 Nov 10:58` and the `6d 23h 59m 59s` countdown.
@@ -610,7 +608,7 @@ struct ProviderLimitRow: View {
                 Button(action: showActions) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(status.name)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: FleetRowMetrics.nameFontSize, weight: .medium))
                         if !entry.account.badge.isEmpty {
                             Text("(\(entry.account.badge))")
                                 .font(.system(size: 10, weight: .medium))
@@ -983,7 +981,7 @@ struct LegendSection: View {
 
     private func legendMark(_ mark: String, _ label: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            RowMark(mark: mark, size: 11).frame(width: 10)
+            RowMark(mark: mark).frame(width: FleetRowMetrics.markWidth)
             Text(label)
         }
         .foregroundColor(FleetPalette.value)
@@ -1099,7 +1097,13 @@ private enum FleetPalette {
     static let muted = Color.secondary
     static let faint = Color(nsColor: .tertiaryLabelColor)
     static let ready = Color(nsColor: .systemGreen)
-    static let warning = Color(nsColor: .systemOrange)
+    // Deep burnt orange on light glass; bright amber on dark glass.
+    static let warning = Color(nsColor: NSColor(name: nil) { appearance in
+        if appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua {
+            return NSColor(srgbRed: 1, green: 197.0 / 255, blue: 109.0 / 255, alpha: 1)
+        }
+        return NSColor(srgbRed: 87.0 / 255, green: 32.0 / 255, blue: 0, alpha: 1)
+    })
     static let danger = Color(nsColor: .systemRed)
     static let page = Color.primary.opacity(0.07)
 }

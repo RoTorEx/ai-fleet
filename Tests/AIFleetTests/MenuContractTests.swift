@@ -43,6 +43,17 @@ final class MenuContractTests: XCTestCase {
     }
 
     @MainActor
+    func testMarksUseProviderNameMetricsWithoutIncreasingLineHeight() {
+        let reference = NSHostingView(rootView: Text("Codex").font(.system(size: 12, weight: .medium)))
+        let expected = reference.fittingSize.height
+        for mark in ["", "→", "↓", "×", "?"] {
+            let view = NSHostingView(rootView: RowMark(mark: mark))
+            XCTAssertEqual(view.fittingSize.height, expected, accuracy: 0.1,
+                           "A mark must draw inside the provider-name line metrics")
+        }
+    }
+
+    @MainActor
     func testChangingAccountMarksKeepsEveryProviderBlockInPlace() async throws {
         let state = MarkerLayoutState()
         let host = NSHostingController(rootView: MarkerLayoutFixture(state: state))

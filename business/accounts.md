@@ -100,10 +100,12 @@ connection’s existing owner as a label fallback, without claiming verified
 identity. Historical manual selections do not determine status or login.
 
 Authentication and limit measurement remain independent internally. Each menu
-row has exactly one leading mark, all in one monospaced font and sharing the ×
-optical center (arrows may run longer than × and •). The mark reserves the same
-font metrics and baseline when empty, so changing the selected account cannot
-resize a provider block or shift its neighbors:
+row has exactly one leading mark. Provider rows and legend marks use one
+12 pt medium monospaced font, matching the provider name's size. The right arrow
+is the down-arrow glyph rotated, with no scaling or context-specific size.
+The provider-name font owns the mark's layout height and baseline, including
+when empty. Glyphs may extend outside that slot inside the shared provider page;
+they never enlarge a row or shift neighboring providers:
 
 - ↓ the lowest positive current quota among signed-in accounts selected for
   the next provider command; this also identifies that provider's current account;
@@ -239,3 +241,8 @@ the existing Switch/busy guards. Real-account acceptance is deferred until after
 design and does not block subsequent technical stages.
 
 Menu visibility and measurement counts follow the [monitoring contract](../docs/contracts/menu-monitoring.md).
+
+Low-quota text uses appearance-specific orange: deep burnt orange (#572000)
+on light glass and bright amber (#FFC56D) on dark glass. The previous system
+orange lost contrast over the light blurred menu surface. Thresholds and quota
+meaning stay unchanged; provider names, marks, values and legend use one token.

@@ -140,7 +140,7 @@ final class AccountProviderPresentationTests: XCTestCase {
         accounts.attachGlobal("claude", to: third.id)
         let measure: (URL) async -> CodexMonitoringResult = { directory in
             let email = try! String(contentsOf: directory.appendingPathComponent("auth.json"))
-            return CodexMonitoringResult(status: self.status(email, remaining: email == personal.email ? 87 : 42),
+            return CodexMonitoringResult(status: self.status(email, remaining: email == personal.email ? 87 : 24),
                                          usage: nil, usageError: nil)
         }
         let codex = CodexMonitoringStore(defaults: defaults, root: root, measure: measure)
@@ -157,7 +157,7 @@ final class AccountProviderPresentationTests: XCTestCase {
             let rows = accountProviderRows(accounts: accounts.accounts, providerID: "codex",
                 global: status(current.email, remaining: 1), statusForConnection: { _ in nil }, codex: codex)
             XCTAssertEqual(rows.map(\.account.badge), ["α", "β"])
-            XCTAssertEqual(rows.map(\.status.remainingPercent), [87, 42])
+            XCTAssertEqual(rows.map(\.status.remainingPercent), [87, 24])
             XCTAssertTrue(rows.allSatisfy(\.isSelected), "Both independently authenticated accounts remain available")
             XCTAssertEqual(rows.filter { $0.isCurrentCLI == true }.map(\.account.id), [current.id])
             XCTAssertEqual(rows.filter { !$0.canSwitch }.map(\.account.id), [current.id])
@@ -198,7 +198,7 @@ final class AccountProviderPresentationTests: XCTestCase {
                 ForEach(sorted) { entry in
                     ProviderLimitRow(entry: entry, mark: menuConnectionMark(entry, lowestID: lowestCurrentQuotaConnectionID(in: sorted)), openSettings: {})
                 }
-            }.padding(16).frame(width: 354).background(Color(nsColor: .windowBackgroundColor))
+            }.padding(16).frame(width: 354).background(Color(nsColor: NSColor(white: appearance == .darkAqua ? 0.18 : 0.56, alpha: 1)))
                 .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 300),
                                   styleMask: [.borderless], backing: .buffered, defer: false)

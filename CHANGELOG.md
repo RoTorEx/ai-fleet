@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Use one 12 pt arrow font in provider rows and the legend, rotating the same glyph without enlarging row height.
+- Improve low-quota text contrast with deep orange on light glass and bright amber on dark glass.
+
 - Keep provider blocks in place when switching accounts by preserving the leading mark’s height and baseline even when no arrow is shown.
 
 ## [1.4.3] - 2026-11-11
