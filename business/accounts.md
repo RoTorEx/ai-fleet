@@ -242,9 +242,9 @@ design and does not block subsequent technical stages.
 
 Menu visibility and measurement counts follow the [monitoring contract](../docs/contracts/menu-monitoring.md).
 
-Low-quota text uses one gold/yellow warning family, distinct from critical red:
-deep gold (#5C4900) on light glass and soft yellow (#F2CF66) on dark glass.
-Burnt orange was rejected because it looked red and confused warning with
-critical state. Thresholds and quota meaning stay unchanged. Provider names,
-marks, values, legend, menu-bar attention and other warning messages share the
-same semantic warning token; provider identity/chart colors remain separate.
+The selected palette is option 03, Amber / Vermilion, from the user's color
+comparison. Light glass uses warning #915400 and critical #A12D24; dark glass
+uses warning #FFB347 and critical #FF665B. Thresholds and quota meaning stay
+unchanged. Provider names, marks, values, legend, menu-bar attention and other
+warning/error messages share the same semantic tokens; provider identity/chart
+colors remain separate. Appearance variants preserve each selected color family.

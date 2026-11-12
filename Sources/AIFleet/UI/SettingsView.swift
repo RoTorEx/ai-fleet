@@ -98,7 +98,7 @@ struct SettingsView: View {
                 LabeledContent("Permission") {
                     HStack(spacing: 8) {
                         Text(service.notificationStatusText)
-                            .foregroundStyle(service.notificationsEnabled ? Color.secondary : Color.red)
+                            .foregroundStyle(service.notificationsEnabled ? Color.secondary : FleetPalette.danger)
                         Button("Test") {
                             service.refreshNotificationSettings()
                             service.sendTestNotification()

@@ -224,7 +224,7 @@ subscription charges.
   login. Account notes and errors live in the status card's Status section; missing
   limits use ? and gray even when a CLI login is configured. See Accounts for the full contract.
 - Remaining-quota color states in the compact menu are red at `10%` or below,
-  gold/yellow from `11%` through `25%` inclusive, and normal at `26%` or above.
+  amber from `11%` through `25%` inclusive, and normal at `26%` or above.
   The boundaries make the warning band more visible before an account becomes
   critically low; they apply consistently to both provider rows and individual
   quota windows.
@@ -275,7 +275,7 @@ subscription charges.
 - Analytics and caches: `Sources/AIFleet/UsageAnalytics.swift`
 - User interfaces: `Sources/AIFleet/UI/*`
 
-Warnings and errors replace the menu header's ⓘ with a gold/yellow or red
+Warnings and errors replace the menu header's ⓘ with an amber or vermilion
 exclamation mark in a circle. The menu-bar Fleet icon also shows a static,
 color-matched exclamation mark, including while the menu is closed. Both use
 the same current status notes, with errors taking precedence over warnings;

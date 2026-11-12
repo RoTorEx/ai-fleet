@@ -5,7 +5,7 @@ Tracks real product and release progress.
 ## [Unreleased]
 
 - Use one 12 pt arrow font in provider rows and the legend, rotating the same glyph without enlarging row height.
-- Use one appearance-aware gold/yellow palette for low-quota and warning indicators, distinct from critical red.
+- Apply the selected Amber / Vermilion palette (option 03) consistently to warnings and critical/error indicators in both appearances.
 
 - Keep provider blocks in place when switching accounts by preserving the leading mark’s height and baseline even when no arrow is shown.
 

@@ -6,7 +6,7 @@ The configured global shortcut opens AI Fleet. The menu has three tabs under
 the header: Providers, Agents (grouped by collapsible location) and Processes.
 Tabs split the full width and look like bookmarks: the active tab and its page
 are one shape. Click a tab or press ← / →, which wrap around; the last tab is
-remembered across openings and restarts. A gold/yellow dot on Agents flags a session waiting for approval or
+remembered across openings and restarts. An amber dot on Agents flags a session waiting for approval or
 an answer. The session engine runs while the menu is open so that dot stays
 current; Processes rescans while the menu is open so its tab shows a count. The menu grows up to
 80% of the screen's visible height; past that only the active tab scrolls, with

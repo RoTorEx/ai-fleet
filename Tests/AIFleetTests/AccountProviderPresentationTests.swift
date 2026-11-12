@@ -177,6 +177,8 @@ final class AccountProviderPresentationTests: XCTestCase {
         XCTAssertEqual(accounts.visibleAccounts.map(\.badge), ["α", "β", "γ"])
         XCTAssertEqual(codex.profiles.count, 2)
         let claude = ProviderStatus(id: "claude", name: "Claude", state: .ok, detail: "Measured", lastUpdated: Date(),
+            remainingPercent: 8,
+            limitWindows: [ProviderLimitWindow(id: "primary", label: "5h", remainingPercent: 8, resetAt: nil)],
             account: ProviderAccountIdentity(email: third.email, organizationID: nil, organizationName: nil, subscriptionType: "team"))
         let claudeRows = accountProviderRows(accounts: accounts.accounts, providerID: "claude", global: claude,
             statusForConnection: { $0.status(from: claude) }, codex: codex)

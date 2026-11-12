@@ -59,7 +59,7 @@ struct AccountsSettingsView: View {
         }
         CodexAccountAuthenticationStatus(store: codex, accounts: store)
         if let error = store.launchError {
-            Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            Text(error).font(.caption).foregroundStyle(FleetPalette.danger).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -482,7 +482,7 @@ struct CodexAccountAuthenticationStatus: View {
                     CodexSwitchBlockedNotice(label: label(store.errorProfileID), processIDs: pids,
                                              isExpanded: $showsSwitchDetails)
                 } else {
-                    Text("\(label(store.errorProfileID)): \(error)").font(.caption).foregroundColor(.red)
+                    Text("\(label(store.errorProfileID)): \(error)").font(.caption).foregroundColor(FleetPalette.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
