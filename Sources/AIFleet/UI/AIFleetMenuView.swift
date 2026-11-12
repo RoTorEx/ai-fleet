@@ -130,7 +130,7 @@ struct AIFleetMenuView: View {
         return order.compactMap { byID[$0] }.sorted { $0.badge < $1.badge }
     }
 
-    /// ⓘ glows red for errors and orange for warnings; info-only notes keep it still.
+    /// ⓘ glows red for errors and gold/yellow for warnings; info-only notes keep it still.
     private var attentionColor: Color? {
         switch MenuStatusNote.attention(in: statusNotes) {
         case .error: return FleetPalette.danger
@@ -381,7 +381,7 @@ enum FleetMenuLayout {
 
 /// Tabs look like bookmarks sticking out of one page: the active tab and the
 /// content below share a single filled shape; the others stay flat text.
-/// Tabs split the full width; an orange dot flags agents waiting for the user.
+/// Tabs split the full width; a gold/yellow dot flags agents waiting for the user.
 struct MenuTabBar<Content: View>: View {
     struct Item {
         let tab: MenuTab
@@ -1086,7 +1086,7 @@ struct FleetDivider: View {
     }
 }
 
-private enum FleetPalette {
+enum FleetPalette {
     static let background = Color(nsColor: .windowBackgroundColor)
     static let border = Color(nsColor: .separatorColor)
     static let divider = Color(nsColor: .separatorColor)
@@ -1097,12 +1097,12 @@ private enum FleetPalette {
     static let muted = Color.secondary
     static let faint = Color(nsColor: .tertiaryLabelColor)
     static let ready = Color(nsColor: .systemGreen)
-    // Deep burnt orange on light glass; bright amber on dark glass.
+    // One gold/yellow warning hue, kept distinct from critical red in both appearances.
     static let warning = Color(nsColor: NSColor(name: nil) { appearance in
         if appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua {
-            return NSColor(srgbRed: 1, green: 197.0 / 255, blue: 109.0 / 255, alpha: 1)
+            return NSColor(srgbRed: 242.0 / 255, green: 207.0 / 255, blue: 102.0 / 255, alpha: 1)
         }
-        return NSColor(srgbRed: 87.0 / 255, green: 32.0 / 255, blue: 0, alpha: 1)
+        return NSColor(srgbRed: 92.0 / 255, green: 73.0 / 255, blue: 0, alpha: 1)
     })
     static let danger = Color(nsColor: .systemRed)
     static let page = Color.primary.opacity(0.07)

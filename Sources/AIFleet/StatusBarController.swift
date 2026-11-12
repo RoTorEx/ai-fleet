@@ -244,7 +244,7 @@ final class StatusBarController: NSObject {
         statusItem.length = severity == nil ? 18 : 30
         button.imagePosition = severity == nil ? .imageOnly : .imageLeading
         button.attributedTitle = NSAttributedString(string: severity == nil ? "" : "!", attributes: [
-            .foregroundColor: severity == .error ? NSColor.systemRed : NSColor.systemOrange,
+            .foregroundColor: severity == .error ? NSColor(FleetPalette.danger) : NSColor(FleetPalette.warning),
             .font: NSFont.systemFont(ofSize: 12, weight: .bold)
         ])
         button.toolTip = "AI Fleet (\(AppSettings.shared.hotkey.displayString))" +

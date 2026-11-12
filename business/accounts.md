@@ -242,7 +242,9 @@ design and does not block subsequent technical stages.
 
 Menu visibility and measurement counts follow the [monitoring contract](../docs/contracts/menu-monitoring.md).
 
-Low-quota text uses appearance-specific orange: deep burnt orange (#572000)
-on light glass and bright amber (#FFC56D) on dark glass. The previous system
-orange lost contrast over the light blurred menu surface. Thresholds and quota
-meaning stay unchanged; provider names, marks, values and legend use one token.
+Low-quota text uses one gold/yellow warning family, distinct from critical red:
+deep gold (#5C4900) on light glass and soft yellow (#F2CF66) on dark glass.
+Burnt orange was rejected because it looked red and confused warning with
+critical state. Thresholds and quota meaning stay unchanged. Provider names,
+marks, values, legend, menu-bar attention and other warning messages share the
+same semantic warning token; provider identity/chart colors remain separate.

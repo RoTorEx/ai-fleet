@@ -84,7 +84,7 @@ struct StatisticsView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             ForEach(stats.sourceIssues, id: \.self) { issue in
                 Label(issue, systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 10.5)).foregroundStyle(.orange)
+                    .font(.system(size: 10.5)).foregroundStyle(FleetPalette.warning)
             }
         }
     }

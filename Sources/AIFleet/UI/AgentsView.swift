@@ -10,7 +10,7 @@ struct MenuAgentsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let error = service.error ?? service.jumpError {
-                Text(error).font(.system(size: 10.5)).foregroundStyle(.orange)
+                Text(error).font(.system(size: 10.5)).foregroundStyle(FleetPalette.warning)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
             }
             if service.sessions.isEmpty {
@@ -53,7 +53,7 @@ struct MenuAgentsSection: View {
                     Text("\(item.rawValue) \(count)").font(.system(size: 10.5, weight: .medium).monospacedDigit())
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .foregroundStyle(active ? Color.primary
-                            : (item == .needsYou && count > 0 ? Color.orange : Color.secondary))
+                            : (item == .needsYou && count > 0 ? FleetPalette.warning : Color.secondary))
                         .background(active ? Color.primary.opacity(0.1) : .clear, in: Capsule())
                 }.buttonStyle(.plain)
             }
@@ -102,7 +102,7 @@ private struct AgentSessionRow: View {
     private var live: Bool { session.isWorking && !stale }
     private var statusColor: Color {
         if stale || session.location == nil { return .secondary }
-        if session.needsYou { return session.state == "Blocked" ? .red : .orange }
+        if session.needsYou { return session.state == "Blocked" ? FleetPalette.danger : FleetPalette.warning }
         if session.state == "New reply" { return .cyan }
         return session.isWorking ? tint : .secondary
     }

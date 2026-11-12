@@ -51,7 +51,7 @@ struct CodexProcessesView: View {
                 bulkMenu
             }
             if let error = service.error {
-                Text(error).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                Text(error).font(.caption).foregroundStyle(FleetPalette.warning).fixedSize(horizontal: false, vertical: true)
             }
             if let notice = service.notice {
                 Text(notice).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
