@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Keep provider blocks in place when switching accounts by preserving the leading mark’s height and baseline even when no arrow is shown.
+
 ## [1.4.3] - 2026-11-11
 
 - Hide Switch for the current signed-in account in both the provider menu and Settings; other saved accounts remain switchable.

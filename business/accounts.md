@@ -101,7 +101,10 @@ identity. Historical manual selections do not determine status or login.
 
 Authentication and limit measurement remain independent internally. Each menu
 row has exactly one leading mark, all in one monospaced font and sharing the ×
-optical center (arrows may run longer than × and •):
+optical center (arrows may run longer than × and •). The mark reserves the same
+font metrics and baseline when empty, so changing the selected account cannot
+resize a provider block or shift its neighbors:
+
 - ↓ the lowest positive current quota among signed-in accounts selected for
   the next provider command; this also identifies that provider's current account;
 - → any other signed-in current account, including single-account providers.

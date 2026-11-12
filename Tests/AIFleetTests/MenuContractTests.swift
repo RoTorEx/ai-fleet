@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import XCTest
 @testable import AIFleet
 
@@ -37,6 +39,33 @@ final class MenuContractTests: XCTestCase {
         for height in [1, 300, 620, 240] as [CGFloat] {
             panel.layout(contentSize: NSSize(width: 354, height: height), below: anchor, in: screen)
             XCTAssertEqual(panel.hostingView.frame.size, NSSize(width: 354, height: height))
+        }
+    }
+
+    @MainActor
+    func testChangingAccountMarksKeepsEveryProviderBlockInPlace() async throws {
+        let state = MarkerLayoutState()
+        let host = NSHostingController(rootView: MarkerLayoutFixture(state: state))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 400),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentViewController = host
+        window.orderFrontRegardless()
+        defer { window.orderOut(nil); window.contentViewController = nil }
+        var reference: [Int: CGRect]?
+        for marks in [["↓", "→", "", "→"], ["→", "", "↓", "→"],
+                      ["→", "↓", "", "→"], ["×", "?", "", "→"]] {
+            state.marks = marks
+            try await Task.sleep(nanoseconds: 80_000_000)
+            host.view.layoutSubtreeIfNeeded()
+            XCTAssertEqual(state.frames.count, 4)
+            if let reference {
+                for index in 0..<4 {
+                    let before = try XCTUnwrap(reference[index])
+                    let after = try XCTUnwrap(state.frames[index])
+                    XCTAssertEqual(after.minY, before.minY, accuracy: 0.1, "Provider \(index) moved after account selection")
+                    XCTAssertEqual(after.height, before.height, accuracy: 0.1, "A marker changed provider row height")
+                }
+            } else { reference = state.frames }
         }
     }
 
@@ -97,5 +126,45 @@ final class MenuContractTests: XCTestCase {
         let mapped = ProviderConnection.global("claude").status(from: status).withAccount(nil)
         XCTAssertEqual(mapped.quotaFailureReason, .rateLimited)
         XCTAssertEqual(MenuConnectionState(status: mapped).detail, "Quota requests limited")
+    }
+}
+
+@MainActor
+private final class MarkerLayoutState: ObservableObject {
+    @Published var marks = ["↓", "→", "", "→"]
+    var frames: [Int: CGRect] = [:]
+}
+
+private struct MarkerFramesKey: PreferenceKey {
+    static var defaultValue: [Int: CGRect] = [:]
+    static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
+@MainActor
+private struct MarkerLayoutFixture: View {
+    @ObservedObject var state: MarkerLayoutState
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(0..<4) { index in
+                let provider = ["claude", "codex", "codex", "kimi"][index]
+                let connection = ProviderConnection(id: "fixture-\(index)", providerID: provider)
+                let account = FleetAccount(id: "fixture-\(index)", badgeIndex: index, name: "Fixture", email: "fixture@example.test", connections: [connection])
+                let status = ProviderStatus(id: provider, name: provider.capitalized, state: .ok,
+                    detail: "Fixture", lastUpdated: nil, remainingPercent: 80,
+                    limitWindows: [ProviderLimitWindow(id: "weekly", label: "7d", remainingPercent: 80, resetAt: nil)])
+                ProviderLimitRow(entry: MenuAccountConnection(account: account, connection: connection,
+                    status: status, isSelected: true), mark: state.marks[index], openSettings: {})
+                    .background(GeometryReader { geometry in
+                        Color.clear.preference(key: MarkerFramesKey.self,
+                            value: [index: geometry.frame(in: .named("provider-blocks"))])
+                    })
+            }
+        }
+        .coordinateSpace(name: "provider-blocks")
+        .frame(width: 354, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
+        .onPreferenceChange(MarkerFramesKey.self) { state.frames = $0 }
     }
 }

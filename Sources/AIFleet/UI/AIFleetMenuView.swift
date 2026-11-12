@@ -476,10 +476,13 @@ struct RowMark: View {
     var size: CGFloat = 14
 
     var body: some View {
-        if mark == "→" {
-            glyph("↓").rotationEffect(.degrees(-90)).offset(y: size * 0.07)
-        } else {
-            glyph(mark)
+        // Keep the same font metrics and baseline even when no mark is visible.
+        glyph("↓").hidden().overlay {
+            if mark == "→" {
+                glyph("↓").rotationEffect(.degrees(-90)).offset(y: size * 0.07)
+            } else {
+                glyph(mark)
+            }
         }
     }
 
