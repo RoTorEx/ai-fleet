@@ -103,6 +103,10 @@ final class GlobalAccountsTests: XCTestCase {
                 XCTAssertTrue(relogin.hasSuffix(" --prompt-interactive '/auth login'"))
                 continue
             }
+            if provider.id == "kimi" {
+                XCTAssertTrue(command.hasSuffix("' login --region global"))
+                continue
+            }
             XCTAssertTrue(command.hasSuffix(provider.id == "claude" ? "' auth login" : provider.id == "qwen" ? "'/tool/cli'" : "' login"))
         }
     }

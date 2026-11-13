@@ -344,7 +344,7 @@ final class ProviderLaunchStore: ObservableObject {
                 defer { busy = false; StatusService.shared.refresh() }
                 await StatusService.shared.joinRefreshBeforeAccountAuth()
                 let result = await Task.detached(priority: .utility) {
-                    LocalCommandReader.read(executableURL: executable, arguments: providerID == "claude" ? ["auth", "login"] : ["login"],
+                    LocalCommandReader.read(executableURL: executable, arguments: ProviderCatalog.loginArguments(for: providerID),
                                             timeout: 600, environment: environment)
                 }.value
                 let verified: Bool

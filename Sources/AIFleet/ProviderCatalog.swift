@@ -45,6 +45,15 @@ struct KimiCodeEnvironment: Equatable {
 }
 
 enum ProviderCatalog {
+    /// Fleet browser sign-in always uses Kimi's global service (kimi.ai).
+    static func loginArguments(for providerID: String) -> [String] {
+        switch providerID {
+        case "kimi": return ["login", "--region", "global"]
+        case "claude": return ["auth", "login"]
+        default: return ["login"]
+        }
+    }
+
     static let codex = ProviderDefinition(
         id: "codex",
         name: "Codex",

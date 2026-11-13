@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Always use kimi.ai (`--region global`) for Kimi Sign in, without a site-selection dialog.
+
 - Allow Sign in and Switch for migrated provider accounts retaining the reserved `default` ID, while continuing to reject arbitrary profile IDs and redirected paths.
 
 ## [1.4.4] - 2026-11-13

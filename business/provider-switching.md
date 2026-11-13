@@ -62,7 +62,11 @@ are intentional native authentication, not another Fleet subscription login.
 ## Login, history and measurements
 
 Claude and Kimi browser login run the unmodified native CLI with the selected
-private home and sanitized authentication overrides. The current default is not
+private home and sanitized authentication overrides. Fleet always starts Kimi
+login with `--region global` for `kimi.ai`; there is no site chooser. The native
+CLI writes that region’s config and credential slot, which quota monitoring
+then reads from the same home. Existing other-region credentials are preserved,
+never relabelled as global credentials. The current default is not
 changed. A failed login cannot replace an existing profile association. Gemini
 and Qwen complete interactive native sign-in on the first command after Switch;
 Fleet does not create a terminal for that step. Real browser/SSO completion is

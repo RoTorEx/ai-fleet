@@ -364,7 +364,7 @@ final class AccountStore: ObservableObject {
         }
         signingInProviderID = providerID
         Task {
-            let arguments = providerID == "claude" ? ["auth", "login"] : ["login"]
+            let arguments = ProviderCatalog.loginArguments(for: providerID)
             let environment = providerID == "claude" ? ClaudeProfile.current.environment() : ProcessInfo.processInfo.environment
             let result = await Task.detached(priority: .userInitiated) {
                 LocalCommandReader.read(executableURL: executable, arguments: arguments, timeout: 600, environment: environment)
@@ -468,8 +468,8 @@ enum AccountLaunch {
         case ("gemini", true):
             // First run already opens native auth. Reopen its dialog only for an existing login.
             arguments = hasGeminiLogin ? " --prompt-interactive '/auth login'" : ""
-        case ("claude", true): arguments = " auth login"
-        case ("codex", true), ("kimi", true), ("grok", true): arguments = " login"
+        case ("claude", true), ("codex", true), ("kimi", true), ("grok", true):
+            arguments = " " + ProviderCatalog.loginArguments(for: connection.providerID).joined(separator: " ")
         default: arguments = "" // Qwen performs login in its own interactive CLI.
         }
         return "cd \(quote(directory.path)) && /usr/bin/env \(unset)\(selector) \(quote(executable.path))\(arguments)"

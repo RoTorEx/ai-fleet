@@ -20,7 +20,7 @@ final class ProviderTerminalLaunchTests: XCTestCase {
         let credentials = native.appendingPathComponent("kimi-code.json")
         try Data("existing native login".utf8).write(to: credentials)
         let executable = root.appendingPathComponent("fixture-kimi")
-        try "#!/bin/sh\nprintf '%s\\n%s\\n' \"$1\" \"$KIMI_CODE_HOME\" > \"$KIMI_CODE_HOME/login-observed\"\n"
+        try "#!/bin/sh\nprintf '%s\\n' \"$@\" \"$KIMI_CODE_HOME\" > \"$KIMI_CODE_HOME/login-observed\"\n"
             .write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         let account = FleetAccount(id: FleetAccount.defaultID, badgeIndex: 0, name: "Migrated",
@@ -34,7 +34,7 @@ final class ProviderTerminalLaunchTests: XCTestCase {
         XCTAssertFalse(store.messageIsError)
         let profile = try XCTUnwrap(store.profile("kimi", accountID: account.id))
         let directory = try ProviderTerminalLaunch.directory(profile, home: root)
-        XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent("login-observed")), "login\n\(directory.path)\n")
+        XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent("login-observed")), "login\n--region\nglobal\n\(directory.path)\n")
         XCTAssertEqual(try String(contentsOf: credentials), "existing native login")
         XCTAssertTrue(store.selected.isEmpty, "Sign in must not select the account for new commands")
         XCTAssertEqual(ProviderLaunchStore(defaults: defaults, home: root).profile("kimi", accountID: account.id), profile)
