@@ -29,8 +29,11 @@ The Codex adapter is owned by [Codex authorization](codex-profiles.md). Other
 adapters store no-secret selection records under
 ~/Library/Application Support/AI Fleet/ProviderLaunch/<provider>.json and profile
 metadata under terminal.providerProfiles/terminal.providerSelections preferences.
-Account IDs must be UUIDs and directories are derived locally, never accepted
-from a selection file. The configuration root for an independent account is
+Account IDs must be UUIDs or the reserved legacy `default` ID. A migrated
+labelled account can retain `default`; its Sign in and Switch use the same
+validation as other accounts. Directories are derived locally, never accepted
+from a selection file. Arbitrary names and path fragments remain invalid.
+The configuration root for an independent account is
 ~/Library/Application Support/AI Fleet/ProviderProfiles/<provider>/<account-ID>.
 
 - Claude uses CLAUDE_CONFIG_DIR directly. Native Claude handles the matching

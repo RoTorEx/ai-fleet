@@ -10,6 +10,60 @@ final class ProviderTerminalLaunchTests: XCTestCase {
         return root
     }
 
+    @MainActor
+    func testKimiSignInForMigratedDefaultAccountLaunchesAndPreservesNativeCredentials() async throws {
+        let root = try root(), suite = "legacy-kimi-login-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let native = root.appendingPathComponent(".kimi-code/credentials")
+        try FileManager.default.createDirectory(at: native, withIntermediateDirectories: true)
+        let credentials = native.appendingPathComponent("kimi-code.json")
+        try Data("existing native login".utf8).write(to: credentials)
+        let executable = root.appendingPathComponent("fixture-kimi")
+        try "#!/bin/sh\nprintf '%s\\n%s\\n' \"$1\" \"$KIMI_CODE_HOME\" > \"$KIMI_CODE_HOME/login-observed\"\n"
+            .write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let account = FleetAccount(id: FleetAccount.defaultID, badgeIndex: 0, name: "Migrated",
+                                   email: "fixture@example.test", connections: [.global("kimi")])
+        let store = ProviderLaunchStore(defaults: defaults, home: root)
+        store.signIn(account, providerID: "kimi", executable: executable)
+        XCTAssertTrue(store.busy, "Sign in must reach the CLI instead of rejecting the legacy account ID")
+        let deadline = Date().addingTimeInterval(5)
+        while store.busy && Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertFalse(store.busy)
+        XCTAssertFalse(store.messageIsError)
+        let profile = try XCTUnwrap(store.profile("kimi", accountID: account.id))
+        let directory = try ProviderTerminalLaunch.directory(profile, home: root)
+        XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent("login-observed")), "login\n\(directory.path)\n")
+        XCTAssertEqual(try String(contentsOf: credentials), "existing native login")
+        XCTAssertTrue(store.selected.isEmpty, "Sign in must not select the account for new commands")
+        XCTAssertEqual(ProviderLaunchStore(defaults: defaults, home: root).profile("kimi", accountID: account.id), profile)
+    }
+
+    func testReservedDefaultProfilesCanLaunchButArbitraryIdentifiersRemainRejected() throws {
+        let root = try root()
+        for provider in ProviderTerminalLaunch.providers {
+            for native in [true, false] {
+                let profile = ProviderLaunchProfile(providerID: provider, accountID: FleetAccount.defaultID,
+                                                    email: "fixture@example.test", native: native)
+                try ProviderTerminalLaunch.prepare(profile, home: root)
+                let directory = try ProviderTerminalLaunch.directory(profile, home: root)
+                XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
+                let environment = try ProviderTerminalLaunch.environment(profile, home: root, inheriting: [:])
+                if !(native && provider == "claude") {
+                    XCTAssertNotNil(environment[ProviderConnection.global(provider).selector])
+                }
+            }
+        }
+        for id in ["../default", "/tmp/elsewhere", "named-account", ""] {
+            let profile = ProviderLaunchProfile(providerID: "kimi", accountID: id, email: "", native: false)
+            XCTAssertThrowsError(try ProviderTerminalLaunch.prepare(profile, home: root))
+        }
+        let badHome = ProviderLaunchProfile(providerID: "kimi", accountID: FleetAccount.defaultID,
+                                           email: "", native: false, credentialHomeID: "../elsewhere")
+        XCTAssertThrowsError(try ProviderTerminalLaunch.prepare(badHome, home: root))
+    }
+
     func testSwitchForEveryProviderAffectsOnlyNextInvocationAndPreservesExistingProcess() throws {
         let root = try root()
         let bin = root.appendingPathComponent("native-bin")

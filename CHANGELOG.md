@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Allow Sign in and Switch for migrated provider accounts retaining the reserved `default` ID, while continuing to reject arbitrary profile IDs and redirected paths.
+
 ## [1.4.4] - 2026-11-13
 
 - Recognize rejected Kimi refresh tokens (`400 invalid_grant`) as Sign in required; distinguish refresh rate limits, server failures, invalid responses and network errors without deleting saved credentials.

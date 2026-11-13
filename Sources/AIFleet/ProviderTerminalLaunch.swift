@@ -26,7 +26,9 @@ enum ProviderTerminalLaunch {
     static let defaultsKey = "terminal.providerProfiles"
 
     static func directory(_ profile: ProviderLaunchProfile, home: URL) throws -> URL {
-        guard providers.contains(profile.providerID), UUID(uuidString: profile.accountID) != nil else {
+        // The migrated native account retains its reserved ID when it gains an email.
+        guard providers.contains(profile.providerID),
+              profile.accountID == FleetAccount.defaultID || UUID(uuidString: profile.accountID) != nil else {
             throw Failure.invalidProfile
         }
         guard profile.credentialHomeID == nil || UUID(uuidString: profile.credentialHomeID!) != nil else { throw Failure.invalidProfile }
@@ -311,7 +313,7 @@ final class ProviderLaunchStore: ObservableObject {
         } catch { message = error.localizedDescription; messageIsError = true }
     }
 
-    func signIn(_ account: FleetAccount, providerID: String) {
+    func signIn(_ account: FleetAccount, providerID: String, executable: URL? = nil) {
         guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
         // Providers without per-account launch profiles share the native CLI login.
         guard ProviderTerminalLaunch.providers.contains(providerID) || providerID == "codex" else {
@@ -333,7 +335,7 @@ final class ProviderLaunchStore: ObservableObject {
                 message = "Complete native sign-in on the first \(providerID) launch after Switch. Existing sessions and their logins are unchanged."
                 return
             }
-            guard let executable = ProviderCatalog.executableURL(for: ProviderCatalog.definition(for: providerID)!) else {
+            guard let executable = executable ?? ProviderCatalog.executableURL(for: ProviderCatalog.definition(for: providerID)!) else {
                 throw ProviderTerminalLaunch.Failure.missingCLI(providerID)
             }
             let environment = try ProviderTerminalLaunch.environment(profile, home: home, inheriting: ProcessInfo.processInfo.environment)
