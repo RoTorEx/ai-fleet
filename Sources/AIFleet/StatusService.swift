@@ -611,8 +611,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 activeAuth = refreshed
             case .unauthorized:
                 return Self.unavailableStatus(for: ProviderCatalog.kimi)
-            case .failed:
-                return ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Refresh failed", lastUpdated: Date(), quotaFailure: .network)
+            case .failed(let reason):
+                return kimiRefreshFailure(reason)
             }
         }
 
@@ -631,9 +631,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return await fetchKimiCodeStatus(accessToken: token, connection: connection)
         case .unauthorized:
             return Self.unavailableStatus(for: ProviderCatalog.kimi)
-        case .failed:
-            return status
+        case .failed(let reason):
+            return kimiRefreshFailure(reason)
         }
+    }
+
+    private func kimiRefreshFailure(_ reason: ProviderStatus.QuotaFailure) -> ProviderStatus {
+        ProviderStatus(id: "kimi", name: "Kimi", state: .offline, detail: "Refresh failed",
+                       lastUpdated: Date(), quotaFailure: reason)
     }
 
     private func kimiEnvironment(_ connection: ProviderConnection) -> KimiCodeEnvironment {
@@ -701,7 +706,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     private enum KimiRefreshResult {
         case refreshed(KimiCodeAuth)
         case unauthorized
-        case failed
+        case failed(ProviderStatus.QuotaFailure)
     }
 
     private func refreshKimiCodeAuth(auth: KimiCodeAuth, connection: ProviderConnection) async -> KimiRefreshResult {
@@ -729,11 +734,17 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
         do {
             let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .failed }
-            if http.statusCode == 401 || http.statusCode == 403 {
+            guard let http = response as? HTTPURLResponse else { return .failed(.invalidResponse) }
+            // OAuth rejects expired/revoked grants with 400, not only 401/403.
+            // Inspect the structured code without exposing server text or tokens.
+            let oauthError = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            if http.statusCode == 401 || http.statusCode == 403 ||
+                (http.statusCode == 400 && oauthError?["error"] as? String == "invalid_grant") {
                 return .unauthorized
             }
-            guard (200..<300).contains(http.statusCode) else { return .failed }
+            guard (200..<300).contains(http.statusCode) else {
+                return .failed(http.statusCode == 429 ? .rateLimited : .unavailable)
+            }
 
             let refresh = try decoder.decode(KimiOAuthRefreshResponse.self, from: data)
             let nextAuth = KimiCodeAuth(
@@ -747,7 +758,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             saveKimiCodeAuth(nextAuth, connection: connection)
             return .refreshed(nextAuth)
         } catch {
-            return .failed
+            return .failed(error is DecodingError ? .invalidResponse : .network)
         }
     }
 

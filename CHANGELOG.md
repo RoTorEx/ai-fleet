@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Recognize rejected Kimi refresh tokens (`400 invalid_grant`) as Sign in required; distinguish refresh rate limits, server failures, invalid responses and network errors without deleting saved credentials.
+
 - Use one 12 pt arrow font in provider rows and the legend, rotating the same glyph without enlarging row height.
 - Apply the selected Amber / Vermilion palette (option 03) consistently to warnings and critical/error indicators in both appearances.
 

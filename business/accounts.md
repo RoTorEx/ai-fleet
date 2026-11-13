@@ -174,7 +174,11 @@ suffix; the account's existing Sign in action remains available.
   subscription’s quota cache.
 - Codex reads native `~/.codex/auth.json`; JWT email/plan are display hints, not
   proof of authorization. Keychain-only/ephemeral storage remains outside this
-  reader. Kimi retains native credential refresh and balance fallback. Qwen
+  reader. Kimi retains native credential refresh and balance fallback. OAuth
+  `400 invalid_grant` means the saved refresh token is no longer accepted and
+  requires sign-in; it is not a network error. Rate limiting, server failures,
+  malformed responses and transport failures retain their distinct quota reasons.
+  Failed refreshes preserve the saved credentials. Qwen
   retains local OAuth detection and explicitly unsupported quota.
 - `codex.activeAccountID` tracks the saved checkpoint of the standard credentials.
   `codex.nextLaunchAccountID` mirrors the account selected in CodexLaunch/default.json;
