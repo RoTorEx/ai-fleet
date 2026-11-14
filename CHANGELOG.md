@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.4.6] - 2026-11-14
+
 - Keep live agents and Processes rows visible after a CLI update unlinks their old executable; preserve UID/start/TTY validation and reject permission-error fallbacks.
 - Discover interactive Kimi, Qwen, Gemini and Grok sessions in iTerm2, including Node process-title rewrites and package entrypoints; exclude one-shot/auth/server commands.
 - Add an Unknown agent filter instead of counting unverified activity as Idle; retain verified status/transcript parsing for Codex and Claude.
