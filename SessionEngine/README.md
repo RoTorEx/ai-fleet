@@ -2,7 +2,10 @@
 
 This private executable embeds unchanged AI Session Hub sources pinned in
 upstream.json. It is built for each release architecture inside AI Fleet.
-The standalone CLI is not required.
+The standalone CLI is not required. The upstream `embedded` feature preserves
+Jump validation without writing the standalone application’s usage logs.
+Discovery covers Codex, Claude, Kimi, Qwen, Gemini and Grok; activity parsing
+remains verified for Codex/Claude. Other providers retain explicit Unknown state.
 
 src/main.rs owns the Fleet JSON-lines adapter. vendor belongs to upstream:
 compare a reviewed Hub revision, copy the required modules/license unchanged,

@@ -29,6 +29,15 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertEqual(sessions.filter(AgentFilter.all.matches).count, 2)
     }
 
+    func testUnknownProviderActivityIsVisibleWithoutBeingLabelledIdle() throws {
+        let rows = #"[{"id":"kimi-1","provider":"kimi","project":"/work","title":"Kimi","state":"Unknown","explanation":"No verified state markers","location":null}]"#
+        let sessions = try JSONDecoder().decode([AgentSession].self, from: Data(rows.utf8))
+        XCTAssertEqual(sessions.filter(AgentFilter.all.matches).count, 1)
+        XCTAssertEqual(sessions.filter(AgentFilter.unknown.matches).count, 1)
+        XCTAssertTrue(sessions.filter(AgentFilter.idle.matches).isEmpty)
+        XCTAssertTrue(sessions.filter(AgentFilter.working.matches).isEmpty)
+    }
+
     @MainActor
     func testBundledProtocolRefreshJumpFailureAndClose() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

@@ -53,14 +53,19 @@ enum CodexProcessControl {
         guard size > 0 else { throw Failure.inventory }
         return pids.prefix(Int(size) / MemoryLayout<Int32>.size).compactMap { pid in
             guard pid > 1 else { return nil }
-            // Darwin's PROC_PIDPATHINFO_MAXSIZE macro is 4 * MAXPATHLEN and is not imported by Swift.
-            var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
-            guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
-            let executable = String(cString: buffer)
-            guard let provider = provider(executable: executable, script: URL(fileURLWithPath: executable).lastPathComponent == "node" ? scriptEntry(pid) : nil) else { return nil }
             var info = proc_bsdinfo()
             guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0,
-                  info.pbi_uid == getuid() else { return nil }
+                  info.pbi_uid == getuid(), info.pbi_status != 5 else { return nil }
+            var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+            let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+            let pathError = length > 0 ? 0 : errno
+            let livePath = length > 0 ? String(cString: buffer) : nil
+            let runtime = livePath.map { isRuntime(URL(fileURLWithPath: $0).lastPathComponent) } ?? false
+            let launch = pathError == ENOENT || runtime ? launchInfo(pid) : nil
+            guard let executable = executablePath(live: livePath, error: pathError, launch: launch?.executable),
+                  let provider = provider(executable: executable, script: launch?.entry, processName: launch?.name) else { return nil }
+            // A process may exit or be replaced during metadata collection.
+            guard startIdentity(pid) == "\(info.pbi_start_tvsec).\(info.pbi_start_tvusec)" else { return nil }
             let timestamp = "\(info.pbi_start_tvsec).\(info.pbi_start_tvusec)"
             let noTerminal = info.e_tdev == UInt32.max
             return CodexProcess(pid: pid, uid: info.pbi_uid, terminal: noTerminal ? "??" : "tty:\(info.e_tdev)",
@@ -68,13 +73,35 @@ enum CodexProcessControl {
         }.sorted { $0.pid < $1.pid }
     }
 
-    static func provider(executable: String, script: String?) -> String? {
+    static func executablePath(live: String?, error: Int32, launch: String?) -> String? {
+        if let live { return live }
+        guard error == ENOENT, let launch, launch.hasPrefix("/") else { return nil }
+        return launch
+    }
+
+    private static func isRuntime(_ name: String) -> Bool {
+        ["node", "bun", "python", "python3"].contains(name) || name.hasPrefix("python3.")
+    }
+
+    static func provider(executable: String, script: String?, processName: String? = nil) -> String? {
         let name = URL(fileURLWithPath: executable).lastPathComponent
         if ["codex", "codex-code-mode-host"].contains(name) { return "codex" }
         if let native = ProviderCatalog.all.first(where: { $0.id != "codex" && $0.executableNames.contains(name) }) { return native.id }
         let versions = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/claude/versions").path
         if URL(fileURLWithPath: executable).deletingLastPathComponent().path == versions { return "claude" }
-        guard name == "node", let script, script.hasPrefix("/") else { return nil }
+        guard isRuntime(name) else { return nil }
+        // Node CLIs may replace argv with a provider process title.
+        if let processName, let native = ProviderCatalog.all.first(where: { $0.executableNames.contains(URL(fileURLWithPath: processName).lastPathComponent) }) {
+            return native.id
+        }
+        guard let script, script.hasPrefix("/") else { return nil }
+        if let native = ProviderCatalog.all.first(where: { $0.executableNames.contains(URL(fileURLWithPath: script).lastPathComponent) }) {
+            return native.id
+        }
+        let packages = ["/@openai/codex/": "codex", "/@anthropic-ai/claude-code/": "claude",
+                        "/@moonshot-ai/kimi-code/": "kimi", "/@qwen-code/qwen-code/": "qwen",
+                        "/@google/gemini-cli/": "gemini", "/@vibe-kit/grok-cli/": "grok"]
+        if let provider = packages.first(where: { script.contains($0.key) })?.value { return provider }
         let entry = URL(fileURLWithPath: script).resolvingSymlinksInPath().path
         for provider in ProviderCatalog.all {
             guard let native = ProviderCatalog.executableURL(for: provider) else { continue }
@@ -83,23 +110,33 @@ enum CodexProcessControl {
         return nil
     }
 
-    // Read only the interpreter entry argument. Never expose prompts or environment.
-    private static func scriptEntry(_ pid: Int32) -> String? {
+    // Keep only the kernel executable and first two argv fields. Never export prompts/environment.
+    private static func launchInfo(_ pid: Int32) -> (executable: String, name: String?, entry: String?)? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var count = 0
         guard sysctl(&mib, 3, nil, &count, nil, 0) == 0, count > 4, count <= 1_048_576 else { return nil }
         var bytes = [UInt8](repeating: 0, count: count)
         guard sysctl(&mib, 3, &bytes, &count, nil, 0) == 0 else { return nil }
+        return decodeLaunchInfo(Array(bytes.prefix(count)))
+    }
+
+    static func decodeLaunchInfo(_ bytes: [UInt8]) -> (executable: String, name: String?, entry: String?)? {
+        guard bytes.count > 4 else { return nil }
+        let argc = bytes.prefix(4).enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << ($1.offset * 8) }
+        guard (1...4096).contains(argc) else { return nil }
         var offset = 4
-        while offset < count && bytes[offset] != 0 { offset += 1 }
-        while offset < count && bytes[offset] == 0 { offset += 1 }
-        // argv[0] is the runtime; argv[1] must be an exact installed script path.
-        while offset < count && bytes[offset] != 0 { offset += 1 }
-        offset += 1
-        guard offset < count else { return nil }
-        let start = offset
-        while offset < count && bytes[offset] != 0 { offset += 1 }
-        return String(bytes: bytes[start..<offset], encoding: .utf8)
+        func field() -> String? {
+            let start = offset
+            while offset < bytes.count && bytes[offset] != 0 { offset += 1 }
+            guard offset < bytes.count else { return nil }
+            defer { offset += 1 }
+            return String(bytes: bytes[start..<offset], encoding: .utf8)
+        }
+        guard let executable = field(), executable.hasPrefix("/") else { return nil }
+        while offset < bytes.count && bytes[offset] == 0 { offset += 1 }
+        guard let name = field() else { return nil }
+        let entry = argc > 1 ? field() : nil
+        return (executable, name, entry)
     }
 
     /// Re-read ownership, executable and start time immediately before signaling a single PID.

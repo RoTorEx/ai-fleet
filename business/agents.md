@@ -16,7 +16,7 @@ Each row shows the terminal session name without spinner glyphs or the iTerm
 job suffix such as "(codex)"; provider and model sit on the second line. The
 top-right time is an exact running stopwatch while the session works and a
 rough one-unit age (~40s, ~5m, ~16h, ~3d) since the last message or observed
-change otherwise. All / Needs you / Working / Idle filters with counts sit above
+change otherwise. All / Needs you / Working / Idle / Unknown filters with counts sit above
 the groups; the chosen filter persists while Fleet runs. Each card keeps its session color on its icon and provider
 name; resting the pointer on a card shows the latest captured request and reply
 with their times in a popover. Collapsed groups persist while Fleet runs. The list hides the scroller and fades
@@ -47,8 +47,13 @@ adapter, native UI, lifecycle and packaging. The presentation-independent
 identity and timing for future UI composition. The standalone Hub CLI/TUI is
 independent and is not required by the app.
 
-Only local interactive Codex/Claude in iTerm2 are supported. SSH, tmux, GUI
-conversations and other providers/terminals remain outside this reader. Activity,
+Local interactive Codex, Claude, Kimi, Qwen, Gemini and Grok sessions in iTerm2
+are discoverable and support exact-pane Jump. SSH, tmux, GUI conversations and
+other terminals remain outside this reader. Codex/Claude retain their verified
+terminal-state and transcript parsers. Other providers remain explicitly Unknown
+without borrowed status or transcript data; Unknown has its own filter and is
+never counted as Idle. Running sessions are independent of quota-provider
+visibility settings. Activity,
 questions and blockers use visible terminal markers and are heuristic. Missing
 markers remain Unknown. Provider metadata must be process-bound under Hub's
 contract, never selected by newest file or cwd. Global login badges are not
@@ -96,12 +101,16 @@ seconds on the right. A short "Copied …" notice confirms each copy.
 Agents and processes share one neutral block style; provider rows are unboxed. All and per-provider filters (only providers with a running process) and newest/oldest sort
 sit above the list; provider-wide and background stops are in one ⋯ menu.
 The Processes tab lists the current user's recognized provider executables,
-including native version-named Claude binaries and installed Node entrypoints such as Kimi and Gemini.
+including native version-named Claude binaries, known package entrypoints and
+rewritten Node provider titles such as kimi-code.
 Detached processes can remain after terminals close; their exact role/account
 remains unknown without evidence, so rows say only "terminal" or "detached". Native libproc discovery uses
 executable paths, UID, controlling-terminal presence and microsecond start identity;
-Prompts and environment are not exported or logged; a Node runtime entry argument
-may be read solely to match an installed provider executable. The visible list
+A failed executable lookup with ENOENT may use the kernel-recorded absolute
+launch executable, so an update cannot hide a process still using an unlinked
+old binary. Permission failures never use that fallback. Prompts and environment
+are not exported or logged; only executable/initial runtime arguments are retained
+for process recognition. UID and start identity are checked around collection. The visible list
 refreshes every 3 seconds to show exits/restarts promptly without a permanent scan.
 The timer stops when the menu closes.
 

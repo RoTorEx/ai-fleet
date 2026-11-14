@@ -4,6 +4,67 @@ import XCTest
 @testable import AIFleet
 
 final class CodexProcessesTests: XCTestCase {
+    func testRuntimePackagesAndRewrittenTitlesRemainRecognizableAfterUpdates() {
+        let packages = [("codex", "@openai/codex"), ("claude", "@anthropic-ai/claude-code"),
+                        ("kimi", "@moonshot-ai/kimi-code"), ("qwen", "@qwen-code/qwen-code"),
+                        ("gemini", "@google/gemini-cli"), ("grok", "@vibe-kit/grok-cli")]
+        for (provider, package) in packages {
+            XCTAssertEqual(CodexProcessControl.provider(executable: "/old/node", script: "/old/node_modules/\(package)/cli.js"), provider)
+            XCTAssertEqual(CodexProcessControl.provider(executable: "/old/node", script: nil, processName: provider), provider)
+        }
+        XCTAssertEqual(CodexProcessControl.provider(executable: "/bin/node", script: nil, processName: "kimi-code"), "kimi")
+        XCTAssertEqual(CodexProcessControl.provider(executable: "/old/python3.12", script: "/venv/bin/kimi"), "kimi")
+        XCTAssertNil(CodexProcessControl.provider(executable: "/bin/vim", script: nil, processName: "codex"))
+        XCTAssertNil(CodexProcessControl.provider(executable: "/bin/node", script: "/unrelated/gemini.js"))
+        for error in [EPERM, EACCES, ESRCH] {
+            XCTAssertNil(CodexProcessControl.executablePath(live: nil, error: error, launch: "/old/codex"))
+        }
+        XCTAssertNil(CodexProcessControl.executablePath(live: nil, error: ENOENT, launch: "codex"))
+    }
+
+    func testKernelLaunchDecoderDoesNotReadEnvironmentAsArguments() {
+        let bytes = [UInt8](arrayLiteral: 1, 0, 0, 0) + Array("/old/node\0\0kimi-code\0SECRET_ENV=fixture\0".utf8)
+        let launch = CodexProcessControl.decodeLaunchInfo(bytes)
+        XCTAssertEqual(launch?.executable, "/old/node")
+        XCTAssertEqual(launch?.name, "kimi-code")
+        XCTAssertNil(launch?.entry)
+        XCTAssertNil(CodexProcessControl.decodeLaunchInfo([1, 0, 0, 0, 47]))
+        XCTAssertNil(CodexProcessControl.decodeLaunchInfo([0, 0, 0, 0]))
+    }
+
+    func testUnlinkedRunningExecutablesRemainVisibleForEveryProvider() throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("fixture.c"), binary = root.appendingPathComponent("fixture")
+        try "#include <unistd.h>\nint main(void) { write(1, \"R\", 1); for (;;) pause(); }\n"
+            .write(to: source, atomically: true, encoding: .utf8)
+        let compiler = Process()
+        compiler.executableURL = URL(fileURLWithPath: "/usr/bin/clang")
+        compiler.arguments = [source.path, "-o", binary.path]
+        try compiler.run(); compiler.waitUntilExit()
+        XCTAssertEqual(compiler.terminationStatus, 0)
+        for name in ["codex", "claude", "kimi", "qwen", "gemini", "grok"] {
+            let executable = root.appendingPathComponent(name)
+            try FileManager.default.copyItem(at: binary, to: executable)
+            let process = Process(), output = Pipe()
+            process.executableURL = executable; process.standardOutput = output
+            try process.run()
+            defer { if process.isRunning { process.terminate(); process.waitUntilExit() } }
+            XCTAssertEqual(try output.fileHandleForReading.read(upToCount: 1), Data("R".utf8))
+            let before = try XCTUnwrap(CodexProcessControl.allInventory().first { $0.pid == process.processIdentifier })
+            try FileManager.default.removeItem(at: executable)
+            let after = try XCTUnwrap(CodexProcessControl.allInventory().first { $0.pid == process.processIdentifier })
+            XCTAssertEqual(after.providerID, name)
+            XCTAssertEqual(after.started, before.started)
+            XCTAssertEqual(after.uid, before.uid)
+            XCTAssertTrue(process.isRunning)
+            try CodexProcessControl.stop(after, force: false, read: CodexProcessControl.allInventory)
+            process.waitUntilExit()
+            XCTAssertFalse(try CodexProcessControl.allInventory().contains(after))
+        }
+    }
+
     func testProviderExecutablesAreRecognizedByName() {
         XCTAssertEqual(CodexProcessControl.provider(executable: "/opt/bin/kimi", script: nil), "kimi")
         XCTAssertEqual(CodexProcessControl.provider(executable: "/opt/bin/grok", script: nil), "grok")

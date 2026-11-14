@@ -45,14 +45,15 @@ struct AgentSession: Decodable, Identifiable, Equatable {
 }
 
 enum AgentFilter: String, CaseIterable {
-    case all = "All", needsYou = "Needs you", working = "Working", idle = "Idle"
+    case all = "All", needsYou = "Needs you", working = "Working", idle = "Idle", unknown = "Unknown"
 
     func matches(_ session: AgentSession) -> Bool {
         switch self {
         case .all: return true
         case .needsYou: return session.needsYou
         case .working: return session.isWorking
-        case .idle: return !session.isWorking && !session.needsYou
+        case .idle: return ["Idle", "Opened", "Untracked", "New reply"].contains(session.state)
+        case .unknown: return !session.isWorking && !session.needsYou && !["Idle", "Opened", "Untracked", "New reply"].contains(session.state)
         }
     }
 }

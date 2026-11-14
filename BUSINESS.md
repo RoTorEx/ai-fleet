@@ -7,7 +7,7 @@ subscription charges.
 
 ## Actors and flows
 
-- The developer sees live local Codex/Claude sessions in the Agents block under
+- The developer sees live local provider sessions in the Agents block under
   the providers of the main menu, reviews them and jumps to an exact iTerm2 pane without
   closing the overview. [Agents](business/agents.md) owns this integration.
 

@@ -5,6 +5,10 @@ edition = "2024"
 license = "MIT"
 description = "Private stdio adapter for AI Fleet's bundled AI Session Hub core"
 
+[features]
+default = ["embedded"]
+embedded = []
+
 [dependencies]
 anyhow = "1"
 libc = "0.2"

@@ -4,6 +4,10 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Keep live agents and Processes rows visible after a CLI update unlinks their old executable; preserve UID/start/TTY validation and reject permission-error fallbacks.
+- Discover interactive Kimi, Qwen, Gemini and Grok sessions in iTerm2, including Node process-title rewrites and package entrypoints; exclude one-shot/auth/server commands.
+- Add an Unknown agent filter instead of counting unverified activity as Idle; retain verified status/transcript parsing for Codex and Claude.
+
 ## [1.4.5] - 2026-11-13
 
 - Always use kimi.ai (`--region global`) for Kimi Sign in, without a site-selection dialog.

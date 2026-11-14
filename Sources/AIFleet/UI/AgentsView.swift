@@ -14,7 +14,7 @@ struct MenuAgentsSection: View {
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
             }
             if service.sessions.isEmpty {
-                Text(service.isLoading ? "Finding live sessions…" : "No live Codex or Claude sessions in iTerm2.")
+                Text(service.isLoading ? "Finding live sessions…" : "No live provider sessions in iTerm2.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 4)
             } else {
                 filters
@@ -51,7 +51,7 @@ struct MenuAgentsSection: View {
                 let active = service.filter == item
                 Button { service.filter = item } label: {
                     Text("\(item.rawValue) \(count)").font(.system(size: 10.5, weight: .medium).monospacedDigit())
-                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .padding(.horizontal, 4).padding(.vertical, 3)
                         .foregroundStyle(active ? Color.primary
                             : (item == .needsYou && count > 0 ? FleetPalette.warning : Color.secondary))
                         .background(active ? Color.primary.opacity(0.1) : .clear, in: Capsule())
@@ -249,7 +249,7 @@ enum AgentRowText {
         while let first = text.unicodeScalars.first, isDecoration(first) {
             text = String(text.unicodeScalars.dropFirst()).trimmingCharacters(in: .whitespaces)
         }
-        let jobs: Set<String> = [provider.lowercased(), "codex", "claude", "node"]
+        let jobs: Set<String> = [provider.lowercased(), "codex", "claude", "kimi", "kimi-code", "qwen", "gemini", "grok", "node"]
         if text.hasSuffix(")"), let open = text.lastIndex(of: "(") {
             let job = text[text.index(after: open)..<text.index(before: text.endIndex)].lowercased()
             let name = text[..<open].trimmingCharacters(in: .whitespaces)
