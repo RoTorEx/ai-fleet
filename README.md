@@ -23,16 +23,20 @@ No dock icon. AI Fleet monitors and opens native sign-in for each provider’s g
 
 ## Agents
 
-The **Agents** block sits under the providers in the main menu and is the only
-part that scrolls once the menu reaches 80% of the screen height. The list groups live Codex/Claude sessions by project, with filters,
-collapsible groups, observed statuses and animated working indicators. Click a row
-to open its exact iTerm2 window/tab/split; the overview stays open. Escape or an
-outside click closes it. The engine ships inside the app; no separate Hub CLI or
-Rust toolchain is required by installed releases. Source builds also need Rust
-with the current stable toolchain. iTerm2 access may require macOS Automation permission.
+The **Agents** tab groups live Codex, Claude, Kimi, Qwen, Gemini and Grok sessions
+by project, with filters, collapsible groups, observed statuses and working
+indicators. Its list scrolls when the menu reaches 80% of the visible screen.
+Click a row to open its exact iTerm2 window/tab/split; the overview stays open.
+Escape or an outside click closes it. The engine ships inside the app; no
+separate Hub CLI or Rust toolchain is required by installed releases. Source
+builds also need the current stable Rust toolchain. iTerm2 access may require
+macOS Automation permission; project metadata may require Documents access.
 
-Only local interactive Codex/Claude in iTerm2 are supported. Unknown states remain
-explicit, and activity stripes do not claim a task-completion percentage.
+Only local interactive sessions in iTerm2 are supported. Codex/Claude retain
+verified activity and transcript parsing. Other providers remain explicitly
+Unknown, with their own filter rather than an invented Idle state. CLI updates
+that unlink an old executable no longer hide its still-running sessions.
+Activity indicators do not claim a task-completion percentage.
 See [Agents](business/agents.md).
 
 ## Run from source
@@ -120,8 +124,8 @@ native scope. Fleet never opens a terminal or starts a conversation for you.
 To remove command integration, delete only the Fleet-owned `~/.local/bin/codex`
 shim and run `rehash`; saved accounts, history and native credentials remain.
 
-**Agents → Processes** lists Codex and Claude processes, including detached servers
-and helpers. Use
+**Processes** lists recognized Codex, Claude, Kimi, Qwen, Gemini and Grok
+processes, including detached servers and helpers. Use
 **Stop**, **Force Quit**, or **Stop all background processes…** after reviewing
 the confirmation. The app verifies process identity and checks exit. Account
 selection follows the chosen Switch policy; stopping requires confirmation.
