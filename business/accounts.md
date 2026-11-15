@@ -129,6 +129,13 @@ highlights it, and clicking it opens a native menu anchored below the name, so a
 second click on the name closes it. The menu lists the email, then the plan in
 parentheses, a separator, Sign in or Sign out, then Switch to (Set up connection
 for setup rows).
+Remove… follows Switch in the provider-name menu (and remains available when
+Switch is hidden). It asks for confirmation and removes only that provider link
+through the same scoped disconnect flow as Settings. It preserves credentials,
+history and running sessions. An explicitly removed native link stays removed
+across refresh and restart; an explicit native import or reconnect restores it.
+Removing the last saved connection may leave an unbadged setup row for an enabled
+provider; it is not the removed account record.
 There are no per-row ellipsis buttons or overlapping hover popups. Saving the
 current terminal login stays in Settings → Accounts; a failed sign-out is
 retried with the same Sign out.
@@ -157,7 +164,8 @@ suffix; the account's existing Sign in action remains available.
   associations. A `globalAssociation` connection is metadata with a unique row
   ID and no custom configuration directory. Badge indexes are positions and are
   renumbered on reorder and removal.
-- Exactly one native-default connection per provider is retained. Removing an
+- Exactly one native-default connection per provider is retained unless its link
+  was explicitly removed (`accounts.dismissedNativeProviders`). Removing an
   account preserves any native-default connection on another identity. Legacy
   `fleet.selections` is retained for recovery, but is not the active-login source.
 - Existing isolated paths, credential files, session history, and legacy Claude

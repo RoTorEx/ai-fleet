@@ -33,7 +33,8 @@ builds also need the current stable Rust toolchain. iTerm2 access may require
 macOS Automation permission; project metadata may require Documents access.
 
 Only local interactive sessions in iTerm2 are supported. Codex/Claude retain
-verified activity and transcript parsing. Other providers remain explicitly
+verified activity and transcript parsing. Kimi Code busy/approval markers
+have their own parser; missing markers remain Unknown. Qwen/Gemini/Grok remain
 Unknown, with their own filter rather than an invented Idle state. CLI updates
 that unlink an old executable no longer hide its still-running sessions.
 Activity indicators do not claim a task-completion percentage.

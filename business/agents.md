@@ -50,8 +50,11 @@ independent and is not required by the app.
 Local interactive Codex, Claude, Kimi, Qwen, Gemini and Grok sessions in iTerm2
 are discoverable and support exact-pane Jump. SSH, tmux, GUI conversations and
 other terminals remain outside this reader. Codex/Claude retain their verified
-terminal-state and transcript parsers. Other providers remain explicitly Unknown
-without borrowed status or transcript data; Unknown has its own filter and is
+terminal-state and transcript parsers. Kimi Code 0.39.x uses its own moon/braille Working markers and explicit approval
+choices, gated by native editor/footer chrome for work. Missing/offscreen markers
+stay Unknown rather than implying Idle. Thinking-effort configuration does not
+mean Working. Kimi transcript messages are not inferred. Qwen/Gemini/Grok remain
+explicitly Unknown without borrowed status or transcript data; Unknown has its own filter and is
 never counted as Idle. Running sessions are independent of quota-provider
 visibility settings. Activity,
 questions and blockers use visible terminal markers and are heuristic. Missing

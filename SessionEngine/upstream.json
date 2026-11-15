@@ -1,10 +1,10 @@
 {
   "repository": "https://github.com/RoTorEx/ai-session-hub",
-  "revision": "3100f733e67011d7384bcb2b89d5b9a19e664139",
+  "revision": "9db390d398d3bc4e5ebc9eeeb4324f6bdf66cd7b",
   "files": {
     "activity.rs": "b08c0219ec5568ac31aab438b2d90ddc76be37841cb6f01dffc95a8d9345d538",
     "command.rs": "b64af4ef7375a4e8c10471af860834be4d562e9d109d38b7994294bde831ff32",
-    "content.rs": "468b5d1e311aeaa7d714376e283c662083b24a3bbfdffc66d87ccff404fe2b18",
+    "content.rs": "e23db67d39de479b3f6d9950e32ff48451e3f387f08ebd025e02aba39f6dda2a",
     "iterm.rs": "a5ed80cb479d942ad2fd814e1be1261772f629c92ff4c00aa34115840f368ade",
     "iterm.js": "918efed1a913bc2cfe85c7860ccf1e6fe93a1784d9ac0a84b9e6a8f9c12a3281",
     "model.rs": "c30e7d1734ca856258197957f409720d2849cf278ef869c8a949451894c1976c",

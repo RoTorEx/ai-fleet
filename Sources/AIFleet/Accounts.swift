@@ -146,6 +146,10 @@ final class AccountStore: ObservableObject {
     private let defaults: UserDefaults
     private let home: URL
     private var nextBadge: Int
+    private var dismissedNativeProviders: Set<String> {
+        get { Set(defaults.stringArray(forKey: "accounts.dismissedNativeProviders") ?? []) }
+        set { defaults.set(Array(newValue).sorted(), forKey: "accounts.dismissedNativeProviders") }
+    }
     private var dismissedImports: Set<String> {
         get { Set(defaults.stringArray(forKey: "accounts.dismissedImports") ?? []) }
         set { defaults.set(Array(newValue).sorted(), forKey: "accounts.dismissedImports") }
@@ -160,7 +164,7 @@ final class AccountStore: ObservableObject {
     func importNative(_ status: ProviderStatus) {
         guard let identity = ConnectionIdentity(status: status) else { return }
         var keys = dismissedImports; keys.remove(importKey(status.providerID, identity.email)); dismissedImports = keys
-        _ = globalAccount(for: status)
+        _ = globalAccount(for: status, restoringNative: true)
     }
 
     init(defaults: UserDefaults = .standard, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) {
@@ -198,7 +202,8 @@ final class AccountStore: ObservableObject {
         // Preserve one default connection per provider, even after damaged preferences.
         if !values.contains(where: { $0.id == FleetAccount.defaultID }) { values.insert(FleetAccount(id: "default", badgeIndex: -1, name: "Default", email: "", connections: []), at: 0) }
         let defaultIndex = values.firstIndex { $0.id == FleetAccount.defaultID }!
-        for provider in ProviderCatalog.all where !values.contains(where: { $0.connections.contains { $0.providerID == provider.id && $0.isNativeDefault } }) {
+        let dismissedNative = Set(defaults.stringArray(forKey: "accounts.dismissedNativeProviders") ?? [])
+        for provider in ProviderCatalog.all where !dismissedNative.contains(provider.id) && !values.contains(where: { $0.connections.contains { $0.providerID == provider.id && $0.isNativeDefault } }) {
             values[defaultIndex].connections.append(ProviderConnection(id: provider.id, providerID: provider.id, configDirectory: nil))
         }
         accounts = values
@@ -298,14 +303,20 @@ final class AccountStore: ObservableObject {
         guard ProviderCatalog.definition(for: providerID) != nil,
               let index = accounts.firstIndex(where: { $0.id == accountID }),
               accounts[index].connection(for: providerID) == nil else { return }
-        accounts[index].connections.append(ProviderConnection(id: UUID().uuidString, providerID: providerID,
-                                                              configDirectory: nil, globalAssociation: true))
+        if dismissedNativeProviders.contains(providerID) {
+            var hidden = dismissedNativeProviders; hidden.remove(providerID); dismissedNativeProviders = hidden
+            accounts[index].connections.append(.global(providerID))
+        } else {
+            accounts[index].connections.append(ProviderConnection(id: UUID().uuidString, providerID: providerID,
+                                                                  configDirectory: nil, globalAssociation: true))
+        }
         save()
     }
 
     // Observed native identity, not a requested target or a stored manual selection.
     // Duplicate email labels are ambiguous; do not attribute quota to either badge.
-    func globalAccount(for status: ProviderStatus) -> String? {
+    func globalAccount(for status: ProviderStatus, restoringNative: Bool = false) -> String? {
+        guard restoringNative || !dismissedNativeProviders.contains(status.providerID) else { return nil }
         if ["codex", "claude"].contains(status.providerID) {
             guard let identity = ConnectionIdentity(status: status),
                   !dismissedImports.contains(importKey(status.providerID, identity.email)) else { return nil }
@@ -398,8 +409,11 @@ final class AccountStore: ObservableObject {
 
     func detach(_ providerID: String, from accountID: String) {
         guard let index = accounts.firstIndex(where: { $0.id == accountID }),
-              accounts[index].connection(for: providerID).map({ !$0.isNativeDefault || ["codex", "claude"].contains(providerID) }) == true else { return }
+              let connection = accounts[index].connection(for: providerID) else { return }
         guard !SwitchCoordinator.shared.active.contains(providerID) else { return }
+        if connection.isNativeDefault {
+            var hidden = dismissedNativeProviders; hidden.insert(providerID); dismissedNativeProviders = hidden
+        }
         suppressImport(providerID, email: accounts[index].email)
         accounts[index].connections.removeAll { $0.providerID == providerID }
         repairSelection(providerID)

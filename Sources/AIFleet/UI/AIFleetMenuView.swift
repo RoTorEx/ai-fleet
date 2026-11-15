@@ -583,6 +583,7 @@ struct ProviderLimitRow: View {
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
+    @State private var confirmsRemoval = false
     @State private var isNameHovered = false
     @State private var nameFrame: CGRect = .zero
     private var status: ProviderStatus { entry.status }
@@ -658,6 +659,12 @@ struct ProviderLimitRow: View {
                     .padding(.leading, FleetRowMetrics.detailIndent)
             }
         }
+        .confirmationDialog("Remove \(status.name) (\(entry.account.badge)) from this account?", isPresented: $confirmsRemoval) {
+            Button("Remove", role: .destructive, action: removeConnection)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("AI Fleet removes this provider link. Credentials, history and running sessions stay on this Mac.")
+        }
     }
 
     /// Email and plan for this connection, shown at the top of its actions menu.
@@ -728,9 +735,27 @@ struct ProviderLimitRow: View {
                 })
             }
         }
+        if !entry.isSetup {
+            items.append(nil)
+            items.append(.init(title: "Remove…", enabled: !busy && !codexProfiles.refreshing && !SwitchCoordinator.shared.active.contains(status.providerID)) {
+                confirmsRemoval = true
+            })
+        }
         let menu = ActionMenu(items: items)
         withExtendedLifetime(menu) { menu.popUp(below: nameFrame) }
     }
+    private func removeConnection() {
+        guard !actionsBusy, !SwitchCoordinator.shared.active.contains(status.providerID) else { return }
+        if status.providerID == "codex" {
+            guard codexProfiles.forgetAccount(entry.account) else { return }
+        } else {
+            do { try providerLaunch.forgetProvider(status.providerID, accountID: entry.account.id) }
+            catch { return }
+        }
+        accounts.detach(status.providerID, from: entry.account.id)
+        service.refresh()
+    }
+
 }
 
 /// A small native menu built from closures, opened at the pointer.

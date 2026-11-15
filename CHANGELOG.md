@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Add confirmed Remove… below Switch in the provider menu, preserving credentials/history and keeping removed native links disconnected across refresh/restart.
+- Recognize Kimi Code native Working and approval indicators instead of always showing Unknown; missing markers retain Unknown rather than implying Idle.
+
 ## [1.4.6] - 2026-11-14
 
 - Keep live agents and Processes rows visible after a CLI update unlinks their old executable; preserve UID/start/TTY validation and reject permission-error fallbacks.

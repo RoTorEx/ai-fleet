@@ -3,6 +3,51 @@ import XCTest
 
 final class AccountsTests: XCTestCase {
     @MainActor
+    func testExplicitNativeImportDoesNotRestoreRemovedLinkOnItsPreviousOwner() throws {
+        let suite = "restore-native-provider-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AccountStore(defaults: defaults)
+        store.update(FleetAccount.defaultID, name: "Old", email: "old@example.test")
+        store.detach("codex", from: FleetAccount.defaultID)
+        let status = ProviderStatus(id: "codex", name: "Codex", state: .ok, detail: "Signed in", lastUpdated: Date(),
+            account: ProviderAccountIdentity(email: "new@example.test", organizationID: "fixture-org", organizationName: nil, subscriptionType: "plus"))
+        XCTAssertNil(store.globalAccount(for: status))
+        store.importNative(status)
+        let restored = AccountStore(defaults: defaults)
+        XCTAssertNil(restored.accounts.first { $0.id == FleetAccount.defaultID }?.connection(for: "codex"))
+        XCTAssertEqual(restored.accounts.filter { $0.connection(for: "codex") != nil }.count, 1)
+        XCTAssertEqual(restored.accounts.first { $0.connection(for: "codex") != nil }?.email, "new@example.test")
+    }
+
+    @MainActor
+    func testRemovingNativeProviderLinkPersistsWithoutTouchingCredentialsAndCanReconnect() throws {
+        let suite = "remove-native-provider-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let credential = home.appendingPathComponent(".kimi-code/credentials/kimi-code.json")
+        try FileManager.default.createDirectory(at: credential.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("preserved credentials".utf8).write(to: credential)
+        let store = AccountStore(defaults: defaults, homeDirectory: home)
+        store.update(FleetAccount.defaultID, name: "Personal", email: "fixture@example.test")
+        store.detach("kimi", from: FleetAccount.defaultID)
+        XCTAssertNil(store.accounts.first { $0.id == FleetAccount.defaultID }?.connection(for: "kimi"))
+        let restored = AccountStore(defaults: defaults, homeDirectory: home)
+        XCTAssertFalse(restored.accounts.contains { $0.connection(for: "kimi") != nil })
+        let status = ProviderStatus(id: "kimi", name: "Kimi", state: .ok, detail: "Signed in", lastUpdated: Date(), remainingPercent: 50)
+        XCTAssertNil(restored.globalAccount(for: status), "Refresh must not restore a deliberately removed native link")
+        XCTAssertEqual(try Data(contentsOf: credential), Data("preserved credentials".utf8))
+        let account = restored.add(email: "other@example.test")
+        restored.attachGlobal("kimi", to: account.id)
+        XCTAssertEqual(restored.globalAccount(for: status), account.id)
+        let connected = AccountStore(defaults: defaults, homeDirectory: home)
+        XCTAssertEqual(connected.globalAccount(for: status), account.id)
+        XCTAssertNil(connected.accounts.first { $0.id == FleetAccount.defaultID }?.connection(for: "kimi"))
+    }
+
+    @MainActor
     func testSharedBadgesProviderSelectionsAndRemovalPreserveLogins() throws {
         let suite = "ai-fleet-accounts-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
