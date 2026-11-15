@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.4.7] - 2026-11-15
+
 - Add confirmed Remove… below Switch in the provider menu, preserving credentials/history and keeping removed native links disconnected across refresh/restart.
 - Recognize Kimi Code native Working and approval indicators instead of always showing Unknown; missing markers retain Unknown rather than implying Idle.
 
