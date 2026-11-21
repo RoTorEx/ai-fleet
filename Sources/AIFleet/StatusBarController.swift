@@ -327,6 +327,18 @@ final class StatusBarController: NSObject {
         }
     }
 
+    func openAgentSession(_ sessionID: String) {
+        agents.jumpFromNotification(sessionID) { [weak self] error in
+            guard let self else { return }
+            if error == nil {
+                self.closePopoverIfNeeded()
+            } else {
+                self.screen.tab = .agents
+                self.showPopoverIfNeeded()
+            }
+        }
+    }
+
     func stopAgentMonitoring() {
         agents.setNotificationsEnabled(false)
         agents.stop()

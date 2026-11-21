@@ -518,13 +518,17 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     func sendAgentNotification(session: AgentSession, reason: AgentNotificationReason) {
         let notification = reason.notification(for: session)
         sendNotification(identifier: "aifleet-agent-\(UUID().uuidString)",
-                         title: notification.title, body: notification.body, isAgentAlert: true)
+                         title: notification.title, body: notification.body, agentSessionID: session.id)
     }
+
+    private nonisolated static let agentSessionKey = "agentSessionID"
+    var openAgentSessionFromNotification: ((String) -> Void)?
 
     private func sendNotification(
         identifier: String, title: String = "AI Fleet", body: String,
-        isAgentAlert: Bool = false, onAccepted: (() -> Void)? = nil
+        agentSessionID: String? = nil, onAccepted: (() -> Void)? = nil
     ) {
+        let isAgentAlert = agentSessionID != nil
         guard notificationsAvailable else {
             if !isAgentAlert { lastError = "Notifications unavailable" }
             return
@@ -544,6 +548,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 content.title = title
                 content.body = body
                 content.sound = .default
+                if let agentSessionID { content.userInfo = [Self.agentSessionKey: agentSessionID] }
                 let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
                 do {
                     try await notificationCenter.add(request)
@@ -562,6 +567,23 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .list, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+              let sessionID = response.notification.request.content.userInfo[Self.agentSessionKey] as? String,
+              !sessionID.isEmpty else {
+            completionHandler()
+            return
+        }
+        Task { @MainActor in
+            self.openAgentSessionFromNotification?(sessionID)
+            completionHandler()
+        }
     }
 
     // MARK: - Kimi

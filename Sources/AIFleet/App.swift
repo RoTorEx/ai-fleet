@@ -52,7 +52,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
         ProviderLaunchStore.shared.installCommandIntegration()
-        StatusService.shared.start()
         UsageAnalyticsService.shared.startDailyRefreshSchedule()
         CodexMonitoringStore.shared.synchronizeAccounts(AccountStore.shared)
         CodexMonitoringStore.shared.start()
@@ -67,6 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         self.statusBarController = statusBarController
+        StatusService.shared.openAgentSessionFromNotification = { [weak statusBarController] sessionID in
+            statusBarController?.openAgentSession(sessionID)
+        }
+        StatusService.shared.start()
 
         hotkeyObserver = AppSettings.shared.$hotkey
             .dropFirst()

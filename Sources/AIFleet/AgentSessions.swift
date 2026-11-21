@@ -245,7 +245,8 @@ final class AgentSessionsService: ObservableObject {
     private let executableURL: URL?
     private var notificationHandler: ((AgentSession, AgentNotificationReason) -> Void)?
     private var notificationTracker: AgentNotificationTracker?
-    private var isObserving: Bool { isVisible || notificationHandler != nil }
+    private var notificationJump: (sessionID: String, completion: (String?) -> Void)?
+    private var isObserving: Bool { isVisible || notificationHandler != nil || notificationJump != nil }
 
     init(executableURL: URL? = nil) {
         self.executableURL = executableURL
@@ -271,7 +272,7 @@ final class AgentSessionsService: ObservableObject {
         notificationHandler = enabled ? deliver : nil
         resetNotificationTracking()
         if enabled { startObservation() }
-        else if !isVisible { stopObservation() }
+        else if !isObserving { stopObservation() }
     }
 
     private func resetNotificationTracking() {
@@ -280,7 +281,7 @@ final class AgentSessionsService: ObservableObject {
 
     private func startObservation() {
         refresh(force: true)
-        guard timer == nil else { return }
+        guard isObserving, timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
@@ -321,11 +322,12 @@ final class AgentSessionsService: ObservableObject {
                 guard let self, self.generation == token, self.isObserving else { return }
                 self.transport = nil
                 self.pendingRefresh = nil
-                self.pendingJump = nil
                 self.isLoading = false
-                self.jumpingID = nil
                 self.error = "Session engine stopped. Refresh to reconnect."
                 self.resetNotificationTracking()
+                if self.pendingJump != nil || self.notificationJump != nil {
+                    self.finishJump(error: self.error)
+                }
             }
         })
     }
@@ -333,13 +335,13 @@ final class AgentSessionsService: ObservableObject {
     func refresh(force: Bool = false) {
         guard isObserving else { return }
         if let started = jumpStarted, pendingJump != nil, Date().timeIntervalSince(started) > 8 {
-            pendingJump = nil
-            jumpingID = nil
-            jumpError = "Terminal did not confirm the jump. Retry."
+            finishJump(error: "Terminal did not confirm the jump. Retry.")
+            guard isObserving else { return }
         }
         if pendingRefresh != nil {
             if let started = refreshStarted, Date().timeIntervalSince(started) > 15 {
                 error = "Session scan is taking longer than expected. Last results are stale."
+                if notificationJump != nil, pendingJump == nil { finishJump(error: error) }
             }
             return
         }
@@ -355,25 +357,49 @@ final class AgentSessionsService: ObservableObject {
             resetNotificationTracking()
             pendingRefresh = nil
             isLoading = false
+            if notificationJump != nil, pendingJump == nil { finishJump(error: self.error) }
         }
     }
 
     func jump(to session: AgentSession) {
-        guard session.location != nil, pendingJump == nil, isVisible else { return }
-        selectedID = session.id
+        guard session.location != nil, pendingJump == nil, notificationJump == nil, isVisible else { return }
+        sendJump(to: session.id)
+    }
+
+    func jumpFromNotification(_ sessionID: String, completion: @escaping (String?) -> Void) {
+        guard pendingJump == nil, notificationJump == nil else { return }
+        notificationJump = (sessionID, completion)
+        jumpError = nil
+        if transport != nil, !isStale, sessions.contains(where: { $0.id == sessionID && $0.location != nil }) {
+            sendJump(to: sessionID)
+        } else {
+            startObservation()
+        }
+    }
+
+    private func sendJump(to sessionID: String) {
+        selectedID = sessionID
         jumpError = nil
         do {
             try connect()
             nextID += 1
             pendingJump = nextID
-            jumpingID = session.id
+            jumpingID = sessionID
             jumpStarted = Date()
-            try transport?.send(["requestId": nextID, "command": "jump", "sessionId": session.id])
+            try transport?.send(["requestId": nextID, "command": "jump", "sessionId": sessionID])
         } catch {
-            jumpError = error.localizedDescription
-            pendingJump = nil
-            jumpingID = nil
+            finishJump(error: error.localizedDescription)
         }
+    }
+
+    private func finishJump(error: String?) {
+        pendingJump = nil
+        jumpingID = nil
+        jumpError = error
+        let completion = notificationJump?.completion
+        notificationJump = nil
+        if !isObserving { stopObservation() }
+        completion?(error)
     }
 
     func receive(_ data: Data) {
@@ -382,6 +408,7 @@ final class AgentSessionsService: ObservableObject {
             resetNotificationTracking()
             pendingRefresh = nil
             isLoading = false
+            if notificationJump != nil { finishJump(error: error) }
             return
         }
         if reply.kind == "snapshot", reply.requestID == pendingRefresh {
@@ -398,10 +425,17 @@ final class AgentSessionsService: ObservableObject {
             } else {
                 resetNotificationTracking()
             }
+            if let target = notificationJump?.sessionID, pendingJump == nil {
+                if late || reply.error != nil {
+                    finishJump(error: reply.error ?? "Session scan took too long. Try opening the notification again.")
+                } else if reply.sessions?.contains(where: { $0.id == target && $0.location != nil }) == true {
+                    sendJump(to: target)
+                } else {
+                    finishJump(error: "This session has ended or its iTerm2 pane could not be found.")
+                }
+            }
         } else if reply.kind == "jump", reply.requestID == pendingJump {
-            pendingJump = nil
-            jumpingID = nil
-            jumpError = reply.error
+            finishJump(error: reply.error)
         }
     }
 }

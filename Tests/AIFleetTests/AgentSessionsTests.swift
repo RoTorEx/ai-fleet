@@ -139,6 +139,47 @@ final class AgentSessionsTests: XCTestCase {
     }
 
     @MainActor
+    func testNotificationJumpResolvesExactSessionWithMenuClosed() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("engine")
+        let rows = try JSONSerialization.jsonObject(with: Data(Self.rows.utf8))
+        let rowJSON = String(decoding: try JSONSerialization.data(withJSONObject: rows), as: UTF8.self)
+        let script = #"""
+        #!/bin/sh
+        IFS= read -r request || exit 1
+        printf '%s\n' '{"protocol":1,"requestID":1,"kind":"snapshot","sessions":\#(rowJSON)}'
+        IFS= read -r request || exit 0
+        case "$request" in
+            *'"sessionId":"7-10"'*) printf '%s\n' '{"protocol":1,"requestID":2,"kind":"jump","sessionID":"7-10"}' ;;
+            *) printf '%s\n' '{"protocol":1,"requestID":2,"kind":"jump","error":"Wrong session"}' ;;
+        esac
+        while IFS= read -r request; do :; done
+        """#
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+
+        let live = AgentSessionsService(executableURL: executable)
+        var didOpen = false
+        live.jumpFromNotification("7-10") { error in
+            XCTAssertNil(error)
+            didOpen = true
+        }
+        for _ in 0..<100 where !didOpen { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertTrue(didOpen)
+        XCTAssertFalse(live.isVisible)
+        XCTAssertNil(live.jumpingID)
+
+        let expired = AgentSessionsService(executableURL: executable)
+        var error: String?
+        expired.jumpFromNotification("7-09") { error = $0 }
+        for _ in 0..<100 where error == nil { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(error, "This session has ended or its iTerm2 pane could not be found.")
+        XCTAssertNil(expired.selectedID)
+    }
+
+    @MainActor
     func testBundledProtocolRefreshJumpFailureAndClose() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

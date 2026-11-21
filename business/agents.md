@@ -100,6 +100,9 @@ alert. Codex and Claude use the existing heuristic activity reader. Kimi can
 notify for recognized approvals. Short events between samples may be missed.
 Banners lead with the session name, falling back to the tab or project name.
 They show the reason and the iTerm2 window and numbered tab in parentheses.
+Clicking an alert selects that exact iTerm2 window, tab and pane by session ID.
+If the session has ended or the pane cannot be verified, Fleet opens Agents
+with the reason.
 Session text stays local to the in-memory Agents view.
 
 Inherited Rust tests protect identity replacement, ambiguity, noninteractive
