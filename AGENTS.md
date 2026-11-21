@@ -39,6 +39,7 @@ Read these only when the task requires them:
 - `docs/contracts/*` — stable contracts and boundaries.
 - `docs/features/*` — accepted feature behavior.
 - `docs/ideas/*` — idea triage only.
+- `design/*` — HTML design boards per surface; a proposal until the user accepts it, then the visual reference (see `design/README.md`).
 - `docs/reports/*` — reports/history only when relevant.
 
 ## Local rules
@@ -47,8 +48,8 @@ Read these only when the task requires them:
 
 ## Rule priority
 
-1. Current user instruction
-2. Hard safety/security/boundary constraints
+1. Application/platform rules and hard safety/security/boundary constraints
+2. Current user instruction
 3. Project truth docs
 4. `.vibe/kernel/*.md`
 5. General best practices
