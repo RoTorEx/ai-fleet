@@ -516,15 +516,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     func sendAgentNotification(session: AgentSession, reason: AgentNotificationReason) {
-        let provider = ProviderCatalog.definition(for: session.provider)?.name ?? session.provider
-        let project = URL(fileURLWithPath: session.project).lastPathComponent
-        let location = project.isEmpty || project == "/" ? provider : "\(provider) · \(project)"
+        let notification = reason.notification(for: session)
         sendNotification(identifier: "aifleet-agent-\(UUID().uuidString)",
-                         body: "\(reason.message) — \(location)", isAgentAlert: true)
+                         title: notification.title, body: notification.body, isAgentAlert: true)
     }
 
     private func sendNotification(
-        identifier: String, body: String, isAgentAlert: Bool = false, onAccepted: (() -> Void)? = nil
+        identifier: String, title: String = "AI Fleet", body: String,
+        isAgentAlert: Bool = false, onAccepted: (() -> Void)? = nil
     ) {
         guard notificationsAvailable else {
             if !isAgentAlert { lastError = "Notifications unavailable" }
@@ -542,7 +541,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 }
 
                 let content = UNMutableNotificationContent()
-                content.title = "AI Fleet"
+                content.title = title
                 content.body = body
                 content.sound = .default
                 let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)

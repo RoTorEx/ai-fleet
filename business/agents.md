@@ -98,8 +98,9 @@ after enabling alerts, app restart or a scan interruption. Cached samples and
 repeated waiting states stay quiet. CLI exit and long-running work generate no
 alert. Codex and Claude use the existing heuristic activity reader. Kimi can
 notify for recognized approvals. Short events between samples may be missed.
-Banners include the provider, project name and reason. Session text stays local
-to the in-memory Agents view.
+Banners lead with the session name, falling back to the tab or project name.
+They show the reason and the iTerm2 window and numbered tab in parentheses.
+Session text stays local to the in-memory Agents view.
 
 Inherited Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe

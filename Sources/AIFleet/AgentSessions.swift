@@ -6,6 +6,7 @@ import Darwin
 struct AgentPane: Decodable, Equatable {
     let id: String
     let window: String
+    let tab: String?
     let tab_index: Int
     let pane_index: Int
 }
@@ -58,6 +59,35 @@ enum AgentNotificationReason: String {
         case .question: return "Question needs your input"
         case .blocked: return "Agent reported a blocker"
         }
+    }
+
+    func notification(for session: AgentSession) -> (title: String, body: String) {
+        let genericNames: Set<String> = [
+            session.provider.lowercased(), "codex", "claude", "claude code", "kimi", "kimi-code",
+            "qwen", "gemini", "grok", "node", "bash", "zsh", "fish", "sh"
+        ]
+        func meaningfulTitle(_ raw: String?) -> String? {
+            guard let raw else { return nil }
+            let title = AgentRowText.title(raw, provider: session.provider)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let jobName = title.trimmingCharacters(in: CharacterSet(charactersIn: "()")).lowercased()
+            return title.isEmpty || genericNames.contains(jobName) ? nil : title
+        }
+
+        let tabTitle = meaningfulTitle(session.location?.tab)
+        let project = URL(fileURLWithPath: session.project).lastPathComponent
+        let projectTitle = session.project.isEmpty || project == "/" ? nil : project
+        let title = meaningfulTitle(session.title) ?? tabTitle ?? projectTitle ?? "Terminal session"
+        guard let pane = session.location else { return (title, message) }
+
+        var location = ["iTerm2"]
+        if let window = meaningfulTitle(pane.window), window.lowercased() != "iterm2" {
+            location.append("Window “\(window)”")
+        }
+        var tab = "Tab \(pane.tab_index + 1)"
+        if let tabTitle, tabTitle != title { tab += " “\(tabTitle)”" }
+        location.append(tab)
+        return (title, "\(message) (\(location.joined(separator: " · ")))")
     }
 }
 

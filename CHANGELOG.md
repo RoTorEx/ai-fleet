@@ -4,7 +4,7 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
-- Add opt-in macOS alerts when an iTerm2 agent finishes a reply or needs input, including while the Fleet menu is closed.
+- Add opt-in macOS alerts when an iTerm2 agent finishes a reply or needs input, including while the Fleet menu is closed. Alerts identify the session, window and tab.
 
 ## [1.4.7] - 2026-11-15
 

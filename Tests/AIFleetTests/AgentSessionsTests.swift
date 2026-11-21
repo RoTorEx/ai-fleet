@@ -72,6 +72,26 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertEqual(try sample("New reply", at: 186, id: "7-11"), [.replyReady])
     }
 
+    func testNotificationIdentifiesNamedSessionAndTabWithoutAProviderLabel() throws {
+        let row = #"{"id":"7-10","provider":"codex","project":"/work/Thira","title":"⠂ Fix sign-in (codex)","state":"Opened","explanation":"","location":{"id":"pane","window":"Work","tab":"Authentication","tab_index":2,"pane_index":0}}"#
+        let session = try JSONDecoder().decode(AgentSession.self, from: Data(row.utf8))
+        let notification = AgentNotificationReason.replyReady.notification(for: session)
+        XCTAssertEqual(notification.title, "Fix sign-in")
+        XCTAssertEqual(notification.body, "Reply ready (iTerm2 · Window “Work” · Tab 3 “Authentication”)")
+    }
+
+    func testNotificationFallsBackToTabOrProjectAndKeepsTheTabNumber() throws {
+        let tab = #""tab":"Investigate sign-in","#
+        let row = #"{"id":"7-10","provider":"codex","project":"/work/Thira","title":"(codex)","state":"Approval","explanation":"","location":{"id":"pane","window":"Work",\#(tab)"tab_index":0,"pane_index":1}}"#
+        let decoder = JSONDecoder()
+        let withTab = try decoder.decode(AgentSession.self, from: Data(row.utf8))
+        let withoutTab = try decoder.decode(AgentSession.self, from: Data(row.replacingOccurrences(of: tab, with: "").utf8))
+        XCTAssertEqual(AgentNotificationReason.approval.notification(for: withTab).title, "Investigate sign-in")
+        let notification = AgentNotificationReason.approval.notification(for: withoutTab)
+        XCTAssertEqual(notification.title, "Thira")
+        XCTAssertEqual(notification.body, "Approval needed (iTerm2 · Window “Work” · Tab 1)")
+    }
+
     @MainActor
     func testSessionAlertsKeepReadingAfterMenuCloses() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
