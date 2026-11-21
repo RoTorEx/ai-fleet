@@ -79,7 +79,7 @@ fn apply(
     snapshot: activity::Snapshot,
     sessions: &[model::Session],
     states: &mut HashMap<String, activity::Progress>,
-) {
+) -> HashMap<String, &'static str> {
     // Bound-file evidence can disappear without the process exiting. Do not keep
     // old provider timestamps looking like fresh bindings after that happens.
     for (id, progress) in states.iter_mut() {
@@ -89,16 +89,18 @@ fn apply(
             progress.updated_at = None;
         }
     }
+    let mut activity_states = HashMap::new();
     for (id, observation) in snapshot.sessions {
         let focused = sessions
             .iter()
             .find(|s| s.id == id)
             .and_then(|s| s.location.as_ref())
             .is_some_and(|p| snapshot.focused.as_ref() == Some(&p.id));
-        states
-            .entry(id)
-            .or_default()
-            .observe(observation.as_ref(), focused);
+        let progress = states.entry(id.clone()).or_default();
+        activity_states.insert(
+            id,
+            observe_activity(progress, observation.as_ref(), focused),
+        );
     }
     for (id, metadata) in snapshot.metadata {
         if let Some(p) = states.get_mut(&id) {
@@ -111,6 +113,20 @@ fn apply(
             p.last_message = metadata.last_message;
         }
     }
+    activity_states
+}
+
+fn observe_activity(
+    progress: &mut activity::Progress,
+    observation: Option<&activity::Observation>,
+    focused: bool,
+) -> &'static str {
+    progress.observe(observation, false);
+    let state = progress.label();
+    if focused {
+        progress.acknowledge();
+    }
+    state
 }
 
 /// Display-only timing from the same panes and PID/start checks as the pinned reader.
@@ -275,21 +291,27 @@ fn main() {
                     *sessions.lock().unwrap() = found.clone();
                     states.retain(|id, _| found.iter().any(|s| &s.id == id));
                     observed_work.retain(|id, _| found.iter().any(|s| &s.id == id));
-                    if request.force
+                    let activity_states = if request.force
                         || changed
                         || last_activity.is_none_or(|t| t.elapsed() >= Duration::from_secs(5))
                     {
                         let (snapshot, starts) = read_activity(&found, &mut collector.terminal)?;
                         working_starts = starts;
-                        apply(snapshot, &found, &mut states);
+                        let sampled = apply(snapshot, &found, &mut states);
                         last_activity = Some(Instant::now());
                         activity_observed_at = Some(SystemTime::now());
-                    }
+                        sampled
+                    } else {
+                        HashMap::new()
+                    };
                     Ok(
                         json!({"kind": "snapshot", "sessions": found.iter().map(|s| {
                             let progress = states.entry(s.id.clone()).or_default();
                             let mut value = row(s, progress);
                             value["activityObservedAt"] = json!(timestamp(activity_observed_at));
+                            if let Some(state) = activity_states.get(&s.id) {
+                                value["activityState"] = json!(state);
+                            }
                             if let Some((start, basis)) = work_timing(&s.id, progress, working_starts.get(&s.id).copied(), &mut observed_work, SystemTime::now()) {
                                 value["workStartedAt"] = json!(timestamp(Some(start)));
                                 value["workTimeSource"] = json!(basis);
@@ -378,6 +400,35 @@ fn main() {
 #[cfg(test)]
 mod bridge_tests {
     use super::*;
+    #[test]
+    fn focused_pane_exposes_reply_before_opening_it() {
+        let mut progress = activity::Progress::default();
+        let mut observation = activity::Observation {
+            state: activity::State::Working,
+            answer: None,
+            attention: activity::Attention::None,
+            request: None,
+            model: None,
+            reasoning: None,
+            last_message: None,
+        };
+        assert_eq!(
+            observe_activity(&mut progress, Some(&observation), true),
+            "Working"
+        );
+        observation.state = activity::State::Idle;
+        observation.answer = Some(1);
+        assert_eq!(
+            observe_activity(&mut progress, Some(&observation), true),
+            "New reply"
+        );
+        assert_eq!(progress.label(), "Opened");
+        assert_eq!(
+            observe_activity(&mut progress, Some(&observation), true),
+            "Opened"
+        );
+    }
+
     #[test]
     fn repeated_polling_and_messages_do_not_restart_observed_work() {
         let mut p = activity::Progress::default();

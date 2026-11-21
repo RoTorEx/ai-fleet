@@ -157,7 +157,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     private var notificationsAvailable: Bool {
         // UNUserNotificationCenter crashes when the binary runs outside an .app bundle.
-        Bundle.main.bundleIdentifier != nil
+        Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
     }
 
     func start() {
@@ -515,44 +515,43 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
 
-    private func sendNotification(identifier: String, body: String, onAccepted: (() -> Void)? = nil) {
+    func sendAgentNotification(session: AgentSession, reason: AgentNotificationReason) {
+        let provider = ProviderCatalog.definition(for: session.provider)?.name ?? session.provider
+        let project = URL(fileURLWithPath: session.project).lastPathComponent
+        let location = project.isEmpty || project == "/" ? provider : "\(provider) · \(project)"
+        sendNotification(identifier: "aifleet-agent-\(UUID().uuidString)",
+                         body: "\(reason.message) — \(location)", isAgentAlert: true)
+    }
+
+    private func sendNotification(
+        identifier: String, body: String, isAgentAlert: Bool = false, onAccepted: (() -> Void)? = nil
+    ) {
         guard notificationsAvailable else {
-            lastError = "Notifications unavailable"
+            if !isAgentAlert { lastError = "Notifications unavailable" }
             return
         }
 
         let notificationCenter = UNUserNotificationCenter.current()
         notificationCenter.getNotificationSettings { [weak self] settings in
-            guard settings.authorizationStatus == .authorized ||
-                    settings.authorizationStatus == .provisional else {
-                Task { @MainActor in
-                    self?.applyNotificationSettings(settings)
-                    self?.lastError = "Notifications disabled in macOS"
-                }
-                return
-            }
-
             Task { @MainActor in
-                self?.applyNotificationSettings(settings)
-            }
+                guard let self, !isAgentAlert || AppSettings.shared.agentNotificationsEnabled else { return }
+                self.applyNotificationSettings(settings)
+                guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+                    if !isAgentAlert { self.lastError = "Notifications disabled in macOS" }
+                    return
+                }
 
-            let content = UNMutableNotificationContent()
-            content.title = "AI Fleet"
-            content.body = body
-            content.sound = .default
-            let request = UNNotificationRequest(
-                identifier: identifier,
-                content: content,
-                trigger: nil
-            )
-            notificationCenter.add(request) { [weak self] error in
-                Task { @MainActor in
-                    if error != nil {
-                        self?.lastError = "Notification failed"
-                    } else {
-                        self?.lastError = nil
-                        onAccepted?()
-                    }
+                let content = UNMutableNotificationContent()
+                content.title = "AI Fleet"
+                content.body = body
+                content.sound = .default
+                let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+                do {
+                    try await notificationCenter.add(request)
+                    if !isAgentAlert { self.lastError = nil }
+                    onAccepted?()
+                } catch {
+                    if !isAgentAlert { self.lastError = "Notification failed" }
                 }
             }
         }

@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Add opt-in macOS alerts when an iTerm2 agent finishes a reply or needs input, including while the Fleet menu is closed.
+
 ## [1.4.7] - 2026-11-15
 
 - Add confirmed Remove… below Switch in the provider menu, preserving credentials/history and keeping removed native links disconnected across refresh/restart.

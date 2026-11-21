@@ -18,6 +18,7 @@ struct AgentSession: Decodable, Identifiable, Equatable {
     let location: AgentPane?
     let linkReason: String?
     let state: String
+    let activityState: String?
     let explanation: String
     let model: String?
     let reasoning: String?
@@ -41,6 +42,59 @@ struct AgentSession: Decodable, Identifiable, Equatable {
     var locationLabel: String {
         guard let pane = location else { return linkReason ?? "Unlinked" }
         return "\(pane.window) · tab \(pane.tab_index + 1) · pane \(pane.pane_index + 1)"
+    }
+}
+
+enum AgentNotificationReason: String {
+    case replyReady = "New reply"
+    case approval = "Approval"
+    case question = "Question"
+    case blocked = "Blocked"
+
+    var message: String {
+        switch self {
+        case .replyReady: return "Reply ready"
+        case .approval: return "Approval needed"
+        case .question: return "Question needs your input"
+        case .blocked: return "Agent reported a blocker"
+        }
+    }
+}
+
+struct AgentNotificationTracker {
+    private var previousStates: [String: String] = [:]
+    private var lastSample: Date?
+    private let startedAt: Date
+
+    init(startedAt: Date) {
+        self.startedAt = startedAt
+    }
+
+    mutating func observe(_ sessions: [AgentSession], now: Date) -> [(AgentSession, AgentNotificationReason)] {
+        let linked = sessions.filter { $0.location != nil }
+        let linkedIDs = Set(linked.map(\.id))
+        previousStates = previousStates.filter { linkedIDs.contains($0.key) }
+        guard let seconds = linked.first(where: { $0.activityState != nil })?.activityObservedAt,
+              seconds.isFinite else { return [] }
+        let sample = Date(timeIntervalSince1970: seconds)
+        guard sample >= startedAt, sample <= now, now.timeIntervalSince(sample) <= 15,
+              lastSample.map({ sample > $0 }) ?? true else { return [] }
+        if let lastSample, sample.timeIntervalSince(lastSample) > 15 {
+            previousStates.removeAll()
+        }
+        lastSample = sample
+        return linked.compactMap { session in
+            guard let state = session.activityState else { return nil }
+            if state == "Unknown" {
+                // Keep a known waiting state across unreadable samples, but break work continuity.
+                if previousStates[session.id] == "Working" { previousStates.removeValue(forKey: session.id) }
+                return nil
+            }
+            guard let previous = previousStates.updateValue(state, forKey: session.id),
+                  previous != state, let reason = AgentNotificationReason(rawValue: state),
+                  reason != .replyReady || previous == "Working" || previous == "Approval" else { return nil }
+            return (session, reason)
+        }
     }
 }
 
@@ -159,13 +213,16 @@ final class AgentSessionsService: ObservableObject {
     private var jumpStarted: Date?
     private(set) var isVisible = false
     private let executableURL: URL?
+    private var notificationHandler: ((AgentSession, AgentNotificationReason) -> Void)?
+    private var notificationTracker: AgentNotificationTracker?
+    private var isObserving: Bool { isVisible || notificationHandler != nil }
 
     init(executableURL: URL? = nil) {
         self.executableURL = executableURL
     }
 
     var contracts: [AgentSessionContract] {
-        sessions.map { AgentSessionContract(session: $0, observedAt: observedAt, stale: isStale || !isVisible) }
+        sessions.map { AgentSessionContract(session: $0, observedAt: observedAt, stale: isStale || !isObserving) }
     }
 
     var groups: [AgentGroup] { AgentGroup.make(sessions) }
@@ -174,7 +231,26 @@ final class AgentSessionsService: ObservableObject {
     func start() {
         guard !isVisible else { return }
         isVisible = true
+        startObservation()
+    }
+
+    func setNotificationsEnabled(
+        _ enabled: Bool,
+        deliver: @escaping (AgentSession, AgentNotificationReason) -> Void = { _, _ in }
+    ) {
+        notificationHandler = enabled ? deliver : nil
+        resetNotificationTracking()
+        if enabled { startObservation() }
+        else if !isVisible { stopObservation() }
+    }
+
+    private func resetNotificationTracking() {
+        notificationTracker = notificationHandler == nil ? nil : AgentNotificationTracker(startedAt: Date())
+    }
+
+    private func startObservation() {
         refresh(force: true)
+        guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
@@ -183,6 +259,10 @@ final class AgentSessionsService: ObservableObject {
 
     func stop() {
         isVisible = false
+        if !isObserving { stopObservation() }
+    }
+
+    private func stopObservation() {
         timer?.invalidate()
         timer = nil
         generation = UUID()
@@ -208,19 +288,20 @@ final class AgentSessionsService: ObservableObject {
             }
         }, exited: { [weak self] in
             Task { @MainActor in
-                guard let self, self.generation == token, self.isVisible else { return }
+                guard let self, self.generation == token, self.isObserving else { return }
                 self.transport = nil
                 self.pendingRefresh = nil
                 self.pendingJump = nil
                 self.isLoading = false
                 self.jumpingID = nil
                 self.error = "Session engine stopped. Refresh to reconnect."
+                self.resetNotificationTracking()
             }
         })
     }
 
     func refresh(force: Bool = false) {
-        guard isVisible else { return }
+        guard isObserving else { return }
         if let started = jumpStarted, pendingJump != nil, Date().timeIntervalSince(started) > 8 {
             pendingJump = nil
             jumpingID = nil
@@ -241,6 +322,7 @@ final class AgentSessionsService: ObservableObject {
             try transport?.send(["requestId": nextID, "command": "refresh", "force": force])
         } catch {
             self.error = error.localizedDescription
+            resetNotificationTracking()
             pendingRefresh = nil
             isLoading = false
         }
@@ -267,6 +349,7 @@ final class AgentSessionsService: ObservableObject {
     func receive(_ data: Data) {
         guard let reply = try? JSONDecoder().decode(AgentReply.self, from: data), reply.protocol == 1 else {
             error = "Session engine returned an unsupported response. Reinstall AI Fleet."
+            resetNotificationTracking()
             pendingRefresh = nil
             isLoading = false
             return
@@ -274,10 +357,16 @@ final class AgentSessionsService: ObservableObject {
         if reply.kind == "snapshot", reply.requestID == pendingRefresh {
             pendingRefresh = nil
             isLoading = false
+            let late = refreshStarted.map { Date().timeIntervalSince($0) > 15 } ?? false
+            if late { resetNotificationTracking() }
             error = reply.error
             if let sessions = reply.sessions, reply.error == nil {
                 if self.sessions != sessions { self.sessions = sessions }
                 observedAt = reply.observedAt.map(Date.init(timeIntervalSince1970:))
+                let alerts = late ? [] : notificationTracker?.observe(sessions, now: Date()) ?? []
+                for (session, reason) in alerts { notificationHandler?(session, reason) }
+            } else {
+                resetNotificationTracking()
             }
         } else if reply.kind == "jump", reply.requestID == pendingJump {
             pendingJump = nil

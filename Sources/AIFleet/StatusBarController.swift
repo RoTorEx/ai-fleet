@@ -167,6 +167,7 @@ private final class MenuPanelOutline: NSView {
 final class StatusBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: 18)
     private var attentionObservation: AnyCancellable?
+    private var agentNotificationObservation: AnyCancellable?
     private let hostingController: NSHostingController<FleetMenuRoot>
     private let panel: FleetMenuPanel
     private var previousApp: NSRunningApplication?
@@ -227,6 +228,14 @@ final class StatusBarController: NSObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateAttention(service: service) }
         updateAttention(service: service)
+
+        agentNotificationObservation = AppSettings.shared.$agentNotificationsEnabled
+            .removeDuplicates()
+            .sink { [weak self, weak service] enabled in
+                self?.agents.setNotificationsEnabled(enabled) { session, reason in
+                    service?.sendAgentNotification(session: session, reason: reason)
+                }
+            }
 
         sizeObservation = hostingController.observe(\.preferredContentSize) { [weak self] _, _ in
             Task { @MainActor in self?.layoutPanel() }
@@ -316,6 +325,11 @@ final class StatusBarController: NSObject {
         if panel.isVisible {
             closePanel()
         }
+    }
+
+    func stopAgentMonitoring() {
+        agents.setNotificationsEnabled(false)
+        agents.stop()
     }
 
     /// Esc and the toggle hand focus back to the app that had it; an outside click already moved

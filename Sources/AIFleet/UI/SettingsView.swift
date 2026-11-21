@@ -75,7 +75,11 @@ struct SettingsView: View {
             }
 
             Section {
-                LabeledContent("Alert at") {
+                Toggle(isOn: $settings.agentNotificationsEnabled) {
+                    Text("Agent session alerts")
+                    Text("Get notified when a reply is ready or an agent needs your input, even with the menu closed.")
+                }
+                LabeledContent("Quota alert at") {
                     HStack(spacing: 6) {
                         ForEach(settings.notificationThresholds, id: \.self) { threshold in
                             HStack(spacing: 3) {

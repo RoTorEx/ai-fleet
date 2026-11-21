@@ -7,8 +7,8 @@ the header: Providers, Agents (grouped by collapsible location) and Processes.
 Tabs split the full width and look like bookmarks: the active tab and its page
 are one shape. Click a tab or press ← / →, which wrap around; the last tab is
 remembered across openings and restarts. An amber dot on Agents flags a session waiting for approval or
-an answer. The session engine runs while the menu is open so that dot stays
-current; Processes rescans while the menu is open so its tab shows a count. The menu grows up to
+an answer. The session engine runs while the menu is open or agent session
+alerts are enabled. Processes rescans while the menu is open so its tab shows a count. The menu grows up to
 80% of the screen's visible height; past that only the active tab scrolls, with
 a terminal-style overlay scroller. No Command-A registration remains.
 
@@ -72,7 +72,8 @@ One private fleet-session-engine ships inside Contents/MacOS. Protocol-1 JSON
 lines travel over pipes with request IDs. Commands are refresh and jump; no shell,
 external CLI lookup, sockets or daemon installation are needed.
 
-Inventory runs every 2 seconds while Agents is visible. Window/Git mapping is
+Inventory runs every 2 seconds while the menu is open or agent session alerts
+are enabled. Window/Git mapping is
 cached for 30 seconds, refreshed on new identities or manual refresh. All-session
 activity is sampled at most every 5 seconds, immediately on entry/manual refresh
 or inventory change. These split intervals bound reads while keeping the visible
@@ -81,12 +82,24 @@ warmed worker, so it never waits behind a status scan. At most two JXA helpers a
 needed regardless of session count.
 
 Visible Agents keeps updating after loss of keyboard focus; the standalone TUI's
-60-second user-idle sleep does not apply here. Usage/close sends EOF; workers finish
+60-second user-idle sleep does not apply here. Closing the menu with alerts off,
+turning alerts off with the menu closed, or quitting sends EOF. Workers finish
 bounded in-flight work and drop/reap helpers. Scans never overlap in Swift. A
 pending scan after 15 seconds is marked stale; an unconfirmed Jump after 8 seconds
 becomes retryable. Those deadlines bound UI uncertainty rather than establish
 process death. Replies must match request ID and connection generation. Failed
 scans retain and mark the last snapshot stale; activity animations stop.
+
+**Agent session alerts** in Settings → General → Notifications are off by default.
+With macOS notification permission, Fleet alerts on a newly observed completed
+reply after work, or when a session newly requests approval, asks a question,
+or reports a blocker. Each session starts from a silent baseline, including
+after enabling alerts, app restart or a scan interruption. Cached samples and
+repeated waiting states stay quiet. CLI exit and long-running work generate no
+alert. Codex and Claude use the existing heuristic activity reader. Kimi can
+notify for recognized approvals. Short events between samples may be missed.
+Banners include the provider, project name and reason. Session text stays local
+to the in-memory Agents view.
 
 Inherited Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe

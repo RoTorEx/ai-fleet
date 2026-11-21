@@ -38,6 +38,11 @@ unlinked pane cannot expose live work timing. The current service supplies this
 freshness context through `contracts`, alongside the legacy raw sessions. Stopping
 observation disables live work timing without deleting the retained snapshot.
 
+An optional `activityState` carries the engine label from a fresh activity
+sample before focus acknowledges a completed response. Cached inventory replies
+omit it. Session alerts consume this field and the activity sample timestamp;
+the displayed row continues using the normal state.
+
 ## Independent clocks
 
 All optional wall-clock fields use Unix epoch seconds, except processStarted.

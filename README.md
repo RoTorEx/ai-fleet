@@ -162,7 +162,9 @@ See [Accounts](business/accounts.md) and [Codex authorization](business/codex-pr
 
 ## Refresh
 
-Provider limits are refreshed quietly every 60 seconds and on menu open; Agents update live every 2 seconds while the menu is open. **Refresh** (⌘R) also checks local
+Provider limits are refreshed quietly every 60 seconds and on menu open. Agents
+refresh while the menu is open or **Agent session alerts** are enabled in
+**Settings → General → Notifications**. **Refresh** (⌘R) also checks local
 login immediately. Claude quota requests reuse measurements for five minutes;
 opening views or refreshing does not bypass that interval or a server cooldown.
 If Claude limits quota updates, the app keeps the login visible, shows any last

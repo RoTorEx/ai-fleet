@@ -38,6 +38,86 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertTrue(sessions.filter(AgentFilter.working.matches).isEmpty)
     }
 
+    func testSessionAlertsUseFreshActivityAndRearmAfterKnownChanges() throws {
+        let start = Date(timeIntervalSince1970: 100)
+        var tracker = AgentNotificationTracker(startedAt: start)
+        func sample(_ activity: String?, at seconds: Double, id: String = "7-10") throws -> [AgentNotificationReason] {
+            var row: [String: Any] = [
+                "id": id, "provider": "codex", "project": "/work/project", "title": "Codex",
+                "state": "Opened", "explanation": "Idle", "activityObservedAt": seconds,
+                "location": ["id": "pane", "window": "Client", "tab_index": 0, "pane_index": 0]
+            ]
+            row["activityState"] = activity
+            let data = try JSONSerialization.data(withJSONObject: row)
+            let session = try JSONDecoder().decode(AgentSession.self, from: data)
+            return tracker.observe([session], now: Date(timeIntervalSince1970: seconds + 1)).map { $0.1 }
+        }
+
+        XCTAssertEqual(try sample("Working", at: 99), [])
+        XCTAssertEqual(try sample("Working", at: 101), [])
+        XCTAssertEqual(try sample(nil, at: 101), [])
+        XCTAssertEqual(try sample("New reply", at: 106), [.replyReady])
+        XCTAssertEqual(try sample("Approval", at: 111), [.approval])
+        XCTAssertEqual(try sample("Unknown", at: 116), [])
+        XCTAssertEqual(try sample("Approval", at: 121), [])
+        XCTAssertEqual(try sample("Working", at: 126), [])
+        XCTAssertEqual(try sample("Blocked", at: 131), [.blocked])
+        XCTAssertEqual(try sample("Question", at: 151), [])
+        XCTAssertEqual(try sample("Working", at: 156), [])
+        XCTAssertEqual(try sample("Unknown", at: 161), [])
+        XCTAssertEqual(try sample("New reply", at: 166), [])
+        XCTAssertEqual(try sample("Approval", at: 171, id: "7-11"), [])
+        XCTAssertEqual(try sample("Question", at: 176, id: "7-11"), [.question])
+        XCTAssertEqual(try sample("Approval", at: 181, id: "7-11"), [.approval])
+        XCTAssertEqual(try sample("New reply", at: 186, id: "7-11"), [.replyReady])
+    }
+
+    @MainActor
+    func testSessionAlertsKeepReadingAfterMenuCloses() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("engine")
+        let stopped = directory.appendingPathComponent("stopped")
+        let script = #"""
+        #!/bin/sh
+        snapshot() {
+            timestamp=$(/usr/bin/perl -MTime::HiRes=time -e 'printf "%.6f", time')
+            printf '{"protocol":1,"requestID":%s,"kind":"snapshot","observedAt":%s,"sessions":[{"id":"7-10","provider":"codex","project":"/work/project","title":"Codex","state":"%s","explanation":"","activityState":"%s","activityObservedAt":%s,"location":{"id":"pane","window":"Client","tab_index":0,"pane_index":0}}]}\n' "$1" "$timestamp" "$2" "$3" "$timestamp"
+        }
+        IFS= read -r request || exit 1
+        snapshot 1 Working Working
+        IFS= read -r request || exit 1
+        snapshot 2 Opened 'New reply'
+        IFS= read -r request || exit 1
+        snapshot 3 Approval Approval
+        while IFS= read -r request; do :; done
+        touch "$(dirname "$0")/stopped"
+        """#
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let service = AgentSessionsService(executableURL: executable)
+        var alerts: [AgentNotificationReason] = []
+        service.setNotificationsEnabled(true) { _, reason in alerts.append(reason) }
+        defer { service.setNotificationsEnabled(false); service.stop() }
+        for _ in 0..<100 where service.sessions.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(service.sessions.first?.state, "Working")
+        XCTAssertTrue(alerts.isEmpty)
+        service.start()
+        service.stop()
+        for _ in 0..<100 where alerts.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertFalse(service.isVisible)
+        XCTAssertEqual(alerts, [.replyReady])
+        service.refresh(force: true)
+        for _ in 0..<100 where alerts.count < 2 { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(alerts, [.replyReady, .approval])
+        service.setNotificationsEnabled(false)
+        for _ in 0..<100 where !FileManager.default.fileExists(atPath: stopped.path) {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stopped.path))
+    }
+
     @MainActor
     func testBundledProtocolRefreshJumpFailureAndClose() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
