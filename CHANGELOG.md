@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-11-22
+
 - Drop the project path from the last line of an alert; the project already stands in the title. The line is now the window and tab, for example `Personal AI — tab 8`.
 
 ## [1.6.2] - 2026-11-22
