@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-22
+
 - Recognize idle Claude Code sessions whose footer shows the permission-mode line (for example `auto mode on`) instead of the shortcuts hint. They were reported as Unknown, so a finished Claude session raised no Done alert.
 
 ## [1.5.0] - 2026-11-22
