@@ -179,7 +179,7 @@ private struct AgentAlertRow: View {
                     .frame(width: 25, height: 25).background(Color.primary.opacity(0.07), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
-                        Text(alert.heading).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
+                        Text(alert.name).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
                             .lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 3)
                         time
@@ -193,7 +193,7 @@ private struct AgentAlertRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain).disabled(unlinked || !canJump)
-        .accessibilityLabel("\(alert.heading), \(meta)")
+        .accessibilityLabel("\(alert.name), \(meta)")
         .accessibilityHint("Open the existing iTerm2 pane")
         .padding(.horizontal, 9).padding(.vertical, 6)
         .fleetCard(hovering: hovering && !unlinked,

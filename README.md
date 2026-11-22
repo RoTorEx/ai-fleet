@@ -180,9 +180,9 @@ Notifications name the account, threshold and quota window, for example
 window and becomes eligible again after that window resets above it. When reset
 data is available, the body includes both forms: `Resets in 2h 14m · Aug 24 at 06:00`.
 
-**Agent session alerts** lead with their type: `✋ Approval`, `💬 Question`,
-`⛔ Blocked` or `✅ Done`, followed by the session name, then one line with the
-project, tab and provider. Click an alert to open that exact iTerm2 pane, or
+**Agent session alerts** lead with a type glyph (✋ approval, 💬 question,
+⛔ blocked, ✅ done) and the session name, then one line with the type, project,
+tab and provider. Click an alert to open that exact iTerm2 pane, or
 expand it and choose **History** to see open alerts in the Agents tab. An alert
 disappears by itself once you open its session or the agent starts new work.
 **Show message text in alerts** adds the start of your request and the agent's

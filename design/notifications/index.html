@@ -156,7 +156,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 
 <div class="top">
   <div>
-    <span class="pill ok">Accepted · 2026-11-22</span>
+    <span class="pill ok">Revision 2 · 2026-11-22</span>
     <h1 style="margin-top:12px">Notification design</h1>
     <p class="lead">Every notification AI Fleet can send, redrawn so the type is readable at a glance, the session is identifiable without reading, and the text is one chevron away.</p>
   </div>
@@ -179,7 +179,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 
 <section id="before">
   <span class="num">1 · Before → after</span>
-  <h2>The type moves to the first word</h2>
+  <h2>The glyph leads and the name gets the whole line</h2>
   <p class="note">Today the reason sits in the middle of the body and the location is one parenthesised run-on. The eye has to read everything to learn whether it must act.</p>
   <div class="desk" style="margin-top:14px">
     <div class="col"><div class="cap">Today</div><div id="old"></div></div>
@@ -193,21 +193,21 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
   <h2>One layout for every agent alert</h2>
   <div class="grid2" style="margin-top:14px">
     <div class="panel">
-      <div class="spec"><i>TITLE     </i><b>{glyph} {Type}</b> · {session name}
-<i>          bold, one line; the type is never truncated</i>
-<i>SUBTITLE  </i>{project} · tab {n} · {Provider}
-<i>          one line of meta; window and pane only when needed</i>
+      <div class="spec"><i>TITLE     </i><b>{glyph}</b> {session name}
+<i>          bold, one line; the whole line belongs to the name</i>
+<i>SUBTITLE  </i><b>{Type}</b> · {project} · tab {n} · {Provider}
+<i>          one line of meta; pane and window only when needed</i>
 <i>BODY      </i>› {request, first 100 characters}
           {reply, first 300 characters}
 <i>          only with “Show message text in alerts”;</i>
-<i>          otherwise one fixed sentence per type</i></div>
+<i>          otherwise the meta line is the body, nothing else</i></div>
     </div>
     <div class="panel">
       <table>
         <tr><th>Rule</th><th>Value</th></tr>
         <tr><td>Glyph</td><td>Colour emoji: the only colour a system banner allows. Shape and colour both differ per type.</td></tr>
-        <tr><td>Session name</td><td>Terminal session name → tab title → project folder → “Terminal session” (unchanged fallback).</td></tr>
-        <tr><td>Meta</td><td>Project folder, <code>tab n</code>, provider, in that order so a long line loses the provider first. Adds <code>pane n</code> for a split, the window name only when sessions span several windows. No “iTerm2”, no quotes, no brackets.</td></tr>
+        <tr><td>Session name</td><td>Terminal session name → tab title → project folder → “Terminal session”. A Codex status prefix (<code>[ ! ] Action Required |</code>) and a trailing project folder (<code>| alex</code>) are dropped: the glyph and the meta line already say both.</td></tr>
+        <tr><td>Meta</td><td>Type word, project folder, <code>tab n</code>, provider, in that order so a long line loses the provider first. Adds <code>pane n</code> for a split and, after the tab, the window name only when sessions span several windows. No “iTerm2”, no quotes, no brackets.</td></tr>
         <tr><td>Text</td><td>Whitespace collapsed, Markdown marks dropped, cut on a word boundary with “…”. The request line always starts with <code>›</code>.</td></tr>
         <tr><td>Order</td><td>Done and Approval: request, then reply. Question and Blocked: the agent's text first, because that is what you act on.</td></tr>
         <tr><td>Sound</td><td>Two sounds: one for “needs you”, a softer one for Done. Quota keeps the default.</td></tr>
@@ -291,10 +291,10 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
         <div class="page">
           <div class="chips"><span>All 6</span><span class="warn">Needs you 2</span><span>Working 2</span><span>Idle 2</span><span>Unknown 0</span><span class="hist on">🕘 3</span></div>
           <div class="sep">Still waiting</div>
-          <div class="row wait hl"><span class="g">✋</span><span class="n">Approval · refactor-auth</span><span class="a">waiting 2m</span><span class="m">ai-fleet · tab 1 · Codex</span><span class="q">› Split CodexAuthentication into a reader and a writer…</span></div>
-          <div class="row wait"><span class="g">💬</span><span class="n">Question · jump-latency</span><span class="a">waiting 9m</span><span class="m">ai-session-hub · tab 2 · pane 2 · Claude</span><span class="q">Should I pre-warm the helper when the menu opens, or…</span></div>
+          <div class="row wait hl"><span class="g">✋</span><span class="n">refactor-auth</span><span class="a">waiting 2m</span><span class="m">Approval · ai-fleet · tab 1 · Codex</span><span class="q">› Split CodexAuthentication into a reader and a writer…</span></div>
+          <div class="row wait"><span class="g">💬</span><span class="n">jump-latency</span><span class="a">waiting 9m</span><span class="m">Question · ai-session-hub · tab 2 · pane 2 · Claude</span><span class="q">Should I pre-warm the helper when the menu opens, or…</span></div>
           <div class="sep">Not opened yet</div>
-          <div class="row"><span class="g">✅</span><span class="n">Done · quota-poller</span><span class="a">14:02</span><span class="m">ai-fleet · tab 3 · Claude</span><span class="q">› Make the Claude quota poller back off after a 429…</span></div>
+          <div class="row"><span class="g">✅</span><span class="n">quota-poller</span><span class="a">14:02</span><span class="m">Done · ai-fleet · tab 3 · Claude</span><span class="q">› Make the Claude quota poller back off after a 429…</span></div>
           <div class="foot"><span>Leaves when you open the session or it starts new work</span><span>Clear</span></div>
         </div>
       </div>
@@ -319,11 +319,11 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
   <span class="num">7 · Alternatives</span>
   <h2>Two choices worth seeing side by side</h2>
   <div class="desk" style="margin-top:14px">
-    <div class="col"><div class="cap">Layout A · recommended</div><div id="la"></div></div>
-    <div class="col"><div class="cap">Layout B · quiet meta</div><div id="lb"></div></div>
+    <div class="col"><div class="cap">Current · name owns the title</div><div id="la"></div></div>
+    <div class="col"><div class="cap">Revision 1 · type word in the title</div><div id="lb"></div></div>
     <div class="col"><div class="cap">Glyphs as plain dots</div><div id="dots"></div></div>
   </div>
-  <p class="note" style="margin-top:10px"><b>A</b> keeps type and session on one line and leaves two body lines for text. <b>B</b> gives the type its own line and demotes meta to regular weight, at the cost of one body line. This board assumes macOS draws both title and subtitle bold (to be confirmed live); if so, only B makes the meta visually quiet. <b>Dots</b> are calmer but lean on colour alone; shapes stay readable for colour-blind eyes and in a stack.</p>
+  <p class="note" style="margin-top:10px"><b>Revision 1</b> shipped in 1.5.0 with the type word in the title. In use the word took a third of the line and real session names were cut, while the fixed sentence under it only repeated the type. The current layout keeps the glyph, gives the title to the name and starts the meta line with the type. <b>Dots</b> are calmer but lean on colour alone; shapes stay readable for colour-blind eyes and in a stack.</p>
 </section>
 
 <section id="decide">
@@ -333,7 +333,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
     <div class="panel">
       <h3 style="margin-bottom:10px">Decisions · accepted as recommended</h3>
       <ol class="dec">
-        <li><b>Layout:</b> A or B. <span class="rec">Recommended: A</span>, confirmed on real banners with <code>preview.sh</code>.</li>
+        <li><b>Layout:</b> glyph and session name in the title, type word first in the meta line. <span class="rec">Revised after 1.5.0</span>: names were truncated and the fixed sentence repeated the type.</li>
         <li><b>Glyph set:</b> shapes (✋ 💬 ⛔ ✅ 🪫 🔔) or dots. <span class="rec">Recommended: shapes.</span></li>
         <li><b>Text order:</b> lead with the agent's text for Question and Blocked. <span class="rec">Recommended: yes.</span></li>
         <li><b>“Show message text” default:</b> <span class="rec">Recommended: off</span>, since it changes where session text is stored.</li>
@@ -347,7 +347,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
         <li><b>Buttons</b> appear under the system's Options control on hover and as full buttons when expanded; their look is not ours to style.</li>
         <li><b>No colour, no custom layout</b> in a system banner. A custom expanded view needs a notification content extension; a fully custom panel loses Notification Center and Focus. Both stay out of this version.</li>
         <li><b>Dependency:</b> the session engine reports <i>that</i> an approval is pending, not <i>what</i> is being approved. Until it captures the command, Approval shows the request and the agent's last message.</li>
-        <li><b>Kimi and providers without a bound transcript</b> have no text; their alerts always use the fixed sentence.</li>
+        <li><b>Kimi and providers without a bound transcript</b> have no text; their alerts always carry only the meta line.</li>
       </ol>
     </div>
   </div>
@@ -388,12 +388,12 @@ function clip(text, limit) {
   const cut = t.slice(0, limit);
   return cut.slice(0, Math.max(cut.lastIndexOf(' '), limit - 20)).replace(/[\s,.;:]+$/, '') + '…';
 }
-function meta(s) {
-  const parts = [];
+function meta(type, s) {
+  const parts = type ? [TYPES[type].word] : [];
   if (s.project && s.project !== s.name) parts.push(s.project);
-  if (s.window) parts.push(s.window);
   parts.push('tab ' + s.tab);
   if (s.pane) parts.push('pane ' + s.pane);
+  if (s.window) parts.push(s.window);
   parts.push(s.provider);
   return parts.join(' · ');
 }
@@ -406,9 +406,12 @@ function compose(type, s, o = {}) {
     const request = s.request ? '› ' + clip(s.request, 100) : null;
     const reply = s.reply ? clip(s.reply, 300) : null;
     (t.lead === 'reply' ? [reply, request] : [request, reply]).forEach(l => l && lines.push(l));
-  } else lines.push(t.off);
-  if (o.layout === 'b') return { title: `${glyph} ${t.long}`, subtitle: s.name, body: [meta(s), ...lines].join('\n') };
-  return { title: `${glyph} ${t.word} · ${s.name}`, subtitle: meta(s), body: lines.join('\n') };
+  }
+  // Revision 1, kept for the comparison in section 7.
+  if (o.layout === 'r1') return { title: `${glyph} ${t.word} · ${s.name}`, subtitle: meta(null, s), body: lines.join('\n') || t.off };
+  const title = `${glyph} ${s.name}`;
+  // Without text the meta line is the body: a fixed sentence would only repeat the type.
+  return lines.length ? { title, subtitle: meta(type, s), body: lines.join('\n') } : { title, body: meta(type, s) };
 }
 function banner(n, state) {
   const acts = n.actions || ['Open pane', 'History'];
@@ -447,6 +450,7 @@ put('t1', banner({ title: '🔔 Test · AI Fleet', body: 'Notifications are work
 // 4 · Edge cases
 const edges = [
   ['Long session name', compose('done', { ...SESSIONS.done, name: 'migrate-statistics-storage-to-sqlite-and-backfill' })],
+  ['Codex title noise dropped', compose('approval', { ...SESSIONS.approval, name: 'Check BMW 90 documents', project: 'alex', reply: null, request: null })],
   ['No session name → project folder', compose('done', { ...SESSIONS.done, name: 'ai-fleet' })],
   ['Split pane, several windows', compose('question', { ...SESSIONS.question, window: 'backend', pane: 3 })],
   ['No transcript (Kimi), text on', compose('approval', { name: 'kimi-spike', project: 'demio', provider: 'Kimi', tab: 2 })],
@@ -460,8 +464,8 @@ put('nc1', banner(compose('approval', SESSIONS.approval)));
 put('nc2', banner(compose('blocked', SESSIONS.blocked)));
 
 // 7 · Alternatives
-put('la', banner(compose('approval', SESSIONS.approval)) + banner(compose('done', SESSIONS.done)));
-put('lb', banner(compose('approval', SESSIONS.approval, { layout: 'b' })) + banner(compose('done', SESSIONS.done, { layout: 'b' })));
+put('la', banner(compose('approval', SESSIONS.approval, { text: false })) + banner(compose('done', SESSIONS.done)));
+put('lb', banner(compose('approval', SESSIONS.approval, { layout: 'r1', text: false })) + banner(compose('done', SESSIONS.done, { layout: 'r1' })));
 put('dots', ['approval', 'question', 'blocked', 'done'].map(k => banner(compose(k, SESSIONS[k], { dots: true, text: false }))).join(''));
 
 const forced = new URLSearchParams(location.search).get('theme');

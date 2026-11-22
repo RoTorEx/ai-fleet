@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Give the alert title to the session name: the type word moves to the meta line next to the project and tab, Codex status prefixes and the trailing project folder are dropped from names, and the fixed sentence that only repeated the type is gone.
+
 ## [1.5.1] - 2026-11-22
 
 - Recognize idle Claude Code sessions whose footer shows the permission-mode line (for example `auto mode on`) instead of the shortcuts hint. They were reported as Unknown, so a finished Claude session raised no Done alert.

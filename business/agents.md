@@ -100,13 +100,16 @@ repeated waiting states stay quiet. CLI exit and long-running work generate no
 alert. Codex and Claude use the existing heuristic activity reader. Kimi can
 notify for recognized approvals. Short events between samples may be missed.
 
-Alert layout follows the accepted board in `design/notifications/`. The title
-leads with the type, then the session name: `✋ Approval`, `💬 Question`,
-`⛔ Blocked` or `✅ Done`, so the reason is readable before anything else. The
-name falls back to the tab title, then the project folder. The subtitle is one
-meta line in the order project folder, tab number, provider, so a truncated line
-loses the provider first; a split adds the pane number, and the window is named
-only while sessions span several iTerm2 windows. Each session keeps one banner:
+Alert layout follows the board in `design/notifications/`. The title is the
+type glyph and the session name: ✋ approval, 💬 question, ⛔ blocked, ✅ done.
+The glyph alone marks the type there, so the whole line is left to the name; the
+first layout also spelled the type in the title and real names were cut. The
+name falls back to the tab title, then the project folder. A Codex status prefix
+such as `[ ! ] Action Required |` and a trailing project folder are dropped from
+it, because the glyph and the meta line already say both. The meta line starts
+with the type word, then project folder, tab number and provider, so a truncated
+line loses the provider first; a split adds the pane number, and the window is
+named after the tab only while sessions span several iTerm2 windows. Each session keeps one banner:
 a newer alert replaces the older one, and banners stack by project. Alerts that
 need the user and Done use different system sounds (Funk and Glass).
 
@@ -125,8 +128,10 @@ body carries the first 100 characters of the request, marked `›`, and the firs
 300 characters of the reply, with Markdown marks dropped and whitespace
 collapsed. 100 keeps the request within about two banner lines; 300 keeps the
 expanded banner to one glance. A question or blocker puts the agent's text first
-because that is what the user acts on. Off, or without a bound transcript (Kimi),
-the body is one fixed sentence per type. It is opt-in because macOS stores
+because that is what the user acts on. With text the meta line is the subtitle.
+Off, or without a bound transcript (Kimi), the meta line is the whole body: a
+fixed sentence such as "Waiting for your approval" only repeated the type and
+was removed. It is opt-in because macOS stores
 notification text and can show it on the lock screen and during screen sharing.
 The engine reports that an approval is pending, not which action; until it does,
 Approval shows the request and the agent's last message.

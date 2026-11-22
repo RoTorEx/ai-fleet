@@ -28,16 +28,6 @@ extension AgentNotificationReason {
         }
     }
 
-    /// Body when message text is hidden or the provider has no bound transcript.
-    var sentence: String {
-        switch self {
-        case .approval: return "Waiting for your approval."
-        case .question: return "Asked you a question."
-        case .blocked: return "Reported a blocker."
-        case .replyReady: return "Reply is ready."
-        }
-    }
-
     var needsYou: Bool { self != .replyReady }
     /// A question or blocker is what the user acts on, so it precedes the request.
     var leadsWithReply: Bool { self == .question || self == .blocked }
@@ -71,18 +61,16 @@ struct AgentAlert: Identifiable, Equatable {
         meaningful(session.title) ?? meaningful(session.location?.tab) ?? projectName ?? "Terminal session"
     }
 
-    var heading: String { "\(reason.word) · \(name)" }
-
-    /// Project, location, provider: a truncated line loses the provider first.
+    /// Type, project, location, provider: a truncated line loses the provider first, then the window.
     var meta: String {
-        var parts: [String] = []
+        var parts = [reason.word]
         if let projectName, projectName != name { parts.append(projectName) }
         if let pane = session.location {
+            parts.append("tab \(pane.tab_index + 1)")
+            if pane.pane_index > 0 { parts.append("pane \(pane.pane_index + 1)") }
             if namesWindow, let window = meaningful(pane.window), window.lowercased() != "iterm2", window != name {
                 parts.append(window)
             }
-            parts.append("tab \(pane.tab_index + 1)")
-            if pane.pane_index > 0 { parts.append("pane \(pane.pane_index + 1)") }
         }
         parts.append(session.provider.capitalized)
         return parts.joined(separator: " · ")
@@ -95,10 +83,14 @@ struct AgentAlert: Identifiable, Equatable {
         return (reason.leadsWithReply ? [reply, request] : [request, reply]).compactMap { $0 }
     }
 
+    /// The title is the glyph and the whole name: the type word moved to the meta line to leave the
+    /// name room. Without message text the meta line is the body, since a fixed sentence would only
+    /// repeat the type.
     func text(showText: Bool) -> FleetNotificationText {
         let lines = showText ? self.lines : []
-        return FleetNotificationText(title: "\(reason.glyph) \(heading)", subtitle: meta,
-                                     body: lines.isEmpty ? reason.sentence : lines.joined(separator: "\n"))
+        let title = "\(reason.glyph) \(name)"
+        return lines.isEmpty ? FleetNotificationText(title: title, body: meta)
+            : FleetNotificationText(title: title, subtitle: meta, body: lines.joined(separator: "\n"))
     }
 
     private var projectName: String? {
@@ -106,12 +98,20 @@ struct AgentAlert: Identifiable, Equatable {
         return session.project.isEmpty || name == "/" ? nil : name
     }
 
-    /// Titles that only repeat the provider or shell identify nothing.
+    /// Titles that only repeat the provider or shell identify nothing. Codex titles read
+    /// "[ ! ] Action Required | task | folder": the status repeats the glyph and the folder the meta line.
     private func meaningful(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let generic: Set<String> = [session.provider.lowercased(), "codex", "claude", "claude code", "kimi",
                                     "kimi-code", "qwen", "gemini", "grok", "node", "bash", "zsh", "fish", "sh"]
-        let title = AgentRowText.title(raw, provider: session.provider).trimmingCharacters(in: .whitespacesAndNewlines)
+        var parts = AgentRowText.title(raw, provider: session.provider).components(separatedBy: " | ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        if parts.count > 1, parts[0].range(of: #"^\[\s*\S?\s*\]"#, options: .regularExpression) != nil {
+            parts.removeFirst()
+        }
+        let folders = [session.project, session.cwd ?? ""].map { URL(fileURLWithPath: $0).lastPathComponent }
+        if parts.count > 1, let last = parts.last, folders.contains(last) { parts.removeLast() }
+        let title = parts.joined(separator: " | ")
         let job = title.trimmingCharacters(in: CharacterSet(charactersIn: "()")).lowercased()
         return title.isEmpty || generic.contains(job) ? nil : title
     }

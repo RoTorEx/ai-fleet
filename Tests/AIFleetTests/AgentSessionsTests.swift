@@ -81,20 +81,28 @@ final class AgentSessionsTests: XCTestCase {
         return AgentAlert(id: "a", session: session, reason: reason, namesWindow: namesWindow, date: Date())
     }
 
-    func testAlertLeadsWithItsTypeAndKeepsLocationOnOneMetaLine() throws {
+    func testAlertTitleIsGlyphAndNameAndTheMetaLineLeadsWithTheType() throws {
         let text = try alert(.replyReady).text(showText: false)
-        XCTAssertEqual(text.title, "✅ Done · Fix sign-in")
-        XCTAssertEqual(text.subtitle, "Thira · tab 3 · Codex")
-        XCTAssertEqual(text.body, "Reply is ready.")
+        XCTAssertEqual(text.title, "✅ Fix sign-in")
+        XCTAssertEqual(text.subtitle, "")
+        XCTAssertEqual(text.body, "Done · Thira · tab 3 · Codex", "Without message text the meta line is the body")
     }
 
     func testAlertNameFallsBackToTabThenProjectAndMetaAddsPaneAndWindowOnlyWhenNeeded() throws {
         XCTAssertEqual(try alert(.approval, title: "(codex)", tab: "Investigate sign-in").text(showText: false).title,
-                       "✋ Approval · Investigate sign-in")
+                       "✋ Investigate sign-in")
         let unnamed = try alert(.approval, title: "(codex)", tab: nil, pane: 1)
-        XCTAssertEqual(unnamed.text(showText: false).title, "✋ Approval · Thira")
-        XCTAssertEqual(unnamed.meta, "tab 3 · pane 2 · Codex", "The project is not repeated once it is the name")
-        XCTAssertEqual(try alert(.question, namesWindow: true).meta, "Thira · Work · tab 3 · Codex")
+        XCTAssertEqual(unnamed.text(showText: false).title, "✋ Thira")
+        XCTAssertEqual(unnamed.meta, "Approval · tab 3 · pane 2 · Codex", "The project is not repeated once it is the name")
+        XCTAssertEqual(try alert(.question, namesWindow: true).meta, "Question · Thira · tab 3 · Work · Codex")
+    }
+
+    func testAlertNameDropsCodexStatusPrefixAndProjectFolderSuffix() throws {
+        XCTAssertEqual(try alert(.approval, title: "[ ! ] Action Required | Check BMW documents | Thira (codex)").name,
+                       "Check BMW documents")
+        XCTAssertEqual(try alert(.replyReady, title: "Check BMW documents | Thira").name, "Check BMW documents")
+        XCTAssertEqual(try alert(.replyReady, title: "Compare A | B").name, "Compare A | B", "Only the project folder is dropped")
+        XCTAssertEqual(try alert(.replyReady, title: "[draft] notes").name, "[draft] notes")
     }
 
     func testMessageTextIsOptInOrderedByWhatNeedsActionAndClipped() throws {
@@ -102,7 +110,8 @@ final class AgentSessionsTests: XCTestCase {
         let reply = "## Result\\n**Done** with `make check`. " + Array(repeating: "detail", count: 60).joined(separator: " ")
         let fields = #""request":"\#(request)","answer":"\#(reply)","#
         let done = try alert(.replyReady, text: fields)
-        XCTAssertEqual(done.text(showText: false).body, "Reply is ready.", "Session text stays out unless enabled")
+        XCTAssertEqual(done.text(showText: false).body, done.meta, "Session text stays out unless enabled")
+        XCTAssertEqual(done.text(showText: true).subtitle, done.meta)
 
         let lines = done.text(showText: true).body.components(separatedBy: "\n")
         XCTAssertEqual(lines.count, 2)
@@ -114,8 +123,8 @@ final class AgentSessionsTests: XCTestCase {
         let question = try alert(.question, text: fields).text(showText: true).body
         XCTAssertTrue(question.hasPrefix("Result Done"), "A question leads with the agent's text")
         XCTAssertTrue(question.components(separatedBy: "\n").last?.hasPrefix("› ") == true)
-        XCTAssertEqual(try alert(.approval).text(showText: true).body, "Waiting for your approval.",
-                       "No bound transcript falls back to the fixed sentence")
+        XCTAssertEqual(try alert(.approval).text(showText: true).body, "Approval · Thira · tab 3 · Codex",
+                       "No bound transcript leaves only the meta line")
     }
 
     func testAlertStaysUntilItsSessionIsOpenedMovesOnOrEnds() throws {
