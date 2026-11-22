@@ -38,14 +38,16 @@ Opening a pane does not prove the user read its response.
 
 ## Ownership and data
 
-AI Session Hub owns discovery, PID/start/TTY/ancestry identity, UUID Jump and
-activity parsing. Its required MIT sources are vendored byte-for-byte at the
-revision/checksums in SessionEngine/upstream.json. Updates must come from reviewed
-upstream sources; make check verifies the pin. Fleet owns the private JSON-lines
-adapter, native UI, lifecycle and packaging. The presentation-independent
+Fleet owns the whole session engine in `SessionEngine/`: discovery,
+PID/start/TTY/ancestry identity, UUID Jump, activity parsing, the private
+JSON-lines protocol, native UI, lifecycle and packaging. Parser and discovery
+fixes are made there directly. The engine started as byte-for-byte copies of AI
+Session Hub sources pinned by revision and checksum; every parser fix then took
+a Hub commit, a copy and a re-pin, so since 1.6.0 the copies are ordinary Fleet
+code and the pin is gone. AI Session Hub is a separate, deprecated project:
+Fleet neither reads nor follows it. The presentation-independent
 [session contract](../docs/contracts/agent-sessions.md) owns typed states, evidence,
-identity and timing for future UI composition. The standalone Hub CLI/TUI is
-independent and is not required by the app.
+identity and timing for future UI composition.
 
 Local interactive Codex, Claude, Kimi, Qwen, Gemini and Grok sessions in iTerm2
 are discoverable and support exact-pane Jump. SSH, tmux, GUI conversations and
@@ -58,8 +60,8 @@ explicitly Unknown without borrowed status or transcript data; Unknown has its o
 never counted as Idle. Running sessions are independent of quota-provider
 visibility settings. Activity,
 questions and blockers use visible terminal markers and are heuristic. Missing
-markers remain Unknown. Provider metadata must be process-bound under Hub's
-contract, never selected by newest file or cwd. Global login badges are not
+markers remain Unknown. Provider metadata must be process-bound,
+never selected by newest file or cwd. Global login badges are not
 assigned to already running agents.
 
 Bounded request/answer observations stay in memory. Hover exposes a last request
@@ -161,10 +163,10 @@ on top with their waiting time, unopened replies follow with their time, and
 Clear withdraws them all. A row opens the same pane; its text line appears only
 while the text switch is on.
 
-Inherited Rust tests protect identity replacement, ambiguity, noninteractive
+The engine's Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe
 framing, grouping, failed Jump, missing engine and light/dark layout. Release
-smoke checks require the helper/license in both architecture archives. Installed
+smoke checks require the helper in both architecture archives. Installed
 checks cover shortcuts, live Jump, menu retention and helper cleanup.
 
 ## Process controls

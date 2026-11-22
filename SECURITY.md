@@ -42,7 +42,7 @@ uses only the shared home, avoiding parallel refresh consumers. See
 ## Local session overview
 
 Agents additionally reads bounded visible iTerm2 screens and process-bound local
-provider metadata through the embedded AI Session Hub core. Request/answer text
+provider metadata through its bundled session engine. Request/answer text
 stays in memory; it is not persisted, uploaded or logged. Jump only selects a
 freshly validated existing pane. It never types into terminals. See
 [business/agents.md](business/agents.md) for data and lifecycle boundaries.

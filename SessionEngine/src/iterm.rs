@@ -111,9 +111,6 @@ impl Client {
             .context("Invalid iTerm2 result")?
             .to_owned())
     }
-    pub fn sleep(&mut self) {
-        self.helper.take();
-    }
     pub fn warm(&mut self) -> Result<()> {
         self.call(&["ping"])?;
         Ok(())
@@ -142,8 +139,5 @@ impl Client {
             bail!("Selected pane could not be confirmed");
         }
         Ok(())
-    }
-    pub fn content(&mut self, pane: &Pane) -> Result<String> {
-        self.pane_call("content", pane)
     }
 }

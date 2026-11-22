@@ -476,7 +476,7 @@ pub fn scan() -> Result<Vec<Process>> {
 
 #[cfg(not(target_os = "macos"))]
 pub fn scan() -> Result<Vec<Process>> {
-    bail!("AI Session Hub supports macOS only")
+    bail!("The AI Fleet session engine supports macOS only")
 }
 
 #[cfg(test)]

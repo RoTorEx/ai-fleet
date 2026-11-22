@@ -55,16 +55,10 @@ function operate(argv) {
         try { if (app.frontmost()) focused=app.currentWindow().currentSession().id(); } catch (_) {}
         return JSON.stringify({texts:texts,titles:titles,focused:focused});
     }
-    if (argv[0] === 'jump' || argv[0] === 'content') {
+    if (argv[0] === 'jump') {
         const p=resolve(argv[1]), s=p.s;
         if (s.id() !== argv[1] || s.tty() !== argv[2] || String(variable(s,'pid')) !== argv[3])
             throw Error('Pane linkage changed; refresh before Jump');
-        if (argv[0] === 'content') {
-            let text=s.contents().slice(-131074);
-            const first=text.charCodeAt(0);
-            if (first >= 0xDC00 && first <= 0xDFFF) text=text.slice(1);
-            return Array.from(text).slice(-65536).join('');
-        }
         p.w.select(); p.t.select(); s.select(); app.activate();
         // The front-window state can lag successful selection briefly.
         // Confirm the UUID within a short bound; never substitute another pane.

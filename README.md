@@ -27,8 +27,8 @@ The **Agents** tab groups live Codex, Claude, Kimi, Qwen, Gemini and Grok sessio
 by project, with filters, collapsible groups, observed statuses and working
 indicators. Its list scrolls when the menu reaches 80% of the visible screen.
 Click a row to open its exact iTerm2 window/tab/split; the overview stays open.
-Escape or an outside click closes it. The engine ships inside the app; no
-separate Hub CLI or Rust toolchain is required by installed releases. Source
+Escape or an outside click closes it. The engine ships inside the app; installed
+releases need no separate tool or Rust toolchain. Source
 builds also need the current stable Rust toolchain. iTerm2 access may require
 macOS Automation permission; project metadata may require Documents access.
 

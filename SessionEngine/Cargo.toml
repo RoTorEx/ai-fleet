@@ -3,11 +3,7 @@ name = "fleet-session-engine"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "Private stdio adapter for AI Fleet's bundled AI Session Hub core"
-
-[features]
-default = ["embedded"]
-embedded = []
+description = "AI Fleet's private session engine: discovery, pane Jump and activity reading over stdio"
 
 [dependencies]
 anyhow = "1"

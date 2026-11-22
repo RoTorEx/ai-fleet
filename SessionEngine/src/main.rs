@@ -1,19 +1,11 @@
 //! Private JSON-lines bridge. No network, terminal writes, or daemon installation.
-#![allow(dead_code)]
-#[path = "../vendor/activity.rs"]
 mod activity;
 mod codex_metadata;
-#[path = "../vendor/command.rs"]
 mod command;
-#[path = "../vendor/content.rs"]
 mod content;
-#[path = "../vendor/iterm.rs"]
 mod iterm;
-#[path = "../vendor/model.rs"]
 mod model;
-#[path = "../vendor/process.rs"]
 mod process;
-#[path = "../vendor/session_data.rs"]
 mod session_data;
 
 use serde::Deserialize;

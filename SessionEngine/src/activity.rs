@@ -2,11 +2,8 @@
 //! Opening a pane is not proof that its contents were read.
 use crate::{
     content::{self, Role},
-    iterm,
-    model::{self, Session},
     process,
 };
-use anyhow::Result;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::SystemTime;
 
@@ -180,18 +177,6 @@ pub struct Progress {
     pub native_metadata: bool,
 }
 impl Progress {
-    pub fn symbol(&self) -> &'static str {
-        match self.label() {
-            "Working" => "●",
-            "Untracked" => "○",
-            "Approval" => "!",
-            "New reply" => "◆",
-            "Opened" => "✓",
-            "Question" => "?",
-            "Blocked" => "×",
-            _ => "·",
-        }
-    }
     pub fn observe(&mut self, observation: Option<&Observation>, focused: bool) {
         let now = SystemTime::now();
         if let Some(o) = observation {
@@ -280,70 +265,11 @@ impl Progress {
             _ => "Live · activity unknown",
         }
     }
-    pub fn opening(&self) -> &'static str {
-        if self.ready {
-            "New response · pane not observed open"
-        } else if self.opened {
-            "Pane opened · reading not confirmed"
-        } else {
-            "Earlier opening history unknown"
-        }
-    }
 }
 pub struct Snapshot {
     pub sessions: Vec<(String, Option<Observation>)>,
     pub focused: Option<String>,
     pub metadata: std::collections::HashMap<String, crate::session_data::Metadata>,
-}
-pub fn read(sessions: &[Session], terminal: &mut iterm::Client) -> Result<Snapshot> {
-    let table = process::scan()?;
-    let valid: Vec<_> = sessions
-        .iter()
-        .filter(|s| {
-            s.location
-                .as_ref()
-                .is_some_and(|p| model::valid_identity(s, p, &table))
-        })
-        .collect();
-    let panes: Vec<_> = valid.iter().filter_map(|s| s.location.clone()).collect();
-    let observed = terminal.observe(&panes)?;
-    let mut metadata = crate::session_data::read(&valid);
-    // Reject identity reuse during the file read.
-    let after = process::scan()?;
-    metadata.retain(|id, _| {
-        valid.iter().any(|s| {
-            &s.id == id
-                && after
-                    .iter()
-                    .any(|p| p.pid == s.pid && p.started == s.started)
-        })
-    });
-    let sessions = sessions
-        .iter()
-        .map(|s| {
-            let index = valid.iter().position(|v| v.id == s.id);
-            let text = index
-                .and_then(|i| observed.texts.get(i))
-                .and_then(|s| s.as_deref());
-            let title = index
-                .and_then(|i| observed.titles.get(i))
-                .and_then(|s| s.as_deref());
-            (
-                s.id.clone(),
-                text.map(|text| {
-                    let message = metadata.get(&s.id).and_then(|m| m.last_message.as_deref());
-                    Observation::parse(text, s.provider)
-                        .with_transcript(message)
-                        .with_title(title, s.provider)
-                }),
-            )
-        })
-        .collect();
-    Ok(Snapshot {
-        sessions,
-        focused: observed.focused,
-        metadata,
-    })
 }
 
 #[cfg(test)]
@@ -580,10 +506,8 @@ mod tests {
             last_message: None,
         };
         p.observe(Some(&question), false);
-        assert_eq!(p.symbol(), "?");
-        assert!(p.opening().contains("not observed"));
+        assert_eq!(p.label(), "Question");
         p.observe(Some(&question), true);
-        assert_eq!(p.symbol(), "?");
-        assert!(p.opening().contains("reading not confirmed"));
+        assert_eq!(p.label(), "Question");
     }
 }

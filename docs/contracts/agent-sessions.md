@@ -9,7 +9,7 @@ readable. Unknown raw states map to unknown rather than implying completion.
 ## Identity and evidence
 
 Session id identifies PID plus process start, not a conversation or account.
-`pid` is the local PID; `processStarted` is the pinned reader's integer microseconds
+`pid` is the local PID; `processStarted` is the engine's integer microseconds
 since Unix epoch and must not be rounded for identity comparison. `project` is the
 project grouping path; optional `cwd` is the observed working directory. Neither
 path nor title establishes account, parent/child agent relationships or transcript
@@ -22,8 +22,8 @@ writable primary JSONL transcript beneath the canonical session root; helper log
 cannot replace it. Large session headers are bounded at 1 MiB, matching the tail
 read bound, so pathological files become unknown rather than unbounded work.
 Unsupported, ambiguous or missing data stays absent; newest file, mtime and cwd
-are never transcript selection rules. Claude retains the pinned process-binding
-and sidechain exclusion contract. Pinned vendor sources are unchanged.
+are never transcript selection rules. Claude retains its process-binding and
+sidechain exclusion contract.
 
 ## States
 

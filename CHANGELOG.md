@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Make the session engine Fleet's own code. Discovery, pane Jump and activity reading no longer come as pinned copies of AI Session Hub sources, so a fix is one change in one repository. Behaviour is unchanged; the app no longer bundles the Hub license file.
+
 ## [1.5.3] - 2026-11-22
 
 - Alert when a Claude Code or Codex reply is longer than the visible tail of its pane: whether a reply is new now comes from the session's transcript. Until now most Claude replies raised no Done alert, and a question closing a long reply raised none either.

@@ -1,26 +1,12 @@
-//! Read-only, bounded terminal history for the selected, revalidated pane.
+//! Parses a bounded sample of a pane's visible screen into state and conversation turns.
 //! It never supplies process identity or authorizes navigation.
-use crate::{
-    iterm,
-    model::{self, Session},
-    process::Provider,
-};
-use anyhow::Result;
+use crate::{model, process::Provider};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Role {
     You,
     Agent,
     Action,
-}
-impl Role {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::You => "You",
-            Self::Agent => "Agent",
-            Self::Action => "Action",
-        }
-    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Message {
@@ -34,11 +20,6 @@ pub struct Content {
     pub context: String,
     pub model: Option<String>,
     pub reasoning: Option<String>,
-}
-pub fn read(session: &Session, terminal: &mut iterm::Client) -> Result<Content> {
-    let pane = model::validate(session)?;
-    let text = terminal.content(pane)?;
-    Ok(parse(&text, session.provider))
 }
 fn clean(line: &str) -> String {
     model::safe_text(line).trim_end().to_owned()

@@ -1,16 +1,25 @@
-# Bundled Session Hub adapter
+# Session engine
 
-This private executable embeds unchanged AI Session Hub sources pinned in
-upstream.json. It is built for each release architecture inside AI Fleet.
-The standalone CLI is not required. The upstream `embedded` feature preserves
-Jump validation without writing the standalone application’s usage logs.
-Discovery covers Codex, Claude, Kimi, Qwen, Gemini and Grok; activity parsing
-remains verified for Codex/Claude. Other providers retain explicit Unknown state.
+A private executable bundled in `Contents/MacOS` and built for each release
+architecture. It discovers running interactive Codex, Claude, Kimi, Qwen, Gemini
+and Grok sessions in iTerm2, selects an exact pane on request (Jump) and reads
+activity. Activity parsing is verified for Codex and Claude, and for Kimi work
+and approvals; other providers keep an explicit Unknown state.
 
-src/main.rs owns the Fleet JSON-lines adapter. vendor belongs to upstream:
-compare a reviewed Hub revision, copy the required modules/license unchanged,
-then update the revision and hashes together. Never patch discovery or Jump in
-this copy. make check verifies source hashes and runs inherited behavior tests.
+All of it is Fleet code and is changed here directly:
+
+| File | Owns |
+| --- | --- |
+| `src/main.rs` | JSON-lines protocol, scan and Jump workers, row assembly |
+| `src/process.rs`, `src/command.rs` | provider process discovery and identity |
+| `src/model.rs` | sessions, pane linkage, Jump validation |
+| `src/iterm.rs`, `src/iterm.js` | the iTerm2 helper: pane list, screen and title samples, Jump |
+| `src/content.rs`, `src/activity.rs` | screen parsing, state and reply/attention tracking |
+| `src/session_data.rs`, `src/codex_metadata.rs` | process-bound transcript metadata |
+
+The discovery, Jump and activity modules began as copies of AI Session Hub
+(MIT, same author) at revision `690bad1`. Since Fleet 1.6.0 they are ordinary
+Fleet code; AI Session Hub is deprecated and is not a source of updates.
 
 Input (one JSON object per line):
 
@@ -29,5 +38,4 @@ shell command. Product/lifecycle contract: business/agents.md in the parent.
 Additive row dataVersion 1 exposes process identity, activity sample time,
 provider message/request times and a work-time source. The complete meanings,
 precedence and unknown/stale behavior are owned by
-[Agent session contract](../docs/contracts/agent-sessions.md). Fleet-owned
-codex_metadata.rs adapts current response_item logs; vendor remains pinned.
+[Agent session contract](../docs/contracts/agent-sessions.md).
