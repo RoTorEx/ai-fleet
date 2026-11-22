@@ -66,8 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         self.statusBarController = statusBarController
-        StatusService.shared.openAgentSessionFromNotification = { [weak statusBarController] sessionID in
-            statusBarController?.openAgentSession(sessionID)
+        StatusService.shared.onNotificationAction = { [weak statusBarController] action in
+            statusBarController?.handleNotification(action)
         }
         StatusService.shared.start()
 

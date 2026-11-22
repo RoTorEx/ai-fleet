@@ -229,11 +229,14 @@ final class StatusBarController: NSObject {
             .sink { [weak self] _ in self?.updateAttention(service: service) }
         updateAttention(service: service)
 
+        agents.onAlertsRetired = { [weak service] sessionIDs in
+            service?.removeAgentNotifications(sessionIDs: sessionIDs)
+        }
         agentNotificationObservation = AppSettings.shared.$agentNotificationsEnabled
             .removeDuplicates()
             .sink { [weak self, weak service] enabled in
-                self?.agents.setNotificationsEnabled(enabled) { session, reason in
-                    service?.sendAgentNotification(session: session, reason: reason)
+                self?.agents.setNotificationsEnabled(enabled) { alert in
+                    service?.sendAgentNotification(alert)
                 }
             }
 
@@ -327,7 +330,23 @@ final class StatusBarController: NSObject {
         }
     }
 
-    func openAgentSession(_ sessionID: String) {
+    func handleNotification(_ action: FleetNotificationAction) {
+        switch action {
+        case .openSession(let sessionID):
+            openAgentSession(sessionID)
+        case .history(let alertID):
+            screen.tab = .agents
+            agents.showHistory(highlighting: alertID)
+            showPopoverIfNeeded()
+        case .providers:
+            screen.tab = .providers
+            showPopoverIfNeeded()
+        case .menu:
+            showPopoverIfNeeded()
+        }
+    }
+
+    private func openAgentSession(_ sessionID: String) {
         agents.jumpFromNotification(sessionID) { [weak self] error in
             guard let self else { return }
             if error == nil {

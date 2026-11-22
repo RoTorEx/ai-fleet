@@ -265,7 +265,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
         <tr><td><b>History</b></td><td>Fleet opens on Agents → History with this alert highlighted.</td></tr>
         <tr><td>A banner whose session ended</td><td>Fleet opens Agents and says why the jump failed (unchanged).</td></tr>
         <tr><td>Quota banner</td><td>Fleet opens on Providers.</td></tr>
-        <tr><td>Close ✕</td><td>Banner goes away; the alert stays in History.</td></tr>
+        <tr><td>Close ✕</td><td>Banner goes away; the alert stays in History until the session is opened or moves on.</td></tr>
       </table>
     </div>
     <div>
@@ -289,18 +289,16 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
       <div class="menu">
         <div class="tabs"><span>Providers</span><span class="on">Agents</span><span>Processes</span></div>
         <div class="page">
-          <div class="chips"><span>All 6</span><span class="warn">Needs you 2</span><span>Working 2</span><span>Idle 2</span><span class="hist on">🕘 History 5</span></div>
+          <div class="chips"><span>All 6</span><span class="warn">Needs you 2</span><span>Working 2</span><span>Idle 2</span><span>Unknown 0</span><span class="hist on">🕘 3</span></div>
           <div class="sep">Still waiting</div>
           <div class="row wait hl"><span class="g">✋</span><span class="n">Approval · refactor-auth</span><span class="a">waiting 2m</span><span class="m">ai-fleet · tab 1 · Codex</span><span class="q">› Split CodexAuthentication into a reader and a writer…</span></div>
           <div class="row wait"><span class="g">💬</span><span class="n">Question · jump-latency</span><span class="a">waiting 9m</span><span class="m">ai-session-hub · tab 2 · pane 2 · Claude</span><span class="q">Should I pre-warm the helper when the menu opens, or…</span></div>
-          <div class="sep">Earlier</div>
+          <div class="sep">Not opened yet</div>
           <div class="row"><span class="g">✅</span><span class="n">Done · quota-poller</span><span class="a">14:02</span><span class="m">ai-fleet · tab 3 · Claude</span><span class="q">› Make the Claude quota poller back off after a 429…</span></div>
-          <div class="row"><span class="g">⛔</span><span class="n">Blocked · release-notes</span><span class="a">13:40</span><span class="m">hop · tab 5 · Codex · resolved</span><span class="q">I cannot continue: gh is not authenticated in this shell…</span></div>
-          <div class="row gone"><span class="g">✅</span><span class="n">Done · icon-export</span><span class="a">12:15</span><span class="m">demio · Codex · session ended</span></div>
-          <div class="foot"><span>In memory until Fleet quits · last 50</span><span>Clear</span></div>
+          <div class="foot"><span>Leaves when you open the session or it starts new work</span><span>Clear</span></div>
         </div>
       </div>
-      <p class="note" style="margin-top:12px">History is one more chip on the existing filter row. Alerts that still need you stay on top with a live waiting time; a row click is the same jump as the banner. Rows show text only when the text setting is on. Nothing is written to disk, which keeps the current rule that session text is never persisted by Fleet.</p>
+      <p class="note" style="margin-top:12px">History is one more chip on the existing filter row: a clock and a count, because the row has no room for another word. It holds only alerts you have not dealt with, one per session: an alert leaves History, the screen and Notification Center once its session is opened, starts new work or ends. Alerts that need you stay on top with a live waiting time; a row click is the same jump as the banner. Rows show text only when the text setting is on. Nothing is written to disk, which keeps the current rule that session text is never persisted by Fleet.</p>
     </div>
     <div>
       <div class="form">
@@ -339,7 +337,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
         <li><b>Glyph set:</b> shapes (✋ 💬 ⛔ ✅ 🪫 🔔) or dots. <span class="rec">Recommended: shapes.</span></li>
         <li><b>Text order:</b> lead with the agent's text for Question and Blocked. <span class="rec">Recommended: yes.</span></li>
         <li><b>“Show message text” default:</b> <span class="rec">Recommended: off</span>, since it changes where session text is stored.</li>
-        <li><b>History:</b> in memory, last 50 alerts, cleared when Fleet quits. <span class="rec">Recommended: yes.</span></li>
+        <li><b>History:</b> in memory, only alerts not dealt with yet; an alert is withdrawn when its session is opened, starts new work or ends. <span class="rec">Changed on review from “last 50”.</span></li>
       </ol>
     </div>
     <div class="panel">

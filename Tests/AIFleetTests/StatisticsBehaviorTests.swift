@@ -14,22 +14,23 @@ final class StatisticsBehaviorTests: XCTestCase {
         )))
 
         XCTAssertEqual(
-            limitNotificationBody(
-                providerName: "Codex",
+            limitNotification(
+                providerName: "Codex A",
                 threshold: 5,
                 windowLabel: "7d",
                 resetAt: resetAt,
                 now: now,
                 calendar: calendar
             ),
-            "Codex reached 5% threshold (7d).\nResets in 5d 17h · Aug 29 at 21:18."
+            FleetNotificationText(title: "🪫 Codex A · 5% left", subtitle: "7d window",
+                                  body: "Resets in 5d 17h · Aug 29 at 21:18")
         )
     }
 
     func testLimitNotificationFallsBackWhenResetIsUnavailable() {
         XCTAssertEqual(
-            limitNotificationBody(providerName: "Kimi", threshold: 25, windowLabel: "5h"),
-            "Kimi reached 25% threshold (5h)."
+            limitNotification(providerName: "Kimi", threshold: 25, windowLabel: "5h"),
+            FleetNotificationText(title: "🪫 Kimi · 25% left", subtitle: "5h window", body: "Reset time unknown")
         )
     }
 

@@ -79,6 +79,11 @@ struct SettingsView: View {
                     Text("Agent session alerts")
                     Text("Get notified when a reply is ready or an agent needs your input, even with the menu closed.")
                 }
+                Toggle(isOn: $settings.agentNotificationsShowText) {
+                    Text("Show message text in alerts")
+                    Text("Adds your request and the agent's reply to each alert. macOS stores notification text and can show it on the lock screen and while sharing your screen.")
+                }
+                .disabled(!settings.agentNotificationsEnabled)
                 LabeledContent("Quota alert at") {
                     HStack(spacing: 6) {
                         ForEach(settings.notificationThresholds, id: \.self) { threshold in

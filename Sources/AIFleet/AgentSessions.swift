@@ -51,44 +51,6 @@ enum AgentNotificationReason: String {
     case approval = "Approval"
     case question = "Question"
     case blocked = "Blocked"
-
-    var message: String {
-        switch self {
-        case .replyReady: return "Reply ready"
-        case .approval: return "Approval needed"
-        case .question: return "Question needs your input"
-        case .blocked: return "Agent reported a blocker"
-        }
-    }
-
-    func notification(for session: AgentSession) -> (title: String, body: String) {
-        let genericNames: Set<String> = [
-            session.provider.lowercased(), "codex", "claude", "claude code", "kimi", "kimi-code",
-            "qwen", "gemini", "grok", "node", "bash", "zsh", "fish", "sh"
-        ]
-        func meaningfulTitle(_ raw: String?) -> String? {
-            guard let raw else { return nil }
-            let title = AgentRowText.title(raw, provider: session.provider)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let jobName = title.trimmingCharacters(in: CharacterSet(charactersIn: "()")).lowercased()
-            return title.isEmpty || genericNames.contains(jobName) ? nil : title
-        }
-
-        let tabTitle = meaningfulTitle(session.location?.tab)
-        let project = URL(fileURLWithPath: session.project).lastPathComponent
-        let projectTitle = session.project.isEmpty || project == "/" ? nil : project
-        let title = meaningfulTitle(session.title) ?? tabTitle ?? projectTitle ?? "Terminal session"
-        guard let pane = session.location else { return (title, message) }
-
-        var location = ["iTerm2"]
-        if let window = meaningfulTitle(pane.window), window.lowercased() != "iterm2" {
-            location.append("Window “\(window)”")
-        }
-        var tab = "Tab \(pane.tab_index + 1)"
-        if let tabTitle, tabTitle != title { tab += " “\(tabTitle)”" }
-        location.append(tab)
-        return (title, "\(message) (\(location.joined(separator: " · ")))")
-    }
 }
 
 struct AgentNotificationTracker {
@@ -233,6 +195,13 @@ final class AgentSessionsService: ObservableObject {
     /// Lives here rather than in the view: menu content is rebuilt on every open.
     @Published var collapsedGroups = Set<String>()
     @Published var filter: AgentFilter = .all
+    /// Alerts the user has not dealt with yet, newest first, one per session. Memory only:
+    /// session text is never persisted by Fleet.
+    @Published private(set) var alerts: [AgentAlert] = []
+    @Published var showsHistory = false
+    @Published private(set) var highlightedAlertID: String?
+    /// Session IDs whose alert is over, so its delivered macOS notification can be withdrawn.
+    var onAlertsRetired: (([String]) -> Void)?
     private var transport: AgentTransport?
     private var timer: Timer?
     private var generation = UUID()
@@ -243,7 +212,7 @@ final class AgentSessionsService: ObservableObject {
     private var jumpStarted: Date?
     private(set) var isVisible = false
     private let executableURL: URL?
-    private var notificationHandler: ((AgentSession, AgentNotificationReason) -> Void)?
+    private var notificationHandler: ((AgentAlert) -> Void)?
     private var notificationTracker: AgentNotificationTracker?
     private var notificationJump: (sessionID: String, completion: (String?) -> Void)?
     private var isObserving: Bool { isVisible || notificationHandler != nil || notificationJump != nil }
@@ -267,7 +236,7 @@ final class AgentSessionsService: ObservableObject {
 
     func setNotificationsEnabled(
         _ enabled: Bool,
-        deliver: @escaping (AgentSession, AgentNotificationReason) -> Void = { _, _ in }
+        deliver: @escaping (AgentAlert) -> Void = { _ in }
     ) {
         notificationHandler = enabled ? deliver : nil
         resetNotificationTracking()
@@ -288,8 +257,26 @@ final class AgentSessionsService: ObservableObject {
         timer?.tolerance = 0.3
     }
 
+    /// The session behind an alert while it still has an exact pane to open.
+    func liveSession(for alert: AgentAlert) -> AgentSession? {
+        sessions.first { $0.id == alert.session.id && $0.location != nil }
+    }
+
+    func showHistory(highlighting alertID: String?) {
+        showsHistory = true
+        highlightedAlertID = alertID
+    }
+
+    func clearAlerts() {
+        let retired = alerts.map(\.session.id)
+        alerts = []
+        highlightedAlertID = nil
+        if !retired.isEmpty { onAlertsRetired?(retired) }
+    }
+
     func stop() {
         isVisible = false
+        highlightedAlertID = nil
         if !isObserving { stopObservation() }
     }
 
@@ -420,8 +407,24 @@ final class AgentSessionsService: ObservableObject {
             if let sessions = reply.sessions, reply.error == nil {
                 if self.sessions != sessions { self.sessions = sessions }
                 observedAt = reply.observedAt.map(Date.init(timeIntervalSince1970:))
-                let alerts = late ? [] : notificationTracker?.observe(sessions, now: Date()) ?? []
-                for (session, reason) in alerts { notificationHandler?(session, reason) }
+                let fired = late ? [] : notificationTracker?.observe(sessions, now: Date()) ?? []
+                let namesWindow = Set(sessions.compactMap { $0.location?.window }).count > 1
+                // Alerts fired by this snapshot are judged from the next one, so a reply that lands in
+                // the pane being watched still sounds before it leaves.
+                let firing = Set(fired.map(\.0.id))
+                let over = alerts.filter { !$0.isCurrent(in: sessions) }.map(\.session.id)
+                if !over.isEmpty || !firing.isEmpty {
+                    alerts.removeAll { over.contains($0.session.id) || firing.contains($0.session.id) }
+                }
+                // A session firing again reuses its notification; withdrawing it here could race the new one.
+                let retired = over.filter { !firing.contains($0) }
+                if !retired.isEmpty { onAlertsRetired?(retired) }
+                for (session, reason) in fired {
+                    let alert = AgentAlert(id: UUID().uuidString, session: session, reason: reason,
+                                           namesWindow: namesWindow, date: Date())
+                    alerts.insert(alert, at: 0)
+                    notificationHandler?(alert)
+                }
             } else {
                 resetNotificationTracking()
             }

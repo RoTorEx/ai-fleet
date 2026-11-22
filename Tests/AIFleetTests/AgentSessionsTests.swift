@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 import XCTest
 @testable import AIFleet
 
@@ -72,24 +73,78 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertEqual(try sample("New reply", at: 186, id: "7-11"), [.replyReady])
     }
 
-    func testNotificationIdentifiesNamedSessionAndTabWithoutAProviderLabel() throws {
-        let row = #"{"id":"7-10","provider":"codex","project":"/work/Thira","title":"⠂ Fix sign-in (codex)","state":"Opened","explanation":"","location":{"id":"pane","window":"Work","tab":"Authentication","tab_index":2,"pane_index":0}}"#
+    private func alert(_ reason: AgentNotificationReason, title: String = "⠂ Fix sign-in (codex)", tab: String? = "Authentication",
+                       pane: Int = 0, text: String = "", namesWindow: Bool = false) throws -> AgentAlert {
+        let tabField = tab.map { #""tab":"\#($0)","# } ?? ""
+        let row = #"{"id":"7-10","provider":"codex","project":"/work/Thira","title":"\#(title)","state":"Opened","explanation":"",\#(text)"location":{"id":"pane","window":"Work",\#(tabField)"tab_index":2,"pane_index":\#(pane)}}"#
         let session = try JSONDecoder().decode(AgentSession.self, from: Data(row.utf8))
-        let notification = AgentNotificationReason.replyReady.notification(for: session)
-        XCTAssertEqual(notification.title, "Fix sign-in")
-        XCTAssertEqual(notification.body, "Reply ready (iTerm2 · Window “Work” · Tab 3 “Authentication”)")
+        return AgentAlert(id: "a", session: session, reason: reason, namesWindow: namesWindow, date: Date())
     }
 
-    func testNotificationFallsBackToTabOrProjectAndKeepsTheTabNumber() throws {
-        let tab = #""tab":"Investigate sign-in","#
-        let row = #"{"id":"7-10","provider":"codex","project":"/work/Thira","title":"(codex)","state":"Approval","explanation":"","location":{"id":"pane","window":"Work",\#(tab)"tab_index":0,"pane_index":1}}"#
-        let decoder = JSONDecoder()
-        let withTab = try decoder.decode(AgentSession.self, from: Data(row.utf8))
-        let withoutTab = try decoder.decode(AgentSession.self, from: Data(row.replacingOccurrences(of: tab, with: "").utf8))
-        XCTAssertEqual(AgentNotificationReason.approval.notification(for: withTab).title, "Investigate sign-in")
-        let notification = AgentNotificationReason.approval.notification(for: withoutTab)
-        XCTAssertEqual(notification.title, "Thira")
-        XCTAssertEqual(notification.body, "Approval needed (iTerm2 · Window “Work” · Tab 1)")
+    func testAlertLeadsWithItsTypeAndKeepsLocationOnOneMetaLine() throws {
+        let text = try alert(.replyReady).text(showText: false)
+        XCTAssertEqual(text.title, "✅ Done · Fix sign-in")
+        XCTAssertEqual(text.subtitle, "Thira · tab 3 · Codex")
+        XCTAssertEqual(text.body, "Reply is ready.")
+    }
+
+    func testAlertNameFallsBackToTabThenProjectAndMetaAddsPaneAndWindowOnlyWhenNeeded() throws {
+        XCTAssertEqual(try alert(.approval, title: "(codex)", tab: "Investigate sign-in").text(showText: false).title,
+                       "✋ Approval · Investigate sign-in")
+        let unnamed = try alert(.approval, title: "(codex)", tab: nil, pane: 1)
+        XCTAssertEqual(unnamed.text(showText: false).title, "✋ Approval · Thira")
+        XCTAssertEqual(unnamed.meta, "tab 3 · pane 2 · Codex", "The project is not repeated once it is the name")
+        XCTAssertEqual(try alert(.question, namesWindow: true).meta, "Thira · Work · tab 3 · Codex")
+    }
+
+    func testMessageTextIsOptInOrderedByWhatNeedsActionAndClipped() throws {
+        let request = Array(repeating: "refactor", count: 20).joined(separator: " ")
+        let reply = "## Result\\n**Done** with `make check`. " + Array(repeating: "detail", count: 60).joined(separator: " ")
+        let fields = #""request":"\#(request)","answer":"\#(reply)","#
+        let done = try alert(.replyReady, text: fields)
+        XCTAssertEqual(done.text(showText: false).body, "Reply is ready.", "Session text stays out unless enabled")
+
+        let lines = done.text(showText: true).body.components(separatedBy: "\n")
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertTrue(lines[0].hasPrefix("› refactor refactor") && lines[0].hasSuffix("…"))
+        XCTAssertLessThanOrEqual(lines[0].count, AgentAlert.requestLimit + 3)
+        XCTAssertTrue(lines[1].hasPrefix("Result Done with make check. detail"), lines[1])
+        XCTAssertLessThanOrEqual(lines[1].count, AgentAlert.replyLimit + 1)
+
+        let question = try alert(.question, text: fields).text(showText: true).body
+        XCTAssertTrue(question.hasPrefix("Result Done"), "A question leads with the agent's text")
+        XCTAssertTrue(question.components(separatedBy: "\n").last?.hasPrefix("› ") == true)
+        XCTAssertEqual(try alert(.approval).text(showText: true).body, "Waiting for your approval.",
+                       "No bound transcript falls back to the fixed sentence")
+    }
+
+    func testAlertStaysUntilItsSessionIsOpenedMovesOnOrEnds() throws {
+        func state(_ state: String, id: String = "7-10") throws -> [AgentSession] {
+            let row = #"{"id":"\#(id)","provider":"codex","project":"/work","title":"Codex","state":"\#(state)","explanation":"","location":null}"#
+            return [try JSONDecoder().decode(AgentSession.self, from: Data(row.utf8))]
+        }
+        let done = try alert(.replyReady), question = try alert(.question)
+        XCTAssertTrue(done.isCurrent(in: try state("New reply")))
+        XCTAssertFalse(done.isCurrent(in: try state("Opened")), "Viewing the pane ends a Done alert")
+        XCTAssertFalse(done.isCurrent(in: try state("Working")), "So does new work")
+        XCTAssertFalse(done.isCurrent(in: try state("New reply", id: "9-1")), "And the session ending")
+        XCTAssertTrue(question.isCurrent(in: try state("Question")), "A question waits however often it is viewed")
+        XCTAssertFalse(question.isCurrent(in: try state("Working")))
+        for unproven in ["Unknown", "Untracked"] {
+            XCTAssertTrue(question.isCurrent(in: try state(unproven)), "\(unproven) is no evidence the user acted")
+        }
+    }
+
+    func testNotificationClicksRouteToPaneHistoryOrProviders() {
+        let route = StatusService.notificationAction
+        let banner = UNNotificationDefaultActionIdentifier
+        XCTAssertEqual(route(banner, "agent", "7-10", "a"), .openSession("7-10"))
+        XCTAssertEqual(route(StatusService.openAction, "agent", "7-10", "a"), .openSession("7-10"))
+        XCTAssertEqual(route(StatusService.historyAction, "agent", "7-10", "a"), .history("a"))
+        XCTAssertEqual(route(banner, nil, "7-10", nil), .openSession("7-10"), "Alerts delivered before this layout still jump")
+        XCTAssertEqual(route(banner, "quota", nil, nil), .providers)
+        XCTAssertEqual(route(banner, "test", nil, nil), .menu)
+        XCTAssertNil(route(UNNotificationDismissActionIdentifier, "agent", "7-10", "a"))
     }
 
     @MainActor
@@ -111,6 +166,8 @@ final class AgentSessionsTests: XCTestCase {
         snapshot 2 Opened 'New reply'
         IFS= read -r request || exit 1
         snapshot 3 Approval Approval
+        IFS= read -r request || exit 1
+        snapshot 4 Working Working
         while IFS= read -r request; do :; done
         touch "$(dirname "$0")/stopped"
         """#
@@ -118,7 +175,9 @@ final class AgentSessionsTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         let service = AgentSessionsService(executableURL: executable)
         var alerts: [AgentNotificationReason] = []
-        service.setNotificationsEnabled(true) { _, reason in alerts.append(reason) }
+        var retired: [String] = []
+        service.onAlertsRetired = { retired += $0 }
+        service.setNotificationsEnabled(true) { alerts.append($0.reason) }
         defer { service.setNotificationsEnabled(false); service.stop() }
         for _ in 0..<100 where service.sessions.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(service.sessions.first?.state, "Working")
@@ -131,6 +190,32 @@ final class AgentSessionsTests: XCTestCase {
         service.refresh(force: true)
         for _ in 0..<100 where alerts.count < 2 { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(alerts, [.replyReady, .approval])
+        XCTAssertEqual(service.alerts.map(\.reason), [.approval], "A session keeps only its newest alert")
+        XCTAssertTrue(retired.isEmpty, "A replaced alert reuses its notification instead of withdrawing it")
+        service.start()
+        service.showHistory(highlighting: service.alerts.first?.id)
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let host = NSHostingController(rootView: MenuAgentsSection(service: service).frame(width: 354))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 700),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: appearance)
+            window.contentViewController = host
+            host.view.layoutSubtreeIfNeeded()
+            XCTAssertGreaterThan(host.view.fittingSize.height, 80, "The chip row, the alert and the footer are laid out")
+            if let capture = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
+               let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
+                host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+                try bitmap.representation(using: .png, properties: [:])?.write(to:
+                    URL(fileURLWithPath: capture).appendingPathComponent("history-\(appearance.rawValue).png"))
+            }
+            window.contentViewController = nil
+        }
+        service.stop()
+        XCTAssertNil(service.highlightedAlertID, "Closing the menu drops the highlight")
+        service.refresh(force: true)
+        for _ in 0..<100 where retired.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(retired, ["7-10"], "New work withdraws the delivered notification")
+        XCTAssertTrue(service.alerts.isEmpty)
         service.setNotificationsEnabled(false)
         for _ in 0..<100 where !FileManager.default.fileExists(atPath: stopped.path) {
             try await Task.sleep(nanoseconds: 10_000_000)

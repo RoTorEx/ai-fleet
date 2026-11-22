@@ -90,10 +90,12 @@ subscription charges.
   Legacy isolated files and metadata remain preserved. See
   [Accounts](business/accounts.md) for matching, ordering and storage rules.
 
-- Quota notifications name the provider, crossed threshold, and exact window;
-  no redundant remaining value follows the threshold. When the provider supplies
-  a reset timestamp, a second line shows both the compact time remaining and the
-  exact local reset time, so the alert is glanceable without losing precision.
+- Quota notifications title the account and the crossed threshold, for example
+  `🪫 Codex A · 25% left`, and name the exact window in the subtitle; no separate
+  remaining value follows the threshold. When the provider supplies a reset
+  timestamp, the body shows both the compact time remaining and the exact local
+  reset time, so the alert is glanceable without losing precision; otherwise it
+  says the reset time is unknown. Clicking a quota alert opens Providers.
   Each threshold fires once per quota window, rearms when that window resets above
   it, and threshold-setting changes clear every provider/window notification marker.
 - Codex quota status shows only the account's main `rate_limit` primary and

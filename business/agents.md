@@ -63,8 +63,9 @@ contract, never selected by newest file or cwd. Global login badges are not
 assigned to already running agents.
 
 Bounded request/answer observations stay in memory. Hover exposes a last request
-and location. No session text is persisted, uploaded or logged; no model requests
-are made for Agents.
+and location. Fleet persists, uploads and logs no session text, and makes no model
+requests for Agents. The one exit is the opt-in alert text handed to macOS
+notifications, described under Lifecycle and defaults.
 
 ## Lifecycle and defaults
 
@@ -98,12 +99,48 @@ after enabling alerts, app restart or a scan interruption. Cached samples and
 repeated waiting states stay quiet. CLI exit and long-running work generate no
 alert. Codex and Claude use the existing heuristic activity reader. Kimi can
 notify for recognized approvals. Short events between samples may be missed.
-Banners lead with the session name, falling back to the tab or project name.
-They show the reason and the iTerm2 window and numbered tab in parentheses.
-Clicking an alert selects that exact iTerm2 window, tab and pane by session ID.
-If the session has ended or the pane cannot be verified, Fleet opens Agents
-with the reason.
-Session text stays local to the in-memory Agents view.
+
+Alert layout follows the accepted board in `design/notifications/`. The title
+leads with the type, then the session name: `✋ Approval`, `💬 Question`,
+`⛔ Blocked` or `✅ Done`, so the reason is readable before anything else. The
+name falls back to the tab title, then the project folder. The subtitle is one
+meta line in the order project folder, tab number, provider, so a truncated line
+loses the provider first; a split adds the pane number, and the window is named
+only while sessions span several iTerm2 windows. Each session keeps one banner:
+a newer alert replaces the older one, and banners stack by project. Alerts that
+need the user and Done use different system sounds (Funk and Glass).
+
+An alert lasts only while it is still true. Fleet withdraws it from the screen,
+Notification Center and History once a later scan shows that the session was
+opened (its pane was current while iTerm2 was frontmost), started new work,
+raised a different request, or ended. A question or blocker therefore stays
+however often it is viewed, until the agent moves on. Unknown and Untracked
+states prove nothing and keep the alert. An alert is judged from the scan after
+the one that fired it, so a reply landing in the pane being watched still sounds
+and then leaves. Alerts delivered before a Fleet restart are not tracked and
+stay in Notification Center until dismissed.
+
+**Show message text in alerts** is a separate switch, off by default. On, the
+body carries the first 100 characters of the request, marked `›`, and the first
+300 characters of the reply, with Markdown marks dropped and whitespace
+collapsed. 100 keeps the request within about two banner lines; 300 keeps the
+expanded banner to one glance. A question or blocker puts the agent's text first
+because that is what the user acts on. Off, or without a bound transcript (Kimi),
+the body is one fixed sentence per type. It is opt-in because macOS stores
+notification text and can show it on the lock screen and during screen sharing.
+The engine reports that an approval is pending, not which action; until it does,
+Approval shows the request and the agent's last message.
+
+Clicking an alert, or its Open pane button, selects that exact iTerm2 window,
+tab and pane by session ID. If the session has ended or the pane cannot be
+verified, Fleet opens Agents with the reason. The History button opens Agents
+with History and marks that alert. History is a clock chip on the filter row,
+present while alerts are enabled or History is not empty. It lists the alerts
+not dealt with yet, at most one per session, in memory only; nothing reaches
+disk and the list starts empty after a restart. Alerts that need the user stay
+on top with their waiting time, unopened replies follow with their time, and
+Clear withdraws them all. A row opens the same pane; its text line appears only
+while the text switch is on.
 
 Inherited Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe

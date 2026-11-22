@@ -190,7 +190,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     func sendTestNotification() {
         sendNotification(
             identifier: "aifleet-test-\(UUID().uuidString)",
-            body: "Notifications are working."
+            text: FleetNotificationText(title: "🔔 Test · AI Fleet", body: "Notifications are working."),
+            kind: .test
         )
     }
 
@@ -412,6 +413,13 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     private func configureNotifications() {
         let notificationCenter = UNUserNotificationCenter.current()
         notificationCenter.delegate = self
+        // Shown under the banner's Options control and as buttons once it is expanded.
+        notificationCenter.setNotificationCategories([UNNotificationCategory(
+            identifier: Self.agentCategory,
+            actions: [UNNotificationAction(identifier: Self.openAction, title: "Open pane", options: [.foreground]),
+                      UNNotificationAction(identifier: Self.historyAction, title: "History", options: [.foreground])],
+            intentIdentifiers: []
+        )])
         notificationCenter.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
             Task { @MainActor in
                 if error != nil {
@@ -504,31 +512,54 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     ) {
         sendNotification(
             identifier: "aifleet-drain-\(UUID().uuidString)",
-            body: limitNotificationBody(
+            text: limitNotification(
                 providerName: providerName,
                 threshold: threshold,
                 windowLabel: windowLabel,
                 resetAt: resetAt
-            )
+            ),
+            kind: .quota
         ) {
             UserDefaults.standard.set(acceptedThresholds, forKey: notifiedThresholdsKey)
         }
     }
 
-    func sendAgentNotification(session: AgentSession, reason: AgentNotificationReason) {
-        let notification = reason.notification(for: session)
-        sendNotification(identifier: "aifleet-agent-\(UUID().uuidString)",
-                         title: notification.title, body: notification.body, agentSessionID: session.id)
+    func sendAgentNotification(_ alert: AgentAlert) {
+        // One live banner per session: a newer event replaces the older one. Banners stack by project.
+        sendNotification(
+            identifier: Self.agentIdentifier(alert.session.id),
+            text: alert.text(showText: AppSettings.shared.agentNotificationsShowText),
+            kind: .agent,
+            sound: alert.reason.needsYou ? "Funk.aiff" : "Glass.aiff",
+            thread: alert.session.project,
+            userInfo: [Self.agentSessionKey: alert.session.id, Self.alertKey: alert.id]
+        )
     }
 
+    /// Withdraws alerts the user has dealt with from the screen and Notification Center.
+    func removeAgentNotifications(sessionIDs: [String]) {
+        guard notificationsAvailable, !sessionIDs.isEmpty else { return }
+        UNUserNotificationCenter.current()
+            .removeDeliveredNotifications(withIdentifiers: sessionIDs.map(Self.agentIdentifier))
+    }
+
+    private static func agentIdentifier(_ sessionID: String) -> String { "aifleet-agent-\(sessionID)" }
+
+    enum NotificationKind: String { case agent, quota, test }
     private nonisolated static let agentSessionKey = "agentSessionID"
-    var openAgentSessionFromNotification: ((String) -> Void)?
+    private nonisolated static let alertKey = "alertID"
+    private nonisolated static let kindKey = "kind"
+    private nonisolated static let agentCategory = "aifleet.agent"
+    nonisolated static let openAction = "aifleet.open"
+    nonisolated static let historyAction = "aifleet.history"
+    var onNotificationAction: ((FleetNotificationAction) -> Void)?
 
     private func sendNotification(
-        identifier: String, title: String = "AI Fleet", body: String,
-        agentSessionID: String? = nil, onAccepted: (() -> Void)? = nil
+        identifier: String, text: FleetNotificationText, kind: NotificationKind,
+        sound: String? = nil, thread: String? = nil, userInfo: [String: String] = [:],
+        onAccepted: (() -> Void)? = nil
     ) {
-        let isAgentAlert = agentSessionID != nil
+        let isAgentAlert = kind == .agent
         guard notificationsAvailable else {
             if !isAgentAlert { lastError = "Notifications unavailable" }
             return
@@ -545,10 +576,14 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 }
 
                 let content = UNMutableNotificationContent()
-                content.title = title
-                content.body = body
-                content.sound = .default
-                if let agentSessionID { content.userInfo = [Self.agentSessionKey: agentSessionID] }
+                content.title = text.title
+                content.subtitle = text.subtitle
+                content.body = text.body
+                // System sounds by file name; an unknown name falls back to the default sound.
+                content.sound = sound.map { UNNotificationSound(named: UNNotificationSoundName($0)) } ?? .default
+                if let thread { content.threadIdentifier = thread }
+                if isAgentAlert { content.categoryIdentifier = Self.agentCategory }
+                content.userInfo = userInfo.merging([Self.kindKey: kind.rawValue]) { current, _ in current }
                 let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
                 do {
                     try await notificationCenter.add(request)
@@ -574,15 +609,37 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
-              let sessionID = response.notification.request.content.userInfo[Self.agentSessionKey] as? String,
-              !sessionID.isEmpty else {
+        let info = response.notification.request.content.userInfo
+        guard let action = Self.notificationAction(
+            identifier: response.actionIdentifier, kind: info[Self.kindKey] as? String,
+            sessionID: info[Self.agentSessionKey] as? String, alertID: info[Self.alertKey] as? String
+        ) else {
             completionHandler()
             return
         }
         Task { @MainActor in
-            self.openAgentSessionFromNotification?(sessionID)
+            self.onNotificationAction?(action)
             completionHandler()
+        }
+    }
+
+    /// Where a click leads: the banner and Open pane jump to the session, History opens Fleet's
+    /// alert history, a quota alert opens Providers. Dismissing does nothing.
+    nonisolated static func notificationAction(
+        identifier: String, kind: String?, sessionID: String?, alertID: String?
+    ) -> FleetNotificationAction? {
+        switch identifier {
+        case historyAction:
+            return .history(alertID)
+        case UNNotificationDefaultActionIdentifier, openAction:
+            if let sessionID, !sessionID.isEmpty { return .openSession(sessionID) }
+            switch kind.flatMap(NotificationKind.init(rawValue:)) {
+            case .quota: return .providers
+            case .test: return .menu
+            case .agent, nil: return nil
+            }
+        default:
+            return nil
         }
     }
 
@@ -999,19 +1056,30 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 }
 
-func limitNotificationBody(
+enum FleetNotificationAction: Equatable {
+    case openSession(String)
+    case history(String?)
+    case providers
+    case menu
+}
+
+/// Title names the account and the crossed threshold, the subtitle the window, the body the reset.
+func limitNotification(
     providerName: String,
     threshold: Int,
     windowLabel: String,
     resetAt: Date? = nil,
     now: Date = Date(),
     calendar: Calendar = .current
-) -> String {
-    let headline = "\(providerName) reached \(threshold)% threshold (\(windowLabel))."
-    guard let resetAt else { return headline }
+) -> FleetNotificationText {
+    func text(_ body: String) -> FleetNotificationText {
+        FleetNotificationText(title: "🪫 \(providerName) · \(threshold)% left",
+                              subtitle: "\(windowLabel) window", body: body)
+    }
+    guard let resetAt else { return text("Reset time unknown") }
 
     let seconds = resetAt.timeIntervalSince(now)
-    guard seconds > 0 else { return "\(headline)\nResets now." }
+    guard seconds > 0 else { return text("Resets now") }
 
     let totalMinutes = max(1, Int(ceil(seconds / 60)))
     let days = totalMinutes / (24 * 60)
@@ -1031,7 +1099,7 @@ func limitNotificationBody(
     formatter.calendar = calendar
     formatter.timeZone = calendar.timeZone
     formatter.dateFormat = "MMM d 'at' HH:mm"
-    return "\(headline)\nResets in \(relative) · \(formatter.string(from: resetAt))."
+    return text("Resets in \(relative) · \(formatter.string(from: resetAt))")
 }
 
 func notificationStateKeysToReset<S: Sequence>(_ keys: S) -> [String] where S.Element == String {

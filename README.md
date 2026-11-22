@@ -175,10 +175,18 @@ measurement with its time, and displays the next retry time.
 Settings lets you manage remaining-quota thresholds such as `50`, `25`, `10`,
 `5`, and `0` percent. Thresholds are sorted automatically, can be added or
 removed, and fire when a provider crosses that remaining percentage from above.
-Notifications identify the affected quota window, for example
-`Codex reached 5% threshold (7d).` Each threshold fires once per quota window and
-becomes eligible again after that window resets above it. When reset data is
-available, the next line includes both forms: `Resets in 2h 14m · Aug 24 at 06:00.`
+Notifications name the account, threshold and quota window, for example
+`🪫 Codex A · 5% left` over `7d window`. Each threshold fires once per quota
+window and becomes eligible again after that window resets above it. When reset
+data is available, the body includes both forms: `Resets in 2h 14m · Aug 24 at 06:00`.
+
+**Agent session alerts** lead with their type: `✋ Approval`, `💬 Question`,
+`⛔ Blocked` or `✅ Done`, followed by the session name, then one line with the
+project, tab and provider. Click an alert to open that exact iTerm2 pane, or
+expand it and choose **History** to see open alerts in the Agents tab. An alert
+disappears by itself once you open its session or the agent starts new work.
+**Show message text in alerts** adds the start of your request and the agent's
+reply; it is off by default because macOS stores notification text.
 
 The menu shows the remaining quota and reset time for each limit window.
 For Codex it intentionally shows only the main account limits; separate

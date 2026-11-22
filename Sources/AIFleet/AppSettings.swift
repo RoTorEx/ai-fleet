@@ -63,6 +63,10 @@ final class AppSettings: ObservableObject {
     @Published var agentNotificationsEnabled: Bool {
         didSet { defaults.set(agentNotificationsEnabled, forKey: "notify.agentSessions.enabled") }
     }
+    /// Off by default: macOS stores notification text and can show it on the lock screen.
+    @Published var agentNotificationsShowText: Bool {
+        didSet { defaults.set(agentNotificationsShowText, forKey: "notify.agentSessions.showText") }
+    }
     @Published var menuClosesOnOutsideClick: Bool {
         didSet { defaults.set(menuClosesOnOutsideClick, forKey: "menu.closesOnOutsideClick") }
     }
@@ -91,6 +95,7 @@ final class AppSettings: ObservableObject {
         let storedStep = defaults.integer(forKey: "notify.stepPercent")
         notifyStepPercent = storedStep > 0 ? storedStep : 10
         agentNotificationsEnabled = defaults.bool(forKey: "notify.agentSessions.enabled")
+        agentNotificationsShowText = defaults.bool(forKey: "notify.agentSessions.showText")
         menuClosesOnOutsideClick = defaults.object(forKey: "menu.closesOnOutsideClick") as? Bool ?? true
         analyticsAutoRefreshEnabled = defaults.object(forKey: "analytics.autoRefresh.enabled") as? Bool ?? true
         if defaults.object(forKey: "analytics.autoRefresh.minutes") != nil {
