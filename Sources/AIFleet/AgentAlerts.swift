@@ -58,32 +58,15 @@ struct AgentAlert: Identifiable, Equatable {
         ["\(reason.glyph) \(session.provider.capitalized)", projectName].compactMap { $0 }.joined(separator: " · ")
     }
 
-    /// Where to look, as the last line: the window when the user named it, the tab, the pane for a
-    /// split, then the project path. A click already opens the exact pane, so this is a reference.
+    /// Where to look, as the last line: the window when the user named it, the tab and the pane
+    /// for a split. A click already opens the exact pane, so this is a reference; the project is
+    /// in the title and is not repeated here.
     var place: String? {
-        var spot: String?
-        if let pane = session.location {
-            var tab = "tab \(pane.tab_index + 1)"
-            if pane.pane_index > 0 { tab += " · pane \(pane.pane_index + 1)" }
-            let window = pane.window.trimmingCharacters(in: .whitespaces)
-            spot = pane.window_named == true && !window.isEmpty ? "\(window) — \(tab)" : tab
-        }
-        let room = max(12, Self.lineWidth - (spot.map { $0.count + 3 } ?? 0))
-        let parts = [spot, Self.path(session.project, room: room)].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    /// The project path relative to home, shortened from the left until it fits beside the tab.
-    static func path(_ project: String, room: Int, home: String = NSHomeDirectory()) -> String? {
-        guard !project.isEmpty, project != "/" else { return nil }
-        let shown = project == home ? "~" : project.hasPrefix(home + "/") ? "~" + project.dropFirst(home.count) : project
-        guard shown.count > room else { return shown }
-        let folders = shown.split(separator: "/")
-        for keep in stride(from: folders.count - 1, to: 0, by: -1) {
-            let short = "…/" + folders.suffix(keep).joined(separator: "/")
-            if short.count <= room || keep == 1 { return short }
-        }
-        return shown
+        guard let pane = session.location else { return nil }
+        var tab = "tab \(pane.tab_index + 1)"
+        if pane.pane_index > 0 { tab += " · pane \(pane.pane_index + 1)" }
+        let window = pane.window.trimmingCharacters(in: .whitespaces)
+        return pane.window_named == true && !window.isEmpty ? "\(window) — \(tab)" : tab
     }
 
     /// Captured text as a dialogue, each turn its own paragraph. A finished reply answers a

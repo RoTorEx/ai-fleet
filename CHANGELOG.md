@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Drop the project path from the last line of an alert; the project already stands in the title. The line is now the window and tab, for example `Personal AI — tab 8`.
+
 ## [1.6.2] - 2026-11-22
 
 - Alert for Kimi Code when a turn finishes (✅) or stops on a provider error such as an exhausted quota (⛔, with the error line). Kimi sessions had no idle state and only ever alerted for approvals.

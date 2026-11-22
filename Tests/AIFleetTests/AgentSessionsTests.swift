@@ -86,21 +86,10 @@ final class AgentSessionsTests: XCTestCase {
         let text = try alert(.replyReady).text(showText: false)
         XCTAssertEqual(text.title, "✅ Codex · Thira", "The glyph is the type; no type word")
         XCTAssertEqual(text.subtitle, "Fix sign-in")
-        XCTAssertEqual(text.body, "tab 3 · /work/Thira", "An unnamed window only mirrors its active session, so it is not shown")
-        XCTAssertEqual(try alert(.question, pane: 1, namedWindow: true).text(showText: false).body,
-                       "Work — tab 3 · pane 2 · /work/Thira")
-        let home = try alert(.approval, project: NSHomeDirectory()).text(showText: false)
-        XCTAssertEqual(home.title, "✋ Codex", "The home folder is no project")
-        XCTAssertEqual(home.body, "tab 3 · ~")
-    }
-
-    func testProjectPathIsHomeRelativeAndShortenedFromTheLeftToFitTheLine() {
-        let path = { AgentAlert.path($0, room: $1, home: "/Users/me") }
-        XCTAssertEqual(path("/Users/me/code/tools/fleet", 30), "~/code/tools/fleet")
-        XCTAssertEqual(path("/Users/me/code/tools/fleet", 14), "…/tools/fleet")
-        XCTAssertEqual(path("/Users/me/code/tools/fleet", 4), "…/fleet", "The repository folder always survives")
-        XCTAssertEqual(path("/Users/me", 30), "~")
-        XCTAssertNil(path("", 30))
+        XCTAssertEqual(text.body, "tab 3", "An unnamed window only mirrors its active session, so it is not shown")
+        XCTAssertEqual(try alert(.question, pane: 1, namedWindow: true).text(showText: false).body, "Work — tab 3 · pane 2")
+        XCTAssertEqual(try alert(.approval, project: NSHomeDirectory()).text(showText: false).title, "✋ Codex",
+                       "The home folder is no project")
     }
 
     func testAlertNameFallsBackToTheTabTitleAndIsOmittedWhenItSaysNoMoreThanTheProject() throws {
@@ -129,7 +118,7 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertLessThanOrEqual(done[0].count, AgentAlert.lineWidth, "A little of the request: one line")
         XCTAssertTrue(done[1].hasPrefix("🤖: Result Done with make check. detail"), done[1])
         XCTAssertLessThanOrEqual(done[1].count, AgentAlert.dialogueReplyLimit + 5)
-        XCTAssertEqual(done[2], "tab 3 · /work/Thira")
+        XCTAssertEqual(done[2], "tab 3")
 
         for reason in [AgentNotificationReason.question, .blocked, .approval] {
             let alone = try alert(reason, text: fields).text(showText: true).body.components(separatedBy: "\n\n")
@@ -140,9 +129,8 @@ final class AgentSessionsTests: XCTestCase {
         // Ten open lines: one request line, the reply, the place and two blank lines.
         XCTAssertLessThanOrEqual(AgentAlert.dialogueReplyLimit + 5, 6 * AgentAlert.lineWidth)
         XCTAssertLessThanOrEqual(AgentAlert.replyLimit + 5, 8 * AgentAlert.lineWidth)
-        XCTAssertEqual(try alert(.replyReady, text: fields).text(showText: false).body, "tab 3 · /work/Thira",
-                       "The switch keeps session text out")
-        XCTAssertEqual(try alert(.approval).text(showText: true).body, "tab 3 · /work/Thira", "No bound transcript leaves only the place")
+        XCTAssertEqual(try alert(.replyReady, text: fields).text(showText: false).body, "tab 3", "The switch keeps session text out")
+        XCTAssertEqual(try alert(.approval).text(showText: true).body, "tab 3", "No bound transcript leaves only the place")
     }
 
     func testAlertStaysUntilItsSessionIsOpenedMovesOnOrEnds() throws {

@@ -117,7 +117,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 
 <div class="top">
   <div>
-    <span class="pill ok">Revision 4 · accepted 2026-11-22</span>
+    <span class="pill ok">Revision 4 · accepted 2026-11-22 · place without path</span>
     <h1 style="margin-top:12px">Notification design</h1>
     <p class="lead">One scheme for every alert, sized to what a macOS banner really shows. Everything you need is in the notification; nothing sends you into Fleet to read it.</p>
   </div>
@@ -146,7 +146,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 
           🤖: {agent's reply}
 
-          {Window} — tab {n} · {project path}
+          {Window} — tab {n}
 <i>          paragraphs with a blank line between;</i>
 <i>          a question, blocker or approval is 🤖 alone.</i>
 <i>          Quota: the reset time, no dialogue</i></div>
@@ -158,7 +158,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
         <tr><td>Subtitle</td><td>session name</td><td><code>5h window</code></td></tr>
         <tr><td>Body</td><td><code>👤:</code> request, <code>🤖:</code> reply, then the place</td><td>reset time</td></tr>
       </table>
-      <p class="note" style="margin-top:10px">The project folder follows the provider and is dropped when it is the home folder. The place is the last paragraph: the window name when you named the window (an unnamed one only mirrors its active session), the tab, the pane for a split, then the project path relative to home, shortened from the left to stay on one line: <code>Personal AI — tab 8 · ~</code>, <code>tab 3 · …/dev-tools/ai-fleet</code>.</p>
+      <p class="note" style="margin-top:10px">The project folder follows the provider and is dropped when it is the home folder. The place is the last paragraph: the window name when you named the window (an unnamed one only mirrors its active session), then the tab and the pane for a split: <code>Personal AI — tab 8</code>, <code>tab 3 · pane 2</code>. The project is not repeated there: it stands in the title.</p>
     </div>
   </div>
 </section>
@@ -212,7 +212,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
     <div class="panel">
       <h3 style="margin-bottom:10px">Decided 2026-11-22</h3>
       <ol class="dec">
-        <li><b>Scheme:</b> glyph, provider and project in the title; the name on its own line; the place as the last paragraph: named window, tab, project path.</li>
+        <li><b>Scheme:</b> glyph, provider and project in the title; the name on its own line; the place as the last paragraph: named window and tab.</li>
         <li><b>Text on by default,</b> as a dialogue with air: <code>👤:</code> one request line, <code>🤖:</code> the reply, blank lines between. Needs-you alerts carry the agent alone.</li>
         <li><b>No buttons, no History list in Fleet.</b> A click on the banner opens the pane; the list only repeated the banner inside the app.</li>
         <li><b>Quota glyph by level:</b> 🔋 above 25% left, 🪫 at and below.</li>
@@ -228,14 +228,14 @@ const GLYPH = { approval: '✋', question: '💬', blocked: '⛔', done: '✅' }
 const S = {
   done: { type: 'done', provider: 'Claude', name: 'Restructure the harness and skills', home: true, tab: 4, window: 'Personal AI',
     request: 'Fold the approval rules into one kernel rule and list what each client supports',
-    reply: 'Done. The kernel now holds one short approval rule and guides/approvals.md has the step format with a table per client. Locks are set where the client supports them; I checked each against its documentation. Two trial runs on the training project passed, the third needs your token.', path: '~' },
-  approval: { type: 'approval', provider: 'Codex', name: 'Check BMW 90 documents', home: true, tab: 1, window: 'Personal AI', path: '~',
+    reply: 'Done. The kernel now holds one short approval rule and guides/approvals.md has the step format with a table per client. Locks are set where the client supports them; I checked each against its documentation. Two trial runs on the training project passed, the third needs your token.' },
+  approval: { type: 'approval', provider: 'Codex', name: 'Check BMW 90 documents', home: true, tab: 1, window: 'Personal AI',
     request: 'Prepare the USB drive for the map update',
     reply: 'The activation code is ready. Next I want to write config.nfm to the mounted USB DISK volume; nothing else on the drive changes.' },
-  question: { type: 'question', provider: 'Claude', name: 'jump-latency', project: 'ai-fleet', tab: 2, pane: 2, path: '…/dev-tools/ai-fleet',
+  question: { type: 'question', provider: 'Claude', name: 'jump-latency', project: 'ai-fleet', tab: 2, pane: 2,
     request: 'Find out why Jump sometimes takes 3+ seconds on the first click',
     reply: 'Should I pre-warm the helper when the menu opens, or keep one warm helper for the whole app lifetime? The first Jump pays for a cold helper start (about 2.8 s); later ones reuse it.' },
-  blocked: { type: 'blocked', provider: 'Codex', name: 'release-notes', project: 'hop', tab: 5, path: '~/code/hop',
+  blocked: { type: 'blocked', provider: 'Codex', name: 'release-notes', project: 'hop', tab: 5,
     request: 'Draft release notes for v0.9 from the merged PRs',
     reply: 'I cannot continue: gh is not authenticated in this shell (HTTP 401), so I cannot read the merged PR list. Run gh auth login and tell me to retry.' },
 };
@@ -248,7 +248,7 @@ function clip(text, limit) {
 }
 const place = s => {
   const tab = 'tab ' + s.tab + (s.pane ? ' · pane ' + s.pane : '');
-  return [s.window ? `${s.window} — ${tab}` : tab, s.path].filter(Boolean).join(' · ');
+  return s.window ? `${s.window} — ${tab}` : tab;
 };
 /** The rule: one function, every session alert. */
 function compose(s, o = {}) {
@@ -281,7 +281,7 @@ put('c3', stack([
   ['', banner(quota('Claude γ', 90, '7d (Fable)', 'Resets in 6d 20h · Nov 29 at 11:59'))],
   ['', banner(quota('Codex A', 10, '5h', 'Resets in 2h 10m · Nov 22 at 18:30'))],
   ['', banner({ title: '🔔 AI Fleet · test', body: 'Notifications are working.' })],
-  ['Text off, or Kimi', banner(compose({ type: 'approval', provider: 'Kimi', name: 'kimi-spike', project: 'demio', tab: 2, path: '~/code/demio' }))],
+  ['Text off, or Kimi', banner(compose({ type: 'approval', provider: 'Kimi', name: 'kimi-spike', project: 'demio', tab: 2 }))],
   ['No session name', banner({ ...compose({ ...S.blocked, name: '' }), subtitle: '' })],
   ['Named window, long name', banner(compose({ ...S.question, window: 'backend', name: 'migrate-statistics-storage-to-sqlite-and-backfill' }), true)],
 ]));

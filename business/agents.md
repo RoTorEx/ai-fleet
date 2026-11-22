@@ -156,13 +156,12 @@ banner shows the request and the first reply line, an open one shows it all.
 Markdown marks are dropped and whitespace collapsed.
 
 The place is the last paragraph, out of the header because a click already
-opens the exact pane: `Personal AI — tab 8 · ~`. It names the window only when
-the user named it; an unnamed iTerm2 window shows the title of whichever session
-is active, which would point at the wrong session. The engine tells the two
-apart by comparing the window title with its active tab and session. Then come
-the tab number, the pane number for a split, and the project path relative to
-home, shortened from the left so the line stays whole; the repository folder
-always survives.
+opens the exact pane: `Personal AI — tab 8`. It names the window only when the
+user named it; an unnamed iTerm2 window shows the title of whichever session is
+active, which would point at the wrong session. The engine tells the two apart
+by comparing the window title with its active tab and session. Then come the tab
+number and the pane number for a split. The project path was tried there in
+1.6.2 and removed: the project already stands in the title.
 
 **Show message text in alerts** is on by default: without the text an alert says
 only that something happened, and the switch went unnoticed while it was off.

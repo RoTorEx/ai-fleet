@@ -31,16 +31,16 @@ show() {
   case "$1" in
     approval) agent "✋ Codex" "Check BMW 90 documents" \
       "🤖: The activation code is ready. Next I want to write config.nfm to the mounted USB DISK volume; nothing else on the drive changes." \
-      "Personal AI — tab 1 · ~" ;;
+      "Personal AI — tab 1" ;;
     question) agent "💬 Claude · ai-fleet" "jump-latency" \
       "🤖: Should I pre-warm the helper when the menu opens, or keep one warm helper for the whole app lifetime? The first Jump pays for a cold helper start (about 2.8 s); later ones reuse it." \
-      "tab 2 · pane 2 · …/dev-tools/ai-fleet" ;;
+      "tab 2 · pane 2" ;;
     blocked) agent "⛔ Codex · hop" "release-notes" \
       "🤖: I cannot continue: gh is not authenticated in this shell (HTTP 401), so I cannot read the merged PR list. Run gh auth login and tell me to retry." \
-      "tab 5 · ~/code/hop" ;;
+      "tab 5" ;;
     done) agent "✅ Claude" "Restructure the harness and skills" \
       "👤: Fold the approval rules into…"$'\n\n'"🤖: Done. The kernel now holds one short approval rule and guides/approvals.md has the step format with a table per client. Locks are set where the client supports them; I checked each…" \
-      "Personal AI — tab 4 · ~" ;;
+      "Personal AI — tab 4" ;;
     quota) notify "🪫 Codex A · 10% left" "5h window" "Resets in 2h 10m · Nov 22 at 18:30" ;;
     test) notify "🔔 AI Fleet · test" "" "Notifications are working." ;;
     *) echo "Unknown type: $1 (use approval, question, blocked, done, quota or test)" >&2; exit 2 ;;
