@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Recognize idle Claude Code sessions whose footer shows the permission-mode line (for example `auto mode on`) instead of the shortcuts hint. They were reported as Unknown, so a finished Claude session raised no Done alert.
+
 ## [1.5.0] - 2026-11-22
 
 - Add opt-in macOS alerts when an iTerm2 agent finishes a reply or needs input, including while the Fleet menu is closed. Click an alert to jump to the exact pane.
