@@ -6,6 +6,8 @@ import Darwin
 struct AgentPane: Decodable, Equatable {
     let id: String
     let window: String
+    /// The user named the window; otherwise its title only mirrors the active session.
+    var window_named: Bool?
     let tab: String?
     let tab_index: Int
     let pane_index: Int
@@ -388,7 +390,6 @@ final class AgentSessionsService: ObservableObject {
                 if self.sessions != sessions { self.sessions = sessions }
                 observedAt = reply.observedAt.map(Date.init(timeIntervalSince1970:))
                 let fired = late ? [] : notificationTracker?.observe(sessions, now: Date()) ?? []
-                let namesWindow = Set(sessions.compactMap { $0.location?.window }).count > 1
                 // Alerts fired by this snapshot are judged from the next one, so a reply that lands in
                 // the pane being watched still sounds before it leaves.
                 let firing = Set(fired.map(\.0.id))
@@ -400,8 +401,7 @@ final class AgentSessionsService: ObservableObject {
                 let retired = over.filter { !firing.contains($0) }
                 if !retired.isEmpty { onAlertsRetired?(retired) }
                 for (session, reason) in fired {
-                    let alert = AgentAlert(id: UUID().uuidString, session: session, reason: reason,
-                                           namesWindow: namesWindow, date: Date())
+                    let alert = AgentAlert(id: UUID().uuidString, session: session, reason: reason, date: Date())
                     alerts.insert(alert, at: 0)
                     notificationHandler?(alert)
                 }

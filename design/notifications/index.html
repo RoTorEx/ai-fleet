@@ -117,7 +117,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 
 <div class="top">
   <div>
-    <span class="pill ok">Revision 3 · accepted 2026-11-22</span>
+    <span class="pill ok">Revision 4 · accepted 2026-11-22</span>
     <h1 style="margin-top:12px">Notification design</h1>
     <p class="lead">One scheme for every alert, sized to what a macOS banner really shows. Everything you need is in the notification; nothing sends you into Fleet to read it.</p>
   </div>
@@ -142,20 +142,23 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 <i>          the glyph is the type; no type word</i>
 <i>SUBTITLE  </i>{session name | quota window}
 <i>          a whole bold line for the name</i>
-<i>BODY      </i>{agent's text}
-          › {your request}
-          {tab · pane · window}
-<i>          the place is the last line: out of sight</i>
-<i>          until the banner is open. Quota: reset time</i></div>
+<i>BODY      </i>👤: {your request, one line}
+
+          🤖: {agent's reply}
+
+          {Window} — tab {n} · {project path}
+<i>          paragraphs with a blank line between;</i>
+<i>          a question, blocker or approval is 🤖 alone.</i>
+<i>          Quota: the reset time, no dialogue</i></div>
     </div>
     <div class="panel">
       <table>
         <tr><th>Slot</th><th>Session</th><th>Quota</th></tr>
         <tr><td>Title</td><td><code>✅ Claude · ai-fleet</code></td><td><code>🪫 Codex A · 10% left</code></td></tr>
         <tr><td>Subtitle</td><td>session name</td><td><code>5h window</code></td></tr>
-        <tr><td>Body</td><td>agent's text, <code>›</code> request, then the place</td><td>reset time</td></tr>
+        <tr><td>Body</td><td><code>👤:</code> request, <code>🤖:</code> reply, then the place</td><td>reset time</td></tr>
       </table>
-      <p class="note" style="margin-top:10px">The project folder follows the provider and is dropped when it is the home folder. Tab, pane and window leave the header: a click already opens the exact pane, so the number is only a reference. It closes the open banner as <code>tab 4 · Personal AI</code>, with the pane for a split and the window only when sessions span several windows.</p>
+      <p class="note" style="margin-top:10px">The project folder follows the provider and is dropped when it is the home folder. The place is the last paragraph: the window name when you named the window (an unnamed one only mirrors its active session), the tab, the pane for a split, then the project path relative to home, shortened from the left to stay on one line: <code>Personal AI — tab 8 · ~</code>, <code>tab 3 · …/dev-tools/ai-fleet</code>.</p>
     </div>
   </div>
 </section>
@@ -185,7 +188,7 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 <section id="catalogue">
   <span class="num">3 · Every alert</span>
   <h2>Closed and open, on the real line budget</h2>
-  <p class="note">The agent's text leads in every type, because three closed lines must carry the news; your request and the place close the open banner. The reply is cut at 250 characters and the request at 70, so all three fit the ten lines.</p>
+  <p class="note">A finished reply answers a request, so Done is a dialogue: a little of your request on one line, then the reply, cut at 190 characters. A question, a blocker and an approval are the agent speaking alone, up to 250 characters. Blank lines are counted: the closed banner then shows the request and the first reply line.</p>
   <div class="desk" style="margin-top:14px">
     <div class="col"><div class="cap">Arrives</div><div id="c1"></div></div>
     <div class="col"><div class="cap">Open</div><div id="c2"></div></div>
@@ -193,35 +196,24 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
   </div>
 </section>
 
-<section id="alt">
-  <span class="num">4 · The one alternative</span>
-  <h2>Where the tab number goes</h2>
-  <div class="desk" style="margin-top:14px">
-    <div class="col"><div class="cap">A · recommended · last line when open</div><div id="a1"></div></div>
-    <div class="col"><div class="cap">B · not shown at all</div><div id="a2"></div></div>
-    <div class="col"><div class="cap">Before · in the title</div><div id="a3"></div></div>
-  </div>
-  <p class="note" style="margin-top:10px">A costs one of the ten open lines and nothing when closed. B gives that line back to the reply; the tab is then found only by clicking the banner.</p>
-</section>
-
 <section id="decide">
-  <span class="num">5 · Limits and decisions</span>
+  <span class="num">4 · Limits and decisions</span>
   <h2>What we accept, what was decided</h2>
   <div class="grid2" style="margin-top:14px">
     <div class="panel">
       <h3 style="margin-bottom:10px">Accepted limits</h3>
       <ol class="dec">
         <li><b>Ten lines is the ceiling.</b> A longer or styled view needs a notification content extension: a separate signed app extension that Fleet's build cannot produce today. Not taken.</li>
-        <li><b>No conversation history in a banner.</b> It holds one exchange: the agent's last text and your request. Notification Center keeps one entry per session.</li>
-        <li><b>Kimi has no text:</b> no bound transcript, so its alerts are title and subtitle only.</li>
+        <li><b>No conversation history in a banner.</b> It holds one exchange: your request and the agent's last text. Notification Center keeps one entry per session.</li>
+        <li><b>Kimi has no reply text:</b> no bound transcript, so Done carries only the place. A turn stopped by a provider error shows that error line.</li>
         <li><b>Approval cannot name the action yet:</b> it shows the agent's last message instead.</li>
       </ol>
     </div>
     <div class="panel">
       <h3 style="margin-bottom:10px">Decided 2026-11-22</h3>
       <ol class="dec">
-        <li><b>Scheme:</b> glyph, provider and project in the title; the name on its own line; tab and window as the last line of the open banner. <span class="rec">A.</span></li>
-        <li><b>Text on by default,</b> reply first, 250 + 70 characters. The lock-screen note stays beside the switch.</li>
+        <li><b>Scheme:</b> glyph, provider and project in the title; the name on its own line; the place as the last paragraph: named window, tab, project path.</li>
+        <li><b>Text on by default,</b> as a dialogue with air: <code>👤:</code> one request line, <code>🤖:</code> the reply, blank lines between. Needs-you alerts carry the agent alone.</li>
         <li><b>No buttons, no History list in Fleet.</b> A click on the banner opens the pane; the list only repeated the banner inside the app.</li>
         <li><b>Quota glyph by level:</b> 🔋 above 25% left, 🪫 at and below.</li>
       </ol>
@@ -236,14 +228,14 @@ const GLYPH = { approval: '✋', question: '💬', blocked: '⛔', done: '✅' }
 const S = {
   done: { type: 'done', provider: 'Claude', name: 'Restructure the harness and skills', home: true, tab: 4, window: 'Personal AI',
     request: 'Fold the approval rules into one kernel rule and list what each client supports',
-    reply: 'Done. The kernel now holds one short approval rule and guides/approvals.md has the step format with a table per client. Locks are set where the client supports them; I checked each against its documentation. Two trial runs on the training project passed, the third needs your token.' },
-  approval: { type: 'approval', provider: 'Codex', name: 'Check BMW 90 documents', home: true, tab: 1,
+    reply: 'Done. The kernel now holds one short approval rule and guides/approvals.md has the step format with a table per client. Locks are set where the client supports them; I checked each against its documentation. Two trial runs on the training project passed, the third needs your token.', path: '~' },
+  approval: { type: 'approval', provider: 'Codex', name: 'Check BMW 90 documents', home: true, tab: 1, window: 'Personal AI', path: '~',
     request: 'Prepare the USB drive for the map update',
     reply: 'The activation code is ready. Next I want to write config.nfm to the mounted USB DISK volume; nothing else on the drive changes.' },
-  question: { type: 'question', provider: 'Claude', name: 'jump-latency', project: 'ai-fleet', tab: 2, pane: 2,
+  question: { type: 'question', provider: 'Claude', name: 'jump-latency', project: 'ai-fleet', tab: 2, pane: 2, path: '…/dev-tools/ai-fleet',
     request: 'Find out why Jump sometimes takes 3+ seconds on the first click',
     reply: 'Should I pre-warm the helper when the menu opens, or keep one warm helper for the whole app lifetime? The first Jump pays for a cold helper start (about 2.8 s); later ones reuse it.' },
-  blocked: { type: 'blocked', provider: 'Codex', name: 'release-notes', project: 'hop', tab: 5,
+  blocked: { type: 'blocked', provider: 'Codex', name: 'release-notes', project: 'hop', tab: 5, path: '~/code/hop',
     request: 'Draft release notes for v0.9 from the merged PRs',
     reply: 'I cannot continue: gh is not authenticated in this shell (HTTP 401), so I cannot read the merged PR list. Run gh auth login and tell me to retry.' },
 };
@@ -254,15 +246,16 @@ function clip(text, limit) {
   const cut = t.slice(0, limit);
   return cut.slice(0, Math.max(cut.lastIndexOf(' '), limit - 20)).replace(/[\s,.;:]+$/, '') + '…';
 }
-const place = s => ['tab ' + s.tab, s.pane ? 'pane ' + s.pane : null, s.window].filter(Boolean).join(' · ');
-/** The proposed rule: one function, every session alert. */
+const place = s => {
+  const tab = 'tab ' + s.tab + (s.pane ? ' · pane ' + s.pane : '');
+  return [s.window ? `${s.window} — ${tab}` : tab, s.path].filter(Boolean).join(' · ');
+};
+/** The rule: one function, every session alert. */
 function compose(s, o = {}) {
   const head = [`${GLYPH[s.type]} ${s.provider}`, s.home ? null : s.project].filter(Boolean).join(' · ');
-  const text = o.text === false ? [] : [s.reply && clip(s.reply, o.place === 'none' ? 280 : 250), s.request && '› ' + clip(s.request, 70)].filter(Boolean);
-  // Before: the place sat in the title.
-  if (o.place === 'title') return { title: `${head} · ${place(s)}`, subtitle: s.name, body: text.join('\n') };
-  if (o.place !== 'none') text.push(place(s));
-  return { title: head, subtitle: s.name, body: text.join('\n') };
+  const request = o.text !== false && s.type === 'done' && s.request ? '👤: ' + clip(s.request, 32) : null;
+  const reply = o.text !== false && s.reply ? '🤖: ' + clip(s.reply, request ? 190 : 250) : null;
+  return { title: head, subtitle: s.name, body: [request, reply, place(s)].filter(Boolean).join('\n\n') };
 }
 const quota = (account, left, window, reset) =>
   ({ title: `${left > 25 ? '🔋' : '🪫'} ${account} · ${left}% left`, subtitle: `${window} window`, body: reset });
@@ -288,15 +281,10 @@ put('c3', stack([
   ['', banner(quota('Claude γ', 90, '7d (Fable)', 'Resets in 6d 20h · Nov 29 at 11:59'))],
   ['', banner(quota('Codex A', 10, '5h', 'Resets in 2h 10m · Nov 22 at 18:30'))],
   ['', banner({ title: '🔔 AI Fleet · test', body: 'Notifications are working.' })],
-  ['Text off, or Kimi', banner(compose({ type: 'approval', provider: 'Kimi', name: 'kimi-spike', project: 'demio', tab: 2 }))],
+  ['Text off, or Kimi', banner(compose({ type: 'approval', provider: 'Kimi', name: 'kimi-spike', project: 'demio', tab: 2, path: '~/code/demio' }))],
   ['No session name', banner({ ...compose({ ...S.blocked, name: '' }), subtitle: '' })],
-  ['Several windows, long name', banner(compose({ ...S.question, window: 'backend', name: 'migrate-statistics-storage-to-sqlite-and-backfill' }))],
+  ['Named window, long name', banner(compose({ ...S.question, window: 'backend', name: 'migrate-statistics-storage-to-sqlite-and-backfill' }), true)],
 ]));
-
-// 4 · The alternative.
-put('a1', banner(compose(S.done)) + banner(compose(S.done), true));
-put('a2', banner(compose(S.done, { place: 'none' })) + banner(compose(S.done, { place: 'none' }), true));
-put('a3', banner(compose(S.done, { place: 'title' })) + banner(compose(S.done, { place: 'title' }), true));
 
 const forced = new URLSearchParams(location.search).get('theme');
 if (forced) document.documentElement.dataset.theme = forced;

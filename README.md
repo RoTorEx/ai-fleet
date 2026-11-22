@@ -33,8 +33,8 @@ builds also need the current stable Rust toolchain. iTerm2 access may require
 macOS Automation permission; project metadata may require Documents access.
 
 Only local interactive sessions in iTerm2 are supported. Codex/Claude retain
-verified activity and transcript parsing. Kimi Code busy/approval markers
-have their own parser; missing markers remain Unknown. Qwen/Gemini/Grok remain
+verified activity and transcript parsing. Kimi Code has its own parser for
+busy, approval, finished and error screens; an unreadable screen stays Unknown. Qwen/Gemini/Grok remain
 Unknown, with their own filter rather than an invented Idle state. CLI updates
 that unlink an old executable no longer hide its still-running sessions.
 Activity indicators do not claim a task-completion percentage.
@@ -181,13 +181,14 @@ window and becomes eligible again after that window resets above it. When reset
 data is available, the body includes both forms: `Resets in 2h 14m · Aug 24 at 06:00`.
 
 **Agent session alerts** follow the same scheme: a type glyph (✋ approval,
-💬 question, ⛔ blocked, ✅ done), the provider and the project in the title, the
-session name on the next line, then the start of the agent's reply and of your
-request. Open a banner with its chevron to read up to ten lines; its last line
-names the tab. Click an alert to open that exact iTerm2 pane. An alert
-disappears by itself once you open its session or the agent starts new work.
-**Show message text in alerts** is on by default; turn it off to keep session
-text out of macOS notifications.
+💬 question, ⛔ blocked, ✅ done), the provider and the project in the title and
+the session name on the next line. The text reads as a short dialogue: `👤:` a
+line of your request, `🤖:` the start of the agent's reply. The last line says
+where: the window if you named it, the tab and the project path. Open a banner
+with its chevron to read up to ten lines. Click an alert to open that exact
+iTerm2 pane. An alert disappears by itself once you open its session or the
+agent starts new work. **Show message text in alerts** is on by default; turn
+it off to keep session text out of macOS notifications.
 
 The menu shows the remaining quota and reset time for each limit window.
 For Codex it intentionally shows only the main account limits; separate

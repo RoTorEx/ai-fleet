@@ -15,6 +15,9 @@ pub struct Pane {
     pub root_pid: u32,
     pub window_id: i64,
     pub window: String,
+    /// The user named this window; otherwise its title only mirrors the active session.
+    #[serde(default)]
+    pub window_named: bool,
     pub tab: String,
     pub tab_index: usize,
     pub pane_index: usize,

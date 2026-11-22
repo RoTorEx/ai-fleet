@@ -72,6 +72,14 @@ function operate(argv) {
     const ids=app.windows.tabs.sessions.id(), ttys=app.windows.tabs.sessions.tty();
     const names=app.windows.tabs.sessions.name(), titles=app.windows.tabs.title();
     const wins=app.windows.id(), winNames=app.windows.name();
+    // An unnamed window shows its active session's title; only a name the user gave says where to look.
+    const named=winNames.map(function(name, wi) {
+        if (!name) return false;
+        try {
+            const w=app.windows[wi];
+            return !w.currentTab().title().startsWith(name) && !w.currentSession().name().startsWith(name);
+        } catch (_) { return false; }
+    });
     const found=[];
     for (let wi=0; wi<ids.length; wi++) {
         for (let ti=0; ti<ids[wi].length; ti++) {
@@ -79,7 +87,7 @@ function operate(argv) {
                 const s=app.windows[wi].tabs[ti].sessions.byId(ids[wi][ti][pi]);
                 found.push({id:ids[wi][ti][pi], tty:ttys[wi][ti][pi],
                     root_pid:Number(variable(s,'pid')),
-                    window_id:wins[wi], window:winNames[wi], tab:titles[wi][ti],
+                    window_id:wins[wi], window:winNames[wi], window_named:named[wi], tab:titles[wi][ti],
                     tab_index:ti, pane_index:pi, name:names[wi][ti][pi]});
             }
         }

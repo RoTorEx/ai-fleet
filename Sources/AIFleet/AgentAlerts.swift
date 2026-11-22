@@ -24,16 +24,17 @@ extension AgentNotificationReason {
 
 /// A fired session alert and the text of its banner.
 struct AgentAlert: Identifiable, Equatable {
-    /// Reply, request and place together fit the ten body lines of an open banner.
+    /// An open banner has ten body lines of about 36 characters. A dialogue spends them on one
+    /// request line, six reply lines, the place and two blank lines; a lone reply gets eight.
+    static let requestLimit = 32
+    static let dialogueReplyLimit = 190
     static let replyLimit = 250
-    static let requestLimit = 70
+    static let lineWidth = 36
 
     let id: String
     /// The session as it was when the alert fired.
     let session: AgentSession
     let reason: AgentNotificationReason
-    /// Sessions spanned several iTerm2 windows, so the place line names the window.
-    let namesWindow: Bool
     let date: Date
 
     /// States that prove the session moved on: viewed in a frontmost pane, new work, or another request.
@@ -57,30 +58,48 @@ struct AgentAlert: Identifiable, Equatable {
         ["\(reason.glyph) \(session.provider.capitalized)", projectName].compactMap { $0 }.joined(separator: " · ")
     }
 
-    /// Tab, pane for a split, and the window while sessions span several. A click already opens
-    /// the exact pane, so this is a reference kept out of the header.
+    /// Where to look, as the last line: the window when the user named it, the tab, the pane for a
+    /// split, then the project path. A click already opens the exact pane, so this is a reference.
     var place: String? {
-        guard let pane = session.location else { return nil }
-        var parts = ["tab \(pane.tab_index + 1)"]
-        if pane.pane_index > 0 { parts.append("pane \(pane.pane_index + 1)") }
-        if namesWindow, let window = meaningful(pane.window), window.lowercased() != "iterm2", window != name {
-            parts.append(window)
+        var spot: String?
+        if let pane = session.location {
+            var tab = "tab \(pane.tab_index + 1)"
+            if pane.pane_index > 0 { tab += " · pane \(pane.pane_index + 1)" }
+            let window = pane.window.trimmingCharacters(in: .whitespaces)
+            spot = pane.window_named == true && !window.isEmpty ? "\(window) — \(tab)" : tab
         }
-        return parts.joined(separator: " · ")
+        let room = max(12, Self.lineWidth - (spot.map { $0.count + 3 } ?? 0))
+        let parts = [spot, Self.path(session.project, room: room)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    /// Captured text: the agent's reply leads because the closed banner shows three lines and
-    /// they must carry the news. Empty for providers without a transcript.
+    /// The project path relative to home, shortened from the left until it fits beside the tab.
+    static func path(_ project: String, room: Int, home: String = NSHomeDirectory()) -> String? {
+        guard !project.isEmpty, project != "/" else { return nil }
+        let shown = project == home ? "~" : project.hasPrefix(home + "/") ? "~" + project.dropFirst(home.count) : project
+        guard shown.count > room else { return shown }
+        let folders = shown.split(separator: "/")
+        for keep in stride(from: folders.count - 1, to: 0, by: -1) {
+            let short = "…/" + folders.suffix(keep).joined(separator: "/")
+            if short.count <= room || keep == 1 { return short }
+        }
+        return shown
+    }
+
+    /// Captured text as a dialogue, each turn its own paragraph. A finished reply answers a
+    /// request, so both are shown; a question, blocker or approval is the agent speaking alone.
+    /// Empty for providers without a transcript.
     var lines: [String] {
-        [clipped(session.answer, limit: Self.replyLimit),
-         clipped(session.request, limit: Self.requestLimit).map { "› \($0)" }].compactMap { $0 }
+        let request = reason == .replyReady ? clipped(session.request, limit: Self.requestLimit) : nil
+        let reply = clipped(session.answer, limit: request == nil ? Self.replyLimit : Self.dialogueReplyLimit)
+        return [request.map { "👤: \($0)" }, reply.map { "🤖: \($0)" }].compactMap { $0 }
     }
 
     /// Title: glyph, provider, project. Subtitle: the session name on its own bold line.
-    /// Body: reply, request, then the place as the last line.
+    /// Body: the dialogue, then the place, with a blank line between paragraphs.
     func text(showText: Bool) -> FleetNotificationText {
         let body = (showText ? lines : []) + [place].compactMap { $0 }
-        return FleetNotificationText(title: title, subtitle: name ?? "", body: body.joined(separator: "\n"))
+        return FleetNotificationText(title: title, subtitle: name ?? "", body: body.joined(separator: "\n\n"))
     }
 
     /// The home folder is where sessions start by default, so it identifies nothing.

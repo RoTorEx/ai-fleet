@@ -212,6 +212,7 @@ mod tests {
             root_pid: 7,
             window_id: 1,
             window: String::new(),
+            window_named: false,
             tab: String::new(),
             tab_index: 0,
             pane_index: 0,

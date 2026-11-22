@@ -156,8 +156,24 @@ pub fn parse(text: &str, provider: Provider) -> Content {
         reasoning: metadata(text, "reasoning").or_else(|| metadata(text, "effort")),
     }
 }
-/// Kimi Code 0.39.x: chrome is distinct from response text and thinking configuration.
+/// What a Kimi Code screen shows. It has no bound transcript, so its visible response stands in
+/// as reply evidence and a trailing provider error as the reason it stopped.
+#[derive(Default)]
+pub struct Kimi {
+    pub state: &'static str,
+    /// Response rows above the status row; empty unless the state is known.
+    pub screen: String,
+    pub error: Option<String>,
+}
 fn kimi_state(text: &str) -> &'static str {
+    kimi(text).state
+}
+/// Kimi Code 0.39.x: chrome is distinct from response text and thinking configuration.
+pub fn kimi(text: &str) -> Kimi {
+    let state = |state| Kimi {
+        state,
+        ..Kimi::default()
+    };
     let lines: Vec<_> = text
         .lines()
         .rev()
@@ -177,7 +193,7 @@ fn kimi_state(text: &str) -> &'static str {
         )
     };
     if lines.iter().filter(|line| choice(line)).count() >= 2 {
-        return "Needs approval";
+        return state("Needs approval");
     }
     let border = |line: &&str| {
         line.chars().count() >= 8
@@ -192,10 +208,10 @@ fn kimi_state(text: &str) -> &'static str {
         .map(|(index, _)| index)
         .collect();
     let Some(&bottom) = borders.last() else {
-        return "Live · activity unknown";
+        return state("Live · activity unknown");
     };
     let Some(&top) = borders.iter().rev().nth(1) else {
-        return "Live · activity unknown";
+        return state("Live · activity unknown");
     };
     // Require the actual editor frame and the model/mode footer below it.
     // A prose quote or a model's configured thinking effort is not live work.
@@ -208,7 +224,7 @@ fn kimi_state(text: &str) -> &'static str {
                     .is_some_and(|s| matches!(s, "auto" | "yolo" | "plan" | "swarm" | "tower"))
         });
     if !chrome {
-        return "Live · activity unknown";
+        return state("Live · activity unknown");
     }
     let active = lines[..top].iter().any(|line| {
         let mut chars = line.chars();
@@ -227,10 +243,42 @@ fn kimi_state(text: &str) -> &'static str {
             && (tail.trim_start().starts_with("thinking...")
                 || tail.trim_start().starts_with("working..."))
     });
+    // The working marker sits on the row above the Todo block, or above the editor without one.
+    let separator = borders
+        .iter()
+        .rev()
+        .nth(2)
+        .copied()
+        .filter(|&i| i + 1 == top || lines.get(i + 1).is_some_and(|line| *line == "Todo"));
+    let reply = &lines[..separator.unwrap_or(top)];
+    // Without a visible separator, rows of bullets alone may be the tail of a tall Todo list with
+    // the marker row scrolled off. Then nothing proves the turn is over.
+    let marker_row_visible = match separator {
+        Some(row) => row > 0,
+        None => reply
+            .iter()
+            .any(|line| !line.is_empty() && !line.starts_with(['●', '○', '✓'])),
+    };
     if active {
-        "Working"
-    } else {
-        "Live · activity unknown"
+        return state("Working");
+    }
+    if !marker_row_visible {
+        return state("Live · activity unknown");
+    }
+    let shown: Vec<_> = reply.iter().filter(|line| !line.is_empty()).collect();
+    Kimi {
+        state: "Waiting for input",
+        screen: shown
+            .iter()
+            .map(|line| **line)
+            .collect::<Vec<_>>()
+            .join("\n"),
+        error: shown
+            .iter()
+            .rev()
+            .take(6)
+            .find(|line| line.starts_with("Error: ["))
+            .map(|line| (**line).to_owned()),
     }
 }
 
@@ -268,7 +316,8 @@ mod tests {
         );
         assert_eq!(
             parse(&screen("quoted 🌑 work\n> ⠋ thinking..."), Provider::Kimi).state,
-            "Live · activity unknown"
+            "Waiting for input",
+            "A quoted marker is not live work, and the marker row is in sight"
         );
         assert_eq!(
             parse("🌑\nno editor", Provider::Kimi).state,
@@ -285,6 +334,34 @@ mod tests {
             )
             .state,
             "Needs approval"
+        );
+        // Taken from a session that stopped on its usage limit, Todo block above the editor.
+        let stopped = kimi(&screen(
+            "● Ran a command\n  ALL_CHECKS_PASSED\n  Error: [provider.api_error] 429 You've reached your 5-hour usage limit.\n  If this persists, run `/export-debug-zip`.\n\n──────────────────\n  Todo\n  ● Check the patches\n  ○ Prepare the package",
+        ));
+        assert_eq!(stopped.state, "Waiting for input");
+        assert!(
+            stopped.screen.ends_with("run `/export-debug-zip`."),
+            "The Todo block is not response text"
+        );
+        assert_eq!(
+            stopped.error.as_deref(),
+            Some("Error: [provider.api_error] 429 You've reached your 5-hour usage limit.")
+        );
+        assert_eq!(
+            kimi(&screen(
+                "● Check the patches\n○ Prepare the package\n✓ Read the report"
+            ))
+            .state,
+            "Live · activity unknown",
+            "Todo items alone may hide the marker row above the sample"
+        );
+        assert_eq!(
+            kimi(&screen(
+                "🌖 Working\n──────────────────\n  Todo\n  ● Check the patches"
+            ))
+            .state,
+            "Working"
         );
         let content = parse(&screen("🌑"), Provider::Kimi);
         assert!(

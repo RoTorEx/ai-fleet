@@ -3,8 +3,9 @@
 A private executable bundled in `Contents/MacOS` and built for each release
 architecture. It discovers running interactive Codex, Claude, Kimi, Qwen, Gemini
 and Grok sessions in iTerm2, selects an exact pane on request (Jump) and reads
-activity. Activity parsing is verified for Codex and Claude, and for Kimi work
-and approvals; other providers keep an explicit Unknown state.
+activity. Activity parsing is verified for Codex and Claude, and for Kimi work,
+approvals, finished turns and provider errors; other providers keep an explicit
+Unknown state.
 
 All of it is Fleet code and is changed here directly:
 

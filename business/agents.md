@@ -53,9 +53,12 @@ Local interactive Codex, Claude, Kimi, Qwen, Gemini and Grok sessions in iTerm2
 are discoverable and support exact-pane Jump. SSH, tmux, GUI conversations and
 other terminals remain outside this reader. Codex/Claude retain their verified
 terminal-state and transcript parsers. Kimi Code 0.39.x uses its own moon/braille Working markers and explicit approval
-choices, gated by native editor/footer chrome for work. Missing/offscreen markers
-stay Unknown rather than implying Idle. Thinking-effort configuration does not
-mean Working. Kimi transcript messages are not inferred. Qwen/Gemini/Grok remain
+choices, gated by native editor/footer chrome for work. With that chrome on
+screen and no marker on its row (above the Todo block, or above the editor
+without one) the session is Idle. When that row is out of the sampled screen,
+because only Todo items are visible, the state stays Unknown rather than
+implying Idle. Thinking-effort configuration does not mean Working. Kimi
+transcript messages are not inferred. Qwen/Gemini/Grok remain
 explicitly Unknown without borrowed status or transcript data; Unknown has its own filter and is
 never counted as Idle. Running sessions are independent of quota-provider
 visibility settings. Activity,
@@ -99,8 +102,9 @@ reply after work, or when a session newly requests approval, asks a question,
 or reports a blocker. Each session starts from a silent baseline, including
 after enabling alerts, app restart or a scan interruption. Cached samples and
 repeated waiting states stay quiet. CLI exit and long-running work generate no
-alert. Codex and Claude use the existing heuristic activity reader. Kimi can
-notify for recognized approvals. Short events between samples may be missed.
+alert. Codex and Claude use the existing heuristic activity reader. Kimi
+notifies for recognized approvals, for a finished turn and for a turn that
+stopped on a provider error. Short events between samples may be missed.
 
 For Codex the reader also takes the status Codex writes into its terminal title,
 read with the screen: a spinner means the turn is still running, `Action
@@ -113,8 +117,16 @@ A reply counts as new by the latest agent message in the session's bound
 transcript (Codex, Claude). The screen sample is 24 rows, so the marker that
 opens a longer reply is above it; judged from the screen alone, most Claude
 replies raised no Done and a closing question no Question. Sessions without a
-bound transcript still use the visible reply. Kimi has no verified idle state or
-reply evidence, so it alerts for approvals only and never for Done.
+bound transcript still use the visible reply.
+
+Kimi has no bound transcript, so its visible response stands in as reply
+evidence: a turn that ends with the screen changed raises Done, without message
+text. A provider error closing the response, such as
+`Error: [provider.api_error] 429 …` on an exhausted quota, raises Blocked with
+that line as the agent's text. Whether Kimi hides its marker between steps is
+not verified, so its turn ends only when two samples in a row read Idle: its
+alerts arrive about five seconds later than the others. Until 1.6.1 Kimi had no
+Idle state at all and went from Working to Unknown, so it never raised Done.
 
 Alert layout follows the board in `design/notifications/` and one scheme shared
 with quota alerts: glyph, provider, then the specifics. The title is the type
@@ -131,24 +143,35 @@ need the user and Done use different system sounds (Funk and Glass).
 The body is sized to what macOS shows, measured on macOS 26: title and subtitle
 take one line of about 40 characters each, the body three lines (about 115
 characters) while the banner is closed and ten lines (about 390) once it is
-opened with its chevron. The body carries the agent's reply first, cut at 250
-characters, then the request marked `›`, cut at 70, then the place as the last
-line: tab number, pane number for a split, and the window name only while
-sessions span several iTerm2 windows. The reply leads in every type because the
-three closed lines must carry the news; a request of 100 characters used to fill
-them and hid the reply. The place left the header because a click already opens
-the exact pane; it is a reference seen only in the open banner. Markdown marks
-are dropped and whitespace collapsed. Ten lines is the ceiling: a longer or
-styled view needs a notification content extension, which Fleet's build does not
-produce.
+opened with its chevron. Ten lines is the ceiling: a longer or styled view needs
+a notification content extension, which Fleet's build does not produce.
+
+The body reads as a dialogue in paragraphs separated by a blank line, because a
+run of unbroken text was hard to read. Done answers a request, so it shows a
+little of the request on one line, marked `👤:` and cut at 32 characters, then
+the reply marked `🤖:`, cut at 190. A question, a blocker and an approval are
+the agent speaking alone: only the `🤖:` paragraph, up to 250 characters. Quota
+alerts carry no dialogue. Blank lines count against the budget: a closed Done
+banner shows the request and the first reply line, an open one shows it all.
+Markdown marks are dropped and whitespace collapsed.
+
+The place is the last paragraph, out of the header because a click already
+opens the exact pane: `Personal AI — tab 8 · ~`. It names the window only when
+the user named it; an unnamed iTerm2 window shows the title of whichever session
+is active, which would point at the wrong session. The engine tells the two
+apart by comparing the window title with its active tab and session. Then come
+the tab number, the pane number for a split, and the project path relative to
+home, shortened from the left so the line stays whole; the repository folder
+always survives.
 
 **Show message text in alerts** is on by default: without the text an alert says
 only that something happened, and the switch went unnoticed while it was off.
-Off, or without a bound transcript (Kimi), the body is the place line alone.
-macOS stores notification text and can show it on the lock screen and during
-screen sharing, which is why the switch remains. The engine reports that an
-approval is pending, not which action; until it does, Approval shows the agent's
-last message.
+Off, or without a bound transcript (a finished Kimi turn), the body is the place alone. macOS
+stores notification text and can show it on the lock screen and during screen
+sharing, which is why the switch remains. The engine reports that an approval is
+pending, not which action; until it does, Approval shows the agent's last
+message. The request comes from the bounded tail of the transcript, so a long
+turn can leave it unavailable; the reply is then shown alone.
 
 An alert lasts only while it is still true. Fleet withdraws it from the screen
 and Notification Center once a later scan shows that the session was opened (its

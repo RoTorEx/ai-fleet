@@ -31,9 +31,40 @@ pub struct Observation {
     pub model: Option<String>,
     pub reasoning: Option<String>,
     pub last_message: Option<String>,
+    /// An idle reading that ends work only once a second sample agrees.
+    pub settling: bool,
 }
 impl Observation {
+    /// Kimi has no transcript: its visible response is the reply evidence, and a provider error
+    /// closing it is a blocker. Whether its status row vanishes between steps is unverified, so
+    /// one idle sample alone does not end the turn.
+    fn kimi(text: &str) -> Self {
+        let screen = content::kimi(text);
+        let state = match screen.state {
+            "Working" => State::Working,
+            "Waiting for input" => State::Idle,
+            "Needs approval" => State::Approval,
+            _ => State::Unknown,
+        };
+        Self {
+            state,
+            answer: (!screen.screen.is_empty()).then(|| answer_hash(&screen.screen)),
+            attention: if state == State::Idle && screen.error.is_some() {
+                Attention::Blocked
+            } else {
+                Attention::None
+            },
+            request: None,
+            model: None,
+            reasoning: None,
+            last_message: screen.error,
+            settling: true,
+        }
+    }
     pub fn parse(text: &str, provider: process::Provider) -> Self {
+        if provider == process::Provider::Kimi {
+            return Self::kimi(text);
+        }
         let c = content::parse(text, provider);
         let state = match c.state {
             "Working" => State::Working,
@@ -66,6 +97,7 @@ impl Observation {
             model: c.model.clone(),
             reasoning: c.reasoning.clone(),
             last_message: message.map(|m| m.text.clone()),
+            settling: false,
         }
     }
     /// The bound transcript's latest agent message replaces the visible one. The screen sample
@@ -165,6 +197,7 @@ pub struct Progress {
     last_answer: Option<u64>,
     ready: bool,
     opened: bool,
+    idle_pending: bool,
     attention: Attention,
     pub updated_at: Option<SystemTime>,
     pub requested_at: Option<SystemTime>,
@@ -178,6 +211,26 @@ pub struct Progress {
 }
 impl Progress {
     pub fn observe(&mut self, observation: Option<&Observation>, focused: bool) {
+        let held;
+        let observation = match observation {
+            Some(o)
+                if o.settling && o.state == State::Idle && self.working && !self.idle_pending =>
+            {
+                self.idle_pending = true;
+                held = Observation {
+                    state: State::Working,
+                    attention: Attention::None,
+                    ..o.clone()
+                };
+                Some(&held)
+            }
+            other => {
+                if other.is_some_and(|o| o.state != State::Idle) {
+                    self.idle_pending = false;
+                }
+                other
+            }
+        };
         let now = SystemTime::now();
         if let Some(o) = observation {
             if !self.native_metadata
@@ -307,6 +360,7 @@ mod tests {
             model: None,
             reasoning: None,
             last_message: None,
+            settling: false,
         }
     }
     #[test]
@@ -371,6 +425,52 @@ mod tests {
         assert_eq!(
             Observation::parse("plain output", process::Provider::Claude).state,
             State::Unknown
+        );
+    }
+    #[test]
+    fn kimi_turn_ends_on_the_second_idle_sample_and_an_error_is_a_blocker() {
+        let kimi = process::Provider::Kimi;
+        let screen = |body: &str| {
+            format!(
+                "{body}\n╭──────────────────╮\n  draft\n╰──────────────────╯\nauto K3.1 Pro thinking: high\n"
+            )
+        };
+        let working = Observation::parse(
+            &screen("● Reading the report\n  40 lines\n🌖 Working"),
+            kimi,
+        );
+        let done = Observation::parse(
+            &screen("● Reading the report\n  40 lines\nThe report is ready."),
+            kimi,
+        );
+        let failed = Observation::parse(
+            &screen(
+                "● Ran a command\n  ok\n  Error: [provider.api_error] 429 You've reached your 5-hour usage limit.",
+            ),
+            kimi,
+        );
+        let mut p = Progress::default();
+        p.observe(Some(&working), false);
+        p.observe(Some(&done), false);
+        assert_eq!(
+            p.label(),
+            "Working",
+            "One idle sample may be a gap between steps"
+        );
+        p.observe(Some(&working), false);
+        p.observe(Some(&done), false);
+        assert_eq!(p.label(), "Working");
+        p.observe(Some(&done), false);
+        assert_eq!(p.label(), "New reply");
+
+        let mut p = Progress::default();
+        p.observe(Some(&working), false);
+        p.observe(Some(&failed), false);
+        p.observe(Some(&failed), false);
+        assert_eq!(p.label(), "Blocked");
+        assert_eq!(
+            p.last_message.as_deref(),
+            Some("Error: [provider.api_error] 429 You've reached your 5-hour usage limit.")
         );
     }
     #[test]
@@ -504,6 +604,7 @@ mod tests {
             model: None,
             reasoning: None,
             last_message: None,
+            settling: false,
         };
         p.observe(Some(&question), false);
         assert_eq!(p.label(), "Question");

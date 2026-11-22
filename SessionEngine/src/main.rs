@@ -412,6 +412,7 @@ mod bridge_tests {
             model: None,
             reasoning: None,
             last_message: None,
+            settling: false,
         };
         assert_eq!(
             observe_activity(&mut progress, Some(&observation), true),
