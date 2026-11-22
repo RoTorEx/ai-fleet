@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-22
+
 - Rebuild session alerts on one scheme shared with quota alerts and sized to what a macOS banner shows (three lines closed, ten open): glyph, provider and project in the title, the session name on its own line, then the agent's reply, your request and the tab. The reply now leads, so the closed banner shows the news instead of your own request.
 - Turn **Show message text in alerts** on by default.
 - Remove the alert buttons and the History list on the Agents tab: a click on the banner opens the pane, and the notification holds everything the list repeated.
