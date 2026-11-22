@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-22
+
 - Make the session engine Fleet's own code. Discovery, pane Jump and activity reading no longer come as pinned copies of AI Session Hub sources, so a fix is one change in one repository. Behaviour is unchanged; the app no longer bundles the Hub license file.
 
 ## [1.5.3] - 2026-11-22
