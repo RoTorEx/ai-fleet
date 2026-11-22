@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-11-22
+
 - Alert for Kimi Code when a turn finishes (✅) or stops on a provider error such as an exhausted quota (⛔, with the error line). Kimi sessions had no idle state and only ever alerted for approvals.
 - Lay out alert text as a dialogue with air: `👤:` a line of your request and `🤖:` the reply as separate paragraphs for Done, the agent alone for a question, blocker or approval.
 - Rework the last line of an alert: the window name when you named the window, then the tab and the project path, for example `Personal AI — tab 8 · ~`.
