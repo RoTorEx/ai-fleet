@@ -74,27 +74,30 @@ final class AgentSessionsTests: XCTestCase {
     }
 
     private func alert(_ reason: AgentNotificationReason, title: String = "⠂ Fix sign-in (codex)", tab: String? = "Authentication",
-                       pane: Int = 0, text: String = "", namesWindow: Bool = false) throws -> AgentAlert {
+                       pane: Int = 0, text: String = "", namesWindow: Bool = false,
+                       project: String = "/work/Thira") throws -> AgentAlert {
         let tabField = tab.map { #""tab":"\#($0)","# } ?? ""
-        let row = #"{"id":"7-10","provider":"codex","project":"/work/Thira","title":"\#(title)","state":"Opened","explanation":"",\#(text)"location":{"id":"pane","window":"Work",\#(tabField)"tab_index":2,"pane_index":\#(pane)}}"#
+        let row = #"{"id":"7-10","provider":"codex","project":"\#(project)","title":"\#(title)","state":"Opened","explanation":"",\#(text)"location":{"id":"pane","window":"Work",\#(tabField)"tab_index":2,"pane_index":\#(pane)}}"#
         let session = try JSONDecoder().decode(AgentSession.self, from: Data(row.utf8))
         return AgentAlert(id: "a", session: session, reason: reason, namesWindow: namesWindow, date: Date())
     }
 
-    func testAlertTitleIsGlyphAndNameAndTheMetaLineLeadsWithTheType() throws {
+    func testAlertLeadsWithGlyphAndProviderThenNamesTheSessionAndEndsWithThePlace() throws {
         let text = try alert(.replyReady).text(showText: false)
-        XCTAssertEqual(text.title, "✅ Fix sign-in")
-        XCTAssertEqual(text.subtitle, "")
-        XCTAssertEqual(text.body, "Done · Thira · tab 3 · Codex", "Without message text the meta line is the body")
+        XCTAssertEqual(text.title, "✅ Codex · Thira", "The glyph is the type; no type word")
+        XCTAssertEqual(text.subtitle, "Fix sign-in")
+        XCTAssertEqual(text.body, "tab 3", "The tab is a reference, kept out of the header")
+        XCTAssertEqual(try alert(.question, pane: 1, namesWindow: true).text(showText: false).body, "tab 3 · pane 2 · Work")
+        XCTAssertEqual(try alert(.approval, project: NSHomeDirectory()).text(showText: false).title, "✋ Codex",
+                       "The home folder identifies nothing")
     }
 
-    func testAlertNameFallsBackToTabThenProjectAndMetaAddsPaneAndWindowOnlyWhenNeeded() throws {
-        XCTAssertEqual(try alert(.approval, title: "(codex)", tab: "Investigate sign-in").text(showText: false).title,
-                       "✋ Investigate sign-in")
-        let unnamed = try alert(.approval, title: "(codex)", tab: nil, pane: 1)
-        XCTAssertEqual(unnamed.text(showText: false).title, "✋ Thira")
-        XCTAssertEqual(unnamed.meta, "Approval · tab 3 · pane 2 · Codex", "The project is not repeated once it is the name")
-        XCTAssertEqual(try alert(.question, namesWindow: true).meta, "Question · Thira · tab 3 · Work · Codex")
+    func testAlertNameFallsBackToTheTabTitleAndIsOmittedWhenItSaysNoMoreThanTheProject() throws {
+        XCTAssertEqual(try alert(.approval, title: "(codex)", tab: "Investigate sign-in").text(showText: false).subtitle,
+                       "Investigate sign-in")
+        XCTAssertEqual(try alert(.approval, title: "(codex)", tab: nil).text(showText: false).subtitle, "")
+        XCTAssertEqual(try alert(.approval, title: "Thira", tab: nil).text(showText: false).subtitle, "",
+                       "The project already stands in the title")
     }
 
     func testAlertNameDropsCodexStatusPrefixAndProjectFolderSuffix() throws {
@@ -105,26 +108,23 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertEqual(try alert(.replyReady, title: "[draft] notes").name, "[draft] notes")
     }
 
-    func testMessageTextIsOptInOrderedByWhatNeedsActionAndClipped() throws {
+    func testMessageTextLeadsWithTheReplyAndFitsTheOpenBanner() throws {
         let request = Array(repeating: "refactor", count: 20).joined(separator: " ")
         let reply = "## Result\\n**Done** with `make check`. " + Array(repeating: "detail", count: 60).joined(separator: " ")
         let fields = #""request":"\#(request)","answer":"\#(reply)","#
-        let done = try alert(.replyReady, text: fields)
-        XCTAssertEqual(done.text(showText: false).body, done.meta, "Session text stays out unless enabled")
-        XCTAssertEqual(done.text(showText: true).subtitle, done.meta)
-
-        let lines = done.text(showText: true).body.components(separatedBy: "\n")
-        XCTAssertEqual(lines.count, 2)
-        XCTAssertTrue(lines[0].hasPrefix("› refactor refactor") && lines[0].hasSuffix("…"))
-        XCTAssertLessThanOrEqual(lines[0].count, AgentAlert.requestLimit + 3)
-        XCTAssertTrue(lines[1].hasPrefix("Result Done with make check. detail"), lines[1])
-        XCTAssertLessThanOrEqual(lines[1].count, AgentAlert.replyLimit + 1)
-
-        let question = try alert(.question, text: fields).text(showText: true).body
-        XCTAssertTrue(question.hasPrefix("Result Done"), "A question leads with the agent's text")
-        XCTAssertTrue(question.components(separatedBy: "\n").last?.hasPrefix("› ") == true)
-        XCTAssertEqual(try alert(.approval).text(showText: true).body, "Approval · Thira · tab 3 · Codex",
-                       "No bound transcript leaves only the meta line")
+        for reason in [AgentNotificationReason.replyReady, .question, .approval] {
+            let lines = try alert(reason, text: fields).text(showText: true).body.components(separatedBy: "\n")
+            XCTAssertEqual(lines.count, 3)
+            XCTAssertTrue(lines[0].hasPrefix("Result Done with make check. detail"), "Three closed lines carry the reply: \(lines[0])")
+            XCTAssertLessThanOrEqual(lines[0].count, AgentAlert.replyLimit + 1)
+            XCTAssertTrue(lines[1].hasPrefix("› refactor refactor") && lines[1].hasSuffix("…"))
+            XCTAssertLessThanOrEqual(lines[1].count, AgentAlert.requestLimit + 3)
+            XCTAssertEqual(lines[2], "tab 3")
+        }
+        // Ten open lines of about 39 characters hold the reply, the request and the place.
+        XCTAssertLessThanOrEqual(AgentAlert.replyLimit + AgentAlert.requestLimit + 2 + 39, 390)
+        XCTAssertEqual(try alert(.replyReady, text: fields).text(showText: false).body, "tab 3", "The switch keeps session text out")
+        XCTAssertEqual(try alert(.approval).text(showText: true).body, "tab 3", "No bound transcript leaves only the place")
     }
 
     func testAlertStaysUntilItsSessionIsOpenedMovesOnOrEnds() throws {
@@ -144,16 +144,15 @@ final class AgentSessionsTests: XCTestCase {
         }
     }
 
-    func testNotificationClicksRouteToPaneHistoryOrProviders() {
+    func testNotificationClicksRouteToPaneOrProviders() {
         let route = StatusService.notificationAction
         let banner = UNNotificationDefaultActionIdentifier
-        XCTAssertEqual(route(banner, "agent", "7-10", "a"), .openSession("7-10"))
-        XCTAssertEqual(route(StatusService.openAction, "agent", "7-10", "a"), .openSession("7-10"))
-        XCTAssertEqual(route(StatusService.historyAction, "agent", "7-10", "a"), .history("a"))
-        XCTAssertEqual(route(banner, nil, "7-10", nil), .openSession("7-10"), "Alerts delivered before this layout still jump")
-        XCTAssertEqual(route(banner, "quota", nil, nil), .providers)
-        XCTAssertEqual(route(banner, "test", nil, nil), .menu)
-        XCTAssertNil(route(UNNotificationDismissActionIdentifier, "agent", "7-10", "a"))
+        XCTAssertEqual(route(banner, "agent", "7-10"), .openSession("7-10"))
+        XCTAssertEqual(route(banner, nil, "7-10"), .openSession("7-10"), "Alerts delivered before kinds existed still jump")
+        XCTAssertEqual(route(banner, "quota", nil), .providers)
+        XCTAssertEqual(route(banner, "test", nil), .menu)
+        XCTAssertNil(route(UNNotificationDismissActionIdentifier, "agent", "7-10"))
+        XCTAssertNil(route("aifleet.history", "agent", "7-10"), "Buttons from 1.5 banners are gone")
     }
 
     @MainActor
@@ -201,26 +200,6 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertEqual(alerts, [.replyReady, .approval])
         XCTAssertEqual(service.alerts.map(\.reason), [.approval], "A session keeps only its newest alert")
         XCTAssertTrue(retired.isEmpty, "A replaced alert reuses its notification instead of withdrawing it")
-        service.start()
-        service.showHistory(highlighting: service.alerts.first?.id)
-        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-            let host = NSHostingController(rootView: MenuAgentsSection(service: service).frame(width: 354))
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 700),
-                                  styleMask: [.borderless], backing: .buffered, defer: false)
-            window.appearance = NSAppearance(named: appearance)
-            window.contentViewController = host
-            host.view.layoutSubtreeIfNeeded()
-            XCTAssertGreaterThan(host.view.fittingSize.height, 80, "The chip row, the alert and the footer are laid out")
-            if let capture = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
-               let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
-                host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-                try bitmap.representation(using: .png, properties: [:])?.write(to:
-                    URL(fileURLWithPath: capture).appendingPathComponent("history-\(appearance.rawValue).png"))
-            }
-            window.contentViewController = nil
-        }
-        service.stop()
-        XCTAssertNil(service.highlightedAlertID, "Closing the menu drops the highlight")
         service.refresh(force: true)
         for _ in 0..<100 where retired.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(retired, ["7-10"], "New work withdraws the delivered notification")

@@ -334,10 +334,6 @@ final class StatusBarController: NSObject {
         switch action {
         case .openSession(let sessionID):
             openAgentSession(sessionID)
-        case .history(let alertID):
-            screen.tab = .agents
-            agents.showHistory(highlighting: alertID)
-            showPopoverIfNeeded()
         case .providers:
             screen.tab = .providers
             showPopoverIfNeeded()

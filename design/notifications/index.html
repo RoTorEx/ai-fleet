@@ -64,6 +64,8 @@ nav a:hover { color: var(--ink); }
 /* Desk + banner (approximation of the macOS banner; the system owns the real rendering) */
 .desk { background: var(--desk); border-radius: 16px; padding: 22px; display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-start; }
 .col { width: 344px; max-width: 100%; }
+.col .bn + .cap { margin-top: 16px; }
+.bn.ruler { font-variant-numeric: tabular-nums; }
 .cap { font: 600 10px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: rgba(255,255,255,.92); text-shadow: 0 1px 2px rgba(0,0,0,.35); margin-bottom: 9px; }
 .bn { position: relative; width: 344px; max-width: 100%; display: grid; grid-template-columns: 38px 1fr; gap: 10px; padding: 11px 13px 12px; border-radius: 19px;
   background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(1.7); backdrop-filter: blur(28px) saturate(1.7);
@@ -73,8 +75,8 @@ nav a:hover { color: var(--ink); }
 .bn img { width: 38px; height: 38px; border-radius: 9px; align-self: center; }
 .bn .t, .bn .s { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bn .t { padding-right: 34px; }
-.bn .b { overflow-wrap: anywhere; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.bn.exp .b { display: block; }
+.bn .b { overflow-wrap: anywhere; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.bn.exp .b { -webkit-line-clamp: 10; }
 .bn.exp img { align-self: start; }
 .bn .tm { position: absolute; top: 11px; right: 13px; font-size: 11px; color: var(--bn-muted); }
 .bn .acts { grid-column: 1 / -1; display: grid; gap: 6px; margin-top: 4px; }
@@ -103,47 +105,6 @@ th { font: 600 10px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppe
 tr:last-child td { border-bottom: 0; }
 .scroll { overflow-x: auto; }
 
-/* Fleet menu + settings mocks */
-.menu { width: 372px; max-width: 100%; background: var(--menu); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.18); padding: 10px; font-size: 12px; }
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; font-weight: 600; color: var(--muted); }
-.tabs span { padding: 7px 0; border-radius: 9px 9px 0 0; }
-.tabs .on { background: var(--row); color: var(--ink); }
-.page { background: var(--row); border-radius: 0 0 10px 10px; padding: 8px; }
-.chips { display: flex; gap: 3px; align-items: center; font-size: 10.5px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
-.chips span { padding: 3px 5px; border-radius: 99px; white-space: nowrap; }
-.chips .warn { color: var(--amber); }
-.chips .on { background: var(--soft); color: var(--ink); }
-.chips .hist { margin-left: auto; }
-.sep { font: 600 9.5px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--faint); margin: 9px 4px 5px; }
-.row { display: grid; grid-template-columns: 25px 1fr auto; gap: 2px 9px; padding: 7px 9px; border-radius: 9px; background: var(--card); border: 1px solid var(--line); margin-top: 4px; }
-.row .g { grid-row: span 3; width: 25px; height: 25px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; font-size: 13px; align-self: start; }
-.row .n { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row .a { font: 10px/1.6 var(--mono); color: var(--muted); }
-.row .m, .row .q { grid-column: 2 / -1; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row .q { color: var(--ink); opacity: .8; }
-.row.wait { border-color: var(--amber); }
-.row.wait .a { color: var(--amber); font-weight: 600; }
-.row.hl { box-shadow: 0 0 0 2px var(--info); }
-.row.gone { opacity: .5; }
-.foot { display: flex; justify-content: space-between; color: var(--faint); font-size: 10.5px; margin: 8px 4px 0; }
-.form { width: 430px; max-width: 100%; background: var(--menu); border: 1px solid var(--line); border-radius: 14px; padding: 14px; font-size: 13px; }
-.form h4 { margin: 0 0 8px 4px; font-size: 12px; color: var(--muted); font-weight: 600; }
-.fbox { background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
-.frow { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--line); }
-.frow:last-child { border-bottom: 0; }
-.frow small { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 2px; }
-.frow.new { background: color-mix(in srgb, var(--info) 9%, transparent); }
-.sw { flex: none; width: 34px; height: 20px; border-radius: 99px; background: var(--faint); position: relative; }
-.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
-.sw.on { background: var(--ok); } .sw.on::after { left: 16px; }
-.tag { font: 600 9.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--info); border: 1px solid currentColor; border-radius: 4px; padding: 2px 4px; margin-left: 6px; }
-.chip { display: inline-block; padding: 2px 7px; border-radius: 99px; background: var(--soft); font-size: 11.5px; font-weight: 500; }
-
-/* Notification Center stack */
-.nc .bn.back { height: 16px; padding: 0; margin: -8px 14px 0; width: auto; opacity: .6; box-shadow: 0 4px 10px rgba(0,0,0,.15); display: block; border-radius: 0 0 14px 14px; }
-.nc .grp { color: rgba(255,255,255,.92); font-weight: 600; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,.35); margin: 0 4px 6px; }
-.nc .bn + .grp, .nc .back + .grp { margin-top: 16px; }
-
 ol.dec { padding-left: 20px; margin: 0; }
 ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 .rec { color: var(--ok); font-weight: 600; }
@@ -156,198 +117,113 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 
 <div class="top">
   <div>
-    <span class="pill ok">Revision 2 · 2026-11-22</span>
+    <span class="pill ok">Revision 3 · accepted 2026-11-22</span>
     <h1 style="margin-top:12px">Notification design</h1>
-    <p class="lead">Every notification AI Fleet can send, redrawn so the type is readable at a glance, the session is identifiable without reading, and the text is one chevron away.</p>
+    <p class="lead">One scheme for every alert, sized to what a macOS banner really shows. Everything you need is in the notification; nothing sends you into Fleet to read it.</p>
   </div>
   <button class="theme" id="theme" type="button">Switch light / dark</button>
 </div>
-<nav>
-  <a href="#before">1 Before → after</a><a href="#grammar">2 Grammar</a><a href="#catalogue">3 Catalogue</a>
-  <a href="#edges">4 Edge cases</a><a href="#clicks">5 Clicks</a><a href="#history">6 History &amp; settings</a>
-  <a href="#options">7 Alternatives</a><a href="#decide">8 Decisions</a>
-</nav>
 
 <div class="key">
-  <div><span class="g">✋</span><b>Approval</b><span class="cls needs">Needs you</span><small>Agent waits for a yes/no.</small></div>
-  <div><span class="g">💬</span><b>Question</b><span class="cls needs">Needs you</span><small>Agent asked you something.</small></div>
-  <div><span class="g">⛔</span><b>Blocked</b><span class="cls blocked">Needs you</span><small>Agent cannot continue.</small></div>
-  <div><span class="g">✅</span><b>Done</b><span class="cls done">Finished</span><small>Reply is ready after work.</small></div>
-  <div><span class="g">🪫</span><b>Quota</b><span class="cls sys">Account</span><small>Remaining quota crossed a threshold.</small></div>
-  <div><span class="g">🔔</span><b>Test</b><span class="cls sys">System</span><small>Sent from Settings → Test.</small></div>
+  <div><span class="g">✋</span><b>Approval</b><small>Agent waits for a yes/no.</small></div>
+  <div><span class="g">💬</span><b>Question</b><small>Agent asked you something.</small></div>
+  <div><span class="g">⛔</span><b>Blocked</b><small>Agent cannot continue.</small></div>
+  <div><span class="g">✅</span><b>Done</b><small>Reply is ready after work.</small></div>
+  <div><span class="g">🔋 🪫</span><b>Quota</b><small>Remaining quota crossed a threshold.</small></div>
+  <div><span class="g">🔔</span><b>Test</b><small>Sent from Settings.</small></div>
 </div>
 
-<section id="before">
-  <span class="num">1 · Before → after</span>
-  <h2>The glyph leads and the name gets the whole line</h2>
-  <p class="note">Today the reason sits in the middle of the body and the location is one parenthesised run-on. The eye has to read everything to learn whether it must act.</p>
-  <div class="desk" style="margin-top:14px">
-    <div class="col"><div class="cap">Today</div><div id="old"></div></div>
-    <div class="col"><div class="cap">Proposed · collapsed</div><div id="new"></div></div>
-    <div class="col"><div class="cap">Proposed · expanded</div><div id="newx"></div></div>
-  </div>
-</section>
-
-<section id="grammar">
-  <span class="num">2 · Grammar</span>
-  <h2>One layout for every agent alert</h2>
+<section id="scheme">
+  <span class="num">1 · Scheme</span>
+  <h2>Glyph, provider, then the specifics</h2>
   <div class="grid2" style="margin-top:14px">
     <div class="panel">
-      <div class="spec"><i>TITLE     </i><b>{glyph}</b> {session name}
-<i>          bold, one line; the whole line belongs to the name</i>
-<i>SUBTITLE  </i><b>{Type}</b> · {project} · tab {n} · {Provider}
-<i>          one line of meta; pane and window only when needed</i>
-<i>BODY      </i>› {request, first 100 characters}
-          {reply, first 300 characters}
-<i>          only with “Show message text in alerts”;</i>
-<i>          otherwise the meta line is the body, nothing else</i></div>
+      <div class="spec"><i>TITLE     </i><b>{glyph}</b> {Provider} · {project | value}
+<i>          the glyph is the type; no type word</i>
+<i>SUBTITLE  </i>{session name | quota window}
+<i>          a whole bold line for the name</i>
+<i>BODY      </i>{agent's text}
+          › {your request}
+          {tab · pane · window}
+<i>          the place is the last line: out of sight</i>
+<i>          until the banner is open. Quota: reset time</i></div>
     </div>
     <div class="panel">
       <table>
-        <tr><th>Rule</th><th>Value</th></tr>
-        <tr><td>Glyph</td><td>Colour emoji: the only colour a system banner allows. Shape and colour both differ per type.</td></tr>
-        <tr><td>Session name</td><td>Terminal session name → tab title → project folder → “Terminal session”. A Codex status prefix (<code>[ ! ] Action Required |</code>) and a trailing project folder (<code>| alex</code>) are dropped: the glyph and the meta line already say both.</td></tr>
-        <tr><td>Meta</td><td>Type word, project folder, <code>tab n</code>, provider, in that order so a long line loses the provider first. Adds <code>pane n</code> for a split and, after the tab, the window name only when sessions span several windows. No “iTerm2”, no quotes, no brackets.</td></tr>
-        <tr><td>Text</td><td>Whitespace collapsed, Markdown marks dropped, cut on a word boundary with “…”. The request line always starts with <code>›</code>.</td></tr>
-        <tr><td>Order</td><td>Done and Approval: request, then reply. Question and Blocked: the agent's text first, because that is what you act on.</td></tr>
-        <tr><td>Sound</td><td>Two sounds: one for “needs you”, a softer one for Done. Quota keeps the default.</td></tr>
-        <tr><td>Replacement</td><td>One live banner per session: a newer event replaces the older one instead of piling up.</td></tr>
+        <tr><th>Slot</th><th>Session</th><th>Quota</th></tr>
+        <tr><td>Title</td><td><code>✅ Claude · ai-fleet</code></td><td><code>🪫 Codex A · 10% left</code></td></tr>
+        <tr><td>Subtitle</td><td>session name</td><td><code>5h window</code></td></tr>
+        <tr><td>Body</td><td>agent's text, <code>›</code> request, then the place</td><td>reset time</td></tr>
       </table>
+      <p class="note" style="margin-top:10px">The project folder follows the provider and is dropped when it is the home folder. Tab, pane and window leave the header: a click already opens the exact pane, so the number is only a reference. It closes the open banner as <code>tab 4 · Personal AI</code>, with the pane for a split and the window only when sessions span several windows.</p>
     </div>
   </div>
-  <div class="desk" style="margin-top:18px">
-    <div class="col"><div class="cap">Arrives</div><div id="st1"></div></div>
-    <div class="col"><div class="cap">Pointer over it</div><div id="st2"></div></div>
-    <div class="col"><div class="cap">Chevron clicked</div><div id="st3"></div></div>
+</section>
+
+<section id="limits">
+  <span class="num">2 · What macOS really shows</span>
+  <h2>Three lines closed, ten lines open</h2>
+  <p class="note">Measured on this Mac (macOS 26) with a ruler banner on 2026-11-22. These numbers size everything below.</p>
+  <div class="desk" style="margin-top:14px">
+    <div class="col"><div class="cap">Arrives</div><div id="ru1"></div></div>
+    <div class="col"><div class="cap">Hover → chevron → click</div><div id="ru2"></div></div>
+    <div class="col" style="width:auto;flex:1;min-width:260px">
+      <div class="panel">
+        <table>
+          <tr><th>Slot</th><th>Shown</th></tr>
+          <tr><td>Title</td><td>1 line, about 40 characters</td></tr>
+          <tr><td>Subtitle</td><td>1 line, bold, about 40 characters</td></tr>
+          <tr><td>Body, closed</td><td>3 lines, about 115 characters</td></tr>
+          <tr><td>Body, open</td><td>10 lines, about 390 characters, then “…”</td></tr>
+          <tr><td>Styling</td><td>none: no colour, size, bold or links inside the text</td></tr>
+        </table>
+      </div>
+    </div>
   </div>
-  <p class="note" style="margin-top:10px">macOS does not expand a banner on hover alone: hovering reveals the chevron, one click on it expands. A click anywhere else on the banner is the jump.</p>
 </section>
 
 <section id="catalogue">
-  <span class="num">3 · Catalogue</span>
-  <h2>Every type, three states each</h2>
-  <p class="note">Collapsed with text, expanded with text, and the same alert with “Show message text in alerts” switched off.</p>
-  <div id="cat"></div>
-
-  <div class="type">
-    <header><span class="g">🪫</span><h3>Quota</h3><span class="cls sys">Account</span></header>
-    <div class="facts"><span><b>Fires</b> when an account's remaining quota crosses a configured threshold</span><span><b>Click</b> opens Fleet on Providers</span><span><b>Text setting</b> does not apply</span></div>
-    <div class="desk">
-      <div class="col"><div class="cap">Threshold crossed</div><div id="q1"></div></div>
-      <div class="col"><div class="cap">Lower threshold, weekly window</div><div id="q2"></div></div>
-      <div class="col"><div class="cap">Reset time unknown</div><div id="q3"></div></div>
-    </div>
-  </div>
-
-  <div class="type">
-    <header><span class="g">🔔</span><h3>Test</h3><span class="cls sys">System</span></header>
-    <div class="facts"><span><b>Fires</b> from Settings → General → Notifications → Test</span><span><b>Click</b> opens Fleet</span></div>
-    <div class="desk"><div class="col"><div class="cap">Test</div><div id="t1"></div></div></div>
-  </div>
-</section>
-
-<section id="edges">
-  <span class="num">4 · Edge cases</span>
-  <h2>What happens when data is missing or long</h2>
-  <div class="desk" style="margin-top:14px" id="edge"></div>
-</section>
-
-<section id="clicks">
-  <span class="num">5 · Clicks</span>
-  <h2>Where each click leads</h2>
-  <div class="grid2" style="margin-top:14px">
-    <div class="panel scroll">
-      <table>
-        <tr><th>You click</th><th>Result</th></tr>
-        <tr><td>An agent banner, anywhere</td><td>iTerm2 comes forward on that exact window, tab and pane (already works today).</td></tr>
-        <tr><td>Chevron</td><td>Banner expands: full text and two buttons.</td></tr>
-        <tr><td><b>Open pane</b></td><td>Same jump as clicking the banner.</td></tr>
-        <tr><td><b>History</b></td><td>Fleet opens on Agents → History with this alert highlighted.</td></tr>
-        <tr><td>A banner whose session ended</td><td>Fleet opens Agents and says why the jump failed (unchanged).</td></tr>
-        <tr><td>Quota banner</td><td>Fleet opens on Providers.</td></tr>
-        <tr><td>Close ✕</td><td>Banner goes away; the alert stays in History until the session is opened or moves on.</td></tr>
-      </table>
-    </div>
-    <div>
-      <div class="desk nc">
-        <div class="col">
-          <div class="cap">Notification Center · stacked by project</div>
-          <div class="grp">ai-fleet</div><div id="nc1"></div><div class="bn back"></div>
-          <div class="grp">hop</div><div id="nc2"></div>
-        </div>
-      </div>
-      <p class="note" style="margin-top:10px">Alerts group by project folder. Each session keeps a single entry, so the stack depth equals the number of sessions that want attention, not the number of events.</p>
-    </div>
-  </div>
-</section>
-
-<section id="history">
-  <span class="num">6 · History &amp; settings</span>
-  <h2>History lives in Fleet; text is opt-in</h2>
-  <div class="grid2" style="margin-top:14px">
-    <div>
-      <div class="menu">
-        <div class="tabs"><span>Providers</span><span class="on">Agents</span><span>Processes</span></div>
-        <div class="page">
-          <div class="chips"><span>All 6</span><span class="warn">Needs you 2</span><span>Working 2</span><span>Idle 2</span><span>Unknown 0</span><span class="hist on">🕘 3</span></div>
-          <div class="sep">Still waiting</div>
-          <div class="row wait hl"><span class="g">✋</span><span class="n">refactor-auth</span><span class="a">waiting 2m</span><span class="m">Approval · ai-fleet · tab 1 · Codex</span><span class="q">› Split CodexAuthentication into a reader and a writer…</span></div>
-          <div class="row wait"><span class="g">💬</span><span class="n">jump-latency</span><span class="a">waiting 9m</span><span class="m">Question · ai-session-hub · tab 2 · pane 2 · Claude</span><span class="q">Should I pre-warm the helper when the menu opens, or…</span></div>
-          <div class="sep">Not opened yet</div>
-          <div class="row"><span class="g">✅</span><span class="n">quota-poller</span><span class="a">14:02</span><span class="m">Done · ai-fleet · tab 3 · Claude</span><span class="q">› Make the Claude quota poller back off after a 429…</span></div>
-          <div class="foot"><span>Leaves when you open the session or it starts new work</span><span>Clear</span></div>
-        </div>
-      </div>
-      <p class="note" style="margin-top:12px">History is one more chip on the existing filter row: a clock and a count, because the row has no room for another word. It holds only alerts you have not dealt with, one per session: an alert leaves History, the screen and Notification Center once its session is opened, starts new work or ends. Alerts that need you stay on top with a live waiting time; a row click is the same jump as the banner. Rows show text only when the text setting is on. Nothing is written to disk, which keeps the current rule that session text is never persisted by Fleet.</p>
-    </div>
-    <div>
-      <div class="form">
-        <h4>Notifications</h4>
-        <div class="fbox">
-          <div class="frow"><div>Agent session alerts<small>Get notified when a reply is ready or an agent needs your input, even with the menu closed.</small></div><span class="sw on"></span></div>
-          <div class="frow new"><div>Show message text in alerts<span class="tag">new</span><small>Adds your request and the agent's reply to each alert. macOS stores notification text and can show it on the lock screen and while sharing your screen.</small></div><span class="sw"></span></div>
-          <div class="frow"><div>Quota alert at</div><div><span class="chip">25%</span> <span class="chip">10%</span> <span class="chip">+</span></div></div>
-          <div class="frow"><div>Permission</div><div style="color:var(--muted)">Allowed · <span class="chip">Test</span></div></div>
-        </div>
-      </div>
-      <p class="note" style="margin-top:12px">One new switch, off by default. With it off, alerts carry only the type, session name and location, exactly the third column of the catalogue.</p>
-    </div>
-  </div>
-</section>
-
-<section id="options">
-  <span class="num">7 · Alternatives</span>
-  <h2>Two choices worth seeing side by side</h2>
+  <span class="num">3 · Every alert</span>
+  <h2>Closed and open, on the real line budget</h2>
+  <p class="note">The agent's text leads in every type, because three closed lines must carry the news; your request and the place close the open banner. The reply is cut at 250 characters and the request at 70, so all three fit the ten lines.</p>
   <div class="desk" style="margin-top:14px">
-    <div class="col"><div class="cap">Current · name owns the title</div><div id="la"></div></div>
-    <div class="col"><div class="cap">Revision 1 · type word in the title</div><div id="lb"></div></div>
-    <div class="col"><div class="cap">Glyphs as plain dots</div><div id="dots"></div></div>
+    <div class="col"><div class="cap">Arrives</div><div id="c1"></div></div>
+    <div class="col"><div class="cap">Open</div><div id="c2"></div></div>
+    <div class="col"><div class="cap">Quota, test and thin data</div><div id="c3"></div></div>
   </div>
-  <p class="note" style="margin-top:10px"><b>Revision 1</b> shipped in 1.5.0 with the type word in the title. In use the word took a third of the line and real session names were cut, while the fixed sentence under it only repeated the type. The current layout keeps the glyph, gives the title to the name and starts the meta line with the type. <b>Dots</b> are calmer but lean on colour alone; shapes stay readable for colour-blind eyes and in a stack.</p>
+</section>
+
+<section id="alt">
+  <span class="num">4 · The one alternative</span>
+  <h2>Where the tab number goes</h2>
+  <div class="desk" style="margin-top:14px">
+    <div class="col"><div class="cap">A · recommended · last line when open</div><div id="a1"></div></div>
+    <div class="col"><div class="cap">B · not shown at all</div><div id="a2"></div></div>
+    <div class="col"><div class="cap">Before · in the title</div><div id="a3"></div></div>
+  </div>
+  <p class="note" style="margin-top:10px">A costs one of the ten open lines and nothing when closed. B gives that line back to the reply; the tab is then found only by clicking the banner.</p>
 </section>
 
 <section id="decide">
-  <span class="num">8 · Decisions</span>
-  <h2>Decisions, limits and one dependency</h2>
+  <span class="num">5 · Limits and decisions</span>
+  <h2>What we accept, what was decided</h2>
   <div class="grid2" style="margin-top:14px">
     <div class="panel">
-      <h3 style="margin-bottom:10px">Decisions · accepted as recommended</h3>
+      <h3 style="margin-bottom:10px">Accepted limits</h3>
       <ol class="dec">
-        <li><b>Layout:</b> glyph and session name in the title, type word first in the meta line. <span class="rec">Revised after 1.5.0</span>: names were truncated and the fixed sentence repeated the type.</li>
-        <li><b>Glyph set:</b> shapes (✋ 💬 ⛔ ✅ 🪫 🔔) or dots. <span class="rec">Recommended: shapes.</span></li>
-        <li><b>Text order:</b> lead with the agent's text for Question and Blocked. <span class="rec">Recommended: yes.</span></li>
-        <li><b>“Show message text” default:</b> <span class="rec">Recommended: off</span>, since it changes where session text is stored.</li>
-        <li><b>History:</b> in memory, only alerts not dealt with yet; an alert is withdrawn when its session is opened, starts new work or ends. <span class="rec">Changed on review from “last 50”.</span></li>
+        <li><b>Ten lines is the ceiling.</b> A longer or styled view needs a notification content extension: a separate signed app extension that Fleet's build cannot produce today. Not taken.</li>
+        <li><b>No conversation history in a banner.</b> It holds one exchange: the agent's last text and your request. Notification Center keeps one entry per session.</li>
+        <li><b>Kimi has no text:</b> no bound transcript, so its alerts are title and subtitle only.</li>
+        <li><b>Approval cannot name the action yet:</b> it shows the agent's last message instead.</li>
       </ol>
     </div>
     <div class="panel">
-      <h3 style="margin-bottom:10px">System limits and dependency</h3>
+      <h3 style="margin-bottom:10px">Decided 2026-11-22</h3>
       <ol class="dec">
-        <li><b>To verify live:</b> how many body lines the collapsed banner shows, and the subtitle weight. This board assumes two lines and bold. Run <code>design/notifications/preview.sh</code> to see the real thing.</li>
-        <li><b>Buttons</b> appear under the system's Options control on hover and as full buttons when expanded; their look is not ours to style.</li>
-        <li><b>No colour, no custom layout</b> in a system banner. A custom expanded view needs a notification content extension; a fully custom panel loses Notification Center and Focus. Both stay out of this version.</li>
-        <li><b>Dependency:</b> the session engine reports <i>that</i> an approval is pending, not <i>what</i> is being approved. Until it captures the command, Approval shows the request and the agent's last message.</li>
-        <li><b>Kimi and providers without a bound transcript</b> have no text; their alerts always carry only the meta line.</li>
+        <li><b>Scheme:</b> glyph, provider and project in the title; the name on its own line; tab and window as the last line of the open banner. <span class="rec">A.</span></li>
+        <li><b>Text on by default,</b> reply first, 250 + 70 characters. The lock-screen note stays beside the switch.</li>
+        <li><b>No buttons, no History list in Fleet.</b> A click on the banner opens the pane; the list only repeated the banner inside the app.</li>
+        <li><b>Quota glyph by level:</b> 🔋 above 25% left, 🪫 at and below.</li>
       </ol>
     </div>
   </div>
@@ -356,31 +232,21 @@ ol.dec li { margin-bottom: 10px; max-width: 78ch; }
 </main>
 <script>
 const ICON = '../../AppBundle/Assets.xcassets/AppIcon.appiconset/FleetIcon_128.png';
-const TYPES = {
-  approval: { glyph: '✋', dot: '🟡', word: 'Approval', long: 'Approval needed', cls: 'needs', label: 'Needs you', off: 'Waiting for your approval.', lead: 'request',
-    fires: "when a session newly asks to approve an action", sound: 'needs-you' },
-  question: { glyph: '💬', dot: '🟠', word: 'Question', long: 'Question for you', cls: 'needs', label: 'Needs you', off: 'Asked you a question.', lead: 'reply',
-    fires: 'when a session newly asks a question', sound: 'needs-you' },
-  blocked: { glyph: '⛔', dot: '🔴', word: 'Blocked', long: 'Blocked', cls: 'blocked', label: 'Needs you', off: 'Reported a blocker.', lead: 'reply',
-    fires: 'when a session newly reports a blocker', sound: 'needs-you' },
-  done: { glyph: '✅', dot: '🟢', word: 'Done', long: 'Done', cls: 'done', label: 'Finished', off: 'Reply is ready.', lead: 'request',
-    fires: 'on a newly completed reply after work', sound: 'done' },
-};
-const SESSIONS = {
-  approval: { name: 'refactor-auth', project: 'ai-fleet', provider: 'Codex', tab: 1,
-    request: 'Split CodexAuthentication into a reader and a writer and keep the tests green',
-    reply: 'I have split the file into CodexAuthReader and CodexAuthWriter. Next I want to run the full test suite to confirm nothing regressed.' },
-  question: { name: 'jump-latency', project: 'ai-session-hub', provider: 'Claude', tab: 2, pane: 2,
+const GLYPH = { approval: '✋', question: '💬', blocked: '⛔', done: '✅' };
+const S = {
+  done: { type: 'done', provider: 'Claude', name: 'Restructure the harness and skills', home: true, tab: 4, window: 'Personal AI',
+    request: 'Fold the approval rules into one kernel rule and list what each client supports',
+    reply: 'Done. The kernel now holds one short approval rule and guides/approvals.md has the step format with a table per client. Locks are set where the client supports them; I checked each against its documentation. Two trial runs on the training project passed, the third needs your token.' },
+  approval: { type: 'approval', provider: 'Codex', name: 'Check BMW 90 documents', home: true, tab: 1,
+    request: 'Prepare the USB drive for the map update',
+    reply: 'The activation code is ready. Next I want to write config.nfm to the mounted USB DISK volume; nothing else on the drive changes.' },
+  question: { type: 'question', provider: 'Claude', name: 'jump-latency', project: 'ai-fleet', tab: 2, pane: 2,
     request: 'Find out why Jump sometimes takes 3+ seconds on the first click',
-    reply: 'Should I pre-warm the helper when the menu opens, or keep one warm helper for the whole app lifetime? The first Jump pays for a cold JXA helper start (about 2.8 s); later ones reuse it.' },
-  blocked: { name: 'release-notes', project: 'hop', provider: 'Codex', tab: 5,
+    reply: 'Should I pre-warm the helper when the menu opens, or keep one warm helper for the whole app lifetime? The first Jump pays for a cold helper start (about 2.8 s); later ones reuse it.' },
+  blocked: { type: 'blocked', provider: 'Codex', name: 'release-notes', project: 'hop', tab: 5,
     request: 'Draft release notes for v0.9 from the merged PRs',
     reply: 'I cannot continue: gh is not authenticated in this shell (HTTP 401), so I cannot read the merged PR list. Run gh auth login and tell me to retry.' },
-  done: { name: 'quota-poller', project: 'ai-fleet', provider: 'Claude', tab: 3,
-    request: 'Make the Claude quota poller back off after a 429 instead of retrying every 2 seconds, and add a test for it',
-    reply: 'Done. The poller now backs off exponentially after a 429 (2 s, 4 s, … capped at 5 min) and resets after the first successful read. Added ClaudeQuotaPollerTests.testBackoffAfterRateLimit; make check passes. One thing to review: the cap is hard-coded, tell me if you want it in Settings. I also noticed the same retry loop in the Gemini poller and left it untouched.' },
 };
-
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function clip(text, limit) {
   const t = text.replace(/\s+/g, ' ').trim();
@@ -388,85 +254,49 @@ function clip(text, limit) {
   const cut = t.slice(0, limit);
   return cut.slice(0, Math.max(cut.lastIndexOf(' '), limit - 20)).replace(/[\s,.;:]+$/, '') + '…';
 }
-function meta(type, s) {
-  const parts = type ? [TYPES[type].word] : [];
-  if (s.project && s.project !== s.name) parts.push(s.project);
-  parts.push('tab ' + s.tab);
-  if (s.pane) parts.push('pane ' + s.pane);
-  if (s.window) parts.push(s.window);
-  parts.push(s.provider);
-  return parts.join(' · ');
+const place = s => ['tab ' + s.tab, s.pane ? 'pane ' + s.pane : null, s.window].filter(Boolean).join(' · ');
+/** The proposed rule: one function, every session alert. */
+function compose(s, o = {}) {
+  const head = [`${GLYPH[s.type]} ${s.provider}`, s.home ? null : s.project].filter(Boolean).join(' · ');
+  const text = o.text === false ? [] : [s.reply && clip(s.reply, o.place === 'none' ? 280 : 250), s.request && '› ' + clip(s.request, 70)].filter(Boolean);
+  // Before: the place sat in the title.
+  if (o.place === 'title') return { title: `${head} · ${place(s)}`, subtitle: s.name, body: text.join('\n') };
+  if (o.place !== 'none') text.push(place(s));
+  return { title: head, subtitle: s.name, body: text.join('\n') };
 }
-/** The proposed composition rule: one function, every agent alert. */
-function compose(type, s, o = {}) {
-  const t = TYPES[type];
-  const glyph = o.dots ? t.dot : t.glyph;
-  const lines = [];
-  if (o.text !== false && (s.request || s.reply)) {
-    const request = s.request ? '› ' + clip(s.request, 100) : null;
-    const reply = s.reply ? clip(s.reply, 300) : null;
-    (t.lead === 'reply' ? [reply, request] : [request, reply]).forEach(l => l && lines.push(l));
-  }
-  // Revision 1, kept for the comparison in section 7.
-  if (o.layout === 'r1') return { title: `${glyph} ${t.word} · ${s.name}`, subtitle: meta(null, s), body: lines.join('\n') || t.off };
-  const title = `${glyph} ${s.name}`;
-  // Without text the meta line is the body: a fixed sentence would only repeat the type.
-  return lines.length ? { title, subtitle: meta(type, s), body: lines.join('\n') } : { title, body: meta(type, s) };
-}
-function banner(n, state) {
-  const acts = n.actions || ['Open pane', 'History'];
-  return `<div class="bn ${state === 'exp' ? 'exp' : ''} ${n.old ? 'old' : ''}"><img src="${ICON}" alt="">
-    <div><div class="t">${esc(n.title)}</div>${n.subtitle ? `<div class="s">${esc(n.subtitle)}</div>` : ''}<div class="b">${esc(n.body)}</div></div>
-    ${state === 'hover' ? '<span class="x">✕</span><span class="chev">⌄</span><span class="opt">Options ⌄</span>' : state === 'exp' ? '<span class="chev">⌃</span>' : '<span class="tm">now</span>'}
-    ${state === 'exp' && acts.length ? `<div class="acts">${acts.map(a => `<span>${a}</span>`).join('')}</div>` : ''}</div>`;
+const quota = (account, left, window, reset) =>
+  ({ title: `${left > 25 ? '🔋' : '🪫'} ${account} · ${left}% left`, subtitle: `${window} window`, body: reset });
+function banner(n, open, cls = '') {
+  return `<div class="bn ${open ? 'exp' : ''} ${cls}"><img src="${ICON}" alt="">
+    <div><div class="t">${esc(n.title)}</div>${n.subtitle ? `<div class="s">${esc(n.subtitle)}</div>` : ''}${n.body ? `<div class="b">${esc(n.body)}</div>` : ''}</div>
+    ${open ? '<span class="chev">⌄</span>' : '<span class="tm">now</span>'}</div>`;
 }
 const put = (id, html) => { document.getElementById(id).innerHTML = html; };
+const stack = rows => rows.map(([cap, html]) => (cap ? `<div class="cap">${cap}</div>` : '') + html).join('');
 
-// 1 · Before → after
-put('old', banner({ old: true, title: 'quota-poller', body: 'Reply ready (iTerm2 · Window “quota-poller” · Tab 3 “quota-poller”)' }));
-put('new', banner(compose('done', SESSIONS.done)));
-put('newx', banner(compose('done', SESSIONS.done), 'exp'));
+// 2 · The ruler that produced the numbers.
+const nums = (n, w) => Array.from({ length: n }, (_, i) => String(i + 1).padStart(w, '0')).join(' ');
+const ruler = { title: 'T ' + nums(20, 2), subtitle: 'S ' + nums(20, 2), body: nums(120, 3) };
+put('ru1', banner(ruler, false, 'ruler'));
+put('ru2', banner(ruler, true, 'ruler'));
 
-// 2 · States
-put('st1', banner(compose('question', SESSIONS.question)));
-put('st2', banner(compose('question', SESSIONS.question), 'hover'));
-put('st3', banner(compose('question', SESSIONS.question), 'exp'));
+// 3 · Every alert.
+const order = ['done', 'approval', 'question', 'blocked'];
+put('c1', order.map(k => banner(compose(S[k]))).join(''));
+put('c2', order.map(k => banner(compose(S[k]), true)).join(''));
+put('c3', stack([
+  ['', banner(quota('Claude γ', 90, '7d (Fable)', 'Resets in 6d 20h · Nov 29 at 11:59'))],
+  ['', banner(quota('Codex A', 10, '5h', 'Resets in 2h 10m · Nov 22 at 18:30'))],
+  ['', banner({ title: '🔔 AI Fleet · test', body: 'Notifications are working.' })],
+  ['Text off, or Kimi', banner(compose({ type: 'approval', provider: 'Kimi', name: 'kimi-spike', project: 'demio', tab: 2 }))],
+  ['No session name', banner({ ...compose({ ...S.blocked, name: '' }), subtitle: '' })],
+  ['Several windows, long name', banner(compose({ ...S.question, window: 'backend', name: 'migrate-statistics-storage-to-sqlite-and-backfill' }))],
+]));
 
-// 3 · Catalogue
-put('cat', Object.keys(TYPES).map(k => { const t = TYPES[k], s = SESSIONS[k]; return `
-  <div class="type"><header><span class="g">${t.glyph}</span><h3>${t.word}</h3><span class="cls ${t.cls}">${t.label}</span></header>
-  <div class="facts"><span><b>Fires</b> ${t.fires}</span><span><b>Sound</b> ${t.sound}</span><span><b>Click</b> jumps to the pane</span></div>
-  <div class="desk">
-    <div class="col"><div class="cap">Collapsed · text on</div>${banner(compose(k, s))}</div>
-    <div class="col"><div class="cap">Expanded · text on</div>${banner(compose(k, s), 'exp')}</div>
-    <div class="col"><div class="cap">Text off</div>${banner(compose(k, s, { text: false }))}</div>
-  </div></div>`; }).join(''));
-const quota = (title, subtitle, body) => banner({ title, subtitle, body, actions: [] });
-put('q1', quota('🪫 Codex A · 25% left', '5h window', 'Resets in 2h 10m · Nov 21 at 18:30'));
-put('q2', quota('🪫 Claude B · 10% left', 'Weekly window', 'Resets in 3d 4h · Nov 24 at 20:00'));
-put('q3', quota('🪫 Kimi · 25% left', 'Weekly window', 'Reset time unknown'));
-put('t1', banner({ title: '🔔 Test · AI Fleet', body: 'Notifications are working.', actions: [] }));
-
-// 4 · Edge cases
-const edges = [
-  ['Long session name', compose('done', { ...SESSIONS.done, name: 'migrate-statistics-storage-to-sqlite-and-backfill' })],
-  ['Codex title noise dropped', compose('approval', { ...SESSIONS.approval, name: 'Check BMW 90 documents', project: 'alex', reply: null, request: null })],
-  ['No session name → project folder', compose('done', { ...SESSIONS.done, name: 'ai-fleet' })],
-  ['Split pane, several windows', compose('question', { ...SESSIONS.question, window: 'backend', pane: 3 })],
-  ['No transcript (Kimi), text on', compose('approval', { name: 'kimi-spike', project: 'demio', provider: 'Kimi', tab: 2 })],
-  ['Request captured, no reply yet', compose('approval', { ...SESSIONS.approval, reply: null })],
-  ['Reply over 300 characters, expanded', compose('done', { ...SESSIONS.done, reply: SESSIONS.done.reply + ' ' + SESSIONS.done.reply }), 'exp'],
-];
-put('edge', edges.map(([cap, n, st]) => `<div class="col"><div class="cap">${cap}</div>${banner(n, st)}</div>`).join(''));
-
-// 5 · Notification Center
-put('nc1', banner(compose('approval', SESSIONS.approval)));
-put('nc2', banner(compose('blocked', SESSIONS.blocked)));
-
-// 7 · Alternatives
-put('la', banner(compose('approval', SESSIONS.approval, { text: false })) + banner(compose('done', SESSIONS.done)));
-put('lb', banner(compose('approval', SESSIONS.approval, { layout: 'r1', text: false })) + banner(compose('done', SESSIONS.done, { layout: 'r1' })));
-put('dots', ['approval', 'question', 'blocked', 'done'].map(k => banner(compose(k, SESSIONS[k], { dots: true, text: false }))).join(''));
+// 4 · The alternative.
+put('a1', banner(compose(S.done)) + banner(compose(S.done), true));
+put('a2', banner(compose(S.done, { place: 'none' })) + banner(compose(S.done, { place: 'none' }), true));
+put('a3', banner(compose(S.done, { place: 'title' })) + banner(compose(S.done, { place: 'title' }), true));
 
 const forced = new URLSearchParams(location.search).get('theme');
 if (forced) document.documentElement.dataset.theme = forced;

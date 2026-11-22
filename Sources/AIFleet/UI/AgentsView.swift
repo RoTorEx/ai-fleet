@@ -5,8 +5,6 @@ import SwiftUI
 /// viewport bounds the height and scrolls.
 struct MenuAgentsSection: View {
     @ObservedObject var service: AgentSessionsService
-    // Not an environment object: the section is also hosted on its own.
-    @ObservedObject private var settings = AppSettings.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -15,10 +13,8 @@ struct MenuAgentsSection: View {
                 Text(error).font(.system(size: 10.5)).foregroundStyle(FleetPalette.warning)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
             }
-            if !service.sessions.isEmpty || historyAvailable { filters }
-            if showsHistory {
-                AgentAlertHistory(service: service, showText: settings.agentNotificationsShowText)
-            } else if service.sessions.isEmpty {
+            if !service.sessions.isEmpty { filters }
+            if service.sessions.isEmpty {
                 Text(service.isLoading ? "Finding live sessions…" : "No live provider sessions in iTerm2.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 4)
             } else {
@@ -47,16 +43,13 @@ struct MenuAgentsSection: View {
     }
 
     private var visible: [AgentSession] { service.sessions.filter(service.filter.matches) }
-    /// History exists once alerts are on, and stays reachable while it still holds alerts.
-    private var historyAvailable: Bool { settings.agentNotificationsEnabled || !service.alerts.isEmpty }
-    private var showsHistory: Bool { service.showsHistory && historyAvailable }
 
     private var filters: some View {
         HStack(spacing: 4) {
             ForEach(AgentFilter.allCases, id: \.self) { item in
                 let count = service.sessions.filter(item.matches).count
-                let active = !showsHistory && service.filter == item
-                Button { service.filter = item; service.showsHistory = false } label: {
+                let active = service.filter == item
+                Button { service.filter = item } label: {
                     Text("\(item.rawValue) \(count)").font(.system(size: 10.5, weight: .medium).monospacedDigit())
                         .lineLimit(1).padding(.horizontal, 4).padding(.vertical, 3)
                         .foregroundStyle(active ? Color.primary
@@ -65,28 +58,8 @@ struct MenuAgentsSection: View {
                 }.buttonStyle(.plain)
             }
             Spacer(minLength: 0)
-            if historyAvailable { historyChip }
         }
         .padding(.bottom, 2)
-    }
-
-    /// The sixth chip is an icon and a count: the row has no room for another word.
-    private var historyChip: some View {
-        let waiting = service.alerts.contains { $0.reason.needsYou }
-        return Button { service.showsHistory.toggle() } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "clock.arrow.circlepath").font(.system(size: 9.5, weight: .semibold))
-                Text("\(service.alerts.count)").font(.system(size: 10.5, weight: .medium).monospacedDigit())
-            }
-            .padding(.horizontal, 5).padding(.vertical, 3)
-            .foregroundStyle(showsHistory ? Color.primary : (waiting ? FleetPalette.warning : Color.secondary))
-            .background(showsHistory ? Color.primary.opacity(0.1) : .clear, in: Capsule())
-            .fixedSize()
-        }
-        .buttonStyle(.plain)
-        .help("Alert history")
-        .accessibilityLabel("Alert history, \(service.alerts.count)")
-        .accessibilityAddTraits(showsHistory ? .isSelected : [])
     }
 
     private func groupHeader(_ group: AgentGroup) -> some View {
@@ -110,110 +83,6 @@ struct MenuAgentsSection: View {
             .padding(.horizontal, 4).padding(.top, 5).padding(.bottom, 1)
             .contentShape(Rectangle())
         }.buttonStyle(.plain).help(group.id)
-    }
-}
-
-/// Alerts not dealt with yet; the ones waiting for the user stay on top.
-private struct AgentAlertHistory: View {
-    @ObservedObject var service: AgentSessionsService
-    let showText: Bool
-
-    var body: some View {
-        if service.alerts.isEmpty {
-            Text("No open alerts. An alert stays here until you open its session or it starts new work.")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4).padding(.vertical, 8)
-        } else {
-            section("Still waiting", service.alerts.filter { $0.reason.needsYou }, waiting: true)
-            section("Not opened yet", service.alerts.filter { !$0.reason.needsYou }, waiting: false)
-            HStack {
-                Text("Leaves when you open the session or it starts new work")
-                Spacer()
-                Button("Clear") { service.clearAlerts() }.buttonStyle(.plain)
-            }
-            .font(.system(size: 10)).foregroundStyle(.tertiary).padding(.horizontal, 4).padding(.top, 4)
-        }
-    }
-
-    @ViewBuilder
-    private func section(_ title: String, _ alerts: [AgentAlert], waiting: Bool) -> some View {
-        if !alerts.isEmpty {
-            Text(title.uppercased()).font(.system(size: 9, weight: .bold)).kerning(0.5)
-                .foregroundStyle(.tertiary).padding(.horizontal, 4).padding(.top, 5)
-            ForEach(alerts) { alert in
-                let session = service.liveSession(for: alert)
-                AgentAlertRow(alert: alert, waiting: waiting, unlinked: session == nil,
-                              highlighted: service.highlightedAlertID == alert.id, showText: showText,
-                              canJump: service.jumpingID == nil) {
-                    if let session { service.jump(to: session) }
-                }
-            }
-        }
-    }
-}
-
-private struct AgentAlertRow: View {
-    let alert: AgentAlert
-    let waiting: Bool
-    /// The session is alive but its pane cannot be identified right now.
-    let unlinked: Bool
-    let highlighted: Bool
-    let showText: Bool
-    let canJump: Bool
-    let jump: () -> Void
-    @State private var hovering = false
-
-    private static let clock: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
-
-    private var meta: String { unlinked ? "\(alert.meta) · pane unavailable" : alert.meta }
-
-    var body: some View {
-        Button(action: jump) {
-            HStack(alignment: .top, spacing: 10) {
-                Text(alert.reason.glyph).font(.system(size: 12))
-                    .frame(width: 25, height: 25).background(Color.primary.opacity(0.07), in: Circle())
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 5) {
-                        Text(alert.name).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
-                            .lineLimit(1).truncationMode(.tail)
-                        Spacer(minLength: 3)
-                        time
-                    }
-                    Text(meta).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
-                    if showText, let lead = alert.lines.first {
-                        Text(lead).font(.system(size: 10.5)).foregroundStyle(.primary.opacity(0.8)).lineLimit(1)
-                    }
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).disabled(unlinked || !canJump)
-        .accessibilityLabel("\(alert.name), \(meta)")
-        .accessibilityHint("Open the existing iTerm2 pane")
-        .padding(.horizontal, 9).padding(.vertical, 6)
-        .fleetCard(hovering: hovering && !unlinked,
-                   accent: highlighted ? Color.accentColor : (waiting ? FleetPalette.warning : nil))
-        .opacity(unlinked ? 0.5 : 1)
-        .onHover { hovering = $0 }
-    }
-
-    @ViewBuilder
-    private var time: some View {
-        if waiting {
-            TimelineView(.periodic(from: .now, by: 10)) { context in
-                Text("waiting \(AgentRowText.roughAge(context.date.timeIntervalSince(alert.date)).dropFirst())")
-                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(FleetPalette.warning).lineLimit(1)
-            }
-        } else {
-            Text(Self.clock.string(from: alert.date))
-                .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
-        }
     }
 }
 

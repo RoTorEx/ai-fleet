@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Rebuild session alerts on one scheme shared with quota alerts and sized to what a macOS banner shows (three lines closed, ten open): glyph, provider and project in the title, the session name on its own line, then the agent's reply, your request and the tab. The reply now leads, so the closed banner shows the news instead of your own request.
+- Turn **Show message text in alerts** on by default.
+- Remove the alert buttons and the History list on the Agents tab: a click on the banner opens the pane, and the notification holds everything the list repeated.
+- Show a full battery (🔋) on quota alerts above 25% left.
+
 ## [1.6.0] - 2026-11-22
 
 - Make the session engine Fleet's own code. Discovery, pane Jump and activity reading no longer come as pinned copies of AI Session Hub sources, so a fix is one change in one repository. Behaviour is unchanged; the app no longer bundles the Hub license file.

@@ -32,6 +32,8 @@ final class StatisticsBehaviorTests: XCTestCase {
             limitNotification(providerName: "Kimi", threshold: 25, windowLabel: "5h"),
             FleetNotificationText(title: "🪫 Kimi · 25% left", subtitle: "5h window", body: "Reset time unknown")
         )
+        XCTAssertEqual(limitNotification(providerName: "Claude", threshold: 90, windowLabel: "7d").title,
+                       "🔋 Claude · 90% left", "A drained battery only at 25% left and below")
     }
 
     func testNotificationResetIncludesWindowScopedState() {

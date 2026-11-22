@@ -91,7 +91,8 @@ subscription charges.
   [Accounts](business/accounts.md) for matching, ordering and storage rules.
 
 - Quota notifications title the account and the crossed threshold, for example
-  `🪫 Codex A · 25% left`, and name the exact window in the subtitle; no separate
+  `🪫 Codex A · 25% left` (`🔋` above 25% left, where a drained battery would read
+  as an alarm), and name the exact window in the subtitle; no separate
   remaining value follows the threshold. When the provider supplies a reset
   timestamp, the body shows both the compact time remaining and the exact local
   reset time, so the alert is glanceable without losing precision; otherwise it

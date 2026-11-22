@@ -15,7 +15,7 @@ visual reference and is updated when the design changes.
 
 | Surface | Board | Status |
 | --- | --- | --- |
-| Notifications | [`notifications/index.html`](notifications/index.html) | Accepted 2026-11-22 |
+| Notifications | [`notifications/index.html`](notifications/index.html) | Revision 3 accepted 2026-11-22 |
 
 ## Notifications
 

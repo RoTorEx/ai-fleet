@@ -116,52 +116,56 @@ replies raised no Done and a closing question no Question. Sessions without a
 bound transcript still use the visible reply. Kimi has no verified idle state or
 reply evidence, so it alerts for approvals only and never for Done.
 
-Alert layout follows the board in `design/notifications/`. The title is the
-type glyph and the session name: ✋ approval, 💬 question, ⛔ blocked, ✅ done.
-The glyph alone marks the type there, so the whole line is left to the name; the
-first layout also spelled the type in the title and real names were cut. The
-name falls back to the tab title, then the project folder. A Codex status prefix
-such as `[ ! ] Action Required |` and a trailing project folder are dropped from
-it, because the glyph and the meta line already say both. The meta line starts
-with the type word, then project folder, tab number and provider, so a truncated
-line loses the provider first; a split adds the pane number, and the window is
-named after the tab only while sessions span several iTerm2 windows. Each session keeps one banner:
-a newer alert replaces the older one, and banners stack by project. Alerts that
+Alert layout follows the board in `design/notifications/` and one scheme shared
+with quota alerts: glyph, provider, then the specifics. The title is the type
+glyph, the provider and the project folder: `✅ Claude · ai-fleet`. The glyph
+alone is the type (✋ approval, 💬 question, ⛔ blocked, ✅ done); no type word is
+spelled. The home folder is not shown as a project, because sessions start there
+by default and it identifies nothing. The subtitle is the session name on its
+own bold line: terminal session name, then tab title, without a Codex status
+prefix such as `[ ! ] Action Required |` or a trailing project folder. It is
+omitted when it says no more than the project. Each session keeps one banner: a
+newer alert replaces the older one, and banners stack by project. Alerts that
 need the user and Done use different system sounds (Funk and Glass).
 
-An alert lasts only while it is still true. Fleet withdraws it from the screen,
-Notification Center and History once a later scan shows that the session was
-opened (its pane was current while iTerm2 was frontmost), started new work,
-raised a different request, or ended. A question or blocker therefore stays
-however often it is viewed, until the agent moves on. Unknown and Untracked
-states prove nothing and keep the alert. An alert is judged from the scan after
-the one that fired it, so a reply landing in the pane being watched still sounds
-and then leaves. Alerts delivered before a Fleet restart are not tracked and
-stay in Notification Center until dismissed.
+The body is sized to what macOS shows, measured on macOS 26: title and subtitle
+take one line of about 40 characters each, the body three lines (about 115
+characters) while the banner is closed and ten lines (about 390) once it is
+opened with its chevron. The body carries the agent's reply first, cut at 250
+characters, then the request marked `›`, cut at 70, then the place as the last
+line: tab number, pane number for a split, and the window name only while
+sessions span several iTerm2 windows. The reply leads in every type because the
+three closed lines must carry the news; a request of 100 characters used to fill
+them and hid the reply. The place left the header because a click already opens
+the exact pane; it is a reference seen only in the open banner. Markdown marks
+are dropped and whitespace collapsed. Ten lines is the ceiling: a longer or
+styled view needs a notification content extension, which Fleet's build does not
+produce.
 
-**Show message text in alerts** is a separate switch, off by default. On, the
-body carries the first 100 characters of the request, marked `›`, and the first
-300 characters of the reply, with Markdown marks dropped and whitespace
-collapsed. 100 keeps the request within about two banner lines; 300 keeps the
-expanded banner to one glance. A question or blocker puts the agent's text first
-because that is what the user acts on. With text the meta line is the subtitle.
-Off, or without a bound transcript (Kimi), the meta line is the whole body: a
-fixed sentence such as "Waiting for your approval" only repeated the type and
-was removed. It is opt-in because macOS stores
-notification text and can show it on the lock screen and during screen sharing.
-The engine reports that an approval is pending, not which action; until it does,
-Approval shows the request and the agent's last message.
+**Show message text in alerts** is on by default: without the text an alert says
+only that something happened, and the switch went unnoticed while it was off.
+Off, or without a bound transcript (Kimi), the body is the place line alone.
+macOS stores notification text and can show it on the lock screen and during
+screen sharing, which is why the switch remains. The engine reports that an
+approval is pending, not which action; until it does, Approval shows the agent's
+last message.
 
-Clicking an alert, or its Open pane button, selects that exact iTerm2 window,
-tab and pane by session ID. If the session has ended or the pane cannot be
-verified, Fleet opens Agents with the reason. The History button opens Agents
-with History and marks that alert. History is a clock chip on the filter row,
-present while alerts are enabled or History is not empty. It lists the alerts
-not dealt with yet, at most one per session, in memory only; nothing reaches
-disk and the list starts empty after a restart. Alerts that need the user stay
-on top with their waiting time, unopened replies follow with their time, and
-Clear withdraws them all. A row opens the same pane; its text line appears only
-while the text switch is on.
+An alert lasts only while it is still true. Fleet withdraws it from the screen
+and Notification Center once a later scan shows that the session was opened (its
+pane was current while iTerm2 was frontmost), started new work, raised a
+different request, or ended. A question or blocker therefore stays however often
+it is viewed, until the agent moves on. Unknown and Untracked states prove
+nothing and keep the alert. An alert is judged from the scan after the one that
+fired it, so a reply landing in the pane being watched still sounds and then
+leaves. Alerts delivered before a Fleet restart are not tracked and stay in
+Notification Center until dismissed.
+
+Clicking an alert selects that exact iTerm2 window, tab and pane by session ID.
+If the session has ended or the pane cannot be verified, Fleet opens Agents with
+the reason. Alerts have no buttons, and Fleet keeps no alert history of its own:
+1.5 had both, but the list only repeated the banner inside the app, while
+everything needed is meant to be read in the notification. Notification Center
+is the list of alerts still open.
 
 The engine's Rust tests protect identity replacement, ambiguity, noninteractive
 exclusion, state precedence and provider binding. Swift tests exercise real pipe

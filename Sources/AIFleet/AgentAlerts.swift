@@ -1,7 +1,7 @@
 import Foundation
 
-/// One macOS notification: the system draws title and subtitle on one line each
-/// and the body below them. Layout follows design/notifications.
+/// One macOS notification. The system draws title and subtitle bold on one line each (about 40
+/// characters) and the body below: 3 lines closed, 10 open. Layout follows design/notifications.
 struct FleetNotificationText: Equatable {
     let title: String
     var subtitle = ""
@@ -19,30 +19,20 @@ extension AgentNotificationReason {
         }
     }
 
-    var word: String {
-        switch self {
-        case .approval: return "Approval"
-        case .question: return "Question"
-        case .blocked: return "Blocked"
-        case .replyReady: return "Done"
-        }
-    }
-
     var needsYou: Bool { self != .replyReady }
-    /// A question or blocker is what the user acts on, so it precedes the request.
-    var leadsWithReply: Bool { self == .question || self == .blocked }
 }
 
-/// A fired session alert. The banner and the in-memory History row are both built from it.
+/// A fired session alert and the text of its banner.
 struct AgentAlert: Identifiable, Equatable {
-    static let requestLimit = 100
-    static let replyLimit = 300
+    /// Reply, request and place together fit the ten body lines of an open banner.
+    static let replyLimit = 250
+    static let requestLimit = 70
 
     let id: String
     /// The session as it was when the alert fired.
     let session: AgentSession
     let reason: AgentNotificationReason
-    /// Sessions spanned several iTerm2 windows, so the meta line names the window.
+    /// Sessions spanned several iTerm2 windows, so the place line names the window.
     let namesWindow: Bool
     let date: Date
 
@@ -56,50 +46,51 @@ struct AgentAlert: Identifiable, Equatable {
         return live.state == reason.rawValue || !Self.evidence.contains(live.state)
     }
 
-    /// Terminal session name, then tab title, then project folder.
-    var name: String {
-        meaningful(session.title) ?? meaningful(session.location?.tab) ?? projectName ?? "Terminal session"
+    /// Terminal session name, then tab title. Nil when neither says more than the project.
+    var name: String? {
+        let name = meaningful(session.title) ?? meaningful(session.location?.tab)
+        return name == projectName ? nil : name
     }
 
-    /// Type, project, location, provider: a truncated line loses the provider first, then the window.
-    var meta: String {
-        var parts = [reason.word]
-        if let projectName, projectName != name { parts.append(projectName) }
-        if let pane = session.location {
-            parts.append("tab \(pane.tab_index + 1)")
-            if pane.pane_index > 0 { parts.append("pane \(pane.pane_index + 1)") }
-            if namesWindow, let window = meaningful(pane.window), window.lowercased() != "iterm2", window != name {
-                parts.append(window)
-            }
+    /// Glyph, provider, project. The glyph alone is the type.
+    var title: String {
+        ["\(reason.glyph) \(session.provider.capitalized)", projectName].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// Tab, pane for a split, and the window while sessions span several. A click already opens
+    /// the exact pane, so this is a reference kept out of the header.
+    var place: String? {
+        guard let pane = session.location else { return nil }
+        var parts = ["tab \(pane.tab_index + 1)"]
+        if pane.pane_index > 0 { parts.append("pane \(pane.pane_index + 1)") }
+        if namesWindow, let window = meaningful(pane.window), window.lowercased() != "iterm2", window != name {
+            parts.append(window)
         }
-        parts.append(session.provider.capitalized)
         return parts.joined(separator: " · ")
     }
 
-    /// Captured text, most actionable line first. Empty for providers without a transcript.
+    /// Captured text: the agent's reply leads because the closed banner shows three lines and
+    /// they must carry the news. Empty for providers without a transcript.
     var lines: [String] {
-        let request = clipped(session.request, limit: Self.requestLimit).map { "› \($0)" }
-        let reply = clipped(session.answer, limit: Self.replyLimit)
-        return (reason.leadsWithReply ? [reply, request] : [request, reply]).compactMap { $0 }
+        [clipped(session.answer, limit: Self.replyLimit),
+         clipped(session.request, limit: Self.requestLimit).map { "› \($0)" }].compactMap { $0 }
     }
 
-    /// The title is the glyph and the whole name: the type word moved to the meta line to leave the
-    /// name room. Without message text the meta line is the body, since a fixed sentence would only
-    /// repeat the type.
+    /// Title: glyph, provider, project. Subtitle: the session name on its own bold line.
+    /// Body: reply, request, then the place as the last line.
     func text(showText: Bool) -> FleetNotificationText {
-        let lines = showText ? self.lines : []
-        let title = "\(reason.glyph) \(name)"
-        return lines.isEmpty ? FleetNotificationText(title: title, body: meta)
-            : FleetNotificationText(title: title, subtitle: meta, body: lines.joined(separator: "\n"))
+        let body = (showText ? lines : []) + [place].compactMap { $0 }
+        return FleetNotificationText(title: title, subtitle: name ?? "", body: body.joined(separator: "\n"))
     }
 
+    /// The home folder is where sessions start by default, so it identifies nothing.
     private var projectName: String? {
         let name = URL(fileURLWithPath: session.project).lastPathComponent
-        return session.project.isEmpty || name == "/" ? nil : name
+        return session.project.isEmpty || name == "/" || session.project == NSHomeDirectory() ? nil : name
     }
 
     /// Titles that only repeat the provider or shell identify nothing. Codex titles read
-    /// "[ ! ] Action Required | task | folder": the status repeats the glyph and the folder the meta line.
+    /// "[ ! ] Action Required | task | folder": the status repeats the glyph and the folder the title.
     private func meaningful(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let generic: Set<String> = [session.provider.lowercased(), "codex", "claude", "claude code", "kimi",

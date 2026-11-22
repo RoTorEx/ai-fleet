@@ -195,11 +195,9 @@ final class AgentSessionsService: ObservableObject {
     /// Lives here rather than in the view: menu content is rebuilt on every open.
     @Published var collapsedGroups = Set<String>()
     @Published var filter: AgentFilter = .all
-    /// Alerts the user has not dealt with yet, newest first, one per session. Memory only:
-    /// session text is never persisted by Fleet.
-    @Published private(set) var alerts: [AgentAlert] = []
-    @Published var showsHistory = false
-    @Published private(set) var highlightedAlertID: String?
+    /// Alerts still on screen or in Notification Center, newest first, one per session, kept to
+    /// withdraw each once it is over. Memory only: session text is never persisted by Fleet.
+    private(set) var alerts: [AgentAlert] = []
     /// Session IDs whose alert is over, so its delivered macOS notification can be withdrawn.
     var onAlertsRetired: (([String]) -> Void)?
     private var transport: AgentTransport?
@@ -257,26 +255,8 @@ final class AgentSessionsService: ObservableObject {
         timer?.tolerance = 0.3
     }
 
-    /// The session behind an alert while it still has an exact pane to open.
-    func liveSession(for alert: AgentAlert) -> AgentSession? {
-        sessions.first { $0.id == alert.session.id && $0.location != nil }
-    }
-
-    func showHistory(highlighting alertID: String?) {
-        showsHistory = true
-        highlightedAlertID = alertID
-    }
-
-    func clearAlerts() {
-        let retired = alerts.map(\.session.id)
-        alerts = []
-        highlightedAlertID = nil
-        if !retired.isEmpty { onAlertsRetired?(retired) }
-    }
-
     func stop() {
         isVisible = false
-        highlightedAlertID = nil
         if !isObserving { stopObservation() }
     }
 

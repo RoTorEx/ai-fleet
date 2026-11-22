@@ -190,7 +190,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     func sendTestNotification() {
         sendNotification(
             identifier: "aifleet-test-\(UUID().uuidString)",
-            text: FleetNotificationText(title: "🔔 Test · AI Fleet", body: "Notifications are working."),
+            text: FleetNotificationText(title: "🔔 AI Fleet · test", body: "Notifications are working."),
             kind: .test
         )
     }
@@ -413,13 +413,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     private func configureNotifications() {
         let notificationCenter = UNUserNotificationCenter.current()
         notificationCenter.delegate = self
-        // Shown under the banner's Options control and as buttons once it is expanded.
-        notificationCenter.setNotificationCategories([UNNotificationCategory(
-            identifier: Self.agentCategory,
-            actions: [UNNotificationAction(identifier: Self.openAction, title: "Open pane", options: [.foreground]),
-                      UNNotificationAction(identifier: Self.historyAction, title: "History", options: [.foreground])],
-            intentIdentifiers: []
-        )])
+        // No buttons: a click on the banner is the only action. Clears the category 1.5 registered.
+        notificationCenter.setNotificationCategories([])
         notificationCenter.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
             Task { @MainActor in
                 if error != nil {
@@ -532,7 +527,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             kind: .agent,
             sound: alert.reason.needsYou ? "Funk.aiff" : "Glass.aiff",
             thread: alert.session.project,
-            userInfo: [Self.agentSessionKey: alert.session.id, Self.alertKey: alert.id]
+            userInfo: [Self.agentSessionKey: alert.session.id]
         )
     }
 
@@ -547,11 +542,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     enum NotificationKind: String { case agent, quota, test }
     private nonisolated static let agentSessionKey = "agentSessionID"
-    private nonisolated static let alertKey = "alertID"
     private nonisolated static let kindKey = "kind"
-    private nonisolated static let agentCategory = "aifleet.agent"
-    nonisolated static let openAction = "aifleet.open"
-    nonisolated static let historyAction = "aifleet.history"
     var onNotificationAction: ((FleetNotificationAction) -> Void)?
 
     private func sendNotification(
@@ -582,7 +573,6 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 // System sounds by file name; an unknown name falls back to the default sound.
                 content.sound = sound.map { UNNotificationSound(named: UNNotificationSoundName($0)) } ?? .default
                 if let thread { content.threadIdentifier = thread }
-                if isAgentAlert { content.categoryIdentifier = Self.agentCategory }
                 content.userInfo = userInfo.merging([Self.kindKey: kind.rawValue]) { current, _ in current }
                 let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
                 do {
@@ -612,7 +602,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let info = response.notification.request.content.userInfo
         guard let action = Self.notificationAction(
             identifier: response.actionIdentifier, kind: info[Self.kindKey] as? String,
-            sessionID: info[Self.agentSessionKey] as? String, alertID: info[Self.alertKey] as? String
+            sessionID: info[Self.agentSessionKey] as? String
         ) else {
             completionHandler()
             return
@@ -623,23 +613,17 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
 
-    /// Where a click leads: the banner and Open pane jump to the session, History opens Fleet's
-    /// alert history, a quota alert opens Providers. Dismissing does nothing.
+    /// Where a click on a banner leads: its session's pane, Providers for a quota alert, the menu
+    /// for a test. Dismissing does nothing.
     nonisolated static func notificationAction(
-        identifier: String, kind: String?, sessionID: String?, alertID: String?
+        identifier: String, kind: String?, sessionID: String?
     ) -> FleetNotificationAction? {
-        switch identifier {
-        case historyAction:
-            return .history(alertID)
-        case UNNotificationDefaultActionIdentifier, openAction:
-            if let sessionID, !sessionID.isEmpty { return .openSession(sessionID) }
-            switch kind.flatMap(NotificationKind.init(rawValue:)) {
-            case .quota: return .providers
-            case .test: return .menu
-            case .agent, nil: return nil
-            }
-        default:
-            return nil
+        guard identifier == UNNotificationDefaultActionIdentifier else { return nil }
+        if let sessionID, !sessionID.isEmpty { return .openSession(sessionID) }
+        switch kind.flatMap(NotificationKind.init(rawValue:)) {
+        case .quota: return .providers
+        case .test: return .menu
+        case .agent, nil: return nil
         }
     }
 
@@ -1058,7 +1042,6 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
 enum FleetNotificationAction: Equatable {
     case openSession(String)
-    case history(String?)
     case providers
     case menu
 }
@@ -1073,7 +1056,8 @@ func limitNotification(
     calendar: Calendar = .current
 ) -> FleetNotificationText {
     func text(_ body: String) -> FleetNotificationText {
-        FleetNotificationText(title: "🪫 \(providerName) · \(threshold)% left",
+        // A drained battery only once little is left: at 90% it would read as an alarm.
+        FleetNotificationText(title: "\(threshold > 25 ? "🔋" : "🪫") \(providerName) · \(threshold)% left",
                               subtitle: "\(windowLabel) window", body: body)
     }
     guard let resetAt else { return text("Reset time unknown") }
