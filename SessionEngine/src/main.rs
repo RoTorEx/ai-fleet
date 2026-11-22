@@ -174,7 +174,10 @@ fn read_activity(
                 return None;
             }
             let text = observed.texts.get(index)?.as_deref()?;
-            if activity::Observation::parse(text, session.provider).state
+            let title = observed.titles.get(index).and_then(|t| t.as_deref());
+            if activity::Observation::parse(text, session.provider)
+                .with_title(title, session.provider)
+                .state
                 != activity::State::Working
             {
                 return None;
@@ -190,15 +193,21 @@ fn read_activity(
             let live = after
                 .iter()
                 .any(|p| p.pid == s.pid && p.started == s.started);
-            let text = valid
-                .iter()
-                .position(|v| v.id == s.id)
+            let index = valid.iter().position(|v| v.id == s.id);
+            let text = index
                 .and_then(|i| observed.texts.get(i))
+                .and_then(|s| s.as_deref());
+            let title = index
+                .and_then(|i| observed.titles.get(i))
                 .and_then(|s| s.as_deref());
             (
                 s.id.clone(),
-                text.filter(|_| live)
-                    .map(|text| activity::Observation::parse(text, s.provider)),
+                text.filter(|_| live).map(|text| {
+                    let message = metadata.get(&s.id).and_then(|m| m.last_message.as_deref());
+                    activity::Observation::parse(text, s.provider)
+                        .with_transcript(message)
+                        .with_title(title, s.provider)
+                }),
             )
         })
         .collect();

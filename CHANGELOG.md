@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Alert when a Claude Code or Codex reply is longer than the visible tail of its pane: whether a reply is new now comes from the session's transcript. Until now most Claude replies raised no Done alert, and a question closing a long reply raised none either.
+- Stop the false Done alert while a Codex turn is still running, and alert a question Codex queues mid-turn as `💬 Question`. Fleet now reads the status Codex writes into its terminal title (spinner, `Action Required`) together with the screen.
+
 ## [1.5.2] - 2026-11-22
 
 - Give the alert title to the session name: the type word moves to the meta line next to the project and tab, Codex status prefixes and the trailing project folder are dropped from names, and the fixed sentence that only repeated the type is gone.

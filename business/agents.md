@@ -100,6 +100,20 @@ repeated waiting states stay quiet. CLI exit and long-running work generate no
 alert. Codex and Claude use the existing heuristic activity reader. Kimi can
 notify for recognized approvals. Short events between samples may be missed.
 
+For Codex the reader also takes the status Codex writes into its terminal title,
+read with the screen: a spinner means the turn is still running, `Action
+Required` means it waits for the user. Screen markers alone raised a false Done
+when Codex hid its status line while streaming a message mid-turn, and showed a
+queued question as Working. `Action Required` without a recognized approval
+screen alerts as Question.
+
+A reply counts as new by the latest agent message in the session's bound
+transcript (Codex, Claude). The screen sample is 24 rows, so the marker that
+opens a longer reply is above it; judged from the screen alone, most Claude
+replies raised no Done and a closing question no Question. Sessions without a
+bound transcript still use the visible reply. Kimi has no verified idle state or
+reply evidence, so it alerts for approvals only and never for Done.
+
 Alert layout follows the board in `design/notifications/`. The title is the
 type glyph and the session name: ✋ approval, 💬 question, ⛔ blocked, ✅ done.
 The glyph alone marks the type there, so the whole line is left to the name; the
