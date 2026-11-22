@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-22
+
 - Add opt-in macOS alerts when an iTerm2 agent finishes a reply or needs input, including while the Fleet menu is closed. Click an alert to jump to the exact pane.
 - Redesign every notification so its type is the first word: `✋ Approval`, `💬 Question`, `⛔ Blocked`, `✅ Done`, `🪫` quota and `🔔` test, with the session name beside it and one line for project, tab and provider. A session keeps a single alert, alerts stack by project, and needs-you and Done alerts sound different.
 - Add **Show message text in alerts** (off by default) to include the start of the request and reply, and an in-memory alert History on the Agents tab, reachable from an alert's History button. Quota alerts now open Providers.
