@@ -98,6 +98,19 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(menuRowsAvailableFirst(rows).map(\.connection.providerID), ["codex", "kimi", "claude", "gemini"])
     }
 
+    func testRelaunchBelongsToABannerClickJustBeforeOrAfterItAndToNothingElse() {
+        let relaunch = Date(timeIntervalSince1970: 1_000)
+        var gate = RelaunchGate()
+        XCTAssertFalse(gate.isClick(relaunchAt: relaunch), "Spotlight or Finder: the menu opens")
+        gate.clicked(at: relaunch.addingTimeInterval(-RelaunchGate.before - 0.1))
+        XCTAssertFalse(gate.isClick(relaunchAt: relaunch), "An old click does not swallow a later relaunch")
+        gate.clicked(at: relaunch.addingTimeInterval(-0.2))
+        XCTAssertTrue(gate.isClick(relaunchAt: relaunch), "The click arrived first")
+        gate = RelaunchGate()
+        gate.clicked(at: relaunch.addingTimeInterval(RelaunchGate.grace / 2))
+        XCTAssertTrue(gate.isClick(relaunchAt: relaunch), "The click arrived during the wait")
+    }
+
     @MainActor
     func testSetupRowsHaveNoSavedAccountAndDoNotCount() throws {
         let suite = "stage5-\(UUID())"

@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Launching the running app again (Finder, Spotlight, `open`) shows the menu.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        statusBarController?.showPopoverIfNeeded()
+        statusBarController?.handleRelaunch()
         return false
     }
 

@@ -210,7 +210,15 @@ Notification Center until dismissed.
 
 Clicking an alert selects that exact iTerm2 window, tab and pane by session ID.
 If the session has ended or the pane cannot be verified, Fleet opens Agents with
-the reason. Alerts have no buttons, and Fleet keeps no alert history of its own:
+the reason. A successful click never shows Fleet's own menu. macOS activates the
+app to deliver a click, and that activation also arrives as a relaunch, which
+since 1.4 shows the menu; through 1.6.6 the menu therefore flashed open and
+closed on every click. A relaunch now waits **0.3 seconds** before showing the
+menu and shows nothing when a banner click came within **1 second** before it or
+during the wait, because the two arrive in either order. The wait is the price a
+real relaunch from Finder or Spotlight pays; shorter risks the flash returning on
+a busy machine, longer makes the relaunch feel slow. Both values are estimates,
+not measurements. `testRelaunchBelongsToABannerClick…` protects the rule. Alerts have no buttons, and Fleet keeps no alert history of its own:
 1.5 had both, but the list only repeated the banner inside the app, while
 everything needed is meant to be read in the notification. Notification Center
 is the list of alerts still open.

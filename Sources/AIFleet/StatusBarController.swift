@@ -163,8 +163,27 @@ private final class MenuPanelOutline: NSView {
     }
 }
 
+/// A click on a banner reaches the app twice: as the click and as a relaunch, because macOS
+/// activates the app to deliver it. A relaunch shows the menu, a click on a session alert must
+/// not, and the two arrive in either order. A relaunch therefore waits `grace` before showing
+/// the menu, and shows nothing when a click came within `before` ahead of it or during the wait.
+struct RelaunchGate {
+    static let grace: TimeInterval = 0.3
+    static let before: TimeInterval = 1
+    private(set) var lastClick = Date.distantPast
+
+    mutating func clicked(at time: Date = Date()) { lastClick = time }
+
+    /// Whether the relaunch seen at `time` belongs to a banner click known so far.
+    func isClick(relaunchAt time: Date) -> Bool {
+        lastClick.timeIntervalSince(time) >= -Self.before
+    }
+}
+
 @MainActor
 final class StatusBarController: NSObject {
+    private var relaunchGate = RelaunchGate()
+    private var pendingRelaunch: DispatchWorkItem?
     private let statusItem = NSStatusBar.system.statusItem(withLength: 18)
     private var attentionObservation: AnyCancellable?
     private var agentNotificationObservation: AnyCancellable?
@@ -330,7 +349,24 @@ final class StatusBarController: NSObject {
         }
     }
 
+    /// Launching the running app again (Finder, Spotlight, `open`) shows the menu, unless the
+    /// relaunch is only how macOS delivered a banner click.
+    func handleRelaunch() {
+        let seen = Date()
+        guard !relaunchGate.isClick(relaunchAt: seen) else { return }
+        pendingRelaunch?.cancel()
+        let show = DispatchWorkItem { [weak self] in
+            guard let self, !self.relaunchGate.isClick(relaunchAt: seen) else { return }
+            self.showPopoverIfNeeded()
+        }
+        pendingRelaunch = show
+        DispatchQueue.main.asyncAfter(deadline: .now() + RelaunchGate.grace, execute: show)
+    }
+
     func handleNotification(_ action: FleetNotificationAction) {
+        relaunchGate.clicked()
+        pendingRelaunch?.cancel()
+        pendingRelaunch = nil
         switch action {
         case .openSession(let sessionID):
             openAgentSession(sessionID)
