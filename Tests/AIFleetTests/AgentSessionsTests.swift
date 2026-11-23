@@ -96,6 +96,8 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertEqual(try alert(.approval, title: "(codex)", tab: "Investigate sign-in").text(showText: false).subtitle,
                        "Investigate sign-in")
         XCTAssertEqual(try alert(.approval, title: "(codex)", tab: nil).text(showText: false).subtitle, "")
+        XCTAssertEqual(try alert(.question, title: "agy (antigravity)", tab: nil).text(showText: false).subtitle, "",
+                       "Antigravity CLI names an untitled pane after its command")
         XCTAssertEqual(try alert(.approval, title: "Thira", tab: nil).text(showText: false).subtitle, "",
                        "The project already stands in the title")
     }

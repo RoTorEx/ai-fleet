@@ -36,8 +36,16 @@ Codex pane; the folder part is never a name. A session without a name, with a
 name shared by two live conversations, or with a title Codex shortened stays
 unbound. A transcript held by the session's own PID still takes precedence.
 
+Antigravity CLI holds `presence/<conversation>.lock` under
+`~/.gemini/antigravity-cli` open for writing while it shows that conversation.
+That lock, held by the session's own PID, binds
+`brain/<conversation>/.system_generated/logs/transcript.jsonl`, where the CLI
+appends each finished step as it happens. Two locks under one PID bind nothing.
+The SQLite store beside them lags by up to half a minute and is not read.
+
 A question asked through the provider's question tool (`request_user_input` and
-`request_user_input_async` in Codex, `AskUserQuestion` in Claude) is read from
+`request_user_input_async` in Codex, `AskUserQuestion` in Claude, `ask_question`
+in Antigravity, pending until the next transcript record) is read from
 the bound transcript as its question text and options. It is pending until its
 result arrives or the user sends a new message; the asynchronous Codex tool
 returns `{"accepted":true}` at once, which is not an answer. A pending question

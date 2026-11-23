@@ -125,7 +125,7 @@ fn claude_binding(s: &Session, root: &Path) -> Option<(PathBuf, String)> {
     (paths.len() == 1).then(|| (paths[0].clone(), id.to_owned()))
 }
 
-fn tail(path: &Path) -> Option<String> {
+pub fn tail(path: &Path) -> Option<String> {
     let mut f = File::open(path).ok()?;
     let len = f.metadata().ok()?.len();
     let start = len.saturating_sub(TAIL_BYTES);
@@ -164,6 +164,14 @@ fn text(v: &Value) -> Option<String> {
         .filter_map(|p| p["text"].as_str())
         .collect();
     (!parts.is_empty()).then(|| parts.join("\n").chars().take(8192).collect())
+}
+/// Antigravity wraps what the user typed in `<USER_REQUEST>` and appends its own context.
+fn user_request(content: &str) -> String {
+    let inner = content
+        .split_once("<USER_REQUEST>")
+        .and_then(|(_, rest)| rest.split_once("</USER_REQUEST>"))
+        .map_or(content, |(request, _)| request);
+    inner.trim().chars().take(8192).collect()
 }
 /// A question tool call as text: each question, then its options as bullets. Codex names the
 /// question `title` and lists options as strings; Claude names it `question` and labels options.
@@ -206,14 +214,17 @@ pub fn parse(source: &str, provider: Provider, session_id: &str) -> Metadata {
     let mut result = Metadata::default();
     // The call that asked the pending question; its answer names the same call.
     let mut pending: Option<String> = None;
-    if !matches!(provider, Provider::Codex | Provider::Claude) {
+    if !matches!(
+        provider,
+        Provider::Codex | Provider::Claude | Provider::Antigravity
+    ) {
         return result;
     }
     for line in source.lines() {
         let Ok(v) = serde_json::from_str::<Value>(line) else {
             continue;
         };
-        let time = timestamp(&v["timestamp"]);
+        let time = timestamp(&v["timestamp"]).or_else(|| timestamp(&v["created_at"]));
         let mut request = None;
         let mut message = None;
         let mut asked: Option<(Option<String>, String)> = None;
@@ -281,6 +292,28 @@ pub fn parse(source: &str, provider: Provider, session_id: &str) -> Metadata {
                         });
                 }
             }
+            // Antigravity writes one record per finished step. A question is an `ask_question`
+            // tool call closing a planner response; the next record is its result.
+            Provider::Antigravity => match v["type"].as_str() {
+                Some("USER_INPUT") => request = v["content"].as_str().map(user_request),
+                Some("PLANNER_RESPONSE") => {
+                    result.model = v["model"].as_str().map(str::to_owned).or(result.model);
+                    message = text(&v["content"]).filter(|m| !m.trim().is_empty());
+                    asked = v["tool_calls"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .find(|call| call["name"] == "ask_question")
+                        .and_then(|call| call["args"]["questions"].as_str())
+                        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+                        .and_then(|questions| {
+                            question_text(&serde_json::json!({ "questions": questions }))
+                        })
+                        .map(|text| (None, text));
+                    answered = asked.is_none();
+                }
+                _ => answered = true,
+            },
             _ => continue,
         }
         if request.is_some() || message.is_some() || asked.is_some() {
@@ -399,6 +432,36 @@ incomplete json
             let data = parse(&format!("{asked}\n{closing}"), Provider::Claude, "a");
             assert!(data.question.is_none());
         }
+    }
+    #[test]
+    fn antigravity_transcript_gives_request_reply_model_and_pending_question() {
+        // Record shapes from Antigravity CLI 1.5.15's transcript.jsonl.
+        let turn = r#"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-23T12:19:10Z","content":"<USER_REQUEST>\nRun the tests\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nlocal time\n</ADDITIONAL_METADATA>"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-23T12:19:11Z","model":"gemini-3.8-flash-high","thinking":"Plan.","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"make test\""}}]}
+{"step_index":2,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-11-23T12:19:17Z","content":"Completed"}
+{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-23T12:20:02Z","model":"gemini-3.8-flash-high","content":"All tests pass."}"#;
+        let data = parse(turn, Provider::Antigravity, "a");
+        assert_eq!(data.request.as_deref(), Some("Run the tests"));
+        assert_eq!(data.last_message.as_deref(), Some("All tests pass."));
+        assert_eq!(data.model.as_deref(), Some("gemini-3.8-flash-high"));
+        assert!(data.updated_at > data.requested_at);
+        assert!(data.question.is_none());
+        let asked = format!(
+            "{turn}\n{}",
+            r#"{"step_index":4,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-23T12:20:20Z","tool_calls":[{"name":"ask_question","args":{"questions":"[{\"is_multi_select\":false,\"options\":[\"Continue\",\"Explore\"],\"question\":\"How to proceed?\"}]"}}]}"#
+        );
+        let data = parse(&asked, Provider::Antigravity, "a");
+        assert_eq!(
+            data.question.as_deref(),
+            Some("How to proceed?\n• Continue\n• Explore")
+        );
+        assert_eq!(data.last_message.as_deref(), Some("All tests pass."));
+        let result = r#"{"step_index":5,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-11-23T12:22:04Z","content":"A1: User Skipped"}"#;
+        assert!(
+            parse(&format!("{asked}\n{result}"), Provider::Antigravity, "a")
+                .question
+                .is_none()
+        );
     }
     #[test]
     fn several_questions_are_numbered_and_codex_options_are_plain_strings() {

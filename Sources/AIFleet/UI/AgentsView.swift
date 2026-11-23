@@ -249,7 +249,7 @@ enum AgentRowText {
         while let first = text.unicodeScalars.first, isDecoration(first) {
             text = String(text.unicodeScalars.dropFirst()).trimmingCharacters(in: .whitespaces)
         }
-        let jobs: Set<String> = [provider.lowercased(), "codex", "claude", "kimi", "kimi-code", "qwen", "gemini", "grok", "node"]
+        let jobs: Set<String> = [provider.lowercased(), "codex", "claude", "kimi", "kimi-code", "qwen", "gemini", "grok", "antigravity", "node"]
         if text.hasSuffix(")"), let open = text.lastIndex(of: "(") {
             let job = text[text.index(after: open)..<text.index(before: text.endIndex)].lowercased()
             let name = text[..<open].trimmingCharacters(in: .whitespaces)

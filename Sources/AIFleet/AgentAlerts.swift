@@ -96,7 +96,8 @@ struct AgentAlert: Identifiable, Equatable {
     private func meaningful(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let generic: Set<String> = [session.provider.lowercased(), "codex", "claude", "claude code", "kimi",
-                                    "kimi-code", "qwen", "gemini", "grok", "node", "bash", "zsh", "fish", "sh"]
+                                    "kimi-code", "qwen", "gemini", "grok", "antigravity", "agy", "node", "bash", "zsh",
+                                    "fish", "sh"]
         var parts = AgentRowText.title(raw, provider: session.provider).components(separatedBy: " | ")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         if parts.count > 1, parts[0].range(of: #"^\[\s*\S?\s*\]"#, options: .regularExpression) != nil {

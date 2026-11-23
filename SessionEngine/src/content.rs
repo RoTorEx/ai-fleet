@@ -33,6 +33,12 @@ pub fn parse(text: &str, provider: Provider) -> Content {
             ..Content::default()
         };
     }
+    if provider == Provider::Antigravity {
+        return Content {
+            state: antigravity_state(text),
+            ..Content::default()
+        };
+    }
     if !matches!(provider, Provider::Codex | Provider::Claude) {
         return Content {
             state: "Live · activity unknown",
@@ -304,6 +310,38 @@ pub fn kimi(text: &str) -> Kimi {
     }
 }
 
+/// Antigravity CLI 1.5.x keeps a status bar on the last row: "? for shortcuts" while the prompt
+/// waits, "esc to cancel" while a turn runs or a dialog is open. A permission dialog opens with
+/// "Requesting permission for:"; a question dialog ends with its "enter Select · esc Skip" hints
+/// on the row above the bar. Text typed into the prompt can replace the left hint, and then
+/// nothing is known.
+fn antigravity_state(text: &str) -> &'static str {
+    let rows: Vec<_> = text
+        .lines()
+        .rev()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .take(24)
+        .collect();
+    match rows.first() {
+        Some(bar) if bar.starts_with("? for shortcuts") => "Waiting for input",
+        Some(bar) if bar.starts_with("esc to cancel") => {
+            let hints = rows.get(1).copied().unwrap_or("");
+            if rows
+                .iter()
+                .any(|row| row.starts_with("Requesting permission for:"))
+            {
+                "Needs approval"
+            } else if hints.contains("enter Select") && hints.contains("esc Skip") {
+                "Waiting for input"
+            } else {
+                "Working"
+            }
+        }
+        _ => "Live · activity unknown",
+    }
+}
+
 fn metadata(text: &str, label: &str) -> Option<String> {
     text.lines().find_map(|line| {
         let line = line.trim().trim_matches(['│', ' ']);
@@ -419,6 +457,44 @@ mod tests {
         assert_eq!(c.messages[0].text, "Fix this\nplease");
         assert_eq!(c.messages[1].role, Role::Action);
         assert_eq!(c.messages[2].text, "Fixed it");
+    }
+    #[test]
+    fn antigravity_state_comes_from_its_status_bar_and_dialogs() {
+        // Rows taken from Antigravity CLI 1.5.15; box-drawing and separator glyphs left out.
+        let bar = |hint: &str| format!("{hint}                 auto · Gemini 3.8 Flash · high");
+        let screen = |body: &str, hint: &str| format!("{body}\n> \n\n{}\n", bar(hint));
+        let state = |text: String| parse(&text, Provider::Antigravity).state;
+        assert_eq!(
+            state(screen("  The command completed.", "? for shortcuts")),
+            "Waiting for input"
+        );
+        assert_eq!(
+            state(screen("> Run it\n  Generating...", "esc to cancel")),
+            "Working"
+        );
+        let permission = "Command\nRequesting permission for:\n   sleep 6 && echo ok\n\nRun this command?\n> 1. Yes, run command\n  4. No, cancel\n  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command";
+        assert_eq!(
+            state(format!("{permission}\n{}", bar("esc to cancel"))),
+            "Needs approval"
+        );
+        let question = "Question\nQuestion 1/1: How would you like to proceed?\n> 1. Continue\n  2. Explore\n  3. Write-in...\n  ↑/↓ Navigate · enter Select · esc Skip";
+        assert_eq!(
+            state(format!("{question}\n{}", bar("esc to cancel"))),
+            "Waiting for input"
+        );
+        // A quoted hint is not the status bar, and a draft can hide the bar's hint.
+        assert_eq!(
+            state(screen(
+                "  Press esc to cancel\n? for shortcuts",
+                "draft text"
+            )),
+            "Live · activity unknown"
+        );
+        assert!(
+            parse("x\n? for shortcuts", Provider::Antigravity)
+                .messages
+                .is_empty()
+        );
     }
     #[test]
     fn claude_selection_dialog_waits_for_input_only_as_the_last_row() {

@@ -49,8 +49,8 @@ Fleet neither reads nor follows it. The presentation-independent
 [session contract](../docs/contracts/agent-sessions.md) owns typed states, evidence,
 identity and timing for future UI composition.
 
-Local interactive Codex, Claude, Kimi, Qwen, Gemini and Grok sessions in iTerm2
-are discoverable and support exact-pane Jump. SSH, tmux, GUI conversations and
+Local interactive Codex, Claude, Kimi, Qwen, Gemini, Grok and Antigravity
+sessions in iTerm2 are discoverable and support exact-pane Jump. SSH, tmux, GUI conversations and
 other terminals remain outside this reader. Codex/Claude retain their verified
 terminal-state and transcript parsers. Kimi Code 0.39.x uses its own moon/braille Working markers and explicit approval
 choices, gated by native editor/footer chrome for work. With that chrome on
@@ -58,7 +58,16 @@ screen and no marker on its row (above the Todo block, or above the editor
 without one) the session is Idle. When that row is out of the sampled screen,
 because only Todo items are visible, the state stays Unknown rather than
 implying Idle. Thinking-effort configuration does not mean Working. Kimi
-transcript messages are not inferred. Qwen/Gemini/Grok remain
+transcript messages are not inferred. Antigravity CLI (`agy`, a binary named
+`antigravity`) replaced Gemini CLI, which Google retired for individual accounts
+in June 2026. Its state is read from the status bar on the last row of
+Antigravity CLI 1.5.x: `? for shortcuts` is Idle, `esc to cancel` is Working, a
+dialog opening with `Requesting permission for:` is Approval and a question
+dialog (`enter Select · esc Skip`) is Idle. Request, reply, model and a pending
+question come from its process-bound transcript, so its alerts carry the same
+dialogue as Codex and Claude. Text typed into the prompt can replace the bar's
+hint; the state is then Unknown. Antigravity is a session provider only: quota,
+accounts and the Processes tab still know the Gemini CLI. Qwen/Gemini/Grok remain
 explicitly Unknown without borrowed status or transcript data; Unknown has its own filter and is
 never counted as Idle. Running sessions are independent of quota-provider
 visibility settings. Activity,

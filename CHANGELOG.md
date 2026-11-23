@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Show Antigravity CLI (`agy`) sessions on the Agents tab, with Jump, working, approval, idle and question states, and alerts that carry the request, the reply or the question. Antigravity replaced Gemini CLI and its sessions were not listed at all. Quota, accounts and the Processes tab still cover Gemini CLI only.
+
 ## [1.6.4] - 2026-11-23
 
 - Show the question itself in a 💬 alert when an agent asks through its question tool: the question and its options, read from the session's transcript. A Codex alert carried the interface hint `Queued follow-up inputs ? 1 question ⇧← to answer` instead, and a Claude Code question dialog raised no alert at all.

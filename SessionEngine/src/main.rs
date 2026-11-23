@@ -1,5 +1,6 @@
 //! Private JSON-lines bridge. No network, terminal writes, or daemon installation.
 mod activity;
+mod antigravity_metadata;
 mod codex_metadata;
 mod command;
 mod content;
@@ -146,6 +147,7 @@ fn read_activity(
         .collect();
     let mut metadata = crate::session_data::read(&claude);
     metadata.extend(codex_metadata::read(&valid, &observed.titles));
+    metadata.extend(antigravity_metadata::read(&valid));
     // Reject identity reuse during the file read.
     let after = process::scan()?;
     metadata.retain(|id, _| {

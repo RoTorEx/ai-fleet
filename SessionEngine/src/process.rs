@@ -12,6 +12,8 @@ pub enum Provider {
     Qwen,
     Gemini,
     Grok,
+    /// Antigravity CLI (`agy`), the successor of Gemini CLI.
+    Antigravity,
 }
 
 impl std::fmt::Display for Provider {
@@ -23,6 +25,7 @@ impl std::fmt::Display for Provider {
             Self::Qwen => "Qwen",
             Self::Gemini => "Gemini",
             Self::Grok => "Grok",
+            Self::Antigravity => "Antigravity",
         })
     }
 }
@@ -47,6 +50,7 @@ fn named_provider(name: &str) -> Option<Provider> {
         "qwen" | "qwen-code" => Some(Provider::Qwen),
         "gemini" => Some(Provider::Gemini),
         "grok" => Some(Provider::Grok),
+        "antigravity" | "agy" => Some(Provider::Antigravity),
         _ => None,
     }
 }
@@ -132,6 +136,21 @@ fn classify(executable: &str, args: &[String]) -> Option<Provider> {
             "upgrade",
             "auto-mode",
         ],
+        Provider::Antigravity => &[
+            "acp",
+            "agent",
+            "agents",
+            "changelog",
+            "help",
+            "install",
+            "mcp",
+            "mic-serve",
+            "models",
+            "plugin",
+            "plugins",
+            "remote-control",
+            "update",
+        ],
         _ => &[
             "login",
             "logout",
@@ -194,6 +213,24 @@ fn classify(executable: &str, args: &[String]) -> Option<Provider> {
                     "-i",
                     "--image",
                     "--add-dir",
+                ]
+            } else if provider == Provider::Antigravity {
+                &[
+                    "--add-dir",
+                    "--agent",
+                    "--conversation",
+                    "--effort",
+                    "--input-format",
+                    "--json-schema",
+                    "--log-file",
+                    "--mode",
+                    "--model",
+                    "--output-format",
+                    "--print-timeout",
+                    "--project",
+                    "--settings",
+                    "--prompt-interactive",
+                    "-i",
                 ]
             } else {
                 &[
@@ -546,6 +583,33 @@ mod tests {
             }
         }
         let args = |s: &[&str]| s.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        // Antigravity CLI: the cask's `agy` wrapper execs a binary named `antigravity`.
+        let agy = |tail: &[&str]| {
+            let argv: Vec<_> = std::iter::once("antigravity")
+                .chain(tail.iter().copied())
+                .collect();
+            classify(
+                "/opt/homebrew/Caskroom/antigravity-cli/1.5.15/antigravity",
+                &args(&argv),
+            )
+        };
+        for tail in [
+            &[][..],
+            &["--mode", "plan"],
+            &["-i", "mcp"],
+            &["--continue"],
+        ] {
+            assert_eq!(agy(tail), Some(Provider::Antigravity), "{tail:?}");
+        }
+        for tail in [
+            &["mcp"][..],
+            &["models"],
+            &["--print", "x"],
+            &["-p", "x"],
+            &["--help"],
+        ] {
+            assert_eq!(agy(tail), None, "{tail:?}");
+        }
         assert_eq!(
             classify(
                 "/bin/node",
