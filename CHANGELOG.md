@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.6] - 2026-11-23
+
 - Add Antigravity as a provider: its email, plan and quota per model with reset times on the Providers tab, and its processes on the Processes tab. The sign-in is read from the login Keychain. The CLI renews its token hourly and only while it runs, so with `agy` closed for longer the row reads **Open agy to renew sign-in**.
 
 ## [1.6.5] - 2026-11-23
