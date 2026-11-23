@@ -33,7 +33,10 @@ struct ProviderLogout {
     }
 
     func signOut(_ providerID: String) throws {
-        guard let provider = ProviderCatalog.definition(for: providerID) else { throw Failure.unsupported }
+        // Antigravity's sign-in is a Keychain item its CLI owns; Fleet removes nothing there.
+        guard let provider = ProviderCatalog.definition(for: providerID), providerID != "antigravity" else {
+            throw Failure.unsupported
+        }
         if providerID == "kimi", !(environment["KIMI_API_KEY"] ?? "").isEmpty { throw Failure.environmentKey }
         let kimiSlot = ".kimi-code/" + KimiCodeEnvironment(root: home.appendingPathComponent(".kimi-code")).credentialFile
         let files = providerID == "claude" ? [".claude/.credentials.json"]

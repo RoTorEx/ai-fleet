@@ -63,6 +63,12 @@ subscription charges.
   Only successful server identity verification confirms auth; explicit credential
   rejection uses ×. Token renewal stays with the native CLI. [Gemini](business/gemini.md) owns its auth, endpoint, model-bucket,
   request-gating and error rules.
+- Antigravity CLI, the successor of Gemini CLI, is a separate provider. Its Google
+  sign-in is read from the login Keychain and its quota per model from the same
+  endpoints the CLI calls. Only the CLI renews its hourly token, so with `agy`
+  closed the row reads `Open agy to renew sign-in` and shows no quota. It has one
+  native login: no private profiles, no Switch and no local sign-out.
+  [Antigravity](business/antigravity.md) owns these rules.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
@@ -266,6 +272,7 @@ subscription charges.
 - Quota and notifications: `Sources/AIFleet/StatusService.swift`
 - Claude subscription usage: `Sources/AIFleet/ClaudeQuota.swift`
 - Gemini model quota and native OAuth: `Sources/AIFleet/GeminiQuota.swift`
+- Antigravity model quota and Keychain sign-in: `Sources/AIFleet/AntigravityQuota.swift`
 - Local login detection: `Sources/AIFleet/LocalProviderAuth.swift`
 - Shared accounts, provider connections, and launch: `Sources/AIFleet/Accounts.swift`
 - Next-launch provider selection and isolation: `Sources/AIFleet/ProviderTerminalLaunch.swift`

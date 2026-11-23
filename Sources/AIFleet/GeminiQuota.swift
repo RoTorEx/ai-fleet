@@ -84,7 +84,7 @@ enum GeminiQuota {
         let status: ProviderStatus
         var retryAt: Date? = nil
     }
-    private struct RequestFailure: Error { let code: Int; let retryAt: Date? }
+    struct RequestFailure: Error { let code: Int; let retryAt: Date? }
 
     static func fetch(token: String, cachedEmail: String? = nil, session: URLSession = liveSession) async -> Result {
         var identity = cachedEmail.map {
@@ -131,7 +131,7 @@ enum GeminiQuota {
         }
     }
 
-    private static func request(url: URL, token: String, body: [String: Any]?, session: URLSession) async throws -> [String: Any] {
+    static func request(url: URL, token: String, body: [String: Any]?, session: URLSession) async throws -> [String: Any] {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.cachePolicy = .reloadIgnoringLocalCacheData

@@ -13,6 +13,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
     @Published var subscriptions: [ProviderStatus] = []
     @Published private(set) var globalAccountIDs: [String: String] = [:]
     @Published var gemini: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.gemini)
+    @Published var antigravity: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.antigravity)
     @Published var qwen: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.qwen)
     @Published var grok: ProviderStatus = StatusService.initialStatus(for: ProviderCatalog.grok)
     @Published var lastError: String?
@@ -140,6 +141,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return claude
         case ProviderCatalog.gemini.id:
             return gemini
+        case ProviderCatalog.antigravity.id:
+            return antigravity
         case ProviderCatalog.qwen.id:
             return qwen
         case ProviderCatalog.grok.id:
@@ -349,6 +352,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         kimi = results.first { $0.providerID == "kimi" } ?? Self.initialStatus(for: ProviderCatalog.kimi)
         claude = results.first { $0.providerID == "claude" } ?? Self.initialStatus(for: ProviderCatalog.claude)
         gemini = results.first { $0.providerID == "gemini" } ?? Self.initialStatus(for: ProviderCatalog.gemini)
+        antigravity = results.first { $0.providerID == "antigravity" } ?? Self.initialStatus(for: ProviderCatalog.antigravity)
         qwen = results.first { $0.providerID == "qwen" } ?? Self.initialStatus(for: ProviderCatalog.qwen)
         grok = results.first { $0.providerID == "grok" } ?? Self.initialStatus(for: ProviderCatalog.grok)
     }
@@ -366,6 +370,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             result = await GeminiQuota.check(home: connection.configDirectory.map {
                 URL(fileURLWithPath: $0).deletingLastPathComponent()
             } ?? FileManager.default.homeDirectoryForCurrentUser)
+        case "antigravity": result = await AntigravityQuota.check()
         case "claude":
             result = await Self.checkClaudeProfile(connection.claudeProfile, executableURL: ProviderCatalog.executableURL(for: provider))
         case "codex": result = await checkCodex(connection: connection)

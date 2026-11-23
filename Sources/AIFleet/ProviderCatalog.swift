@@ -98,7 +98,12 @@ enum ProviderCatalog {
     static let grok = ProviderDefinition(id: "grok", name: "Grok", executableNames: ["grok"],
         credentialPaths: [".grok/auth.json"])
 
-    static let all = [codex, kimi, claude, qwen, gemini, grok]
+    /// Antigravity CLI replaced Gemini CLI. The cask installs `agy`, a wrapper around a binary
+    /// named `antigravity`; its sign-in lives in the Keychain, not in a file.
+    static let antigravity = ProviderDefinition(id: "antigravity", name: "Antigravity",
+        executableNames: ["agy", "antigravity"], credentialPaths: [])
+
+    static let all = [codex, kimi, claude, qwen, gemini, antigravity, grok]
 
     static var allIDs: [String] {
         all.map(\.id)

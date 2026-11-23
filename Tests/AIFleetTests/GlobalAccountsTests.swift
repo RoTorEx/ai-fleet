@@ -93,6 +93,10 @@ final class GlobalAccountsTests: XCTestCase {
             let connection = ProviderConnection.global(provider.id)
             let command = AccountLaunch.command(connection: connection, executable: URL(fileURLWithPath: "/tool/cli"),
                 directory: URL(fileURLWithPath: "/native/home"), login: true)
+            if provider.id == "antigravity" {
+                XCTAssertTrue(command.hasSuffix("/usr/bin/env  '/tool/cli'"), "It signs in inside its own CLI and has no home selector")
+                continue
+            }
             XCTAssertTrue(command.contains("-u '\(connection.selector)'"))
             XCTAssertFalse(command.contains("\(connection.selector)="))
             XCTAssertFalse(command.contains("AI Fleet/Accounts"))

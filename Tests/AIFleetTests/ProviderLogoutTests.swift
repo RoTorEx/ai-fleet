@@ -37,7 +37,7 @@ final class ProviderLogoutTests: XCTestCase {
     }
 
     func testAllFileBackedProvidersRemoveEveryMonitoredCredentialButPreserveSessions() throws {
-        for provider in ProviderCatalog.all where provider.id != "claude" {
+        for provider in ProviderCatalog.all where !["claude", "antigravity"].contains(provider.id) {
             let home = try fixtureHome()
             for path in provider.credentialPaths { try write("fixture", path, home: home) }
             try write(#"{"active":"test@example.test","old":["other@example.test"]}"#, ".gemini/google_accounts.json", home: home)

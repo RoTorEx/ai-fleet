@@ -12,6 +12,7 @@ It sits in the menu bar as a ship icon and shows a simple dropdown:
 - **Codex** — remaining usage percent from the ChatGPT backend.
 - **Claude** — remaining 5h/7d subscription quota and native sign-in.
 - **Gemini** — native Google login, email/plan, and model quota with reset times.
+- **Antigravity** — the CLI that replaced Gemini CLI: email/plan and quota per model with reset times.
 - **Accounts** — shared α/β/γ badges across providers; email and plan on hover.
 
 No dock icon. AI Fleet monitors and opens native sign-in for each provider’s global login.
@@ -23,7 +24,7 @@ No dock icon. AI Fleet monitors and opens native sign-in for each provider’s g
 
 ## Agents
 
-The **Agents** tab groups live Codex, Claude, Kimi, Qwen, Gemini and Grok sessions
+The **Agents** tab groups live Codex, Claude, Kimi, Qwen, Gemini, Grok and Antigravity sessions
 by project, with filters, collapsible groups, observed statuses and working
 indicators. Its list scrolls when the menu reaches 80% of the visible screen.
 Click a row to open its exact iTerm2 window/tab/split; the overview stays open.
@@ -93,6 +94,18 @@ Expired or unconfirmed credentials show a gray **Sign in required** row with
 no active arrow; cached tokens alone do not count as available. Use native Sign in
 to renew access; AI Fleet does not rewrite Google tokens. See [Gemini integration](business/gemini.md).
 
+### Antigravity
+
+Install the CLI with `brew install --cask antigravity-cli` and sign in on the
+first run of `agy`. AI Fleet reads that sign-in from the login Keychain, checks
+the actual email, and shows the plan and the quota of each model. Quota updates
+are spaced five minutes apart.
+
+The CLI renews its access token hourly and only while it runs. With `agy`
+closed for longer, the row turns gray and reads **Open agy to renew sign-in**;
+start `agy` and refresh. AI Fleet does not rewrite Google tokens, and sign-out
+stays in the CLI. See [Antigravity integration](business/antigravity.md).
+
 ### Accounts
 
 Each Greek letter identifies an account. The same letter follows every provider
@@ -125,7 +138,7 @@ native scope. Fleet never opens a terminal or starts a conversation for you.
 To remove command integration, delete only the Fleet-owned `~/.local/bin/codex`
 shim and run `rehash`; saved accounts, history and native credentials remain.
 
-**Processes** lists recognized Codex, Claude, Kimi, Qwen, Gemini and Grok
+**Processes** lists recognized Codex, Claude, Kimi, Qwen, Gemini, Antigravity and Grok
 processes, including detached servers and helpers. Use
 **Stop**, **Force Quit**, or **Stop all background processes…** after reviewing
 the confirmation. The app verifies process identity and checks exit. Account

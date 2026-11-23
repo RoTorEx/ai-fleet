@@ -640,7 +640,7 @@ struct ProviderLimitRow: View {
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {
                     ForEach(status.limitWindows) { window in
-                        if status.providerID == "gemini" {
+                        if ["gemini", "antigravity"].contains(status.providerID) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(window.label).font(.system(size: 10, weight: .medium, design: .monospaced))
                                     .foregroundColor(color).lineLimit(1)

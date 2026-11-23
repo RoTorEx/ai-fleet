@@ -151,7 +151,7 @@ final class AccountsTests: XCTestCase {
         try "#!/bin/sh\nprintf '%s\\n' \"$CLAUDE_CONFIG_DIR\" \"$CODEX_HOME\" \"$KIMI_CODE_HOME\" \"$QWEN_HOME\" \"$GROK_HOME\" \"$GEMINI_CLI_HOME\" \"$*\"\n"
             .write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
-        for provider in ProviderCatalog.all {
+        for provider in ProviderCatalog.all where !ProviderConnection.global(provider.id).selector.isEmpty {
             let path = "/accounts/a ' $(touch unwanted) `echo bad`/" + provider.id
             let connection = ProviderConnection(id: provider.id, providerID: provider.id, configDirectory: path)
             let command = AccountLaunch.command(connection: connection, executable: executable, directory: folder, login: true)

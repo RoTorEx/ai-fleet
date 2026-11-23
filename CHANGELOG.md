@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Add Antigravity as a provider: its email, plan and quota per model with reset times on the Providers tab, and its processes on the Processes tab. The sign-in is read from the login Keychain. The CLI renews its token hourly and only while it runs, so with `agy` closed for longer the row reads **Open agy to renew sign-in**.
+
 ## [1.6.5] - 2026-11-23
 
 - Show Antigravity CLI (`agy`) sessions on the Agents tab, with Jump, working, approval, idle and question states, and alerts that carry the request, the reply or the question. Antigravity replaced Gemini CLI and its sessions were not listed at all. Quota, accounts and the Processes tab still cover Gemini CLI only.

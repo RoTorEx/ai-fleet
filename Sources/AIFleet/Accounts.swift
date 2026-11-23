@@ -476,7 +476,8 @@ enum AccountLaunch {
     static func command(connection: ProviderConnection, executable: URL, directory: URL, login: Bool, hasGeminiLogin: Bool = false) -> String {
         let quote = ClaudeProfileLaunch.shellQuote
         let unset = connection.overrideKeys.map { "-u " + quote($0) }.joined(separator: " ")
-        let selector = connection.configDirectory.map { " " + quote(connection.selector + "=" + $0) } ?? ""
+        // A provider without a home selector has one native login and no directory to point at.
+        let selector = connection.selector.isEmpty ? "" : connection.configDirectory.map { " " + quote(connection.selector + "=" + $0) } ?? ""
         let arguments: String
         switch (connection.providerID, login) {
         case ("gemini", true):

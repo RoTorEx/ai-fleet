@@ -66,8 +66,8 @@ dialog opening with `Requesting permission for:` is Approval and a question
 dialog (`enter Select · esc Skip`) is Idle. Request, reply, model and a pending
 question come from its process-bound transcript, so its alerts carry the same
 dialogue as Codex and Claude. Text typed into the prompt can replace the bar's
-hint; the state is then Unknown. Antigravity is a session provider only: quota,
-accounts and the Processes tab still know the Gemini CLI. Qwen/Gemini/Grok remain
+hint; the state is then Unknown. Its quota and sign-in belong to
+[Antigravity](antigravity.md). Qwen/Gemini/Grok remain
 explicitly Unknown without borrowed status or transcript data; Unknown has its own filter and is
 never counted as Idle. Running sessions are independent of quota-provider
 visibility settings. Activity,
