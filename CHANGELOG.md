@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Show the question itself in a 💬 alert when an agent asks through its question tool: the question and its options, read from the session's transcript. A Codex alert carried the interface hint `Queued follow-up inputs ? 1 question ⇧← to answer` instead, and a Claude Code question dialog raised no alert at all.
+- Read Codex transcripts again. Codex 0.171 keeps them in a shared background process, which left every Codex session without one, so alerts and rows fell back to the visible screen. A transcript is now matched by the conversation name in the tab title, only when exactly one open conversation and one tab carry it; a session without a name keeps using the screen.
+
 ## [1.6.3] - 2026-11-22
 
 - Drop the project path from the last line of an alert; the project already stands in the title. The line is now the window and tab, for example `Personal AI — tab 8`.

@@ -16,7 +16,7 @@ All of it is Fleet code and is changed here directly:
 | `src/model.rs` | sessions, pane linkage, Jump validation |
 | `src/iterm.rs`, `src/iterm.js` | the iTerm2 helper: pane list, screen and title samples, Jump |
 | `src/content.rs`, `src/activity.rs` | screen parsing, state and reply/attention tracking |
-| `src/session_data.rs`, `src/codex_metadata.rs` | process-bound transcript metadata |
+| `src/session_data.rs`, `src/codex_metadata.rs` | transcript binding, messages and pending questions |
 
 The discovery, Jump and activity modules began as copies of AI Session Hub
 (MIT, same author) at revision `690bad1`. Since Fleet 1.6.0 they are ordinary

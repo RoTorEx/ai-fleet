@@ -19,6 +19,8 @@ pub struct Metadata {
     pub requested_at: Option<SystemTime>,
     pub request: Option<String>,
     pub last_message: Option<String>,
+    /// What the agent asked through its question tool and the user has not answered yet.
+    pub question: Option<String>,
 }
 
 // A bounded tail keeps refresh work independent of the complete conversation size.
@@ -163,8 +165,47 @@ fn text(v: &Value) -> Option<String> {
         .collect();
     (!parts.is_empty()).then(|| parts.join("\n").chars().take(8192).collect())
 }
+/// A question tool call as text: each question, then its options as bullets. Codex names the
+/// question `title` and lists options as strings; Claude names it `question` and labels options.
+pub fn question_text(input: &Value) -> Option<String> {
+    let questions: Vec<String> = input["questions"]
+        .as_array()?
+        .iter()
+        .filter_map(|q| {
+            let ask = q["question"].as_str().or_else(|| q["title"].as_str())?;
+            let options = q["options"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|o| o.as_str().or_else(|| o["label"].as_str()))
+                .map(|o| format!("• {}", o.trim()));
+            (!ask.trim().is_empty()).then(|| {
+                std::iter::once(ask.trim().to_owned())
+                    .chain(options)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+        })
+        .collect();
+    let numbered = questions.len() > 1;
+    let text = questions
+        .iter()
+        .enumerate()
+        .map(|(i, q)| {
+            if numbered {
+                format!("{}. {q}", i + 1)
+            } else {
+                q.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    (!text.is_empty()).then(|| text.chars().take(8192).collect())
+}
 pub fn parse(source: &str, provider: Provider, session_id: &str) -> Metadata {
     let mut result = Metadata::default();
+    // The call that asked the pending question; its answer names the same call.
+    let mut pending: Option<String> = None;
     if !matches!(provider, Provider::Codex | Provider::Claude) {
         return result;
     }
@@ -173,7 +214,11 @@ pub fn parse(source: &str, provider: Provider, session_id: &str) -> Metadata {
             continue;
         };
         let time = timestamp(&v["timestamp"]);
-        let (request, message) = match provider {
+        let mut request = None;
+        let mut message = None;
+        let mut asked: Option<(Option<String>, String)> = None;
+        let mut answered = false;
+        match provider {
             Provider::Codex => {
                 if v["type"] == "turn_context" {
                     result.model = v["payload"]["model"]
@@ -190,23 +235,21 @@ pub fn parse(source: &str, provider: Provider, session_id: &str) -> Metadata {
                 if v["type"] != "event_msg" {
                     continue;
                 }
-                (
-                    if p["type"] == "user_message" {
-                        text(&p["message"])
-                    } else {
-                        None
-                    },
-                    if p["type"] == "agent_message" {
-                        text(&p["message"])
-                    } else {
-                        None
-                    },
-                )
+                let call = || p["call"].as_str().map(str::to_owned);
+                match p["type"].as_str() {
+                    Some("user_message") => request = text(&p["message"]),
+                    Some("agent_message") => message = text(&p["message"]),
+                    Some("question") => asked = text(&p["message"]).map(|t| (call(), t)),
+                    Some("question_answered") => answered = pending.is_some() && call() == pending,
+                    _ => {}
+                }
             }
             Provider::Claude => {
                 if v["sessionId"].as_str() != Some(session_id) || v["isSidechain"] == true {
                     continue;
                 }
+                let content = &v["message"]["content"];
+                let parts = || content.as_array().into_iter().flatten();
                 if v["type"] == "assistant" {
                     result.model = v["message"]["model"]
                         .as_str()
@@ -218,27 +261,35 @@ pub fn parse(source: &str, provider: Provider, session_id: &str) -> Metadata {
                         .or_else(|| v["effort"].as_str())
                         .map(str::to_owned)
                         .or(result.reasoning);
+                    message = text(content);
+                    asked = parts()
+                        .find(|p| p["type"] == "tool_use" && p["name"] == "AskUserQuestion")
+                        .and_then(|p| {
+                            Some((
+                                p["id"].as_str().map(str::to_owned),
+                                question_text(&p["input"])?,
+                            ))
+                        });
+                } else if v["type"] == "user" {
+                    if v.get("toolUseResult").is_none() && v["isMeta"] != true {
+                        request = text(content);
+                    }
+                    answered = pending.is_some()
+                        && parts().any(|p| {
+                            p["type"] == "tool_result"
+                                && p["tool_use_id"].as_str() == pending.as_deref()
+                        });
                 }
-                (
-                    if v["type"] == "user"
-                        && v.get("toolUseResult").is_none()
-                        && v["isMeta"] != true
-                    {
-                        text(&v["message"]["content"])
-                    } else {
-                        None
-                    },
-                    if v["type"] == "assistant" {
-                        text(&v["message"]["content"])
-                    } else {
-                        None
-                    },
-                )
             }
             _ => continue,
-        };
-        if request.is_some() || message.is_some() {
+        }
+        if request.is_some() || message.is_some() || asked.is_some() {
             result.updated_at = time.or(result.updated_at);
+        }
+        // A new request also answers whatever was asked before it.
+        if answered || request.is_some() {
+            result.question = None;
+            pending = None;
         }
         if let Some(request) = request {
             result.request = Some(request);
@@ -247,6 +298,10 @@ pub fn parse(source: &str, provider: Provider, session_id: &str) -> Metadata {
         }
         if message.is_some() {
             result.last_message = message;
+        }
+        if let Some((call, text)) = asked {
+            result.question = Some(text);
+            pending = call;
         }
     }
     result
@@ -320,6 +375,44 @@ incomplete json
         assert!(data.updated_at.unwrap() > data.requested_at.unwrap());
     }
 
+    #[test]
+    fn claude_question_tool_is_pending_until_its_result_or_a_new_request() {
+        let asked = r#"{"type":"assistant","sessionId":"a","message":{"content":[{"type":"text","text":"I need one decision."}]}}
+{"type":"assistant","sessionId":"a","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"AskUserQuestion","input":{"questions":[{"question":"Which branch should I use?","header":"Branch","options":[{"label":"main","description":"The default"},{"label":"develop","description":"Work in progress"}]}]}}]}}"#;
+        let data = parse(asked, Provider::Claude, "a");
+        assert_eq!(
+            data.question.as_deref(),
+            Some("Which branch should I use?\n• main\n• develop")
+        );
+        assert_eq!(data.last_message.as_deref(), Some("I need one decision."));
+        let other = r#"{"type":"user","sessionId":"a","toolUseResult":{},"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_other"}]}}"#;
+        assert!(
+            parse(&format!("{asked}\n{other}"), Provider::Claude, "a")
+                .question
+                .is_some(),
+            "Another tool's result answers nothing"
+        );
+        let answer = r#"{"type":"user","sessionId":"a","toolUseResult":{},"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1"}]}}"#;
+        let request =
+            r#"{"type":"user","sessionId":"a","message":{"content":"Never mind, use main"}}"#;
+        for closing in [answer, request] {
+            let data = parse(&format!("{asked}\n{closing}"), Provider::Claude, "a");
+            assert!(data.question.is_none());
+        }
+    }
+    #[test]
+    fn several_questions_are_numbered_and_codex_options_are_plain_strings() {
+        let input = serde_json::json!({"questions":[
+            {"title":"Release 0.2.2?","options":["Yes","Keep it in the repository"]},
+            {"title":"Anything else?","options":null},
+            {"title":"  "}
+        ]});
+        assert_eq!(
+            question_text(&input).as_deref(),
+            Some("1. Release 0.2.2?\n• Yes\n• Keep it in the repository\n\n2. Anything else?")
+        );
+        assert!(question_text(&serde_json::json!({"questions":[]})).is_none());
+    }
     #[test]
     fn codex_uses_turn_context_and_submitted_events_and_clears_previous_answer() {
         let data = parse(

@@ -25,6 +25,25 @@ Unsupported, ambiguous or missing data stays absent; newest file, mtime and cwd
 are never transcript selection rules. Claude retains its process-binding and
 sidechain exclusion contract.
 
+Codex 0.171 keeps every transcript open in one shared app-server process and
+records no client PID, so the interactive PID holds no transcript. For such a
+session the one exception to "a title establishes nothing" applies: a primary
+transcript that a Codex process holds open for writing is bound to the pane
+whose title carries its conversation name, taken from Codex's own
+`session_index.jsonl`. The name must match a whole part of the title between
+` | `, be carried by exactly one live transcript and be shown by exactly one
+Codex pane; the folder part is never a name. A session without a name, with a
+name shared by two live conversations, or with a title Codex shortened stays
+unbound. A transcript held by the session's own PID still takes precedence.
+
+A question asked through the provider's question tool (`request_user_input` and
+`request_user_input_async` in Codex, `AskUserQuestion` in Claude) is read from
+the bound transcript as its question text and options. It is pending until its
+result arrives or the user sends a new message; the asynchronous Codex tool
+returns `{"accepted":true}` at once, which is not an answer. A pending question
+makes an idle session `question`, and `answer` then carries the question instead
+of the latest agent message.
+
 ## States
 
 The typed states are working, idle, ready, question, approval, error, unknown,

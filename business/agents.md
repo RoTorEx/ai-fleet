@@ -64,8 +64,12 @@ never counted as Idle. Running sessions are independent of quota-provider
 visibility settings. Activity,
 questions and blockers use visible terminal markers and are heuristic. Missing
 markers remain Unknown. Provider metadata must be process-bound,
-never selected by newest file or cwd. Global login badges are not
-assigned to already running agents.
+never selected by newest file or cwd. Codex 0.171 moved transcripts into a
+shared app-server that records no client PID, which left every Codex session
+without a transcript; there a live transcript is bound by the conversation name
+in the pane's title, and only when one live transcript and one pane carry that
+name. The [session contract](../docs/contracts/agent-sessions.md) owns the rule.
+Global login badges are not assigned to already running agents.
 
 Bounded request/answer observations stay in memory. Hover exposes a last request
 and location. Fleet persists, uploads and logs no session text, and makes no model
@@ -112,6 +116,19 @@ Required` means it waits for the user. Screen markers alone raised a false Done
 when Codex hid its status line while streaming a message mid-turn, and showed a
 queued question as Working. `Action Required` without a recognized approval
 screen alerts as Question.
+
+A question asked through the provider's question tool is read from the bound
+transcript and stays pending until it is answered. While the session waits on
+it, the alert and the row show the question and its options, `Which branch? •
+main • develop`, numbered when there are several, instead of the agent's last
+message: an alert should carry what the agent wants, not how to operate its
+interface. Codex queues such a question under its status line as `Queued
+follow-up inputs · 1 question · ⇧← to answer` and never prints the question
+itself; through 1.6.3 that block was read as the agent's reply and became the
+alert text. It is now skipped as chrome. Claude's question dialog replaces the
+status line and the prompt, so it read as Unknown and raised no alert; its key
+hints on the last row now read as Idle. A Codex session that cannot be bound to
+its transcript shows the agent's last visible message.
 
 A reply counts as new by the latest agent message in the session's bound
 transcript (Codex, Claude). The screen sample is 24 rows, so the marker that

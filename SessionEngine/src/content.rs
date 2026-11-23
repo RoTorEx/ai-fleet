@@ -48,12 +48,22 @@ pub fn parse(text: &str, provider: Provider) -> Content {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
+    // Claude Code's selection dialog, such as a question with options, replaces the status line
+    // and the prompt, so its key hints are the last row.
+    let choosing = provider == Provider::Claude
+        && lines
+            .iter()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .is_some_and(|line| line.contains("Enter to select") && line.contains("Esc to cancel"));
     let state = if tail.contains("Would you like to run")
         || tail.contains("Do you trust")
         || tail.contains("Do you want to proceed")
         || tail.contains("Yes, proceed")
     {
         "Needs approval"
+    } else if choosing {
+        "Waiting for input"
     } else if tail.contains("esc to interrupt") || tail.contains("ctrl+c to interrupt") {
         "Working"
     } else if tail.contains("context left")
@@ -76,6 +86,18 @@ pub fn parse(text: &str, provider: Provider) -> Content {
             || trimmed.starts_with("tab to queue")
             || trimmed.contains("? for shortcuts")
         {
+            continue;
+        }
+        // Codex lists what waits for the user under its status line: "Queued follow-up inputs",
+        // a count and a key hint. The block is chrome, not something the agent said.
+        if provider == Provider::Codex
+            && trimmed
+                .strip_prefix('•')
+                .is_some_and(|rest| rest.trim() == "Queued follow-up inputs")
+        {
+            if let Some(previous) = current.take() {
+                push(&mut messages, previous);
+            }
             continue;
         }
         let marker = match provider {
@@ -397,6 +419,18 @@ mod tests {
         assert_eq!(c.messages[0].text, "Fix this\nplease");
         assert_eq!(c.messages[1].role, Role::Action);
         assert_eq!(c.messages[2].text, "Fixed it");
+    }
+    #[test]
+    fn claude_selection_dialog_waits_for_input_only_as_the_last_row() {
+        let dialog = "⏺ Done so far.\n────\n ☐ Branch\n│ Which branch?\n❯ 1. main\n  2. develop\n────\n\nEnter to select · ↑/↓ to navigate · Esc to cancel\n";
+        assert_eq!(parse(dialog, Provider::Claude).state, "Waiting for input");
+        assert_eq!(
+            parse(dialog, Provider::Codex).state,
+            "Live · activity unknown"
+        );
+        let quoted =
+            "⏺ The dialog says: Enter to select · Esc to cancel\n\n✻ Cooking… (esc to interrupt)";
+        assert_eq!(parse(quoted, Provider::Claude).state, "Working");
     }
     #[test]
     fn approval_has_priority_and_unrecognized_screens_remain_unknown() {

@@ -102,13 +102,17 @@ impl Observation {
     }
     /// The bound transcript's latest agent message replaces the visible one. The screen sample
     /// is 24 rows, so the marker of any longer reply is above it: such a reply was never seen
-    /// as new, and a question closing it was missed.
-    pub fn with_transcript(mut self, message: Option<&str>) -> Self {
+    /// as new, and a question closing it was missed. A question asked through the provider's
+    /// question tool is pending until answered, whatever the agent wrote after it.
+    pub fn with_transcript(mut self, message: Option<&str>, question: bool) -> Self {
         if let Some(message) = message {
             self.answer = Some(answer_hash(message));
             if self.state == State::Idle {
                 self.attention = attention(message);
             }
+        }
+        if question && self.state == State::Idle {
+            self.attention = Attention::Question;
         }
         self
     }
@@ -207,7 +211,19 @@ pub struct Progress {
     observed: bool,
     last_state: Option<State>,
     pub last_message: Option<String>,
+    /// The pending question from the bound transcript.
+    pub question: Option<String>,
     pub native_metadata: bool,
+}
+impl Progress {
+    /// The agent's text for the row: its pending question while the session waits on it,
+    /// otherwise its latest message.
+    pub fn text(&self) -> Option<&str> {
+        self.question
+            .as_deref()
+            .filter(|_| self.label() == "Question")
+            .or(self.last_message.as_deref())
+    }
 }
 impl Progress {
     pub fn observe(&mut self, observation: Option<&Observation>, focused: bool) {
@@ -485,7 +501,7 @@ mod tests {
         p.observe(Some(&Observation::parse(idle, claude)), false);
         assert_eq!(p.label(), "Untracked");
 
-        let read = |text, message| Observation::parse(text, claude).with_transcript(message);
+        let read = |text, message| Observation::parse(text, claude).with_transcript(message, false);
         let mut p = Progress::default();
         p.observe(Some(&read(idle, Some("Old reply."))), false);
         p.observe(Some(&read(working, None)), false);
@@ -511,7 +527,12 @@ mod tests {
         // The status line is hidden while a message streams mid-turn.
         let streaming = "› Task\n• Part of the answer\n\n› Ask Codex to do anything\n\n  ← for agents · ? for shortcuts";
         // A queued question leaves the running status on screen.
-        let queued = "› Task\n• Now I need the drive.\n\n? Connect the drive.\n\n  • Connected\n  • Later\n\n• Working (20m 42s • esc to interrupt)\n\n• Queued follow-up inputs\n  ? 1 question\n    ⇧← to answer\n\n› Ask Codex to do anything\n\n  ← for agents · ? for shortcuts";
+        let queued = "› Task\n• Now I need the drive.\n\n• Working (20m 42s • esc to interrupt)\n\n• Queued follow-up inputs\n  ? 1 question\n    ⇧← to answer\n\n› Ask Codex to do anything\n\n  ← for agents · ? for shortcuts";
+        assert_eq!(
+            Observation::parse(queued, codex).last_message.as_deref(),
+            Some("Now I need the drive."),
+            "The queue block is Codex chrome, not the agent's words"
+        );
         let read = |text, title| Observation::parse(text, codex).with_title(Some(title), codex);
         assert_eq!(Observation::parse(streaming, codex).state, State::Idle);
         assert_eq!(
@@ -548,6 +569,33 @@ mod tests {
                 .state,
             State::Idle
         );
+    }
+    #[test]
+    fn pending_tool_question_is_the_text_while_the_session_waits_on_it() {
+        let claude = process::Provider::Claude;
+        // Taken from Claude Code's question dialog: no status line, key hints on the last row.
+        let dialog = "⏺ I need one decision.\n────────\n ☐ Branch\n\n│ Which branch should I use?\n\n❯ 1. main\n     The default branch\n  2. develop\n  3. Type something.\n────────\n  4. Chat about this\n\nEnter to select · ↑/↓ to navigate · Esc to cancel";
+        let working =
+            "⏺ Reading.\n\n✻ Cooking… (esc to interrupt)\n❯\n⏵⏵ auto mode on (shift+tab to cycle)";
+        assert_eq!(Observation::parse(dialog, claude).state, State::Idle);
+        let read = |text, question| {
+            Observation::parse(text, claude).with_transcript(Some("I need one decision."), question)
+        };
+        // A bound transcript owns the text, as it does once the engine applies a snapshot.
+        let mut p = Progress {
+            native_metadata: true,
+            ..Progress::default()
+        };
+        p.observe(Some(&read(working, false)), false);
+        p.observe(Some(&read(dialog, true)), false);
+        p.last_message = Some("I need one decision.".into());
+        p.question = Some("Which branch should I use?\n• main\n• develop".into());
+        assert_eq!(p.label(), "Question");
+        assert_eq!(p.text(), p.question.as_deref());
+        // A question still queued while the agent works on is not what the row shows.
+        p.observe(Some(&read(working, true)), false);
+        assert_eq!(p.label(), "Working");
+        assert_eq!(p.text(), Some("I need one decision."));
     }
     #[test]
     fn distinguishes_questions_blockers_approval_and_working_from_idle() {

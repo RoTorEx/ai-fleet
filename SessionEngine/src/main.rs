@@ -60,7 +60,7 @@ fn row(session: &model::Session, progress: &activity::Progress) -> Value {
         "model": progress.model,
         "reasoning": progress.reasoning,
         "request": progress.request,
-        "answer": progress.last_message,
+        "answer": progress.text(),
         "updatedAt": timestamp(progress.updated_at),
         "requestedAt": if progress.native_metadata { timestamp(progress.requested_at) } else { None },
         "lastMessageAt": if progress.native_metadata { timestamp(progress.updated_at) } else { None },
@@ -79,6 +79,7 @@ fn apply(
             progress.native_metadata = false;
             progress.requested_at = None;
             progress.updated_at = None;
+            progress.question = None;
         }
     }
     let mut activity_states = HashMap::new();
@@ -103,6 +104,7 @@ fn apply(
             p.requested_at = metadata.requested_at;
             p.request = metadata.request.or(p.request.take());
             p.last_message = metadata.last_message;
+            p.question = metadata.question;
         }
     }
     activity_states
@@ -143,7 +145,7 @@ fn read_activity(
         .filter(|s| s.provider == process::Provider::Claude)
         .collect();
     let mut metadata = crate::session_data::read(&claude);
-    metadata.extend(codex_metadata::read(&valid));
+    metadata.extend(codex_metadata::read(&valid, &observed.titles));
     // Reject identity reuse during the file read.
     let after = process::scan()?;
     metadata.retain(|id, _| {
@@ -195,9 +197,11 @@ fn read_activity(
             (
                 s.id.clone(),
                 text.filter(|_| live).map(|text| {
-                    let message = metadata.get(&s.id).and_then(|m| m.last_message.as_deref());
+                    let bound = metadata.get(&s.id);
+                    let message = bound.and_then(|m| m.last_message.as_deref());
+                    let question = bound.is_some_and(|m| m.question.is_some());
                     activity::Observation::parse(text, s.provider)
-                        .with_transcript(message)
+                        .with_transcript(message, question)
                         .with_title(title, s.provider)
                 }),
             )
