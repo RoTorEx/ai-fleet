@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.5] - 2026-11-23
+
 - Show Antigravity CLI (`agy`) sessions on the Agents tab, with Jump, working, approval, idle and question states, and alerts that carry the request, the reply or the question. Antigravity replaced Gemini CLI and its sessions were not listed at all. Quota, accounts and the Processes tab still cover Gemini CLI only.
 
 ## [1.6.4] - 2026-11-23
