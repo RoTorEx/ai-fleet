@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.7] - 2026-11-23
+
 - Stop the Fleet menu from flashing open and closed when you click a session alert. macOS delivers the click as a relaunch too, and a relaunch shows the menu; it now waits 0.3 s and stays closed when a banner click came with it.
 
 ## [1.6.6] - 2026-11-23
