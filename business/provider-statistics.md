@@ -70,7 +70,8 @@ Click the chart icon on a supported provider row to open the compact popover.
 Click the icon again to close it. The same charts appear under Quota history in
 Statistics. Open in Statistics carries the provider, account, data source and
 model selection. Both displays use centered titles, aligned dark plot areas,
-and inset legends.
+and inset legends. The menu popover resizes to the selected chart source and
+scrolls when the charts exceed the display's available height.
 
 ### Provider quota
 
@@ -100,14 +101,17 @@ for a weekly one.
   reported cumulative percent divided by elapsed cycle time. After a downward
   correction it waits for an hour of observations. The second projection uses
   two observations about 24 hours apart, with the earlier observation no more
-  than 15 minutes before the target. Both extend to the same reset and show
-  when a projection crosses 100%.
+  than 15 minutes before the target. Keep the weekly chart on a fixed percentage
+  scale with a little headroom above 100%. A projection below 100% ends at
+  reset. A projection that reaches 100% ends at the limit and shows when it
+  will be crossed.
 - An hourly bin requires sufficient observation coverage and a single cycle.
   A nonzero change spanning an hour boundary cannot identify the spend in
   either hour. A measured zero and an uncovered hour have distinct treatment.
   When observation starts mid-hour, any measured increase within that first
   hour appears as a partial bar. The current hour covers the elapsed observed
-  portion. The guide is remaining percentage divided by hours left. Old data
+  portion. Show when observations started if the log covers only part of the
+  last 72 hours. The guide is remaining percentage divided by hours left. Old data
   can still be viewed, and the pace and forecast guides require a fresh
   measurement.
 

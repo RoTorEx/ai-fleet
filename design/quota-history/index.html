@@ -181,6 +181,7 @@ logged model without account attribution. The fixtures illustrate each source.
     pointer-events: none;
   }
   #fleet-quota-design .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  #fleet-quota-design .early-limit > .legend { top: auto; left: auto; right: 14px; bottom: 27px; }
   #fleet-quota-design .legend i { width: 15px; border-top: 2px solid var(--swatch); }
   #fleet-quota-design .legend .dotted i { border-top-style: dotted; }
   #fleet-quota-design .legend .filled i { height: 7px; border: 0; background: var(--swatch); }
@@ -410,7 +411,7 @@ logged model without account attribution. The fixtures illustrate each source.
     if (!svg.clientWidth) return;
     const limit = 100;
     const predictions = projection(cap);
-    const ymax = Math.ceil(Math.max(...(predictions || []).map(p => p.end), limit) / 20) * 20 + 10;
+    const ymax = 110;
     const extent = resetHour;
     const space = chartSpace(svg, {left: 41, right: 10, top: 6, bottom: 23}, ymax, extent);
     const {x, y} = space;
@@ -443,12 +444,16 @@ logged model without account attribution. The fixtures illustrate each source.
     }
     const used = cap.samples.at(-1)[1];
     svgElement(svg, "circle", {cx: x(latestHour), cy: y(used), r: 3, fill: "var(--usage)"});
+    let earlyLimit = false;
     for (const predict of predictions || []) {
-      const line = svgElement(svg, "line", {x1: x(latestHour), x2: x(extent), y1: y(used), y2: y(predict.end),
+      const crossing = predict.end > 100 ? resetIn * (100 - used) / (predict.end - used) : null;
+      earlyLimit ||= crossing !== null && latestHour + crossing < extent * .55;
+      const line = svgElement(svg, "line", {x1: x(latestHour), x2: x(crossing === null ? extent : latestHour + crossing),
+        y1: y(used), y2: y(Math.min(100, predict.end)),
         stroke: `var(${predict.color})`, "stroke-dasharray": "2 4", "stroke-width": 2.5});
-      const exhaustion = predict.end > 100 ? Math.round(resetIn * (100 - used) / (predict.end - used)) : null;
-      line.dataset.tooltip = `${predict.label} · ${pct(predict.end)} at reset${exhaustion === null ? "" : ` · limit in ${exhaustion}h`}`;
+      line.dataset.tooltip = `${predict.label} · ${crossing === null ? `${pct(predict.end)} at reset` : `100% in ${Math.round(crossing)}h`}`;
     }
+    svg.parentElement.classList.toggle("early-limit", earlyLimit);
   }
 
   function tokenHours(selection) {
@@ -573,7 +578,7 @@ logged model without account attribution. The fixtures illustrate each source.
       const delta = currentBudget - used;
       const forecasts = (projection(cap) || []).map(p => {
         const exhaustion = p.end > 100 ? Math.round(resetIn * (100 - used) / (p.end - used)) : null;
-        return [`${p.label} · ${pct(p.end)} at reset${exhaustion === null ? "" : ` · limit in ${exhaustion}h`}`, p.color, "dotted"];
+        return [`${p.label} · ${exhaustion === null ? `${pct(p.end)} at reset` : `100% in ${exhaustion}h`}`, p.color, "dotted"];
       });
       legend(find("week-legend"), [["Usage, %", "--usage"], ["Daily budget · 14.3%/day with carryover", "--budget"],
         [`${Math.round(Math.abs(delta))} pp ${delta >= 0 ? "headroom" : "over plan"}`, delta >= 0 ? "--headroom" : "--overspend", "filled"],

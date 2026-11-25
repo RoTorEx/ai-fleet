@@ -136,6 +136,10 @@ struct WeeklyQuotaChart {
         let atReset: Double
         let exhaustion: Date?
         var id: Period { period }
+
+        func plotEndpoint(reset: Date) -> (time: Date, used: Double) {
+            (min(exhaustion ?? reset, reset), min(atReset, 100))
+        }
     }
 
     struct Hour: Identifiable {
@@ -151,6 +155,7 @@ struct WeeklyQuotaChart {
     let forecasts: [Forecast]
     let hours: [Hour]
     let latest: WeeklyQuotaObservation?
+    let firstObservation: Date?
     var sustainablePerHour: Double? { pace.sustainablePercentPerDay.map { $0 / 24 } }
 
     init(report: StatisticsProviderReport, window: ProviderLimitWindow, history: WeeklyQuotaHistory,
@@ -163,6 +168,7 @@ struct WeeklyQuotaChart {
             samples.append(sample)
         }
         let current = samples.last
+        firstObservation = samples.first?.time
         latest = current
         cycleStart = current?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
         let currentCycle = current.map { latest in samples.filter { $0.sharesCycle(with: latest) } } ?? []

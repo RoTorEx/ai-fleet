@@ -39,7 +39,7 @@ func canonicalUsageFiles(_ files: [CodexLogFile]) -> [CodexLogFile] {
     return independent.sorted { $0.url.path < $1.url.path }
 }
 
-struct StatisticsProviderReport {
+struct StatisticsProviderReport: Equatable {
     let provider: String
     let accountID: String
     let identity: ConnectionIdentity

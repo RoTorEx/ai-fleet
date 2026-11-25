@@ -47,6 +47,7 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(chart.forecasts.map(\.period), [.window, .day])
         XCTAssertEqual(try XCTUnwrap(chart.forecasts.first?.atReset), 43.0 * 168 / 92, accuracy: 1e-8)
         XCTAssertEqual(try XCTUnwrap(chart.forecasts.last?.atReset), 43 + 13.0 / 24 * 76, accuracy: 1e-8)
+        XCTAssertEqual(chart.forecasts.map { $0.plotEndpoint(reset: reset).time }, [reset, reset])
         XCTAssertEqual(try XCTUnwrap(chart.sustainablePerHour), 57.0 / 76, accuracy: 1e-8)
         let stale = WeeklyQuotaChart(report: current, window: current.limits[0], history: history, now: base.addingTimeInterval(hour))
         XCTAssertEqual(stale.pace.state, .stale)
@@ -57,7 +58,10 @@ final class QuotaHistoryTests: XCTestCase {
         let high = WeeklyQuotaChart(report: rising, window: rising.limits[0], history: history, now: base)
         for forecast in high.forecasts {
             XCTAssertGreaterThan(forecast.atReset, 100)
-            XCTAssertLessThan(try XCTUnwrap(forecast.exhaustion), reset)
+            let crossing = try XCTUnwrap(forecast.exhaustion)
+            XCTAssertLessThan(crossing, reset)
+            XCTAssertEqual(forecast.plotEndpoint(reset: reset).time, crossing)
+            XCTAssertEqual(forecast.plotEndpoint(reset: reset).used, 100)
         }
         let corrected = report("a", at: base, reset: reset, used: 28)
         XCTAssertTrue(WeeklyQuotaChart(report: corrected, window: corrected.limits[0], history: history, now: base).forecasts.isEmpty)

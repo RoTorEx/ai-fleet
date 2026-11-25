@@ -4,7 +4,7 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
-- Make quota history compact and open the provider popover on click. Match the reference chart proportions, inset legends, and show the average pace from the first fresh quota measurement once the cycle is an hour old.
+- Open the compact quota charts on click and resize the popover when switching between quota and local tokens. Keep the chart's 100% limit at the top and stop projections at the estimated limit crossing. Show partial coverage while hourly quota history accumulates.
 
 ## [1.7.0] - 2026-11-25
 

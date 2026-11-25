@@ -1,7 +1,7 @@
 import Charts
 import SwiftUI
 
-struct QuotaHistoryTarget: Identifiable {
+struct QuotaHistoryTarget: Identifiable, Equatable {
     let id: String
     let provider: StatisticsProvider
     let label: String
@@ -39,14 +39,26 @@ final class QuotaHistoryNavigation: ObservableObject {
 
 struct QuotaHistoryView: View {
     let targets: [QuotaHistoryTarget]
-    var request: QuotaHistoryRequest? = nil
-    var openInStatistics: ((QuotaHistoryRequest) -> Void)? = nil
+    let request: QuotaHistoryRequest?
+    let openInStatistics: ((QuotaHistoryRequest) -> Void)?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
-    @State private var mode: QuotaHistoryMode = .quota
+    @State private var mode: QuotaHistoryMode
     @State private var targetID: String?
     @State private var windowID: String?
     @State private var model: String?
+
+    init(targets: [QuotaHistoryTarget], request: QuotaHistoryRequest? = nil,
+         openInStatistics: ((QuotaHistoryRequest) -> Void)? = nil) {
+        self.targets = targets
+        self.request = request
+        self.openInStatistics = openInStatistics
+        let hasWeeklyQuota = targets.first?.report?.weeklyWindows.isEmpty == false
+        _mode = State(initialValue: request?.mode ?? (hasWeeklyQuota ? .quota : .tokens))
+        _targetID = State(initialValue: request?.targetID)
+        _windowID = State(initialValue: request?.windowID)
+        _model = State(initialValue: request?.model)
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
@@ -78,10 +90,6 @@ struct QuotaHistoryView: View {
             }
         }
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
-        .onAppear {
-            if let request { apply(request) }
-            else if targets.count == 1, targets.first?.report?.weeklyWindows.isEmpty != false { mode = .tokens }
-        }
         .onChange(of: request) { if let request = $0 { apply(request) } }
     }
 
@@ -103,7 +111,7 @@ struct QuotaHistoryView: View {
                         Text(mode == .tokens ? choice.provider.title : choice.label).tag(choice.id)
                     }
                 }
-                .labelsHidden().fixedSize()
+                .labelsHidden().frame(maxWidth: 142)
             } else {
                 Text(mode == .tokens ? target.provider.title : target.label)
                     .font(.system(size: 12, weight: .semibold))
@@ -115,12 +123,12 @@ struct QuotaHistoryView: View {
                     Text("All models").tag(String?.none)
                     ForEach(models, id: \.self) { Text($0).tag(Optional($0)) }
                 }
-                .labelsHidden().fixedSize()
+                .labelsHidden().frame(maxWidth: 150)
             } else if mode == .quota, windows.count > 1, let window {
                 Picker("Quota window", selection: Binding(get: { window.id }, set: { windowID = $0 })) {
                     ForEach(windows) { scope in Text(scope.weeklyModel ?? "Account quota").tag(scope.id) }
                 }
-                .labelsHidden().fixedSize()
+                .labelsHidden().frame(maxWidth: 150)
             } else if mode == .quota, let name = window?.weeklyModel {
                 Text(name).font(.system(size: 11)).foregroundStyle(.secondary)
             }
@@ -173,7 +181,8 @@ private struct WeeklyQuotaChartView: View {
             }
             chartHeading("Hourly usage, % of weekly limit · Last 72h")
             HoursChart(samples: samples, colors: [colors.mint], guide: data.sustainablePerHour,
-                       percent: true, selected: $selectedHour, selectionText: selectedHourText)
+                       percent: true, selected: $selectedHour, selectionText: selectedHourText,
+                       coverageNote: coverageNote)
         }
         .padding([.vertical, .leading], 7)
         .padding(.trailing, 13)
@@ -205,15 +214,23 @@ private struct WeeklyQuotaChartView: View {
         return "\(historyHourText(hour.start)) · \(text)"
     }
 
+    private var coverageNote: String? {
+        guard let first = data.firstObservation, let start = data.hours.first?.start,
+              first.timeIntervalSince(start) > UsageHours.hour else { return nil }
+        return "Recorded since \(historyHourText(first))"
+    }
+
     private func weekly(start: Date, latest: WeeklyQuotaObservation) -> some View {
         let days = (0...7).map { start.addingTimeInterval(Double($0) * WeeklyQuotaPace.daySeconds) }
         let calendar = Calendar.autoupdatingCurrent
         let firstDay = calendar.startOfDay(for: start)
         let ticks = (0...7).compactMap { calendar.date(byAdding: .day, value: $0, to: firstDay) }
             .filter { start <= $0 && $0 < latest.reset }
-        let top = min(210, max(110, ceil((data.forecasts.map(\.atReset).max() ?? 100) / 20) * 20 + 10))
-        let levels = Array(stride(from: 0.0, through: top, by: 20.0))
+        let levels = Array(stride(from: 0.0, through: 100.0, by: 20.0))
         let shades = shadingSpans(cycleStart: start, days: days)
+        // Move the legend away when an early forecast crosses the reference position.
+        let early = start.addingTimeInterval(latest.reset.timeIntervalSince(start) * 0.55)
+        let earlyLimit = data.forecasts.contains { $0.exhaustion.map { $0 < early } ?? false }
         return Chart {
             ForEach(shades) { shade in
                 shadingMark(shade)
@@ -239,17 +256,21 @@ private struct WeeklyQuotaChartView: View {
             }
             ForEach(data.forecasts) { forecast in
                 let color = forecast.period == .window ? colors.gold : colors.coral
-                ForEach([latest.time, latest.reset], id: \.self) { time in
-                    LineMark(x: .value("Time", time),
-                             y: .value("Projected used", time == latest.time ? Double(latest.used) : forecast.atReset),
-                             series: .value("Series", forecast.period.rawValue))
-                        .foregroundStyle(color).lineStyle(StrokeStyle(lineWidth: 1.3, lineCap: .round, dash: [0.2, 2.6]))
+                let endpoint = forecast.plotEndpoint(reset: latest.reset)
+                if endpoint.time > latest.time {
+                    ForEach([latest.time, endpoint.time], id: \.self) { time in
+                        LineMark(x: .value("Time", time),
+                                 y: .value("Projected used", time == latest.time ? Double(latest.used) : endpoint.used),
+                                 series: .value("Series", forecast.period.rawValue))
+                            .foregroundStyle(color)
+                            .lineStyle(StrokeStyle(lineWidth: 1.3, lineCap: .round, dash: [0.2, 2.6]))
+                    }
                 }
             }
         }
         .chartLegend(.hidden)
         .chartXScale(domain: start...latest.reset)
-        .chartYScale(domain: 0...top)
+        .chartYScale(domain: 0.0...110.0)
         .chartXAxis {
             AxisMarks(values: ticks) { value in
                 AxisTick(centered: false, length: 3).foregroundStyle(colors.border)
@@ -269,7 +290,7 @@ private struct WeeklyQuotaChartView: View {
         }
         .chartPlotStyle { plot in
             plot.background(colors.plot).clipped().border(colors.border, width: 0.6)
-                .overlay(alignment: .topLeading) { weeklyLegend.padding(4) }
+                .overlay(alignment: earlyLimit ? .bottomTrailing : .topLeading) { weeklyLegend.padding(4) }
         }
         .aspectRatio(2.66, contentMode: .fit)
         .accessibilityLabel("Weekly quota, cumulative use, daily budget, and projections")
@@ -308,13 +329,19 @@ private struct WeeklyQuotaChartView: View {
                        (points >= 0 ? colors.mint : colors.limit).opacity(0.45), fill: true)
             }
             ForEach(data.forecasts) { forecast in
-                let estimate = formattedNumber(forecast.atReset, fractionDigits: 0)
                 let rate = forecast.period == .window ? "Week pace" : "24h pace"
-                let limit = forecast.exhaustion.map { " · 100% " + historyHourText($0) } ?? ""
-                swatch("\(rate) · \(estimate)% at reset\(limit)",
+                swatch("\(rate) · \(forecastLabel(forecast))",
                        forecast.period == .window ? colors.gold : colors.coral, dotted: true)
             }
         }
+    }
+
+    private func forecastLabel(_ forecast: WeeklyQuotaChart.Forecast) -> String {
+        if let exhaustion = forecast.exhaustion, let latest = data.latest {
+            let untilLimit = exhaustion.timeIntervalSince(latest.time)
+            return untilLimit > 0 ? "100% in \(WeeklyQuotaPace.countdownText(untilLimit))" : "100% reached"
+        }
+        return "\(formattedNumber(forecast.atReset, fractionDigits: 0))% at reset"
     }
 }
 
@@ -360,6 +387,7 @@ private struct HoursChart: View {
     let percent: Bool
     @Binding var selected: Date?
     let selectionText: String?
+    var coverageNote: String? = nil
     private let palette = HistoryChartColors()
 
     var body: some View {
@@ -458,13 +486,16 @@ private struct HoursChart: View {
 
     @ViewBuilder private var legend: some View {
         if percent {
-            if guide != nil || samples.contains(where: \.partial) {
+            if guide != nil || coverageNote != nil || samples.contains(where: \.partial) {
                 insetLegend {
                     if let guide {
                         swatch("Sustainable pace · \(formattedNumber(guide, fractionDigits: 2))%/h", palette.gold, dotted: true)
                     }
                     if samples.contains(where: \.partial) {
                         swatch("Observed part of hour", palette.mint.opacity(0.55), fill: true)
+                    }
+                    if let coverageNote {
+                        Text(coverageNote).font(.system(size: 9)).foregroundStyle(palette.labels)
                     }
                 }
             }

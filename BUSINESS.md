@@ -173,8 +173,8 @@ subscription charges.
   measured from the first recorded vibecoding day; after it, through the end of
   the current month, opening with that month at the right.
   Quota history is available from the Statistics toolbar and the right-edge
-  chart button on supported provider rows. Hover previews the full charts, and
-  click keeps them open. The same charts and controls are available in both
+  chart button on supported provider rows. Click the button to open or close
+  the popover. The same charts and controls are available in both
   places. Quota percentages follow the verified account and provider window.
   Local hourly tokens follow the provider and recorded model.
   Provider reports (Codex accounts and Kimi quota windows) remain
