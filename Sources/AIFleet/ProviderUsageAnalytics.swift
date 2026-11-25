@@ -40,12 +40,16 @@ enum LocalUsageProvider: String, CaseIterable {
     }
 
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
+        let provider: StatisticsProvider = self == .kimi ? .kimi : .qwen
         let parsed = self == .kimi ? KimiUsageLogReader().parseEntries(from: file.url) : QwenUsageLogReader().parseEntries(from: file.url)
         let entries = parsed.entries
         let reader = CodexUsageLogReader()
         return CodexFileUsageRecord(
             path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
-            dailyModels: reader.dailyModelUsage(entries: entries), timeZoneIdentifier: reader.calendar.timeZone.identifier, parserRevision: 4, rateRevision: CodexAPIRates.revision, sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
+            dailyModels: reader.dailyModelUsage(entries: entries), timeZoneIdentifier: reader.calendar.timeZone.identifier,
+            parserRevision: provider.parserRevision, rateRevision: CodexAPIRates.revision,
+            sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable,
+            modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
         )
     }
 
@@ -120,15 +124,18 @@ struct KimiUsageLogReader {
             if record.message?.type == "StepBegin" { step = String(record.message?.payload.n ?? index) }
             // Kimi Code 2.x persists each completed request in its context journal.
             // Observable status/turn totals repeat those tokens and are not counted.
-            if record.type == "context.append_loop_event", let event = record.event,
-               event.type == "step.end", let usage = event.usage, let time = record.time {
+            if record.type == "context.append_loop_event", case let .accounting(uuid, usage)? = record.event {
+                guard let time = record.time else {
+                    malformed = true
+                    continue
+                }
                 let combined = checkedStatisticsSum([usage.inputOther, usage.inputCacheRead ?? 0, usage.inputCacheCreation ?? 0])
                 var totals = unpricedTotals(
                     input: combined ?? 0,
                     cached: usage.inputCacheRead ?? 0, writes: usage.inputCacheCreation ?? 0, output: usage.output
                 )
                 if combined == nil { totals.overflowDetected = true }
-                entries[event.uuid] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time / 1000), model: model, totals: totals)
+                entries[uuid] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time / 1000), model: model, totals: totals)
             } else if record.message?.type == "StatusUpdate", let payload = record.message?.payload,
                       let usage = payload.token_usage, let time = record.timestamp {
                 // Legacy Python CLI records per-step usage in StatusUpdate envelopes.
@@ -153,10 +160,22 @@ struct KimiUsageLogReader {
         let event: Step?
         let message: Envelope?
     }
-    private struct Step: Decodable {
-        let type: String
-        let uuid: String
-        let usage: Usage?
+    private enum Step: Decodable {
+        case accounting(uuid: String, usage: Usage)
+        case ignored
+
+        private enum CodingKeys: String, CodingKey { case type, uuid, usage }
+
+        init(from decoder: Decoder) throws {
+            let event = try decoder.container(keyedBy: CodingKeys.self)
+            // Tool results can have a tool-call ID and no event UUID.
+            guard try event.decode(String.self, forKey: .type) == "step.end",
+                  let usage = try event.decodeIfPresent(Usage.self, forKey: .usage) else {
+                self = .ignored
+                return
+            }
+            self = .accounting(uuid: try event.decode(String.self, forKey: .uuid), usage: usage)
+        }
     }
     private struct Usage: Decodable {
         let inputOther: Int

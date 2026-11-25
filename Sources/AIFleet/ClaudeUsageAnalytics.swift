@@ -20,7 +20,9 @@ struct ClaudeUsageLogReader {
         return CodexFileUsageRecord(
             path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
             dailyModels: CodexUsageLogReader().dailyModelUsage(entries: parsed.entries),
-            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier, parserRevision: 4, rateRevision: CodexAPIRates.revision, sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier, parserRevision: StatisticsProvider.claude.parserRevision,
+            rateRevision: CodexAPIRates.revision, sourceIssue: file.issue ?? parsed.issue,
+            excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
         )
     }
 

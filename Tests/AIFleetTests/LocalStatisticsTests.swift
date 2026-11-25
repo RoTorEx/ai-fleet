@@ -34,7 +34,7 @@ final class LocalStatisticsTests: XCTestCase {
         let known = UsageTotals(inputTokens: 80, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 20, reasoningOutputTokens: 0, estimatedCostUSD: 2)
         var unknown = known; unknown.estimatedCostUSD = 0; unknown.costEstimateAvailable = false
         var snapshot = UsageAnalyticsSnapshot.empty
-        snapshot.statisticsRevision = 4
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
         snapshot.codex.dailyModels = [DailyModelUsage(day: now, model: "same-name", totals: known, events: 1)]
         var other = CodexUsageAnalytics.empty
         other.dailyModels = [DailyModelUsage(day: now, model: "same-name", totals: unknown, events: 1)]
@@ -89,6 +89,7 @@ extension LocalStatisticsTests {
         let usage = String(decoding: try JSONSerialization.data(withJSONObject: event(model: nil, cumulative: 100)), as: UTF8.self)
         try (header + usage).write(to: file, atomically: true, encoding: .utf8)
         var legacy = UsageAnalyticsSnapshot.empty
+        legacy.statisticsRevision = 4
         legacy.codex.total.estimatedCostUSD = 900
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(legacy).write(to: cache.appendingPathComponent("usage-analytics-cache.json"))
@@ -101,7 +102,7 @@ extension LocalStatisticsTests {
         service.refresh(kimi: quota)
         for _ in 0..<300 where service.isRefreshing { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertFalse(service.isRefreshing)
-        XCTAssertEqual(service.snapshot.statisticsRevision, 4)
+        XCTAssertEqual(service.snapshot.statisticsRevision, UsageAnalyticsSnapshot.currentRevision)
         XCTAssertEqual(service.snapshot.codex.total.totalTokens, 100)
         XCTAssertNotNil(service.snapshot.legacyLocalHistory)
         XCTAssertTrue(FileManager.default.fileExists(atPath: cache.appendingPathComponent("usage-analytics-files-cache.json").path))
@@ -126,7 +127,7 @@ extension LocalStatisticsTests {
         XCTAssertNotNil(record.sourceIssue)
         XCTAssertFalse(record.excluded == true)
         var snapshot = UsageAnalyticsSnapshot.empty
-        snapshot.statisticsRevision = 4
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
         snapshot.codex = CodexUsageLogReader().analytics(from: [record], fileCount: 1)
         snapshot.sourceIssues = [StatisticsSourceIssue(provider: .codex, message: record.sourceIssue!)]
         let result = LocalStatistics(snapshot: snapshot)
@@ -195,7 +196,8 @@ extension LocalStatisticsTests {
         let totals = UsageTotals(inputTokens: 1, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0, reasoningOutputTokens: 0, estimatedCostUSD: 1)
         let entries = try stamps.map { CodexUsageLogEntry(timestamp: try XCTUnwrap(formatter.date(from: $0)), model: "fixture", totals: totals) }
         var snapshot = UsageAnalyticsSnapshot.empty
-        snapshot.statisticsRevision = 4; snapshot.timeZoneIdentifier = calendar.timeZone.identifier
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
+        snapshot.timeZoneIdentifier = calendar.timeZone.identifier
         snapshot.codex = CodexUsageLogReader(calendar: calendar).analytics(from: entries, fileCount: 1)
         let now = try XCTUnwrap(formatter.date(from: "2026-10-26T12:00:00Z"))
         XCTAssertEqual(LocalStatistics(snapshot: snapshot, days: 1, now: now, calendar: calendar).totals.totalTokens, 1)
@@ -210,6 +212,7 @@ extension LocalStatisticsTests {
         cached.parserRevision = 4; cached.rateRevision = CodexAPIRates.revision
         cached.modifiedAtEpoch = file.modifiedAt.timeIntervalSince1970
         XCTAssertTrue(cached.matches(file, revision: 4))
+        XCTAssertFalse(cached.matches(file, revision: StatisticsProvider.kimi.parserRevision))
         XCTAssertFalse(cached.matches(CodexLogFile(url: file.url, modifiedAt: file.modifiedAt.addingTimeInterval(0.2), size: file.size), revision: 4))
         cached.rateRevision = "previous-catalog"
         XCTAssertFalse(cached.matches(file, revision: 4))

@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var settingsWindowController: SettingsWindowController?
     private var statisticsWindowController: StatisticsWindowController?
+    private var logsWindowController: LogsWindowController?
+    private let agents = AgentSessionsService()
     private var toggleHotKey: GlobalHotKey?
     private var hotkeyObserver: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
@@ -58,11 +60,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let statusBarController = StatusBarController(
             service: StatusService.shared,
+            agents: agents,
             openSettings: { [weak self] anchorFrame in
                 self?.openSettings(anchorFrame: anchorFrame)
             },
             openStatistics: { [weak self] anchorFrame in
                 self?.openStatistics(anchorFrame: anchorFrame)
+            },
+            openLogs: { [weak self] anchorFrame in
+                self?.openLogs(anchorFrame: anchorFrame)
             }
         )
         self.statusBarController = statusBarController
@@ -135,10 +141,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         if statisticsWindowController == nil {
-            statisticsWindowController = StatisticsWindowController()
+            statisticsWindowController = StatisticsWindowController { [weak self] in
+                self?.openLogs(anchorFrame: self?.statisticsWindowController?.window?.frame)
+            }
         }
 
         statisticsWindowController?.showStatistics(relativeTo: anchorFrame)
+    }
+
+    func openLogs(anchorFrame: NSRect?) {
+        statusBarController?.closePopoverIfNeeded()
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
+        if logsWindowController == nil {
+            logsWindowController = LogsWindowController(agents: agents)
+        }
+
+        logsWindowController?.showLogs(relativeTo: anchorFrame)
     }
 
     private func registerToggleHotKey() {
@@ -159,8 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private final class StatisticsWindowController: NSWindowController {
     private let defaultWindowSize = NSSize(width: 900, height: 650)
 
-    init() {
-        let hostingController = NSHostingController(rootView: StatisticsView())
+    init(openLogs: @escaping () -> Void) {
+        let hostingController = NSHostingController(rootView: StatisticsView(openLogs: openLogs))
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 650),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -224,6 +243,45 @@ func centeredWindowFrame(windowFrame: NSRect, visibleFrame: NSRect) -> NSRect {
     frame.origin.x = max(visibleFrame.minX, min(frame.origin.x, visibleFrame.maxX - frame.width))
     frame.origin.y = max(visibleFrame.minY, min(frame.origin.y, visibleFrame.maxY - frame.height))
     return frame
+}
+
+@MainActor
+private final class LogsWindowController: NSWindowController {
+    init(agents: AgentSessionsService) {
+        let hostingController = NSHostingController(rootView: LogsView(agents: agents))
+        hostingController.sizingOptions = []
+        let contentSize = NSSize(width: 740, height: 460)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: contentSize),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "AI Fleet Logs"
+        window.identifier = NSUserInterfaceItemIdentifier("ai-fleet-logs")
+        window.contentViewController = hostingController
+        window.minSize = NSSize(width: 480, height: 280)
+        window.setContentSize(contentSize)
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    func showLogs(relativeTo anchorFrame: NSRect?) {
+        guard let window else { return }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        if !window.isVisible {
+            let screen = anchorFrame.flatMap { anchor in NSScreen.screens.first { $0.frame.intersects(anchor) } }
+                ?? window.screen ?? NSScreen.main
+            if let screen {
+                window.setFrame(centeredWindowFrame(windowFrame: window.frame, visibleFrame: screen.visibleFrame), display: true)
+            }
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
 }
 
 @MainActor

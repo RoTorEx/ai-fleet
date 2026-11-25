@@ -2,6 +2,34 @@ import XCTest
 @testable import AIFleet
 
 final class ProviderUsageAnalyticsTests: XCTestCase {
+    func testKimiToolResultsWithoutUUIDDoNotMarkUsagePartial() throws {
+        try withDirectory { root in
+            let file = try write(root, "wire.jsonl", """
+            {"type":"context.append_loop_event","time":1793055599000,"event":{"type":"tool.result"}}
+            {"type":"context.append_loop_event","time":1793055600000,"event":{"type":"step.end","uuid":"request-1","usage":{"inputOther":100,"output":20}}}
+            {"type":"context.append_loop_event","time":1793055601000,"event":{"type":"step.end"}}
+            """)
+            let parsed = KimiUsageLogReader().parseEntries(from: file)
+            XCTAssertNil(parsed.issue)
+            XCTAssertEqual(parsed.entries.count, 1)
+            XCTAssertEqual(parsed.entries.first?.totals.totalTokens, 120)
+        }
+    }
+
+    func testKimiMalformedCompletedUsageStillReportsPartialAccounting() throws {
+        try withDirectory { root in
+            let file = try write(root, "wire.jsonl", """
+            {"type":"context.append_loop_event","time":1793055599000,"event":{"type":"step.end","uuid":"request-1","usage":{"inputOther":100,"output":20}}}
+            {"type":"context.append_loop_event","time":1793055600000,"event":{"type":"step.end","usage":{"inputOther":50,"output":10}}}
+            """)
+            let parsed = KimiUsageLogReader().parseEntries(from: file)
+            XCTAssertNotNil(parsed.issue)
+            XCTAssertFalse(parsed.unreadable)
+            XCTAssertEqual(parsed.entries.count, 1)
+            XCTAssertEqual(parsed.entries.first?.totals.totalTokens, 120)
+        }
+    }
+
     func testKimiV2CountsCompletedStepsOnceAcrossLocalMidnight() throws {
         try withDirectory { root in
             let file = try write(root, "session/agents/main/wire.jsonl", """

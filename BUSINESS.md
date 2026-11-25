@@ -222,7 +222,9 @@ subscription charges.
   Agents tab its session count.
   Sign-in progress and errors add one detail line below it; a manual refresh spins the
   Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status. Options is a native menu:
-  Statistics, Settings…, Quit. The menu grows to 80% of the screen's visible
+  Statistics, Settings…, Logs, Quit. Logs shows statistics source diagnostics and
+  current app issues. Statistics links to Logs through a single issue count.
+  The menu grows to 80% of the screen's visible
   height, after which only the active tab scrolls (header, tabs and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not
   permanent: hovering the status indicator shows it as a card over the menu,

@@ -1,6 +1,8 @@
 import Foundation
 
 struct UsageAnalyticsSnapshot: Codable, Equatable {
+    static let currentRevision = 5
+
     var codex: CodexUsageAnalytics
     var kimi: KimiQuotaAnalytics
     var claude: CodexUsageAnalytics? = nil
@@ -23,6 +25,11 @@ struct UsageAnalyticsSnapshot: Codable, Equatable {
         refreshedAt: nil,
         lastLoadDuration: nil
     )
+
+    func needsRebuild(timeZone: TimeZone) -> Bool {
+        statisticsRevision != Self.currentRevision || rateRevision != CodexAPIRates.revision
+            || timeZoneIdentifier != timeZone.identifier
+    }
 }
 
 struct UsageAnalyticsLoadProgress: Equatable {
@@ -276,7 +283,7 @@ final class UsageAnalyticsService: ObservableObject {
         snapshot = cached
         snapshot.unattributedAccountUsage = cached.unattributedAccountUsage ?? cached.codex.accountUsage
         snapshot.codex.accountUsage = nil
-        if cached.statisticsRevision != 4 || cached.rateRevision != CodexAPIRates.revision || cached.timeZoneIdentifier != TimeZone.current.identifier {
+        if cached.needsRebuild(timeZone: .current) {
             snapshot.legacyLocalHistory = cached.legacyLocalHistory ?? ["codex": cached.codex, "claude": cached.claude ?? .empty, "kimi": cached.kimiUsage ?? .empty, "qwen": cached.qwen ?? .empty]
             snapshot.codex = snapshot.codex.withUnverifiedPrices()
             snapshot.claude = snapshot.claude?.withUnverifiedPrices()
@@ -317,7 +324,9 @@ final class UsageAnalyticsService: ObservableObject {
                 Task { @MainActor in self?.startRefresh(kimi: StatusService.shared.kimi, restartExisting: true, preserveQuota: true) }
             }
         }
-        if snapshot.statisticsRevision != 4 || snapshot.rateRevision != CodexAPIRates.revision || snapshot.timeZoneIdentifier != TimeZone.current.identifier { startRefresh(kimi: StatusService.shared.kimi, restartExisting: false, preserveQuota: true) }
+        if snapshot.needsRebuild(timeZone: .current) {
+            startRefresh(kimi: StatusService.shared.kimi, restartExisting: false, preserveQuota: true)
+        }
         rescheduleDailyRefresh()
     }
 
@@ -377,17 +386,17 @@ final class UsageAnalyticsService: ObservableObject {
                 guard !Task.isCancelled else { return }
                 self.progress.currentFileName = file.url.lastPathComponent
 
-                if let cached = existingFileCache[file.url.path], cached.matches(file, revision: 4) {
+                let provider = statisticsProvider(for: file.url.path)
+                if let cached = existingFileCache[file.url.path], cached.matches(file, revision: provider.parserRevision) {
                     nextFileCache[file.url.path] = cached
                 } else {
                     let record = await Task.detached(priority: .background) {
-                        if let provider = LocalUsageProvider.allCases.first(where: { $0.contains(file.url) }) {
-                            return provider.usageRecord(for: file)
+                        switch provider {
+                        case .codex: return CodexUsageLogReader().usageRecord(for: file)
+                        case .claude: return ClaudeUsageLogReader().usageRecord(for: file)
+                        case .kimi: return LocalUsageProvider.kimi.usageRecord(for: file)
+                        case .qwen: return LocalUsageProvider.qwen.usageRecord(for: file)
                         }
-                        if ClaudeUsageLogReader.isClaudeLog(file.url) {
-                            return ClaudeUsageLogReader().usageRecord(for: file)
-                        }
-                        return CodexUsageLogReader().usageRecord(for: file)
                     }.value
                     nextFileCache[file.url.path] = record
                 }
@@ -437,7 +446,7 @@ final class UsageAnalyticsService: ObservableObject {
                 refreshedAt: completedAt,
                 lastLoadDuration: duration
             )
-            nextSnapshot.statisticsRevision = 4
+            nextSnapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
             nextSnapshot.rateRevision = CodexAPIRates.revision
             nextSnapshot.timeZoneIdentifier = scanTimeZone
             nextSnapshot.unattributedAccountUsage = self.snapshot.unattributedAccountUsage
@@ -611,7 +620,6 @@ struct CodexUsageLogEntry {
 }
 
 struct CodexUsageLogReader {
-    static let parserRevision = 4
     var calendar = Calendar.autoupdatingCurrent
     private let iso8601 = ISO8601DateFormatter()
     private let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
@@ -643,7 +651,7 @@ struct CodexUsageLogReader {
         let parsed = parseEntries(from: file.url)
         return CodexFileUsageRecord(path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
             dailyModels: dailyModelUsage(entries: parsed.entries), timeZoneIdentifier: calendar.timeZone.identifier,
-            parserRevision: Self.parserRevision, rateRevision: CodexAPIRates.revision,
+            parserRevision: StatisticsProvider.codex.parserRevision, rateRevision: CodexAPIRates.revision,
             sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970)
     }
 

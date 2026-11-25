@@ -1,11 +1,15 @@
 import Foundation
 
-struct StatisticsSourceIssue: Codable, Equatable {
+struct StatisticsSourceIssue: Codable, Hashable {
     let provider: StatisticsProvider?
     let message: String
 }
 
-enum StatisticsProvider: String, CaseIterable, Codable { case codex, claude, kimi, qwen }
+enum StatisticsProvider: String, CaseIterable, Codable {
+    case codex, claude, kimi, qwen
+
+    var parserRevision: Int { self == .kimi ? 5 : 4 }
+}
 
 struct StatisticsCost: Equatable {
     let fullEstimateUSD: Double?
@@ -24,7 +28,7 @@ struct LocalStatistics: Equatable {
     let dailyModels: [DailyModelUsage]
     let totals: UsageTotals
     let cost: StatisticsCost
-    let sourceIssues: [String]
+    let sourceIssues: [StatisticsSourceIssue]
     let stale: Bool
     var emptySelection: Bool { providers.isEmpty }
 
@@ -49,7 +53,7 @@ struct LocalStatistics: Equatable {
         let startDay = days.flatMap { calendar.date(byAdding: .day, value: -(max(1, $0) - 1), to: endDay) }
         end = endDay; start = startDay
         let sources: [(StatisticsProvider, CodexUsageAnalytics?)] = [(.codex, snapshot.codex), (.claude, snapshot.claude), (.kimi, snapshot.kimiUsage), (.qwen, snapshot.qwen)]
-        let legacy = snapshot.statisticsRevision != 4 || snapshot.rateRevision != CodexAPIRates.revision || snapshot.timeZoneIdentifier != calendar.timeZone.identifier
+        let legacy = snapshot.needsRebuild(timeZone: calendar.timeZone)
         var rows: [DailyModelUsage] = []
         for (provider, source) in sources where providers.contains(provider) {
             for row in selectedLocalRows(source ?? .empty, start: startDay, end: endDay, calendar: calendar) {
@@ -65,7 +69,11 @@ struct LocalStatistics: Equatable {
         stale = legacy
         if stale { selected.estimatedCostUSD = 0; selected.costEstimateAvailable = false; selected.pricedTokens = 0 }
         totals = selected
-        let issues = (snapshot.sourceIssues ?? []).filter { $0.provider.map(providers.contains) ?? true }.map(\.message) + (stale ? ["Parser/catalog/time-zone rebuild pending"] : []) + (totals.overflowDetected == true ? ["Accounting sum overflow; result is incomplete"] : [])
+        var issues = (snapshot.sourceIssues ?? []).filter { $0.provider.map(providers.contains) ?? true }
+        if stale { issues.append(.init(provider: nil, message: "Statistics cache rebuild pending.")) }
+        if totals.overflowDetected == true {
+            issues.append(.init(provider: nil, message: "Accounting totals exceeded the supported range."))
+        }
         let priced = totals.pricedTokens ?? (totals.hasCostEstimate ? totals.totalTokens : 0)
         cost = StatisticsCost(fullEstimateUSD: issues.isEmpty && totals.totalTokens > 0 && priced == totals.totalTokens ? totals.estimatedCostUSD : nil,
                               knownEstimateUSD: totals.estimatedCostUSD, pricedTokens: priced, recordedTokens: totals.totalTokens)

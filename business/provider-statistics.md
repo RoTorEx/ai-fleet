@@ -21,7 +21,8 @@ manual and scheduled refreshes scan metadata and parse only changed files.
   Count each event UUID once within its file. Track `modelAlias` from
   `profile.bind` and `config.update` in journal order; missing aliases read
   `Unknown model`. Usage input equals `inputOther + inputCacheRead +
-  inputCacheCreation`; output is `output`. Ignore observable status snapshots,
+  inputCacheCreation`; output is `output`. Check the event type before decoding
+  usage and its UUID. Tool results can omit that UUID. Ignore observable status snapshots,
   turn/subagent summaries and context messages to prevent double counting.
 - Legacy Kimi CLI: `~/.kimi/sessions/**/wire.jsonl` (also accepted under the
   current session root). Read timestamped `StatusUpdate` envelopes with
@@ -47,6 +48,8 @@ for account usage or quota state preserve all provider histories.
 Malformed or partial records are skipped. Negative counts are clamped to zero;
 cache and reasoning subsets cannot exceed their parent totals. No prompts,
 message content, tool results or credentials enter the aggregate cache.
+Statistics links its issue count to Logs, which shows the last scan time and
+groups full diagnostic messages by source provider.
 Default local paths are supported; remote account history, custom CLI data
 homes, Qwen legacy JSON snapshots and managed transcript formats are outside
 this reader. Absence of usable records means no recorded local usage, not proof

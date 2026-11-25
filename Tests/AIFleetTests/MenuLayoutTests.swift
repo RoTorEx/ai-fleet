@@ -26,7 +26,7 @@ final class MenuLayoutTests: XCTestCase {
         let screen = FleetMenuScreen()
         let service = StatusService(session: URLSession(configuration: .ephemeral))
         let host = NSHostingController(rootView: FleetMenuRoot(screen: screen, agents: AgentSessionsService(), service: service,
-            openSettings: {}, openStatistics: {}))
+            openSettings: {}, openStatistics: {}, openLogs: {}))
         host.sizingOptions = [.preferredContentSize]
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 400),
                               styleMask: [.borderless], backing: .buffered, defer: false)
@@ -129,7 +129,7 @@ final class MenuLayoutTests: XCTestCase {
             anchor.appearance = NSAppearance(named: appearance)
             let service = StatusService(session: URLSession(configuration: .ephemeral))
             let host = NSHostingController(rootView:
-                AIFleetMenuView(openSettings: {}, openStatistics: {}, screen: FleetMenuScreen(), agents: AgentSessionsService())
+                AIFleetMenuView(openSettings: {}, openStatistics: {}, openLogs: {}, screen: FleetMenuScreen(), agents: AgentSessionsService())
                     .environmentObject(service).environmentObject(AppSettings.shared)
                     .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light))
             host.sizingOptions = [.preferredContentSize]

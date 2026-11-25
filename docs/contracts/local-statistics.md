@@ -74,8 +74,10 @@ Validated duplicate Codex session IDs collapse only for identical contents or a
 proven byte-prefix continuation; divergent copies are flagged and excluded.
 For equal copies the active location wins over archive, then lexical path order.
 
-Parser revision 4, catalog revision and timezone are checked independently of
-mtime/size. Missing revisions trigger background rebuild at application startup.
+Per-provider parser revision, catalog revision and timezone are checked
+independently of mtime/size. Snapshot revision 5 triggers a background rebuild
+at startup. Kimi uses parser revision 5, and unchanged Codex, Claude and Qwen
+records at revision 4 can still be reused.
 Legacy aggregates are retained separately with unverified prices and are not
 silently advertised as corrected. Unavailable source file cache records remain
 retained but are excluded from active totals. Partial/unreadable/ambiguous sources

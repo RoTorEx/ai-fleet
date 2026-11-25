@@ -31,13 +31,14 @@ struct FleetMenuRoot: View {
     let service: StatusService
     let openSettings: () -> Void
     let openStatistics: () -> Void
+    let openLogs: () -> Void
 
     var body: some View {
         Group {
             if !screen.isOpen {
                 Color.clear.frame(width: 1, height: 1)
             } else {
-                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics,
+                AIFleetMenuView(openSettings: openSettings, openStatistics: openStatistics, openLogs: openLogs,
                                 screen: screen, agents: agents)
                     .environmentObject(service)
                     .environmentObject(AppSettings.shared)
@@ -192,43 +193,43 @@ final class StatusBarController: NSObject {
     private var previousApp: NSRunningApplication?
     private let openSettings: (NSRect?) -> Void
     private let openStatistics: (NSRect?) -> Void
+    private let openLogs: (NSRect?) -> Void
     private var globalClickMonitor: Any?
     private var localEventMonitor: Any?
     private var sizeObservation: NSKeyValueObservation?
     private var lastOutsideDismissal = Date.distantPast
     private let screen = FleetMenuScreen()
-    private let agents = AgentSessionsService()
+    private let agents: AgentSessionsService
 
     init(
         service: StatusService,
+        agents: AgentSessionsService,
         openSettings: @escaping (NSRect?) -> Void,
-        openStatistics: @escaping (NSRect?) -> Void
+        openStatistics: @escaping (NSRect?) -> Void,
+        openLogs: @escaping (NSRect?) -> Void
     ) {
+        self.agents = agents
         self.openSettings = openSettings
         self.openStatistics = openStatistics
+        self.openLogs = openLogs
         // The root view is built before `self` exists; its actions resolve through this box.
-        var actions: (settings: () -> Void, statistics: () -> Void) = ({}, {})
+        var actions: (settings: () -> Void, statistics: () -> Void, logs: () -> Void) = ({}, {}, {})
         hostingController = NSHostingController(rootView: FleetMenuRoot(
             screen: screen,
             agents: agents,
             service: service,
             openSettings: { actions.settings() },
-            openStatistics: { actions.statistics() }
+            openStatistics: { actions.statistics() },
+            openLogs: { actions.logs() }
         ))
         hostingController.sizingOptions = [.preferredContentSize]
         panel = FleetMenuPanel(content: hostingController.view)
         super.init()
 
         actions = (
-            settings: { [weak self] in self?.openSettingsFromMenu() },
-            statistics: { [weak self] in
-                guard let self else { return }
-                let anchorFrame = self.panel.frame
-                self.closePanel()
-                DispatchQueue.main.async { [weak self] in
-                    self?.openStatistics(anchorFrame)
-                }
-            }
+            settings: { [weak self] in self?.openWindowFromMenu(openSettings) },
+            statistics: { [weak self] in self?.openWindowFromMenu(openStatistics) },
+            logs: { [weak self] in self?.openWindowFromMenu(openLogs) }
         )
 
         if let button = statusItem.button {
@@ -396,7 +397,7 @@ final class StatusBarController: NSObject {
     }
 
     /// Esc and the toggle hand focus back to the app that had it; an outside click already moved
-    /// focus, and Settings or Statistics take it themselves.
+    /// focus, and companion windows take it themselves.
     private func closePanel(restoringFocus: Bool = false) {
         guard panel.isVisible else {
             return
@@ -451,10 +452,13 @@ final class StatusBarController: NSObject {
                     StatusService.shared.refresh(manual: true); CodexMonitoringStore.shared.refresh(force: true)
                     return nil
                 case ",":
-                    self.openSettingsFromMenu()
+                    self.openWindowFromMenu(self.openSettings)
                     return nil
                 case "s":
-                    self.openStatisticsFromMenu()
+                    self.openWindowFromMenu(self.openStatistics)
+                    return nil
+                case "l":
+                    self.openWindowFromMenu(self.openLogs)
                     return nil
                 case "q":
                     NSApplication.shared.terminate(nil)
@@ -489,19 +493,11 @@ final class StatusBarController: NSObject {
         }
     }
 
-    private func openSettingsFromMenu() {
+    private func openWindowFromMenu(_ open: @escaping (NSRect?) -> Void) {
         let anchorFrame = panel.frame
         closePanel()
-        DispatchQueue.main.async { [weak self] in
-            self?.openSettings(anchorFrame)
-        }
-    }
-
-    private func openStatisticsFromMenu() {
-        let anchorFrame = panel.frame
-        closePanel()
-        DispatchQueue.main.async { [weak self] in
-            self?.openStatistics(anchorFrame)
+        DispatchQueue.main.async {
+            open(anchorFrame)
         }
     }
 

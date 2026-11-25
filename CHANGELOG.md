@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Open Logs from Options or the Statistics issue count to review scan diagnostics and current app errors. Fix false Kimi partial-accounting warnings from tool results without event UUIDs.
+
 ## [1.6.8] - 2026-11-25
 
 - Start Antigravity's native Google browser sign-in from the Providers menu and Settings.

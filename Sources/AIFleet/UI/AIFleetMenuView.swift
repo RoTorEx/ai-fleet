@@ -4,6 +4,7 @@ import SwiftUI
 struct AIFleetMenuView: View {
     let openSettings: () -> Void
     let openStatistics: () -> Void
+    let openLogs: () -> Void
     @ObservedObject var screen: FleetMenuScreen
     @ObservedObject var agents: AgentSessionsService
 
@@ -191,6 +192,7 @@ struct AIFleetMenuView: View {
         Menu {
             Button("Statistics") { openStatistics() }.keyboardShortcut("s")
             Button("Settings…") { openSettings() }.keyboardShortcut(",")
+            Button("Logs") { openLogs() }.keyboardShortcut("l")
             Divider()
             Button("Quit") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
         } label: {

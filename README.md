@@ -169,7 +169,7 @@ appear in the Status section of the ⓘ card.
 The header shows whether AI Fleet monitoring is Active or Paused, with Refresh
 (⌘R) and Options (⋯) on the right. Tabs Providers (with a `measured/saved`
 count such as `1/6`), Agents and Processes (with its count) switch by click or ← / →.
-Options also opens Statistics (⌘S) and Settings (⌘,). The footer shows the
+Options opens Statistics (⌘S), Settings (⌘,), and Logs (⌘L). The footer shows the
 last refresh and the version. Hover ⓘ next to the status for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
 Marks and Keys. **Statistics → Provider reports** compares Codex tokens and
@@ -232,7 +232,8 @@ Provider chips choose which local histories the totals, By provider bars, models
 days and Activity include; Option-click a chip to see only that provider. Kimi reads `wire.jsonl`
 under `~/.kimi-code/sessions` and legacy `~/.kimi/sessions`; Qwen reads JSONL
 chat records under `~/.qwen/projects/*/chats`. Refresh scans retained logs;
-opening Statistics or changing chips uses the cache. API prices are not
+opening Statistics or changing chips uses the cache. The issue count beside the
+date range opens **Logs** with detailed scan messages and current app issues. API prices are not
 configured for Kimi and Qwen, so a total that includes them shows its priced part
 as `≥ $…`. Kimi's quota windows appear under **Provider reports**. Local token statistics do not provide Qwen subscription quotas.
 See [provider statistics](business/provider-statistics.md) for format support.

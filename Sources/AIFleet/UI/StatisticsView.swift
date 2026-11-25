@@ -3,6 +3,7 @@ import SwiftUI
 
 /// One screen for every provider's local history; provider chips choose what the totals include.
 struct StatisticsView: View {
+    let openLogs: () -> Void
     @ObservedObject private var analytics = UsageAnalyticsService.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var settings = AppSettings.shared
@@ -79,12 +80,18 @@ struct StatisticsView: View {
     }
 
     private func scopeLine(_ stats: LocalStatistics) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 10) {
             Text("Local history on this Mac · \(rangeText(stats))")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
-            ForEach(stats.sourceIssues, id: \.self) { issue in
-                Label(issue, systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 10.5)).foregroundStyle(FleetPalette.warning)
+            let issueCount = stats.sourceIssues.count
+            if issueCount > 0 {
+                Button(action: openLogs) {
+                    Label(issueCount == 1 ? "1 issue · Logs" : "\(groupedInteger(issueCount)) issues · Logs",
+                          systemImage: "exclamationmark.triangle")
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 11))
+                .help("Show source details in Logs")
             }
         }
     }
