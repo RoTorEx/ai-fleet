@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Open provider quota popovers on click and fit them to the measured chart content.
+
 ## [1.7.1] - 2026-11-25
 
 - Use Claude's account-wide quota for the provider color and lowest-balance indicator. Keep Fable's model quota visible on its own line.

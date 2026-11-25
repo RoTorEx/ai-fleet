@@ -195,8 +195,9 @@ final class MenuLayoutTests: XCTestCase {
     @MainActor
     func testRowsFitContentAndScrollOnlyAfterReachingCap() {
         let rows = Rows()
+        var measuredHeight: CGFloat = 0
         // Use observable content so the same open host reacts to additions/removals.
-        let live = NSHostingController(rootView: LiveRows(rows: rows))
+        let live = NSHostingController(rootView: LiveRows(rows: rows, onContentHeightChange: { measuredHeight = $0 }))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 354, height: 340),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.contentViewController = live
@@ -209,12 +210,15 @@ final class MenuLayoutTests: XCTestCase {
         }
         settle()
         XCTAssertEqual(live.view.fittingSize.height, 184, accuracy: 1)
+        XCTAssertEqual(measuredHeight, 184, accuracy: 1)
         rows.count = 12
         settle()
         XCTAssertEqual(live.view.fittingSize.height, 340, accuracy: 1)
+        XCTAssertGreaterThan(measuredHeight, 340)
         rows.count = 4
         settle()
         XCTAssertEqual(live.view.fittingSize.height, 184, accuracy: 1)
+        XCTAssertEqual(measuredHeight, 184, accuracy: 1)
     }
 }
 
@@ -238,8 +242,9 @@ private final class Rows: ObservableObject {
 
 private struct LiveRows: View {
     @ObservedObject var rows: Rows
+    let onContentHeightChange: (CGFloat) -> Void
     var body: some View {
-        MenuRowsViewport(maxHeight: 340) {
+        MenuRowsViewport(maxHeight: 340, onContentHeightChange: onContentHeightChange) {
             VStack(spacing: 8) {
                 ForEach(0..<rows.count, id: \.self) { _ in
                     Color.clear.frame(height: 40)

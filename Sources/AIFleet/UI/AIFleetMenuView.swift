@@ -277,11 +277,13 @@ struct AIFleetMenuView: View {
 struct MenuRowsViewport<Content: View>: View {
     let maxHeight: CGFloat
     let content: Content
+    let onContentHeightChange: ((CGFloat) -> Void)?
     @State private var contentHeight: CGFloat = 1
 
-    init(maxHeight: CGFloat, @ViewBuilder content: () -> Content) {
+    init(maxHeight: CGFloat, onContentHeightChange: ((CGFloat) -> Void)? = nil, @ViewBuilder content: () -> Content) {
         self.maxHeight = maxHeight
         self.content = content()
+        self.onContentHeightChange = onContentHeightChange
     }
 
     var body: some View {
@@ -303,7 +305,10 @@ struct MenuRowsViewport<Content: View>: View {
             }
         }
         .frame(height: min(maxHeight, contentHeight))
-        .onPreferenceChange(MenuRowsHeightKey.self) { contentHeight = max(1, $0) }
+        .onPreferenceChange(MenuRowsHeightKey.self) { height in
+            contentHeight = max(1, height)
+            onContentHeightChange?(height)
+        }
     }
 }
 
