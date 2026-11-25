@@ -68,12 +68,13 @@ remains unsupported; local history does not establish subscription availability.
 
 Click the chart icon on a supported provider row to open the compact popover.
 Click the icon again to close it. The same charts appear under Quota history in
-Statistics. Open in Statistics carries the provider, account, data source and
-model selection. Both displays scale the VPM-40 figure uniformly from its
-1300 × 910 reference. The shared renderer owns both plot rectangles, title
-baselines, strokes, tick positions and inset legends. The menu popover resizes
-to the selected chart source and scrolls when the charts exceed the display's
-available height.
+Statistics. The provider's weekly and hourly quota charts appear above the
+local token chart in one view. Open in Statistics carries the provider,
+account, quota window and local model selection. The quota figure scales
+uniformly from its 1300 × 910 VPM-40 reference. Both hourly charts mark
+four-hour intervals from local midnight and label midnight and noon. The
+menu popover points at the clicked chart button, resizes to the content and
+scrolls when the charts exceed the display's available height.
 
 ### Provider quota
 
@@ -87,7 +88,8 @@ for a weekly one.
   provider, stable account, window, a digest of the verified identity, reset
   time and used percent. Deduplicate repeated timestamps and keep the latest
   seven days of observations. Seven days covers the active cycle and the
-  72-hour histogram across a reset.
+  72-hour histogram across a reset. The provider replies used by Fleet supply
+  a current measurement. Quota history starts at the first saved observation.
 - The provider's reset times delimit the cycles. Up to 60 seconds of reset-time
   rounding can identify the same cycle. A passed reset time never implies a
   fresh balance. A decrease within one cycle breaks the plotted series and
@@ -121,7 +123,7 @@ for a weekly one.
 
 ### Local tokens
 
-The separate On this Mac mode uses timestamps from the retained session
+The On this Mac section uses timestamps from the retained session
 records. Its 72 consecutive hour buckets include the current hour and retain
 both occurrences of a repeated local hour at daylight-saving transitions.
 Choose a provider and recorded model, with an input, cache and output breakdown.

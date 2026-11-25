@@ -6,6 +6,29 @@ enum QuotaHistoryFigureData {
     case tokens(LocalTokenHistory)
 }
 
+struct QuotaHourTick: Equatable {
+    let date: Date
+    let hour: Int
+
+    var isMajor: Bool { hour == 0 || hour == 12 }
+
+    static func inDomain(_ domain: ClosedRange<Date>, calendar: Calendar = .autoupdatingCurrent) -> [Self] {
+        var ticks: [Self] = []
+        var day = calendar.startOfDay(for: domain.lowerBound)
+        while day <= domain.upperBound {
+            for hour in stride(from: 0, through: 20, by: 4) {
+                if let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day, matchingPolicy: .strict),
+                   calendar.isDate(date, inSameDayAs: day), domain.contains(date) {
+                    ticks.append(Self(date: date, hour: hour))
+                }
+            }
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day), nextDay > day else { break }
+            day = calendar.startOfDay(for: nextDay)
+        }
+        return ticks
+    }
+}
+
 struct QuotaHistoryFigure: View {
     let data: QuotaHistoryFigureData
     @State private var selectedHour: Date?
@@ -236,11 +259,11 @@ struct QuotaHistoryDrawing {
             return (value: value, label: label)
         }
         let colors = drawsWeek ? [Palette.mint] : [Palette.actual, Palette.cache, Palette.mint]
-        let dates = hours.last.map { hour in
-            (0...6).reversed().map { hour.start.addingTimeInterval(Double(2 - 12 * $0) * UsageHours.hour) }
-        } ?? []
+        let clockTicks = QuotaHourTick.inDomain(axis.time)
+        let dates = clockTicks.filter(\.isMajor).map(\.date)
+        let minorDates = clockTicks.filter { !$0.isMajor }.map(\.date)
         let selected = selectedHour.flatMap { start in hours.first { $0.start == start } }
-        let title = drawsWeek ? "Hourly usage, % of weekly quota (last 72h)" : "Local tokens per hour (last 72h)"
+        let title = drawsWeek ? "Hourly usage, % of weekly quota (last 72h)" : "Tokens per hour (last 72h)"
         Label(title, size: 20, color: Palette.heading)
             .draw(at: CGPoint(x: plot.midX, y: plot.minY - 10), alignment: 0.5, in: context)
         fill(plot, Palette.plot, in: context)
@@ -262,7 +285,7 @@ struct QuotaHistoryDrawing {
                 low += value
             }
         }
-        grid(axis, dates: dates, levels: ticks, in: context)
+        grid(axis, dates: dates, minorDates: minorDates, levels: ticks, in: context)
         if let guide {
             stroke([CGPoint(x: plot.minX, y: axis.y(guide)), CGPoint(x: plot.maxX, y: axis.y(guide))],
                    Palette.amber, width: 1.8, dash: [6, 4], in: context)
@@ -273,7 +296,7 @@ struct QuotaHistoryDrawing {
         }
         context.restoreGState()
 
-        axes(axis, dates: dates, levels: levels, showHour: true, in: context)
+        axes(axis, dates: dates, minorDates: minorDates, levels: levels, showHour: true, in: context)
         let hasSamples = hours.contains { $0.parts != nil }
         var keys: [LegendKey] = []
         if let guide {
@@ -339,7 +362,12 @@ private struct PlotAxes {
     }
 }
 
-private func grid(_ axis: PlotAxes, dates: [Date], levels: [Double], in context: CGContext) {
+private func grid(_ axis: PlotAxes, dates: [Date], minorDates: [Date] = [], levels: [Double], in context: CGContext) {
+    let minorColor = Palette.grid.copy(alpha: 0.60) ?? Palette.grid
+    for date in minorDates {
+        let x = axis.x(date)
+        stroke([CGPoint(x: x, y: axis.frame.minY), CGPoint(x: x, y: axis.frame.maxY)], minorColor, width: 0.7, in: context)
+    }
     for date in dates {
         let x = axis.x(date)
         stroke([CGPoint(x: x, y: axis.frame.minY), CGPoint(x: x, y: axis.frame.maxY)], Palette.grid, width: 0.9, in: context)
@@ -350,14 +378,21 @@ private func grid(_ axis: PlotAxes, dates: [Date], levels: [Double], in context:
     }
 }
 
-private func axes(_ axis: PlotAxes, dates: [Date], levels: [(value: Double, label: String)], showHour: Bool, in context: CGContext) {
+private func axes(_ axis: PlotAxes, dates: [Date], minorDates: [Date] = [],
+                  levels: [(value: Double, label: String)], showHour: Bool, in context: CGContext) {
     let plot = axis.frame
     frame(plot, in: context)
+    for date in minorDates {
+        let x = axis.x(date)
+        stroke([CGPoint(x: x, y: plot.maxY), CGPoint(x: x, y: plot.maxY + 3)], Palette.budget, width: 1, in: context)
+    }
     for date in dates {
         let x = axis.x(date)
         stroke([CGPoint(x: x, y: plot.maxY), CGPoint(x: x, y: plot.maxY + 6)], Palette.labels, width: 1, in: context)
-        Label(axisDate(date, withHour: showHour))
-            .draw(at: CGPoint(x: x, y: plot.maxY + 26), alignment: 0.5, in: context)
+        let label = Label(axisDate(date, withHour: showHour))
+        let halfLabel = label.width / 2 + 4
+        let textX = min(max(x, halfLabel), QuotaHistoryDrawing.referenceSize.width - halfLabel)
+        label.draw(at: CGPoint(x: textX, y: plot.maxY + 26), alignment: 0.5, in: context)
     }
     for (value, label) in levels {
         let y = axis.y(value)
@@ -431,7 +466,7 @@ private func forecastText(_ forecast: WeeklyQuotaChart.Forecast, latest: WeeklyQ
 private func axisDate(_ date: Date, withHour: Bool = false) -> String {
     let fields = Calendar.autoupdatingCurrent.dateComponents([.day, .month, .hour], from: date)
     let day = String(format: "%02d.%02d", fields.day ?? 0, fields.month ?? 0)
-    return withHour ? day + String(format: " %02dh", fields.hour ?? 0) : day
+    return withHour ? day + String(format: " %02d:00", fields.hour ?? 0) : day
 }
 
 private func hourDescriptionDate(_ date: Date) -> String {

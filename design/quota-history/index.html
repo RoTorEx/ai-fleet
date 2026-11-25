@@ -140,8 +140,7 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
   }
   #fleet-quota-design .stats-window .history-content { max-width: 670px; margin: auto; }
   #fleet-quota-design .history-controls { justify-content: flex-start; margin-bottom: 11px; }
-  #fleet-quota-design .scope-controls { display: inline-flex; gap: 3px; }
-  #fleet-quota-design .scope-controls [aria-pressed="true"] { border-color: var(--budget); background: var(--selected); }
+  #fleet-quota-design .token-controls { margin-top: 10px; }
   #fleet-quota-design figure {
     --plot: #1b1f25;
     --muted: #c7c9d0;
@@ -253,17 +252,12 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
   </section>
   <template id="fleet-quota-charts">
       <div class="history-controls">
-        <div class="scope-controls" role="group" aria-label="Data source">
-          <button type="button" data-mode="quota" aria-pressed="true">Quota %</button>
-          <button type="button" data-mode="tokens" aria-pressed="false">Local tokens</button>
-        </div>
         <select aria-label="Provider and account" data-account-picker>
           <option value="codex">Codex (α)</option><option value="claude">Claude (β)</option><option value="claude-stale">Claude (γ)</option><option value="qwen">Qwen (δ)</option>
         </select>
-        <select aria-label="Weekly quota scope" data-model-picker hidden></select>
+        <select aria-label="Weekly quota scope" data-cap-picker hidden></select>
         <span class="small muted" data-source>Provider reports</span>
       </div>
-      <p class="chart-caption small muted" aria-live="polite" data-selection></p>
       <p class="notice muted" data-notice hidden></p>
       <figure data-weekly>
         <figcaption class="chart-caption"><h2 data-window-note>Weekly limit</h2></figcaption>
@@ -273,12 +267,25 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
         </div>
       </figure>
       <figure class="histogram" data-histogram>
-        <figcaption class="chart-caption"><h2 data-hours-title>Hourly usage, % of weekly limit · Last 72h</h2></figcaption>
+        <figcaption class="chart-caption"><h2>Hourly usage, % of weekly limit · Last 72h</h2></figcaption>
         <div class="chart-area">
           <svg class="chart hours" role="img" aria-label="Hourly usage over the last 72 hours" data-hour-chart></svg>
           <div class="legend" data-hour-legend></div>
         </div>
         <p class="readout muted small" data-hour-readout></p>
+      </figure>
+      <div class="history-controls token-controls">
+        <h2>Local tokens</h2>
+        <select aria-label="Model" data-model-picker></select>
+        <span class="small muted">On this Mac</span>
+      </div>
+      <figure class="histogram">
+        <figcaption class="chart-caption"><h2>Tokens per hour · Last 72h</h2></figcaption>
+        <div class="chart-area">
+          <svg class="chart hours" role="img" aria-label="Hourly local tokens over the last 72 hours" data-token-chart></svg>
+          <div class="legend" data-token-legend></div>
+        </div>
+        <p class="readout muted small" data-token-readout></p>
       </figure>
   </template>
 </main>
@@ -293,10 +300,7 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
   function mountCharts(container) {
     const panel = root.querySelector(container);
     panel.append(charts.content.cloneNode(true));
-    return {
-      find: attr => panel.querySelector(`[data-${attr}]`),
-      modes: [...panel.querySelectorAll("[data-mode]")]
-    };
+    return {find: attr => panel.querySelector(`[data-${attr}]`)};
   }
   const preview = mountCharts("[data-popup-charts]");
   const statistics = mountCharts("[data-statistics-charts]");
@@ -355,7 +359,7 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
       caps: {account: quotaFixture("Account quota", 27, 2, 5, 12, true)}, models: claudeModels},
     qwen: {name: "Qwen", badge: "δ", caps: {}, models: {"all":"All models","coder":"Qwen3-Coder"}}
   };
-  const state = {account: "codex", mode: "quota", cap: "account", model: "all"};
+  const state = {account: "codex", cap: "account", model: "all"};
   let popover = null;
   const localAccount = account => providers[account].localProvider ?? account;
 
@@ -377,7 +381,7 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
     return {w, h, x, y};
   }
 
-  function frame(svg, space, extent, ymax, ticks, xText, yText) {
+  function frame(svg, space, extent, ymax, ticks, xText, yText, clockHours) {
     const {w, h, x, y} = space;
     svgElement(svg, "rect", {x: x(0), y: y(ymax), width: x(extent) - x(0), height: y(0) - y(ymax), fill: "var(--plot)", stroke: "var(--border)"});
     for (const tick of ticks) {
@@ -385,11 +389,15 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
       svgElement(svg, "text", {x: x(0) - 6, y: y(tick) + 4, "text-anchor": "end"}, yText(tick));
     }
     const count = w >= 650 ? 7 : (w >= 440 ? 4 : 3);
-    for (let i = 0; i <= count; i++) {
-      const hour = i === count ? extent : Math.round(extent * i / count);
-      svgElement(svg, "line", {x1: x(hour), x2: x(hour), y1: y(0), y2: y(ymax), stroke: "var(--grid)"});
-      const alignment = i === 0 ? "start" : (i === count ? "end" : "middle");
-      svgElement(svg, "text", {x: x(hour), y: h - 5, "text-anchor": alignment}, xText(hour, w));
+    const times = clockHours ?? Array.from({length: count + 1}, (_, i) => Math.round(extent * i / count));
+    for (const hour of times) {
+      const label = xText(hour, w);
+      svgElement(svg, "line", {x1: x(hour), x2: x(hour), y1: y(0), y2: y(ymax), stroke: "var(--grid)",
+        opacity: label ? 1 : .6});
+      if (label) {
+        const alignment = hour < 3 ? "start" : (hour > extent - 3 ? "end" : "middle");
+        svgElement(svg, "text", {x: x(hour), y: h - 5, "text-anchor": alignment}, label);
+      }
     }
   }
 
@@ -467,10 +475,10 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
     }, [0, 0, 0]));
   }
 
-  function hourlyChart({find}, cap, selection) {
-    const svg = find("hour-chart");
+  function hourlyChart({find}, cap, selection, tokens) {
+    const section = tokens ? "token" : "hour";
+    const svg = find(`${section}-chart`);
     if (!svg.clientWidth) return;
-    const tokens = selection.mode === "tokens";
     const values = tokens ? tokenHours(selection) : cap.hours;
     const totals = values.map(value => Array.isArray(value) ? value.reduce((a, b) => a + b, 0) : value);
     const ceiling = tokens ? Math.max(100000, Math.ceil(Math.max(...totals) / 100000) * 100000)
@@ -480,9 +488,13 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
     const format = value => tokens ? `${Math.round(value / 1000)}k` : value.toFixed(1);
     const ticks = !tokens && space.w >= 650 ? Array.from({length: ceiling * 2 + 1}, (_, i) => i / 2)
       : [0, ceiling * .25, ceiling * .5, ceiling * .75, ceiling];
-    frame(svg, space, 72, ceiling, ticks,
-      (hour, width) => width >= 460 ? `${axisDay(latestHour - 72 + hour)} ${clockLabel.format(hourDate(latestHour - 72 + hour)).slice(0, 2)}h`
-        : axisDay(latestHour - 72 + hour), format);
+    const hourTime = hour => clockLabel.format(hourDate(latestHour - 72 + hour));
+    const clockHours = Array.from({length: 73}, (_, hour) => hour)
+      .filter(hour => Number(hourTime(hour).slice(0, 2)) % 4 === 0);
+    frame(svg, space, 72, ceiling, ticks, hour => {
+      const time = hourTime(hour);
+      return time === "00:00" || time === "12:00" ? `${axisDay(latestHour - 72 + hour)} ${time}` : "";
+    }, format, clockHours);
     const barWidth = Math.max(1, (x(1) - x(0)) * .76);
     const colors = tokens ? ["--usage", "--cache", "--mint"] : ["--mint"];
     for (const [i, value] of values.entries()) {
@@ -500,8 +512,8 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
         height: y(0) - y(ceiling), fill: "transparent"});
       const label = value === null ? "No reliable measurement" : (tokens ? `${totals[i].toLocaleString("en-GB")} tokens` : `${Number(value.toFixed(2))}% of weekly quota`);
       mark.dataset.tooltip = `${hour} · ${label}`;
-      mark.addEventListener("pointerenter", () => { find("hour-readout").textContent = `${hour} ${fixtureTimeZone} · ${label}`; });
-      mark.addEventListener("pointerleave", () => { find("hour-readout").textContent = ""; });
+      mark.addEventListener("pointerenter", () => { find(`${section}-readout`).textContent = `${hour} ${fixtureTimeZone} · ${label}`; });
+      mark.addEventListener("pointerleave", () => { find(`${section}-readout`).textContent = ""; });
     }
     if (!tokens && !cap.stale) {
       const sustainable = (100 - cap.samples.at(-1)[1]) / resetIn;
@@ -527,51 +539,37 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
 
   function drawCharts(view, selection) {
     const cap = providers[selection.account].caps[selection.cap];
-    if (selection.mode === "tokens") {
-      hourlyChart(view, null, selection);
-    } else if (cap) {
+    if (cap) {
       weeklyChart(view.find("week-chart"), cap);
-      hourlyChart(view, cap, selection);
+      hourlyChart(view, cap, selection, false);
     }
+    hourlyChart(view, null, selection, true);
+  }
+
+  function pickerChoices(picker, choices, selected) {
+    picker.replaceChildren(...Object.entries(choices).map(([id, label]) => new Option(label, id, false, id === selected)));
+    picker.hidden = Object.keys(choices).length < 2;
   }
 
   function render(view, selection) {
-    const {find, modes} = view;
+    const {find} = view;
     const provider = providers[selection.account];
-    const tokens = selection.mode === "tokens";
-    const choices = tokens ? providers[localAccount(selection.account)].models
-      : Object.fromEntries(Object.entries(provider.caps).map(([key, cap]) => [key, cap.label]));
-    const scope = tokens ? selection.model : selection.cap;
-    const modelPicker = find("model-picker");
-    modelPicker.replaceChildren(...Object.entries(choices).map(([id, label]) => new Option(label, id, false, id === scope)));
-    modelPicker.hidden = Object.keys(choices).length < 2;
-    modelPicker.setAttribute("aria-label", tokens ? "Model" : "Weekly quota scope");
-    for (const mode of modes) mode.setAttribute("aria-pressed", String(mode.dataset.mode === selection.mode));
     const accountPicker = find("account-picker");
-    for (const option of accountPicker.options) {
-      const p = providers[option.value];
-      option.text = tokens ? p.name : `${p.name} (${p.badge})`;
-      option.hidden = tokens && Boolean(p.localProvider);
-    }
-    accountPicker.value = tokens ? localAccount(selection.account) : selection.account;
-    accountPicker.setAttribute("aria-label", tokens ? "Provider" : "Provider and account");
-    find("source").textContent = tokens ? "On this Mac" : "Provider reports";
+    accountPicker.value = selection.account;
+    accountPicker.hidden = view === preview;
+    const caps = Object.fromEntries(Object.entries(provider.caps).map(([key, cap]) => [key, cap.label]));
+    pickerChoices(find("cap-picker"), caps, selection.cap);
+    pickerChoices(find("model-picker"), providers[localAccount(selection.account)].models, selection.model);
     const cap = provider.caps[selection.cap];
-    find("weekly").hidden = tokens || !cap;
-    find("histogram").hidden = !tokens && !cap;
-    find("notice").hidden = tokens || Boolean(cap);
+    find("source").hidden = !cap;
+    find("weekly").hidden = !cap;
+    find("histogram").hidden = !cap;
+    find("notice").hidden = Boolean(cap);
     find("notice").textContent = "No weekly quota reported for this provider.";
     find("hour-readout").textContent = "";
-    const selectionLabel = choices[scope] ?? "";
-    find("selection").textContent = view === preview ? selectionLabel
-      : (tokens ? `${provider.name} · ${selectionLabel}` : (cap ? `${provider.name} (${provider.badge}) · ${selectionLabel}` : ""));
-    if (!tokens && !cap) return;
-    find("hours-title").textContent = tokens ? "Local tokens per hour · Last 72h" : "Hourly usage, % of weekly limit · Last 72h";
-    find("hour-chart").setAttribute("aria-label",
-      tokens ? "Local tokens by hour over the last 72 hours" : "Provider quota used per hour over the last 72 hours");
-    if (tokens) {
-      legend(find("hour-legend"), [["Uncached input", "--usage", "filled"], ["Cache", "--cache", "filled"], ["Output", "--mint", "filled"]]);
-    } else {
+    find("token-readout").textContent = "";
+    legend(find("token-legend"), [["Uncached input", "--usage", "filled"], ["Cache", "--cache", "filled"], ["Output", "--mint", "filled"]]);
+    if (cap) {
       const used = cap.samples.at(-1)[1];
       const context = cap.stale ? "Stale measurement" : `${resetIn}h to reset`;
       find("window-note").textContent = `Weekly limit · ${pct(used)} used · ${context}`;
@@ -598,13 +596,12 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
     }
     if (!popover) return;
     const provider = providers[popover.account];
-    peekTitle.textContent = popover.mode === "tokens" ? `${provider.name} · Local tokens`
-      : `${provider.name} (${provider.badge}) · Quota history`;
+    peekTitle.textContent = `${provider.name} (${provider.badge}) · Quota history`;
     render(preview, popover);
   }
 
   function showPopover(account) {
-    popover = {account, mode: providers[account].caps.account ? "quota" : "tokens", cap: "account", model: "all"};
+    popover = {account, cap: "account", model: "all"};
     renderPopover();
   }
 
@@ -623,7 +620,7 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
         closePopover();
       } else {
         showPopover(account);
-        if (event.detail === 0) preview.modes.find(mode => mode.dataset.mode === popover.mode).focus();
+        if (event.detail === 0) root.querySelector("[data-history]").focus();
       }
     });
   }
@@ -647,45 +644,32 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
 
   root.querySelector("[data-history]").addEventListener("click", () => {
     if (!popover) return;
-    const {account, mode, cap, model} = popover;
-    updateStatistics({account, mode, cap, model});
+    updateStatistics(popover);
     closePopover();
     statistics.find("account-picker").focus();
   });
   statistics.find("account-picker").addEventListener("change", event => {
-    updateStatistics({account: event.target.value, cap: "account", model: "all"});
+    const account = event.target.value;
+    updateStatistics({account, cap: "account", model: localAccount(account) === localAccount(state.account) ? state.model : "all"});
   });
-  for (const mode of statistics.modes) {
-    mode.addEventListener("click", () => updateStatistics({mode: mode.dataset.mode}));
-  }
-  statistics.find("model-picker").addEventListener("change", event => {
-    updateStatistics({[state.mode === "quota" ? "cap" : "model"]: event.target.value});
-  });
-  for (const mode of preview.modes) {
-    mode.addEventListener("click", () => {
+  for (const key of ["cap", "model"]) {
+    statistics.find(`${key}-picker`).addEventListener("change", event => updateStatistics({[key]: event.target.value}));
+    preview.find(`${key}-picker`).addEventListener("change", event => {
       if (!popover) return;
-      popover.mode = mode.dataset.mode;
+      popover[key] = event.target.value;
       renderPopover();
     });
   }
-  preview.find("model-picker").addEventListener("change", event => {
-    if (!popover) return;
-    popover[popover.mode === "quota" ? "cap" : "model"] = event.target.value;
-    renderPopover();
-  });
 
   function restore(saved) {
     const value = saved?.modelContent;
     if (!value || !Object.hasOwn(providers, value.account)) return;
-    state.mode = value.mode === "tokens" ? "tokens" : "quota";
-    state.account = state.mode === "tokens" ? localAccount(value.account) : value.account;
+    state.account = value.account;
     state.cap = Object.hasOwn(providers[state.account].caps, value.cap) ? value.cap : "account";
-    state.model = Object.hasOwn(providers[state.account].models, value.model) ? value.model : "all";
+    state.model = Object.hasOwn(providers[localAccount(state.account)].models, value.model) ? value.model : "all";
   }
   function save() {
-    const {mode, cap, model} = state;
-    const account = mode === "tokens" ? localAccount(state.account) : state.account;
-    window.openai?.setWidgetState?.({modelContent: {account, mode, cap, model}})?.catch(() => {});
+    window.openai?.setWidgetState?.({modelContent: {...state}})?.catch(() => {});
   }
   restore(window.openai?.widgetState);
   window.addEventListener("openai:set_globals", event => {
@@ -701,6 +685,7 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
   for (const view of [statistics, preview]) {
     resize.observe(view.find("week-chart"));
     resize.observe(view.find("hour-chart"));
+    resize.observe(view.find("token-chart"));
   }
 })();
 </script>

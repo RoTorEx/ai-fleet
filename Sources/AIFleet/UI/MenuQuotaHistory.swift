@@ -2,13 +2,16 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class MenuQuotaHistory: NSObject, ObservableObject, NSPopoverDelegate {
+final class MenuQuotaHistory: ObservableObject {
     static let windowIdentifier = NSUserInterfaceItemIdentifier("ai-fleet-quota-history")
 
     @Published private(set) var presented: String?
-    private var popover: NSPopover?
+    private var panel: QuotaPopoverPanel?
+    private var host: NSHostingController<QuotaPopoverContent>?
     private var content: QuotaPopoverTarget?
+    private weak var anchor: NSView?
     private var sizeObservation: NSKeyValueObservation?
+    private var windowObservers: [NSObjectProtocol] = []
     private var outsideClickMonitor: Any?
 
     func toggle(_ target: QuotaHistoryTarget, anchoredTo anchor: NSView, openStatistics: @escaping () -> Void) {
@@ -16,44 +19,41 @@ final class MenuQuotaHistory: NSObject, ObservableObject, NSPopoverDelegate {
             dismiss()
             return
         }
-        guard let window = anchor.window else { return }
+        guard let owner = anchor.window, let visible = owner.screen?.visibleFrame ?? NSScreen.main?.visibleFrame,
+              let source = sourceRect(for: anchor),
+              let placement = QuotaPopoverPlacement(anchor: source, screen: visible, contentHeight: visible.height) else { return }
         dismiss()
 
-        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
-        let width = min(500, (visible?.width ?? 536) - 36)
-        let maxHeight = min(440, (visible?.height ?? 484) - 44)
-        let content = QuotaPopoverTarget(target)
-        let host = NSHostingController(rootView: QuotaPopoverContent(target: content, width: width, maxHeight: maxHeight,
-            openInStatistics: { [weak self] request in
-                self?.dismiss()
-                QuotaHistoryNavigation.shared.request = request
-                openStatistics()
-            }))
+        let content = QuotaPopoverTarget(target, viewport: placement.viewport)
+        let host = NSHostingController(rootView: QuotaPopoverContent(content: content, openInStatistics: { [weak self] request in
+            self?.dismiss()
+            QuotaHistoryNavigation.shared.request = request
+            openStatistics()
+        }))
         host.sizingOptions = [.preferredContentSize]
-
-        let popover = NSPopover()
-        popover.animates = false
-        popover.behavior = .applicationDefined
-        popover.delegate = self
-        popover.contentViewController = host
-        popover.contentSize = NSSize(width: width, height: maxHeight)
-        self.popover = popover
+        let panel = QuotaPopoverPanel(content: host.view)
+        panel.identifier = Self.windowIdentifier
+        panel.level = owner.level
+        panel.alphaValue = 0
+        self.panel = panel
+        self.host = host
         self.content = content
+        self.anchor = anchor
         presented = target.id
 
-        // The bounded scroll view measures the content at the given width, even
-        // when the existing window is shorter than the newly selected chart.
-        sizeObservation = host.observe(\.preferredContentSize) { [weak self, weak popover] host, _ in
-            let height = ceil(host.preferredContentSize.height)
+        sizeObservation = host.observe(\.preferredContentSize) { [weak self, weak panel] _, _ in
             Task { @MainActor in
-                guard let self, let popover, self.popover === popover, height > 1 else { return }
-                let size = NSSize(width: width, height: min(maxHeight, height))
-                if popover.contentSize != size { popover.contentSize = size }
+                guard let self, let panel, self.panel === panel else { return }
+                self.reposition()
             }
         }
-        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minX)
-        host.view.window?.identifier = Self.windowIdentifier
-        monitorClicks(in: window, outside: anchor)
+        monitorWindow(owner)
+        monitorClicks(in: owner, outside: anchor)
+        panel.layout(placement)
+        owner.addChildWindow(panel, ordered: .above)
+        panel.orderFront(nil)
+        host.view.layoutSubtreeIfNeeded()
+        reposition()
     }
 
     func update(_ target: QuotaHistoryTarget) {
@@ -61,16 +61,56 @@ final class MenuQuotaHistory: NSObject, ObservableObject, NSPopoverDelegate {
         content?.target = target
     }
 
-    func dismiss(id: String? = nil) {
-        guard id == nil || presented == id else { return }
-        let closing = popover
-        clear()
-        closing?.close()
+    func reposition(id: String? = nil) {
+        guard id == nil || presented == id, let panel, let host, let content else { return }
+        guard let anchor, let owner = anchor.window, let source = sourceRect(for: anchor),
+              let visible = owner.screen?.visibleFrame ?? NSScreen.main?.visibleFrame else {
+            dismiss()
+            return
+        }
+        let measured = host.preferredContentSize.height
+        guard let placement = QuotaPopoverPlacement(anchor: source, screen: visible,
+                                                    contentHeight: measured > 1 ? measured : visible.height) else {
+            dismiss()
+            return
+        }
+        if content.viewport != placement.viewport { content.viewport = placement.viewport }
+        panel.layout(placement)
+        if measured > 1 { panel.alphaValue = 1 }
     }
 
-    func popoverDidClose(_ notification: Notification) {
-        guard let closed = notification.object as? NSPopover, closed === popover else { return }
-        clear()
+    func dismiss(id: String? = nil) {
+        guard id == nil || presented == id else { return }
+        if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
+        outsideClickMonitor = nil
+        for observer in windowObservers { NotificationCenter.default.removeObserver(observer) }
+        windowObservers.removeAll()
+        sizeObservation = nil
+        let closing = panel
+        panel = nil
+        host = nil
+        content = nil
+        anchor = nil
+        presented = nil
+        if let closing {
+            closing.parent?.removeChildWindow(closing)
+            closing.close()
+        }
+    }
+
+    private func sourceRect(for anchor: NSView) -> NSRect? {
+        guard let owner = anchor.window, owner.isVisible || panel == nil,
+              anchor.visibleRect.contains(NSPoint(x: anchor.bounds.midX, y: anchor.bounds.midY)) else { return nil }
+        return owner.convertToScreen(anchor.convert(anchor.bounds, to: nil))
+    }
+
+    private func monitorWindow(_ owner: NSWindow) {
+        windowObservers = [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didChangeScreenNotification]
+            .map { name in
+                NotificationCenter.default.addObserver(forName: name, object: owner, queue: .main) { [weak self] _ in
+                    Task { @MainActor in self?.reposition() }
+                }
+            }
     }
 
     private func monitorClicks(in window: NSWindow, outside anchor: NSView) {
@@ -82,15 +122,6 @@ final class MenuQuotaHistory: NSObject, ObservableObject, NSPopoverDelegate {
             }
             return event
         }
-    }
-
-    private func clear() {
-        if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
-        outsideClickMonitor = nil
-        sizeObservation = nil
-        popover = nil
-        content = nil
-        presented = nil
     }
 }
 
@@ -113,7 +144,13 @@ struct MenuQuotaHistoryButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(target.label) quota history")
         .accessibilityIdentifier("quota-history-\(target.id)")
-        .background(QuotaPopoverAnchor(view: anchor).allowsHitTesting(false))
+        .background {
+            GeometryReader { geometry in
+                QuotaPopoverAnchor(view: anchor)
+                    .onChange(of: geometry.frame(in: .global)) { _ in presentation.reposition(id: target.id) }
+            }
+            .allowsHitTesting(false)
+        }
         .onChange(of: target) { presentation.update($0) }
         .onDisappear { presentation.dismiss(id: target.id) }
     }
@@ -122,24 +159,25 @@ struct MenuQuotaHistoryButton: View {
 @MainActor
 private final class QuotaPopoverTarget: ObservableObject {
     @Published var target: QuotaHistoryTarget
+    @Published var viewport: CGSize
 
-    init(_ target: QuotaHistoryTarget) { self.target = target }
+    init(_ target: QuotaHistoryTarget, viewport: CGSize) {
+        self.target = target
+        self.viewport = viewport
+    }
 }
 
 private struct QuotaPopoverContent: View {
-    @ObservedObject var target: QuotaPopoverTarget
-    let width: CGFloat
-    let maxHeight: CGFloat
+    @ObservedObject var content: QuotaPopoverTarget
     let openInStatistics: (QuotaHistoryRequest) -> Void
 
     var body: some View {
-        MenuRowsViewport(maxHeight: maxHeight) {
-            QuotaHistoryView(targets: [target.target], openInStatistics: openInStatistics)
+        MenuRowsViewport(maxHeight: content.viewport.height) {
+            QuotaHistoryView(targets: [content.target], openInStatistics: openInStatistics)
                 .padding(10)
-                .frame(width: width)
+                .frame(width: content.viewport.width)
         }
-        .frame(width: width)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(width: content.viewport.width)
     }
 }
 

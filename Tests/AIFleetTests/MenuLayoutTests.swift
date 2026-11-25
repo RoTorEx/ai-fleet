@@ -4,6 +4,26 @@ import XCTest
 @testable import AIFleet
 
 final class MenuLayoutTests: XCTestCase {
+    func testQuotaPopupKeepsItsArrowAtTheFirstRowWhenClamped() throws {
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 949)
+        let firstRow = CGRect(x: 1160, y: 920, width: 23, height: 20)
+        let placement = try XCTUnwrap(QuotaPopoverPlacement(anchor: firstRow, screen: screen, contentHeight: 590))
+        XCTAssertTrue(screen.contains(placement.frame))
+        XCTAssertTrue(placement.arrowOnRight)
+        XCTAssertLessThan(placement.frame.maxX, firstRow.minX)
+        XCTAssertEqual(placement.frame.minY + placement.tip.y, firstRow.midY)
+        XCTAssertLessThanOrEqual(placement.shoulderY + QuotaPopoverPlacement.arrowHalfHeight,
+                                 placement.body.maxY - QuotaPopoverPlacement.cornerRadius)
+
+        let moved = firstRow.offsetBy(dx: -1080, dy: -430)
+        let opposite = try XCTUnwrap(QuotaPopoverPlacement(anchor: moved, screen: screen, contentHeight: 240))
+        XCTAssertTrue(screen.contains(opposite.frame))
+        XCTAssertFalse(opposite.arrowOnRight)
+        XCTAssertGreaterThan(opposite.frame.minX, moved.maxX)
+        XCTAssertEqual(opposite.frame.minY + opposite.tip.y, moved.midY)
+        XCTAssertEqual(opposite.shoulderY, opposite.tip.y)
+    }
+
     func testMenuPanelHangsBelowStatusItemAndStaysOnScreen() {
         let screen = NSRect(x: 0, y: 0, width: 1512, height: 944)
         let item = NSRect(x: 1200, y: 945, width: 18, height: 24)

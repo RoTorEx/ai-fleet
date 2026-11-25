@@ -240,11 +240,13 @@ See [provider statistics](business/provider-statistics.md) for format support.
 
 Click the chart icon on a supported Providers row to open **Quota history**.
 Click it again to close the popover. The chart button in Statistics opens the
-same charts. **Quota %** follows the verified account and
-its provider-reported weekly limits, including explicit model caps. **Local
-tokens** shows input, cache and output by provider and recorded model across the
-last 72 hourly buckets. The weekly plot shows the daily budget, actual
-observations and the projection based on average pace since the cycle began.
+same view with provider quota above **Local tokens**. The quota graphs follow
+the verified account and its provider-reported weekly limits, including explicit
+model caps. Local tokens shows input, cache and output by provider and recorded
+model across the last 72 hourly buckets. The hourly charts label local midnight
+and noon and mark the four-hour intervals between them. The weekly plot shows
+the daily budget, observations and the projection based on average pace since
+the cycle began.
 The 24-hour projection and quota bars appear as measurements accumulate.
 
 Choose **Claude** for local Claude Code tokens, input/cache/output breakdowns,

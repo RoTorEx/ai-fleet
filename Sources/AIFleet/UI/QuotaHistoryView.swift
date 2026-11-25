@@ -16,16 +16,9 @@ struct QuotaHistoryTarget: Identifiable, Equatable {
     }
 }
 
-enum QuotaHistoryMode: String, CaseIterable, Identifiable {
-    case quota = "Quota %"
-    case tokens = "Local tokens"
-    var id: Self { self }
-}
-
 struct QuotaHistoryRequest: Equatable {
     let targetID: String
     let provider: StatisticsProvider
-    let mode: QuotaHistoryMode
     let windowID: String?
     let model: String?
 }
@@ -42,7 +35,6 @@ struct QuotaHistoryView: View {
     let openInStatistics: ((QuotaHistoryRequest) -> Void)?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
-    @State private var mode: QuotaHistoryMode
     @State private var targetID: String?
     @State private var windowID: String?
     @State private var model: String?
@@ -52,8 +44,6 @@ struct QuotaHistoryView: View {
         self.targets = targets
         self.request = request
         self.openInStatistics = openInStatistics
-        let hasWeeklyQuota = targets.first?.report?.weeklyWindows.isEmpty == false
-        _mode = State(initialValue: request?.mode ?? (hasWeeklyQuota ? .quota : .tokens))
         _targetID = State(initialValue: request?.targetID)
         _windowID = State(initialValue: request?.windowID)
         _model = State(initialValue: request?.model)
@@ -63,25 +53,26 @@ struct QuotaHistoryView: View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             if let target = targets.first(where: { $0.id == targetID }) ?? targets.first {
                 let now = timeline.date
-                let tokenHistory = mode == .tokens
-                    ? LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model, now: now) : nil
+                let tokens = LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model, now: now)
                 let windows = target.report?.weeklyWindows ?? []
                 let window = windows.first { $0.id == windowID } ?? windows.first
-                VStack(alignment: .leading, spacing: 7) {
-                    controls(target: target, windows: windows, window: window, models: tokenHistory?.models ?? [])
-                    if let tokenHistory {
-                        QuotaHistoryFigure(data: .tokens(tokenHistory))
-                    } else if let report = target.report, let window {
+                VStack(alignment: .leading, spacing: 8) {
+                    quotaControls(target: target, windows: windows, window: window)
+                    if let report = target.report, let window {
                         QuotaHistoryFigure(data: .quota(WeeklyQuotaChart(report: report, window: window,
                                                                         history: quotaHistory.history, now: now)))
                     } else {
                         Text("No verified weekly quota for this connection.")
-                            .font(.callout).foregroundStyle(.secondary).padding(.vertical, 12)
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 5) {
+                        tokenControls(models: tokens.models)
+                        QuotaHistoryFigure(data: .tokens(tokens))
                     }
                     if let openInStatistics {
                         Button("Open in Statistics") {
                             openInStatistics(QuotaHistoryRequest(targetID: target.id, provider: target.provider,
-                                mode: mode, windowID: window?.id, model: model))
+                                windowID: window?.id, model: model))
                         }
                         .controlSize(.small)
                     }
@@ -92,61 +83,63 @@ struct QuotaHistoryView: View {
         .onChange(of: request) { if let request = $0 { apply(request) } }
     }
 
-    @ViewBuilder
-    private func controls(target: QuotaHistoryTarget, windows: [ProviderLimitWindow],
-                          window: ProviderLimitWindow?, models: [String]) -> some View {
-        let choices = mode == .tokens ? uniqueProviders : targets
+    private func quotaControls(target: QuotaHistoryTarget, windows: [ProviderLimitWindow],
+                               window: ProviderLimitWindow?) -> some View {
         HStack(spacing: 9) {
-            Picker("History source", selection: $mode) {
-                ForEach(QuotaHistoryMode.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .labelsHidden().pickerStyle(.segmented).frame(width: 151)
-            if choices.count > 1 {
-                Picker(mode == .tokens ? "Provider" : "Account", selection: Binding(
-                    get: { mode == .tokens ? choices.first(where: { $0.provider == target.provider })?.id ?? target.id : target.id },
-                    set: { value in targetID = value; windowID = nil; model = nil }
+            if targets.count > 1 {
+                Picker("Provider and account", selection: Binding(
+                    get: { target.id },
+                    set: { value in selectTarget(value, previousProvider: target.provider) }
                 )) {
-                    ForEach(choices) { choice in
-                        Text(mode == .tokens ? choice.provider.title : choice.label).tag(choice.id)
-                    }
+                    ForEach(targets) { Text($0.label).tag($0.id) }
                 }
                 .labelsHidden().frame(maxWidth: 142)
             } else {
-                Text(mode == .tokens ? target.provider.title : target.label)
+                Text(target.label)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
             }
-            if mode == .tokens, !models.isEmpty {
+            if windows.count > 1, let window {
+                Picker("Quota window", selection: Binding(get: { window.id }, set: { windowID = $0 })) {
+                    ForEach(windows) { scope in Text(scope.weeklyModel ?? "Account quota").tag(scope.id) }
+                }
+                .labelsHidden().frame(maxWidth: 150)
+            } else if let name = window?.weeklyModel {
+                Text(name).font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            if window != nil {
+                Text("Provider reports").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+        .controlSize(.small)
+    }
+
+    private func tokenControls(models: [String]) -> some View {
+        HStack(spacing: 9) {
+            Text("Local tokens").font(.system(size: 12, weight: .semibold))
+            if !models.isEmpty {
                 Picker("Model", selection: Binding(get: { model.flatMap { models.contains($0) ? $0 : nil } },
                                                    set: { model = $0 })) {
                     Text("All models").tag(String?.none)
                     ForEach(models, id: \.self) { Text($0).tag(Optional($0)) }
                 }
                 .labelsHidden().frame(maxWidth: 150)
-            } else if mode == .quota, windows.count > 1, let window {
-                Picker("Quota window", selection: Binding(get: { window.id }, set: { windowID = $0 })) {
-                    ForEach(windows) { scope in Text(scope.weeklyModel ?? "Account quota").tag(scope.id) }
-                }
-                .labelsHidden().frame(maxWidth: 150)
-            } else if mode == .quota, let name = window?.weeklyModel {
-                Text(name).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            Text(mode == .quota ? "Provider reports" : "On this Mac")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                .lineLimit(1)
+            Text("On this Mac").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         }
         .controlSize(.small)
     }
 
-    private var uniqueProviders: [QuotaHistoryTarget] {
-        var seen = Set<StatisticsProvider>()
-        return targets.filter { seen.insert($0.provider).inserted }
+    private func selectTarget(_ id: String, previousProvider: StatisticsProvider) {
+        if targets.first(where: { $0.id == id })?.provider != previousProvider { model = nil }
+        targetID = id
+        windowID = nil
     }
 
     private func apply(_ request: QuotaHistoryRequest) {
         targetID = request.targetID
-        mode = request.mode
         windowID = request.windowID
         model = request.model
     }

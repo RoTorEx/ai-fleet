@@ -125,6 +125,23 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertNil(figure.hour(at: .zero, in: CGSize(width: width, height: height)))
     }
 
+    func testClockGridUsesMidnightAndFixedLocalHoursAcrossDaylightSaving() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Warsaw"))
+        for (month, day, midnightToFour) in [(3, 29, 3), (10, 25, 5)] {
+            let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: month, day: day)))
+            let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: start))
+            let ticks = QuotaHourTick.inDomain(start...tomorrow, calendar: calendar)
+            XCTAssertEqual(ticks.map(\.hour), [0, 4, 8, 12, 16, 20, 0])
+            XCTAssertEqual(ticks.filter(\.isMajor).map(\.hour), [0, 12, 0])
+            XCTAssertEqual(ticks[1].date.timeIntervalSince(start), Double(midnightToFour) * hour)
+            XCTAssertTrue(ticks.allSatisfy {
+                calendar.component(.hour, from: $0.date) == $0.hour &&
+                    calendar.component(.minute, from: $0.date) == 0
+            })
+        }
+    }
+
     func testHourlySpikeGapsCorrectionAndReset() {
         let oldReset = base.addingTimeInterval(3.5 * hour)
         let newReset = oldReset.addingTimeInterval(WeeklyQuotaPace.weekSeconds)
