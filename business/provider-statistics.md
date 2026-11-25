@@ -74,14 +74,16 @@ Click the icon again to close it. The quota overview, hourly quota and local
 hourly tokens form one compact stack in the popover and at the top of Quota
 History in Statistics. Provider reports follow the chart group. Claude, Codex
 and Kimi share the layout. Qwen shows the local token chart.
-The default is the account-wide weekly limit when present, followed by the
-longest reported window. Open in Statistics carries the provider, account,
-quota window and local model selection and includes the provider in the visible
-filter. The plots use a shared axis gutter and fixed heights so changing the
+Reported quota windows show their current percentages together. The charts use
+the account-wide weekly limit when present, followed by the longest account
+window. Open in Statistics carries the provider, account and local model
+selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
-Label sizes stay constant. Both hourly charts mark four-hour intervals from local
-midnight and label midnight and noon. Charts keep the zero baseline and omit
-its label. Hover over the info icon next to a chart's title to see its legend
+Label sizes stay constant. Both hourly plots share 72 hour bins and a four-hour
+grid from local midnight, with hours and dates on separate rows. The highest
+tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
+bin exceeds it. An off-scale sustainable rate appears in the legend. Charts
+keep the zero baseline and omit its label. Hover over the info icon next to a chart's title to see its legend
 inside the plot. The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
@@ -95,9 +97,9 @@ forecasts require a verified weekly window with the corresponding inputs.
 
 Weekly history follows the provider's verified account identity and reported
 window. A window is weekly when the provider reports a seven-day duration or
-explicitly identifies a model-specific weekly cap. The latter has its own
-selection and observations. A shorter or undated model quota cannot stand in
-for a weekly one.
+explicitly identifies a model-specific weekly cap. Model caps retain independent
+observations and appear among the current readings. A shorter or undated model
+quota cannot stand in for an account's weekly one.
 
 - Reuse existing quota measurements with their original timestamps. Record
   provider, stable account, window, a digest of the verified identity, reset
@@ -124,7 +126,8 @@ for a weekly one.
   correction it waits for an hour of observations. The second projection uses
   two observations about 24 hours apart, with the earlier observation no more
   than 15 minutes before the target. Keep the weekly chart on a fixed percentage
-  scale with the red limit at 100%. The gold dotted forecast uses the cycle
+  scale with the 100% limit at its top edge. A hover shows the corresponding
+  reading, budget or projected usage and identifies gaps in coverage. The gold dotted forecast uses the cycle
   average and the coral dotted forecast uses the last 24 hours. Each ends at
   reset or at the projected limit crossing, whichever comes first.
 - An hourly bin requires sufficient observation coverage and a single cycle.

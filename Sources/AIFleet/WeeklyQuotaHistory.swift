@@ -184,6 +184,27 @@ struct WeeklyQuotaChart {
     let firstObservation: Date?
     var sustainablePerHour: Double? { pace.sustainablePercentPerDay.map { $0 / 24 } }
 
+    var cycleRange: ClosedRange<Date>? {
+        guard let cycleStart, let latest, cycleStart < latest.reset else { return nil }
+        return cycleStart...latest.reset
+    }
+
+    func measuredUse(at date: Date) -> Int? {
+        let segment = segments.first { points in
+            guard let first = points.first, let last = points.last else { return false }
+            return first.time <= date && date <= last.time
+        }
+        return segment?.last { $0.time <= date }?.used
+    }
+
+    func windowProjection(at date: Date) -> Double? {
+        guard let latest, date > latest.time, let forecast = forecasts.first(where: { $0.period == .window }) else { return nil }
+        let end = forecast.plotEndpoint(reset: latest.reset)
+        guard date <= end.time else { return nil }
+        let progress = date.timeIntervalSince(latest.time) / end.time.timeIntervalSince(latest.time)
+        return Double(latest.used) + (end.used - Double(latest.used)) * progress
+    }
+
     init(report: StatisticsProviderReport, window: ProviderLimitWindow, history: WeeklyQuotaHistory,
          now: Date, calendar: Calendar = .autoupdatingCurrent) {
         pace = WeeklyQuotaPace.make(report: report, window: window, now: now)

@@ -7,6 +7,8 @@ Tracks real product and release progress.
 - Fit the quota overview, hourly quota and local hourly tokens in one compact chart group in the provider popover and Statistics. Use the same layout for Claude, Codex and Kimi, including current readings and unavailable history.
 - Reveal each chart legend inside its plot on hover over the title's info icon. Omit the zero labels on the vertical axes.
 - Remove the duplicate Token Spend action from provider account rows.
+- Open Statistics from its menu or chart action and exclude the window from launch restoration.
+- Show quota windows together above the charts. Align the hourly time axes, label their upper bounds, and add a hover readout to the weekly quota plot.
 
 ## [1.7.2] - 2026-11-25
 

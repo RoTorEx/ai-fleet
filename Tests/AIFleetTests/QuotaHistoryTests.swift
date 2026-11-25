@@ -20,16 +20,16 @@ final class QuotaHistoryTests: XCTestCase {
         let row = MenuAccountConnection(account: account, connection: connection, status: status, isSelected: true)
         let target = try XCTUnwrap(QuotaHistoryTarget(row: row, codex: CodexMonitoringStore.shared))
         XCTAssertNil(target.report)
-        XCTAssertEqual(target.selectedWindow(nil), month)
-        XCTAssertEqual(target.selectedWindow(session.id), session)
+        XCTAssertEqual(target.quotaWindows, [session, month])
+        XCTAssertEqual(target.primaryQuotaWindow, month)
 
-        let data = target.quotaFigure(window: month, history: WeeklyQuotaHistory(), now: base)
+        let data = target.quotaFigure(history: WeeklyQuotaHistory(), now: base)
         guard case .currentQuota(let reading) = data else { return XCTFail("Expected the observed monthly reading") }
         XCTAssertEqual(reading.usedPercent, 74)
         XCTAssertFalse(reading.isStale)
         let drawing = QuotaHistoryDrawing(data: data)
-        XCTAssertTrue(drawing.accessibilityDetails(for: .overview, selectedHour: nil).contains("Monthly quota · 74% used"))
-        XCTAssertTrue(drawing.accessibilityDetails(for: .hourly, selectedHour: nil).contains("Hourly history unavailable"))
+        XCTAssertTrue(drawing.accessibilityDetails(for: .overview, selectedTime: nil).contains("Monthly quota · 74.0% used"))
+        XCTAssertTrue(drawing.accessibilityDetails(for: .hourly, selectedTime: nil).contains("Hourly history unavailable"))
         XCTAssertNil(drawing.hour(at: CGPoint(x: 200, y: 46), in: CGSize(width: 480, height: QuotaHistoryPanel.hourly.height)))
     }
 
@@ -170,21 +170,26 @@ final class QuotaHistoryTests: XCTestCase {
             return [Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2])]
         }
 
-        let rail = color(380, 35)
+        let rail = color(380, 24)
         XCTAssertGreaterThan(rail[0] - rail[1], 100)
         let hourlyTop = Int(overview.height)
         XCTAssertEqual(color(44, 62), color(44, hourlyTop + 60))
         XCTAssertEqual(color(460, 62), color(460, hourlyTop + 60))
         XCTAssertEqual(color(42, 146), color(42, 140))
-        XCTAssertEqual(color(42, hourlyTop + 98), color(42, hourlyTop + 90))
+        XCTAssertEqual(color(42, hourlyTop + 89), color(42, hourlyTop + 80))
 
-        let bar = color(428, hourlyTop + 46)
+        let bar = color(446, hourlyTop + 46)
         XCTAssertGreaterThan(bar[1] - bar[0], 90)
         XCTAssertLessThan(color(285, hourlyTop + 46)[1], 80)
-        XCTAssertEqual(figure.hour(at: CGPoint(x: 428, y: 46), in: hourly),
+        XCTAssertEqual(figure.hour(at: CGPoint(x: 446, y: 46), in: hourly),
                        base.addingTimeInterval(-2 * hour))
         XCTAssertNil(figure.hour(at: CGPoint(x: 428, y: 12), in: hourly))
         XCTAssertNil(figure.hour(at: CGPoint(x: 428, y: 108), in: hourly))
+        let actualX = 44 + 416 * (1 - 123.0 / 168)
+        let selected = try XCTUnwrap(figure.selection(at: CGPoint(x: actualX, y: 46), in: overview, panel: .overview))
+        XCTAssertTrue(figure.accessibilityDetails(for: .overview, selectedTime: selected).contains("56.0% used"))
+        XCTAssertNil(chart.measuredUse(at: base.addingTimeInterval(hour)))
+        XCTAssertNotNil(chart.windowProjection(at: base.addingTimeInterval(hour)))
 
         func rows(_ range: Range<Int>) -> Data {
             Data(bytes: pixels.advanced(by: range.lowerBound * bytesPerRow), count: range.count * bytesPerRow)
@@ -199,6 +204,20 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertNotEqual(rows(overviewRows), overviewWithoutLegend)
         XCTAssertEqual(rows(hourlyRows), hourlyWithoutLegend)
         XCTAssertEqual(rows(292..<(hourlyTop * 2)), overviewAxis)
+    }
+
+    func testHourlyAxesEndAtTheirHighestLabeledValue() {
+        let quota = HourlyChartScale(measuredMaximum: 1, minimum: 1)
+        XCTAssertEqual(quota.maximum, 1)
+        XCTAssertEqual(quota.levels.map { formattedNumber($0, fractionDigits: 1) }, ["0.0", "0.2", "0.4", "0.6", "0.8", "1.0"])
+        let spike = HourlyChartScale(measuredMaximum: 1.1, minimum: 1)
+        XCTAssertGreaterThanOrEqual(spike.maximum, 1.1)
+        XCTAssertEqual(spike.levels.last, spike.maximum)
+
+        let tokens = HourlyChartScale(measuredMaximum: 138_000_000, minimum: 10)
+        XCTAssertEqual(tokens.maximum, 150_000_000)
+        XCTAssertEqual(tokens.levels.last, tokens.maximum)
+        XCTAssertGreaterThanOrEqual(tokens.levels.count, 5)
     }
 
     func testClockGridUsesMidnightAndFixedLocalHoursAcrossDaylightSaving() throws {

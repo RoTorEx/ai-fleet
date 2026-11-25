@@ -208,6 +208,7 @@ private final class StatisticsWindowController: NSWindowController {
         window.identifier = NSUserInterfaceItemIdentifier("ai-fleet-statistics")
         window.contentViewController = hostingController
         window.minSize = NSSize(width: 820, height: 600)
+        window.isRestorable = false
         window.isReleasedWhenClosed = false
         super.init(window: window)
     }

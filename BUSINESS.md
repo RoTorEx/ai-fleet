@@ -177,9 +177,9 @@ subscription charges.
   Quota History opens with the quota overview, hourly quota and local hourly
   tokens in one compact group above Provider reports. The right-edge chart
   button on supported provider rows opens and closes the same group.
-  Claude, Codex and Kimi share the same quota window control and plot layout.
-  Quota charts label percentage used and show the selected provider window.
-  Weekly history follows the verified account. The current reading is shown
+  Claude, Codex and Kimi share the same quota readouts and plot layout. All
+  reported windows show percentage used together. The trend uses the account's
+  primary quota window. Weekly history follows the verified account. The current reading is shown
   when history is unavailable for a reported limit. Local hourly tokens follow
   the provider and recorded model.
   Provider reports (Codex accounts and Kimi quota windows) remain
