@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.6.8] - 2026-11-25
+
 - Start Antigravity's native Google browser sign-in from the Providers menu and Settings.
 - Detect Qwen Code's current subscription login alongside legacy OAuth credentials.
 - Add GLM Coding Plan quota tracking using per-connection API keys in the macOS Keychain.
