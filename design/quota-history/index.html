@@ -164,11 +164,13 @@ three charts in one compact stack at fixed heights.
   }
   #fleet-quota-design .chart-caption { justify-content: center; gap: 4px; margin: 0 0 4px; }
   #fleet-quota-design figcaption h2 { font-size: 12px; font-weight: 500; }
+  #fleet-quota-design .legend-trigger { color: var(--muted); padding: 0 2px; }
   #fleet-quota-design .chart-area { position: relative; }
   #fleet-quota-design svg.chart { display: block; width: 100%; min-height: 115px; aspect-ratio: 2.66; }
   #fleet-quota-design svg.hours { min-height: 95px; aspect-ratio: 3.85; }
   #fleet-quota-design .legend {
     position: absolute;
+    visibility: hidden;
     top: 9px;
     left: 45px;
     display: grid;
@@ -183,6 +185,7 @@ three charts in one compact stack at fixed heights.
     line-height: 1.15;
     pointer-events: none;
   }
+  #fleet-quota-design figure:has(.legend-trigger:is(:hover, :focus-visible)) .legend { visibility: visible; }
   #fleet-quota-design .legend span { display: inline-flex; align-items: center; gap: 5px; }
   #fleet-quota-design .early-limit > .legend { top: auto; left: auto; right: 14px; bottom: 27px; }
   #fleet-quota-design .legend i { width: 15px; border-top: 2px solid var(--swatch); }
@@ -263,14 +266,20 @@ three charts in one compact stack at fixed heights.
       </div>
       <p class="notice muted" data-notice hidden></p>
       <figure data-weekly>
-        <figcaption class="chart-caption"><h2 data-window-note>Weekly limit</h2></figcaption>
+        <figcaption class="chart-caption">
+          <h2 data-window-note>Weekly limit</h2>
+          <span class="legend-trigger" tabindex="0" role="img" aria-label="Weekly quota legend">ⓘ</span>
+        </figcaption>
         <div class="chart-area">
           <svg class="chart" role="img" aria-label="Weekly quota consumption, daily budget and projections" data-week-chart></svg>
           <div class="legend" data-week-legend></div>
         </div>
       </figure>
       <figure class="histogram" data-histogram>
-        <figcaption class="chart-caption"><h2>Hourly usage, % of weekly limit · Last 72h</h2></figcaption>
+        <figcaption class="chart-caption">
+          <h2>Hourly usage, % of weekly limit · Last 72h</h2>
+          <span class="legend-trigger" tabindex="0" role="img" aria-label="Hourly quota legend">ⓘ</span>
+        </figcaption>
         <div class="chart-area">
           <svg class="chart hours" role="img" aria-label="Hourly usage over the last 72 hours" data-hour-chart></svg>
           <div class="legend" data-hour-legend></div>
@@ -283,7 +292,10 @@ three charts in one compact stack at fixed heights.
         <span class="small muted">On this Mac</span>
       </div>
       <figure class="histogram">
-        <figcaption class="chart-caption"><h2>Tokens per hour · Last 72h</h2></figcaption>
+        <figcaption class="chart-caption">
+          <h2>Tokens per hour · Last 72h</h2>
+          <span class="legend-trigger" tabindex="0" role="img" aria-label="Local tokens legend">ⓘ</span>
+        </figcaption>
         <div class="chart-area">
           <svg class="chart hours" role="img" aria-label="Hourly local tokens over the last 72 hours" data-token-chart></svg>
           <div class="legend" data-token-legend></div>
@@ -389,7 +401,7 @@ three charts in one compact stack at fixed heights.
     svgElement(svg, "rect", {x: x(0), y: y(ymax), width: x(extent) - x(0), height: y(0) - y(ymax), fill: "var(--plot)", stroke: "var(--border)"});
     for (const tick of ticks) {
       svgElement(svg, "line", {x1: x(0), x2: x(extent), y1: y(tick), y2: y(tick), stroke: "var(--grid)"});
-      svgElement(svg, "text", {x: x(0) - 6, y: y(tick) + 4, "text-anchor": "end"}, yText(tick));
+      if (tick !== 0) svgElement(svg, "text", {x: x(0) - 6, y: y(tick) + 4, "text-anchor": "end"}, yText(tick));
     }
     const count = w >= 650 ? 7 : (w >= 440 ? 4 : 3);
     const times = clockHours ?? Array.from({length: count + 1}, (_, i) => Math.round(extent * i / count));

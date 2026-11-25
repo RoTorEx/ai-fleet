@@ -80,9 +80,10 @@ quota window and local model selection and includes the provider in the visible
 filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
 Label sizes stay constant. Both hourly charts mark four-hour intervals from local
-midnight and label midnight and noon. The menu popover points at the clicked
-chart button, resizes to the content and
-scrolls when the charts exceed the display's available height.
+midnight and label midnight and noon. Charts keep the zero baseline and omit
+its label. Hover over the info icon next to a chart's title to see its legend
+inside the plot. The menu popover points at the clicked chart button, resizes
+to the content and scrolls when the charts exceed the display's available height.
 
 The main menu reports remaining quota. The chart labels the used percentage,
 calculated as 100 minus remaining. A current-only limit uses the reading from

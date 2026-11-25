@@ -175,6 +175,8 @@ final class QuotaHistoryTests: XCTestCase {
         let hourlyTop = Int(overview.height)
         XCTAssertEqual(color(44, 62), color(44, hourlyTop + 60))
         XCTAssertEqual(color(460, 62), color(460, hourlyTop + 60))
+        XCTAssertEqual(color(42, 146), color(42, 140))
+        XCTAssertEqual(color(42, hourlyTop + 98), color(42, hourlyTop + 90))
 
         let bar = color(428, hourlyTop + 46)
         XCTAssertGreaterThan(bar[1] - bar[0], 90)
@@ -183,6 +185,20 @@ final class QuotaHistoryTests: XCTestCase {
                        base.addingTimeInterval(-2 * hour))
         XCTAssertNil(figure.hour(at: CGPoint(x: 428, y: 12), in: hourly))
         XCTAssertNil(figure.hour(at: CGPoint(x: 428, y: 108), in: hourly))
+
+        func rows(_ range: Range<Int>) -> Data {
+            Data(bytes: pixels.advanced(by: range.lowerBound * bytesPerRow), count: range.count * bytesPerRow)
+        }
+        let overviewRows = 48..<292
+        let hourlyRows = (hourlyTop * 2)..<pixelHeight
+        let overviewWithoutLegend = rows(overviewRows)
+        let hourlyWithoutLegend = rows(hourlyRows)
+        let overviewAxis = rows(292..<(hourlyTop * 2))
+        context.translateBy(x: 0, y: -overview.height)
+        figure.draw(.overview, in: context, size: overview, showsLegend: true)
+        XCTAssertNotEqual(rows(overviewRows), overviewWithoutLegend)
+        XCTAssertEqual(rows(hourlyRows), hourlyWithoutLegend)
+        XCTAssertEqual(rows(292..<(hourlyTop * 2)), overviewAxis)
     }
 
     func testClockGridUsesMidnightAndFixedLocalHoursAcrossDaylightSaving() throws {
