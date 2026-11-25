@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.7.4] - 2026-11-26
+
 - Use the device time zone for chart hour bins, axes, reset times, and hover readouts.
 - Give local token series distinct colors, show per-category counts on hover, and let each category use its own scale when selected.
 
