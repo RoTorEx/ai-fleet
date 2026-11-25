@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-11-25
+
 - Fit the quota overview, hourly quota and local hourly tokens in one compact chart group in the provider popover and Statistics. Use the same layout for Claude, Codex and Kimi, including current readings and unavailable history.
 - Reveal each chart legend inside its plot on hover over the title's info icon. Omit the zero labels on the vertical axes.
 - Remove the duplicate Token Spend action from provider account rows.
