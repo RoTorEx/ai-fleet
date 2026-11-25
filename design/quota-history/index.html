@@ -3,8 +3,10 @@
 <!--
 VPM-40 design board.
 Click the chart button on each provider account row to open both charts beside
-the menu. Click it again to close the popover. The same charts appear in
-Statistics with the selected scope.
+the menu. Click it again to close the popover. The same charts appear in the
+Quota History tab, below the shared provider filters. This board shows that
+tab selected. The adjacent Token Spend action in the app uses local provider
+totals for the current Statistics period.
 Full quota history uses the provider's reset cycle, a daily carry-forward
 budget, a limit line, actual observations, and two projections from the latest
 fresh sample. The hourly readout distinguishes unmeasured hours from zero use.
@@ -493,7 +495,8 @@ The VPM-40 attachment and native renderer define the precise plot coordinates.
       .filter(hour => Number(hourTime(hour).slice(0, 2)) % 4 === 0);
     frame(svg, space, 72, ceiling, ticks, hour => {
       const time = hourTime(hour);
-      return time === "00:00" || time === "12:00" ? `${axisDay(latestHour - 72 + hour)} ${time}` : "";
+      if (time === "12:00") return time;
+      return time === "00:00" ? `${axisDay(latestHour - 72 + hour)} ${time}` : "";
     }, format, clockHours);
     const barWidth = Math.max(1, (x(1) - x(0)) * .76);
     const colors = tokens ? ["--usage", "--cache", "--mint"] : ["--mint"];

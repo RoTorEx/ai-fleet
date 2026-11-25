@@ -5,6 +5,8 @@ Tracks real product and release progress.
 ## [Unreleased]
 
 - Open provider quota popovers on click and fit them to the measured chart content.
+- Put Token Spend and Quota History under the shared Statistics filters. Show provider token shares next to Models and Days, with Activity below.
+- Enlarge chart labels and add compact provider token summaries alongside the chart buttons in the menu.
 
 ## [1.7.1] - 2026-11-25
 

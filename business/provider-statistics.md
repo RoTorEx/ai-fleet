@@ -9,7 +9,10 @@ Statistics reads retained local accounting history independently of login and
 quota monitoring. Chosen providers share input/cache/output blocks, model and daily
 tables, periods, and Activity. Days use the computer's time zone, from local
 midnight to the next local midnight, including daylight-saving transitions.
-Statistics shows all chosen providers on one screen. Opening it and switching
+Token Spend places the four summary cards above the compact By provider,
+Models and Days row and Activity. By provider shows recorded tokens, the
+API estimate and each provider's share of the selection's token total. Quota
+History uses the same provider chips. Opening Statistics and switching tabs,
 periods or provider chips uses cached aggregates;
 manual and scheduled refreshes scan metadata and parse only changed files.
 
@@ -67,14 +70,19 @@ remains unsupported; local history does not establish subscription availability.
 ## Quota history
 
 Click the chart icon on a supported provider row to open the compact popover.
-Click the icon again to close it. The same charts appear under Quota history in
-Statistics. The provider's weekly and hourly quota charts appear above the
-local token chart in one view. Open in Statistics carries the provider,
-account, quota window and local model selection. The quota figure scales
-uniformly from its 1300 × 910 VPM-40 reference. Both hourly charts mark
+Click the icon again to close it. The same charts appear at the top of Quota
+History in Statistics, followed by provider reports. The weekly and hourly
+quota charts appear above the local token chart in one view. Open in Statistics carries the provider,
+account, quota window and local model selection and includes the provider in
+the visible filter. The quota figure uses the 1300 × 910 VPM-40 reference with
+minimum label sizes and space for the larger axes. Both hourly charts mark
 four-hour intervals from local midnight and label midnight and noon. The
 menu popover points at the clicked chart button, resizes to the content and
 scrolls when the charts exceed the display's available height.
+
+The adjacent Token Spend button appears for providers with recorded tokens in
+the current Statistics period. The compact summary shows local totals, input,
+output and the API estimate for the provider on this Mac.
 
 ### Provider quota
 

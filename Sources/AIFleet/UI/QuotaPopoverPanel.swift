@@ -14,14 +14,14 @@ struct QuotaPopoverPlacement: Equatable {
     let arrowOnRight: Bool
     let shoulderY: CGFloat
 
-    init?(anchor: CGRect, screen: CGRect, contentHeight: CGFloat) {
+    init?(anchor: CGRect, screen: CGRect, contentHeight: CGFloat, preferredWidth: CGFloat = 500) {
         let center = CGPoint(x: anchor.midX, y: anchor.midY)
         guard !anchor.isEmpty, screen.contains(center) else { return nil }
         let inset = screen.insetBy(dx: Self.screenMargin, dy: Self.screenMargin)
         let left = anchor.minX - Self.iconGap - Self.arrowWidth - inset.minX
         let right = inset.maxX - anchor.maxX - Self.iconGap - Self.arrowWidth
-        arrowOnRight = left >= 500 || left >= right
-        viewport = CGSize(width: min(500, arrowOnRight ? left : right), height: min(600, inset.height))
+        arrowOnRight = left >= preferredWidth || left >= right
+        viewport = CGSize(width: min(preferredWidth, arrowOnRight ? left : right), height: min(600, inset.height))
         guard viewport.width > 0, viewport.height > 0 else { return nil }
 
         let height = min(viewport.height, max(1, ceil(contentHeight)))

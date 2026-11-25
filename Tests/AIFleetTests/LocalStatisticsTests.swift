@@ -49,10 +49,13 @@ final class LocalStatisticsTests: XCTestCase {
         XCTAssertEqual(selected.cost.coverage, 0.5)
         let single = LocalStatistics(snapshot: snapshot, providers: [.codex], now: now)
         XCTAssertEqual(single.cost.fullEstimateUSD, 2)
+        XCTAssertEqual(single.tokenSpend.share(of: selected.totals.totalTokens), 0.5)
+        XCTAssertEqual(single.tokenSpend.share(of: single.totals.totalTokens), 1)
         let empty = LocalStatistics(snapshot: snapshot, providers: [], now: now)
         XCTAssertTrue(empty.emptySelection)
         XCTAssertNil(empty.cost.coverage)
         XCTAssertEqual(empty.totals.totalTokens, 0)
+        XCTAssertNil(empty.tokenSpend.share(of: empty.totals.totalTokens))
     }
     func testIndependentBasenamesAndConflictingLogicalCopies() throws {
         let root = try root(), a = root.appendingPathComponent("a"), b = root.appendingPathComponent("b")

@@ -1,59 +1,66 @@
 import AppKit
 import SwiftUI
 
-/// One screen for every provider's local history; provider chips choose what the totals include.
 struct StatisticsView: View {
     @ObservedObject private var analytics = UsageAnalyticsService.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexMonitoring = CodexMonitoringStore.shared
-    @State private var historyRequest: QuotaHistoryRequest?
-    @State private var period = StatisticsPeriod(rawValue: UserDefaults.standard.string(forKey: "statistics.period") ?? "") ?? .allTime
+    @AppStorage("statistics.period") private var period: StatisticsPeriod = .allTime
+    @State private var tab: StatisticsTab = .tokenSpend
+    @State private var historySelection: QuotaHistoryRequest?
+    @State private var quotaScrollID = UUID()
 
     private var enabled: [StatisticsProvider] {
         StatisticsProvider.allCases.filter { settings.isEnabled($0.rawValue) }
     }
     private var chosen: Set<StatisticsProvider> { analytics.selectedProviders.intersection(enabled) }
-    private var stats: LocalStatistics { analytics.localStatistics(providers: chosen, days: period.days) }
-
     var body: some View {
-        let stats = stats
-        ScrollViewReader { scroll in
+        VStack(alignment: .leading, spacing: 0) {
+            header.padding(.bottom, 8)
+            Picker("Statistics section", selection: $tab) {
+                ForEach(StatisticsTab.allCases) { item in
+                    Text(item.rawValue).tag(item)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.bottom, 10)
+            Divider()
             ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 12) {
-                    header { scroll.scrollTo("quota-history", anchor: .top) }
+                Group {
                     if chosen.isEmpty {
                         Text("Choose at least one provider above.")
                             .font(.system(size: 12)).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, minHeight: 200)
+                    } else if tab == .tokenSpend {
+                        tokenSpend
                     } else {
-                        scopeLine(stats)
-                        summary(stats)
-                        providerBreakdown
-                        HStack(alignment: .top, spacing: 10) {
-                            ModelTablePanel(models: stats.models).frame(minWidth: 420, maxWidth: .infinity)
-                            DailyTablePanel(daily: stats.daily).frame(minWidth: 300, maxWidth: .infinity)
+                        VStack(alignment: .leading, spacing: 12) {
+                            quotaHistory
+                            providerReports
                         }
-                        ActivityHeatmap(
-                            days: selectedDays(stats),
-                            sourceLabel: "Local",
-                            displayThrough: period == .allTime ? stats.daily.first.map { heatmapHorizon(startingAt: $0.day) } : nil
-                        )
                     }
-                    quotaHistory.id("quota-history")
-                    providerReports
                 }
-                .padding(16)
+                .padding(.vertical, 12)
             }
-            .onReceive(QuotaHistoryNavigation.shared.$request.compactMap { $0 }) { request in
-                historyRequest = request
-                DispatchQueue.main.async {
-                    scroll.scrollTo("quota-history", anchor: .top)
-                    if QuotaHistoryNavigation.shared.request == request { QuotaHistoryNavigation.shared.request = nil }
-                }
+            .id(tab == .quotaHistory ? quotaScrollID : nil)
+        }
+        .onReceive(QuotaHistoryNavigation.shared.$request.compactMap { $0 }) { request in
+            if enabled.contains(request.provider) {
+                if !chosen.contains(request.provider) { analytics.selectedProviders.insert(request.provider) }
+                historySelection = request
+                quotaScrollID = UUID()
+                tab = .quotaHistory
+            }
+            DispatchQueue.main.async {
+                if QuotaHistoryNavigation.shared.request == request { QuotaHistoryNavigation.shared.request = nil }
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
         .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
         .modifier(StatisticsNoFocusRing())
@@ -61,12 +68,11 @@ struct StatisticsView: View {
             analytics.updateKimi(kimi: service.kimi)
             analytics.refreshAccountUsageIfNeeded()
         }
-        .onChange(of: period) { UserDefaults.standard.set($0.rawValue, forKey: "statistics.period") }
     }
 
     // MARK: Header
 
-    private func header(showQuotaHistory: @escaping () -> Void) -> some View {
+    private var header: some View {
         HStack(alignment: .center, spacing: 6) {
             Chip(title: "All", selected: chosen.count == enabled.count && !enabled.isEmpty) {
                 analytics.selectedProviders = Set(enabled)
@@ -88,12 +94,28 @@ struct StatisticsView: View {
                           isRefreshing: analytics.isRefreshing,
                           refresh: { analytics.refresh(kimi: service.kimi) })
                 .padding(.leading, 8)
-            if !historyProviders.isEmpty {
-                Button(action: showQuotaHistory) { Image(systemName: "chart.xyaxis.line") }
-                    .buttonStyle(.borderless)
-                    .help("Quota history")
-                    .accessibilityLabel("Quota history")
+        }
+    }
+
+    private var tokenSpend: some View {
+        let now = Date()
+        let stats = analytics.localStatistics(providers: chosen, days: period.days, now: now)
+        let rows = chosen.sorted { $0.rawValue < $1.rawValue }.map { provider in
+            (provider, analytics.localStatistics(providers: [provider], days: period.days, now: now).tokenSpend)
+        }.sorted { $0.1.totals.totalTokens > $1.1.totals.totalTokens }
+        return VStack(alignment: .leading, spacing: 10) {
+            scopeLine(stats)
+            summary(stats)
+            HStack(alignment: .top, spacing: 10) {
+                providerBreakdown(rows, totalTokens: stats.totals.totalTokens).frame(width: 200)
+                ModelTablePanel(models: stats.models).frame(maxWidth: .infinity)
+                DailyTablePanel(daily: stats.daily).frame(width: 224)
             }
+            ActivityHeatmap(
+                days: selectedDays(stats),
+                sourceLabel: "Local",
+                displayThrough: period == .allTime ? stats.daily.first.map { heatmapHorizon(startingAt: $0.day) } : nil
+            )
         }
     }
 
@@ -132,18 +154,13 @@ struct StatisticsView: View {
                 detailRow("Reasoning", compactCount(totals.reasoningOutputTokens))
             }
             .frame(maxWidth: .infinity)
-            StatCard(title: "API estimate", value: costText(stats.cost),
+            StatCard(title: "API estimate", value: stats.cost.formattedEstimate,
                      help: ["API-equivalent value of the recorded tokens at standard model rates. It is not a subscription charge. Unknown model prices are left out, so a partial total shows as a minimum with its price coverage."]) {
                 detailRow("Priced", stats.cost.coverage.map { "\(Int(($0 * 100).rounded(.down)))% of tokens" } ?? "—")
             }
             .frame(maxWidth: .infinity)
         }
         .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func costText(_ cost: StatisticsCost) -> String {
-        if let full = cost.fullEstimateUSD { return money(full) }
-        return cost.knownEstimateUSD > 0 ? "≥ " + money(cost.knownEstimateUSD) : "—"
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {
@@ -157,32 +174,49 @@ struct StatisticsView: View {
 
     // MARK: Providers
 
-    private var providerBreakdown: some View {
-        let rows = chosen.sorted { $0.rawValue < $1.rawValue }.map { provider in
-            (provider, analytics.localStatistics(providers: [provider], days: period.days))
-        }.sorted { $0.1.totals.totalTokens > $1.1.totals.totalTokens }
-        let maximum = max(1, rows.map(\.1.totals.totalTokens).max() ?? 1)
-        return VStack(alignment: .leading, spacing: 6) {
-            PanelTitle("By provider")
-            ForEach(rows, id: \.0) { provider, stats in
-                HStack(spacing: 10) {
-                    Circle().fill(provider.color).frame(width: 7, height: 7)
-                    Text(provider.title).font(.system(size: 12, weight: .medium)).frame(width: 60, alignment: .leading)
-                    GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(provider.color.opacity(0.75))
-                            .frame(width: max(2, geometry.size.width * CGFloat(stats.totals.totalTokens) / CGFloat(maximum)))
+    private func providerBreakdown(_ rows: [(StatisticsProvider, TokenSpendSummary)], totalTokens: Int) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                PanelTitle("By provider")
+                Spacer()
+                Text("Share of tokens").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            ForEach(rows, id: \.0) { provider, spend in
+                let share = spend.share(of: totalTokens)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Circle().fill(provider.color).frame(width: 6, height: 6)
+                        Text(provider.title).fontWeight(.medium)
+                        Spacer(minLength: 2)
+                        Text(compactCount(spend.totals.totalTokens)).foregroundStyle(.secondary)
+                        Text(shareText(share)).fontWeight(.semibold)
+                            .frame(width: 42, alignment: .trailing)
                     }
-                    .frame(height: 8)
-                    Text(compactCount(stats.totals.totalTokens))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced)).frame(width: 70, alignment: .trailing)
-                    Text(costText(stats.cost))
-                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)
+                    HStack(spacing: 8) {
+                        GeometryReader { geometry in
+                            Capsule().fill(provider.color.opacity(0.14))
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(provider.color.opacity(0.75))
+                                        .frame(width: geometry.size.width * (share ?? 0))
+                                }
+                        }
+                        .frame(height: 4)
+                        Text(spend.cost.formattedEstimate).foregroundStyle(.secondary)
+                            .frame(width: 63, alignment: .trailing)
+                    }
                 }
+                .font(.system(size: 11)).monospacedDigit().lineLimit(1)
             }
         }
         .padding(10)
+        .frame(height: statisticsTableHeight, alignment: .topLeading)
         .fleetCard(hovering: false)
+    }
+
+    private func shareText(_ share: Double?) -> String {
+        guard let share else { return "—" }
+        if share > 0, share < 0.001 { return "<0.1%" }
+        return "\(formattedNumber(share * 100, fractionDigits: 1))%"
     }
 
     private func selectedDays(_ stats: LocalStatistics) -> [CodexSelectedDay] {
@@ -194,42 +228,35 @@ struct StatisticsView: View {
 
     // MARK: Provider reports
 
-    private var historyProviders: Set<StatisticsProvider> {
-        guard let historyRequest, enabled.contains(historyRequest.provider) else { return chosen }
-        return chosen.union([historyRequest.provider])
-    }
-
     @ViewBuilder private var quotaHistory: some View {
         let rows = menuProviderRows(accounts: accounts.accounts,
-            enabled: { id in StatisticsProvider(rawValue: id).map(historyProviders.contains) ?? false },
+            enabled: { id in StatisticsProvider(rawValue: id).map(chosen.contains) ?? false },
             global: service.status(for:), statusForConnection: service.status(for:), codex: codexMonitoring)
         let targets = rows.compactMap { QuotaHistoryTarget(row: $0, codex: codexMonitoring) }
         if !targets.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                PanelTitle("Quota history")
-                QuotaHistoryView(targets: targets, request: historyRequest)
-                    .frame(maxWidth: 650)
-                    .frame(maxWidth: .infinity)
-            }
-            .padding(12)
-            .fleetCard(hovering: false)
+            QuotaHistoryView(targets: targets, selection: $historySelection)
+                .frame(maxWidth: 740)
+                .frame(maxWidth: .infinity)
+                .padding(12)
+                .fleetCard(hovering: false)
         }
     }
 
     @ViewBuilder private var providerReports: some View {
-        if settings.isEnabled("codex") || (settings.isEnabled("kimi") && !analytics.snapshot.kimi.windows.isEmpty) {
+        let showsKimi = chosen.contains(.kimi) && !analytics.snapshot.kimi.windows.isEmpty
+        if chosen.contains(.codex) || showsKimi {
             VStack(alignment: .leading, spacing: 8) {
                 PanelTitle("Provider reports")
                 Text("Reported by the provider for each account, separate from the local history above.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
-                if settings.isEnabled("codex") {
+                if chosen.contains(.codex) {
                     let bounds = period.bounds()
                     CodexProfilesView(nativeStatus: service.codex, start: bounds.start, end: bounds.end,
                                       refreshNative: { analytics.refreshAccountUsage(); service.refresh() })
                         .padding(10)
                         .fleetCard(hovering: false)
                 }
-                if settings.isEnabled("kimi"), !analytics.snapshot.kimi.windows.isEmpty {
+                if showsKimi {
                     KimiTablePanel(windows: analytics.snapshot.kimi.windows)
                 }
             }
@@ -250,13 +277,21 @@ extension StatisticsProvider {
     }
 }
 
-private enum StatisticsPeriod: String, CaseIterable, Identifiable {
+private enum StatisticsTab: String, CaseIterable, Identifiable {
+    case tokenSpend = "Token Spend"
+    case quotaHistory = "Quota History"
+
+    var id: Self { self }
+}
+
+enum StatisticsPeriod: String, CaseIterable, Identifiable {
     case sevenDays = "7d"
     case thirtyDays = "30d"
     case ninetyDays = "90d"
     case allTime = "All"
 
     var id: String { rawValue }
+    var title: String { days.map { "Last \($0) days" } ?? "All time" }
     var days: Int? {
         switch self {
         case .sevenDays: return 7
@@ -311,6 +346,13 @@ private struct PanelTitle: View {
     init(_ text: String) { self.text = text }
     var body: some View {
         Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+    }
+}
+
+extension StatisticsCost {
+    var formattedEstimate: String {
+        if let fullEstimateUSD { return money(fullEstimateUSD) }
+        return knownEstimateUSD > 0 ? "≥ " + money(knownEstimateUSD) : "—"
     }
 }
 
@@ -409,6 +451,8 @@ private struct HoverInfoTip: View {
     }
 }
 
+private let statisticsTableHeight: CGFloat = 206
+
 private struct ModelTablePanel: View {
     let models: [ModelUsage]
     private var sorted: [ModelUsage] { models.sorted { $0.totals.totalTokens > $1.totals.totalTokens } }
@@ -434,19 +478,19 @@ private struct ModelTablePanel: View {
                     }
                 }
             }
-            .frame(height: 200)
         }
         .padding(10)
+        .frame(height: statisticsTableHeight, alignment: .topLeading)
         .fleetCard(hovering: false)
     }
 
     private func row(provider: StatisticsProvider?, model: String, tokens: String, reasoning: String, estimate: String, header: Bool) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Circle().fill(provider?.color ?? .clear).frame(width: 6, height: 6)
             ModelNameCell(name: model)
-            Text(tokens).frame(width: 76, alignment: .trailing)
-            Text(reasoning).frame(width: 74, alignment: .trailing)
-            Text(estimate).frame(width: 68, alignment: .trailing)
+            Text(tokens).frame(width: 66, alignment: .trailing)
+            Text(reasoning).frame(width: 62, alignment: .trailing)
+            Text(estimate).frame(width: 62, alignment: .trailing)
         }
         .font(.system(size: header ? 10.5 : 11, weight: header ? .semibold : .medium, design: header ? .default : .monospaced))
         .foregroundStyle(header ? Color.secondary : Color.primary)
@@ -461,7 +505,7 @@ private struct ModelNameCell: View {
     @State private var truncated = false
 
     var body: some View {
-        Text(name).lineLimit(1).frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+        Text(name).lineLimit(1).frame(minWidth: 82, maxWidth: .infinity, alignment: .leading)
             .background(GeometryReader { column in
                 Text(name).fixedSize().hidden().background(GeometryReader { full in
                     let overflow = full.size.width > column.size.width + 0.5
@@ -491,9 +535,9 @@ private struct DailyTablePanel: View {
                     }
                 }
             }
-            .frame(height: 200)
         }
         .padding(10)
+        .frame(height: statisticsTableHeight, alignment: .topLeading)
         .fleetCard(hovering: false)
     }
 
@@ -504,10 +548,10 @@ private struct DailyTablePanel: View {
     }
 
     private func row(date: String, tokens: String, estimate: String, header: Bool) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             Text(date).frame(maxWidth: .infinity, alignment: .leading)
-            Text(tokens).frame(width: 90, alignment: .trailing)
-            Text(estimate).frame(width: 70, alignment: .trailing)
+            Text(tokens).frame(width: 68, alignment: .trailing)
+            Text(estimate).frame(width: 64, alignment: .trailing)
         }
         .font(.system(size: header ? 10.5 : 11, weight: header ? .semibold : .medium, design: header ? .default : .monospaced))
         .foregroundStyle(header ? Color.secondary : Color.primary)

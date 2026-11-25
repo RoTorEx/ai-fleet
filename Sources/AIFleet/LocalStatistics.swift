@@ -19,6 +19,16 @@ struct StatisticsCost: Equatable {
     var coverage: Double? { recordedTokens > 0 ? Double(pricedTokens) / Double(recordedTokens) : nil }
 }
 
+struct TokenSpendSummary: Equatable {
+    let totals: UsageTotals
+    let cost: StatisticsCost
+
+    func share(of selectedTokens: Int) -> Double? {
+        guard selectedTokens > 0 else { return nil }
+        return Double(totals.totalTokens) / Double(selectedTokens)
+    }
+}
+
 /// Standard local roots only. Account reports and quota snapshots never enter this result.
 struct LocalStatistics: Equatable {
     let scope = "standardLocalRoots"
@@ -31,6 +41,7 @@ struct LocalStatistics: Equatable {
     let sourceIssues: [StatisticsSourceIssue]
     let stale: Bool
     var emptySelection: Bool { providers.isEmpty }
+    var tokenSpend: TokenSpendSummary { TokenSpendSummary(totals: totals, cost: cost) }
 
     var models: [ModelUsage] {
         var result: [String: ModelUsage] = [:]

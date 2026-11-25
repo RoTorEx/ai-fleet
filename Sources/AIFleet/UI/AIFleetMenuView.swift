@@ -13,7 +13,9 @@ struct AIFleetMenuView: View {
     @State private var isLegendShown = false
     // Owned here so the Processes tab shows its count; scans only while the menu is open.
     @StateObject private var processes = CodexProcessesService()
-    @StateObject private var quotaPopover = MenuQuotaHistory()
+    @StateObject private var providerDetails = MenuProviderDetails()
+    @AppStorage("statistics.period") private var statisticsPeriod: StatisticsPeriod = .allTime
+    @State private var tokenSpend: [StatisticsProvider: TokenSpendSummary] = [:]
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
@@ -66,8 +68,13 @@ struct AIFleetMenuView: View {
         .padding(.bottom, 10)
         .frame(width: FleetMenuLayout.width)
         .onAppear { processes.start() }
-        .onDisappear { processes.stopMonitoring(); quotaPopover.dismiss() }
-        .onChange(of: screen.tab) { _ in quotaPopover.dismiss() }
+        .onDisappear { processes.stopMonitoring(); providerDetails.dismiss() }
+        .onChange(of: screen.tab) { _ in
+            providerDetails.dismiss()
+            updateTokenSpend(from: UsageAnalyticsService.shared.snapshot)
+        }
+        .onChange(of: statisticsPeriod) { _ in updateTokenSpend(from: UsageAnalyticsService.shared.snapshot) }
+        .onReceive(UsageAnalyticsService.shared.$snapshot) { updateTokenSpend(from: $0) }
         .overlay(alignment: .topLeading) {
             if isLegendShown {
                 VStack(alignment: .leading, spacing: 9) {
@@ -105,12 +112,24 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(menuRowsAvailableFirst(connections)) { entry in
-                let history = QuotaHistoryTarget(row: entry, codex: codexProfiles).map {
-                    MenuQuotaHistoryButton(target: $0, presentation: quotaPopover, openStatistics: openStatistics)
+                let buttons = QuotaHistoryTarget(row: entry, codex: codexProfiles).map {
+                    MenuProviderDetailButtons(target: $0, spend: tokenSpend[$0.provider], period: statisticsPeriod,
+                        presentation: providerDetails, openStatistics: openStatistics)
                 }
-                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings, historyButton: history)
+                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings, detailButtons: buttons)
             }
         }
+    }
+
+    private func updateTokenSpend(from snapshot: UsageAnalyticsSnapshot) {
+        guard screen.tab == .providers else { return }
+        let now = Date()
+        let summaries = StatisticsProvider.allCases.compactMap { provider -> (StatisticsProvider, TokenSpendSummary)? in
+            let spend = LocalStatistics(snapshot: snapshot, providers: [provider], days: statisticsPeriod.days, now: now).tokenSpend
+            return spend.totals.totalTokens > 0 ? (provider, spend) : nil
+        }
+        let next = Dictionary(uniqueKeysWithValues: summaries)
+        if tokenSpend != next { tokenSpend = next }
     }
 
     /// Both arrows identify a signed-in account selected for the next provider command.
@@ -592,7 +611,7 @@ struct ProviderLimitRow: View {
     let entry: MenuAccountConnection
     let mark: String
     let openSettings: () -> Void
-    var historyButton: MenuQuotaHistoryButton? = nil
+    var detailButtons: MenuProviderDetailButtons? = nil
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
@@ -648,7 +667,7 @@ struct ProviderLimitRow: View {
                 .accessibilityLabel("\(status.name) (\(entry.accountScope)) actions")
                 .accessibilityHint(Text(subscription))
                 Spacer(minLength: 8)
-                historyButton
+                detailButtons
             }
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {

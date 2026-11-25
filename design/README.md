@@ -16,7 +16,7 @@ visual reference and is updated when the design changes.
 | Surface | Board | Status |
 | --- | --- | --- |
 | Notifications | [`notifications/index.html`](notifications/index.html) | Revision 4 accepted 2026-11-22 |
-| Quota history | [`quota-history/index.html`](quota-history/index.html) | Click to open from Providers and Statistics. VPM-40 defines the native figure. |
+| Quota history | [`quota-history/index.html`](quota-history/index.html) | Click in Providers or select the Quota History tab in Statistics. VPM-40 defines the native plot proportions. |
 
 ## Notifications
 
@@ -32,6 +32,6 @@ the proposed texts (truncation, line count, font weights), run
 The board exercises the interaction and chart states. The chart attached to
 VPM-40 sets the native visual geometry. The
 [native renderer](../Sources/AIFleet/UI/QuotaHistoryFigure.swift) scales the
-1300 × 910 reference and uses the packaged regular DejaVu Sans face for
-the app's English labels.
+1300 × 910 reference and uses the packaged regular DejaVu Sans face with
+minimum sizes for chart labels and legends.
 [DejaVu Sans release](https://github.com/dejavu-fonts/dejavu-fonts/releases/tag/version_2_37)

@@ -1,8 +1,7 @@
 # Local statistics contract
 
-Stage 4 prepares data for future composition. LocalStatistics and StatisticsCost
-are independent of SwiftUI. The compatibility selection and token formatting
-helpers live in backend files; existing view layout and controls are retained.
+LocalStatistics and StatisticsCost are independent of SwiftUI. Token Spend uses
+the same local totals in Statistics and the provider menu summary.
 
 ## Scope and selection
 
@@ -18,6 +17,9 @@ an empty preference means an intentionally empty selection. Queries accept an
 explicit provider set or use this stored selection. Filters apply identically to
 local summaries, provider-prefixed model keys, local day rows and report exports.
 They do not change menu provider visibility or source caches.
+The By provider percentage divides a provider's recorded token total by the
+combined total for the current selection and period. A zero combined total has
+no percentage.
 
 Periods count local calendar days including today. Date boundaries and DST use
 the supplied calendar. Snapshots record their timezone; a mismatch marks them

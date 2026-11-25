@@ -227,9 +227,10 @@ Detailed usage data remains available in **Statistics…**.
 
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
 
-**Statistics** (⌘S) is one screen with `7d`, `30d`, `90d`, and all-time ranges.
-Provider chips choose which local histories the totals, By provider bars, models,
-days and Activity include; Option-click a chip to see only that provider. Kimi reads `wire.jsonl`
+**Statistics** (⌘S) has Token Spend and Quota History tabs below the shared
+provider filters and `7d`, `30d`, `90d`, and all-time ranges. Option-click a chip
+to see one provider. Token Spend includes summary cards, By provider with each
+provider's share of selected tokens, Models, Days and Activity. Kimi reads `wire.jsonl`
 under `~/.kimi-code/sessions` and legacy `~/.kimi/sessions`; Qwen reads JSONL
 chat records under `~/.qwen/projects/*/chats`. Refresh scans retained logs;
 opening Statistics or changing chips uses the cache. **Options → Logs** contains
@@ -239,8 +240,10 @@ as `≥ $…`. Kimi's quota windows appear under **Provider reports**. Local tok
 See [provider statistics](business/provider-statistics.md) for format support.
 
 Click the chart icon on a supported Providers row to open **Quota history**.
-Click it again to close the popover. The chart button in Statistics opens the
-same view with provider quota above **Local tokens**. The quota graphs follow
+Click it again to close the popover. The **Quota History** tab in Statistics
+starts with the same charts, with provider quota above **Local tokens**. When
+local data exists for the selected period, the adjacent menu button opens a
+compact **Token Spend** summary for that provider. The quota graphs follow
 the verified account and its provider-reported weekly limits, including explicit
 model caps. Local tokens shows input, cache and output by provider and recorded
 model across the last 72 hourly buckets. The hourly charts label local midnight

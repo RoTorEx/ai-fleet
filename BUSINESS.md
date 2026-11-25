@@ -116,10 +116,12 @@ subscription charges.
   parsing displays it automatically.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
-- Statistics is one screen for all providers. Provider chips (All, Codex,
-  Claude, Kimi, Qwen; Option-click shows one) choose what the totals, By provider
-  bars, models, days and Activity include; the choice persists and never hides a
-  provider from the menu. Kimi and Qwen contribute local token/cache accounting.
+- Statistics uses provider chips (All, Codex, Claude, Kimi, Qwen) above the
+  Token Spend and Quota History tabs. Option-click a chip to select one provider.
+  Token Spend places By provider, Models and Days on one row above Activity.
+  Each provider's share uses the total recorded tokens in the selected providers
+  and period. Provider selection persists independently of menu visibility.
+  Kimi and Qwen contribute local token/cache accounting.
   Kimi's account quota windows appear under Provider reports.
   No Qwen quota integration or provider API prices are implied. Missing prices
   show no cost estimate, and empty history is explicitly labelled.
@@ -172,11 +174,12 @@ subscription charges.
   the grid extends with empty future days through the end of the first year
   measured from the first recorded vibecoding day; after it, through the end of
   the current month, opening with that month at the right.
-  Quota history is available from the Statistics toolbar and the right-edge
-  chart button on supported provider rows. Click the button to open or close
-  the popover. The same charts and controls are available in both
-  places. Quota percentages follow the verified account and provider window.
-  Local hourly tokens follow the provider and recorded model.
+  Quota History opens with the charts above Provider reports. The right-edge
+  chart button on supported provider rows opens and closes the same charts.
+  The adjacent Token Spend button shows a provider's recorded totals in the
+  current Statistics period when local token data exists. Quota percentages
+  follow the verified account and provider window. Local hourly tokens follow
+  the provider and recorded model.
   Provider reports (Codex accounts and Kimi quota windows) remain
   identity-bound. [Provider statistics](business/provider-statistics.md) owns
   history, forecasts and the two chart sources.
