@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-25
+
 - Open Logs from Options to review scan diagnostics and current app errors. Statistics keeps its usage panels clear of diagnostics. Fix false Kimi partial-accounting warnings from tool results without event UUIDs.
 - Open the full weekly quota and hourly charts in Statistics or from the chart button on a provider row. Hover to preview and click to keep the charts open. Weekly quota shows a stepped daily budget, headroom and two forecasts when enough fresh observations exist. Local tokens shows hourly input, cache and output by model.
 
