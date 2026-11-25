@@ -68,13 +68,17 @@ final class ConnectionIdentityTests: XCTestCase {
         let identity = ConnectionIdentity(status: initial)
         let connection = ProviderConnection(id: UUID().uuidString, providerID: "claude", configDirectory: "/fixture", verifiedIdentity: identity)
         let service = StatusService(session: URLSession(configuration: .ephemeral))
-        let wrong = ProviderStatus(id: "claude", name: "Claude", state: .ok, detail: "Current", lastUpdated: Date(), remainingPercent: 80,
-            account: ProviderAccountIdentity(email: "one@example.test", organizationID: "wrong", organizationName: nil, subscriptionType: nil), authentication: .signedIn)
-        service.applyScopedStatus(wrong, connection: connection, expectedEmail: "one@example.test")
-        let result = try? XCTUnwrap(service.subscriptions.first { $0.id == connection.statusID })
-        XCTAssertNotNil(result)
-        XCTAssertNil(result?.remainingPercent)
-        XCTAssertEqual(result?.authentication, .unknown)
+        let wrongAccount = ProviderAccountIdentity(email: "one@example.test", organizationID: "wrong", organizationName: nil, subscriptionType: nil)
+        let model = ProviderLimitWindow(id: "fable", label: "7d (Fable)", remainingPercent: 20, resetAt: nil, weeklyModel: "Fable")
+        for remaining: Int? in [80, nil] {
+            let wrong = ProviderStatus(id: "claude", name: "Claude", state: .ok, detail: "Current", lastUpdated: Date(),
+                remainingPercent: remaining, limitWindows: [model], account: wrongAccount, authentication: .signedIn, quotaState: .available)
+            service.applyScopedStatus(wrong, connection: connection, expectedEmail: "one@example.test")
+            let result = service.subscriptions.first { $0.id == connection.statusID }
+            XCTAssertNil(result?.remainingPercent)
+            XCTAssertEqual(result?.limitWindows, [])
+            XCTAssertEqual(result?.authentication, .unknown)
+        }
     }
 
     func testRemovingLegacyNamedDefaultLeavesOnlyHiddenNativeFallback() throws {

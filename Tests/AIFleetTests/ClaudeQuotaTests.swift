@@ -106,13 +106,42 @@ final class ClaudeQuotaTests: XCTestCase {
         for value in ["bad", "-1", "nan", "inf"] { XCTAssertNil(ClaudeQuota.retryDate(value, now: now)) }
     }
 
-    func testModelWeeklyLimitIsShownAndDrivesTheTightestQuota() throws {
-        let status = try ClaudeQuota.decode(Data(#"{"five_hour":null,"seven_day":{"utilization":49},"limits":[{"kind":"weekly_all","percent":49,"scope":null},{"kind":"weekly_scoped","percent":91,"scope":{"model":{"display_name":"Fable"}}}]}"#.utf8))
-        XCTAssertEqual(status.limitWindows.map(\.label), ["7d", "7d (Fable)"])
-        XCTAssertEqual(status.remainingPercent, 9)
+    func testFableDoesNotDriveTheAccountStatusOrLowestQuotaMark() throws {
+        func row(_ status: ProviderStatus) -> MenuAccountConnection {
+            let connection = ProviderConnection.global(status.providerID)
+            let account = FleetAccount(id: status.providerID, badgeIndex: 0, name: status.name, email: "", connections: [connection])
+            return MenuAccountConnection(account: account, connection: connection, status: status,
+                                         isSelected: true, isCurrentCLI: true)
+        }
+        let codex = row(ProviderStatus(id: "codex", name: "Codex", state: .ok, detail: "Current",
+                                      lastUpdated: Date(), remainingPercent: 20))
+        for used in [91, 100] {
+            let payload = #"{"five_hour":{"utilization":2},"seven_day":{"utilization":74},"limits":[{"kind":"weekly_scoped","percent":\#(used),"scope":{"model":{"display_name":"Fable"}}}]}"#
+            let status = try ClaudeQuota.decode(Data(payload.utf8))
+            XCTAssertEqual(status.limitWindows.map(\.label), ["5h", "7d", "7d (Fable)"])
+            XCTAssertEqual(status.limitWindows.map(\.remainingPercent), [98, 26, 100 - used])
+            XCTAssertEqual(status.remainingPercent, 26)
+            XCTAssertEqual(status.windowLabel, "7d")
+            XCTAssertEqual(status.state, .ok)
+            XCTAssertEqual(status.quotaState, .available)
+
+            let claude = row(status)
+            let lowest = lowestCurrentQuotaConnectionID(in: [claude, codex])
+            XCTAssertEqual(menuConnectionMark(claude, lowestID: lowest), "→")
+            XCTAssertEqual(menuConnectionMark(codex, lowestID: lowest), "↓")
+        }
 
         let changedShape = try ClaudeQuota.decode(Data(#"{"seven_day":{"utilization":49},"limits":"unexpected"}"#.utf8))
         XCTAssertEqual(changedShape.limitWindows.map(\.label), ["7d"])
+    }
+
+    func testScopedLimitRemainsVisibleWithoutAccountQuota() throws {
+        let status = try ClaudeQuota.decode(Data(#"{"limits":[{"kind":"weekly_scoped","percent":100,"scope":{"model":{"display_name":"Fable"}}}]}"#.utf8))
+        XCTAssertNil(status.remainingPercent)
+        XCTAssertFalse(status.hasCurrentQuota)
+        XCTAssertTrue(status.hasCurrentQuotaMeasurement)
+        XCTAssertEqual(status.limitWindows.first?.weeklyModel, "Fable")
+        XCTAssertEqual(status.limitWindows.first?.remainingPercent, 0)
     }
 }
 

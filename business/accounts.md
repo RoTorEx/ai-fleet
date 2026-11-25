@@ -120,6 +120,9 @@ they never enlarge a row or shift neighboring providers:
 Unavailable marks win over arrows. Saved signed-in accounts that are not selected
 never receive an arrow. Switch is hidden for the signed-in current account in
 both the menu and Settings; another saved login remains switchable.
+Claude's provider color and lowest-quota comparison use its tightest
+account-wide window. Model caps such as Fable display their own percentage
+and window color.
 Any connection without current limits is gray, even if its CLI reports a configured login; a missing measurement never
 looks ready. Quota rows sit in shared columns (period, right-aligned remaining,
 reset) indented slightly inside the provider name; the reset date keeps a clear

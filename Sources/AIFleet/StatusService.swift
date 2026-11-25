@@ -273,7 +273,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                            presentation: ProviderConnection? = nil) {
         let presented = presentation ?? connection
         let displayed: ProviderStatus
-        let identityMismatch = result.hasCurrentQuota && presented.verifiedIdentity.map { expected in
+        let identityMismatch = result.hasCurrentQuotaMeasurement && presented.verifiedIdentity.map { expected in
             ConnectionIdentity(status: result).map { !expected.matches($0) } ?? true
         } == true
         if identityMismatch {
@@ -473,7 +473,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         let defaults = UserDefaults.standard
 
         for provider in providerStatuses where settings.isEnabled(provider.providerID) {
-            guard provider.hasCurrentQuota else {
+            guard provider.hasCurrentQuotaMeasurement else {
                 continue
             }
 

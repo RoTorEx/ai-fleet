@@ -87,7 +87,7 @@ enum ClaudeQuota {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let plain = ISO8601DateFormatter()
-        let parsed = [("five_hour", "5h", usage.five_hour), ("seven_day", "7d", usage.seven_day)]
+        let accountWindows = [("five_hour", "5h", usage.five_hour), ("seven_day", "7d", usage.seven_day)]
             .compactMap { id, label, window -> ProviderLimitWindow? in
                 guard let window, let used = window.utilization, used.isFinite,
                       (0...100).contains(used) else { return nil }
@@ -97,16 +97,19 @@ enum ClaudeQuota {
             }
         // A model's own weekly cap arrives separately and can run out before the overall one.
         let parseDate = { (value: String?) in value.flatMap { fractional.date(from: $0) ?? plain.date(from: $0) } }
-        let windows = parsed + ((try? JSONDecoder().decode(ScopedLimits.self, from: data))?.limits ?? [])
+        let windows = accountWindows + ((try? JSONDecoder().decode(ScopedLimits.self, from: data))?.limits ?? [])
             .compactMap { $0.window(date: parseDate) }
-        guard let selected = windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
+        guard !windows.isEmpty else {
             return unavailable("Signed in · no quota data", state: .ok)
         }
+        let selected = accountWindows.min(by: { $0.remainingPercent < $1.remainingPercent })
+        let remaining = selected?.remainingPercent
         return ProviderStatus(id: "claude", name: "Claude",
-                              state: selected.remainingPercent <= 10 ? .limited : .ok,
-                              detail: "\(selected.remainingPercent)% left", lastUpdated: now,
-                              remainingPercent: selected.remainingPercent, windowLabel: selected.label,
-                              resetAt: selected.resetAt, limitWindows: windows)
+                              state: remaining.map { $0 <= 10 ? .limited : .ok } ?? .ok,
+                              detail: remaining.map { "\($0)% left" } ?? "Signed in · no account quota data",
+                              lastUpdated: now, remainingPercent: remaining, windowLabel: selected?.label,
+                              resetAt: selected?.resetAt, limitWindows: windows,
+                              quotaState: remaining == 0 ? .exhausted : .available)
     }
 
     private struct ScopedLimits: Decodable {

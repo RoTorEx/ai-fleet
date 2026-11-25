@@ -137,7 +137,11 @@ struct ProviderStatus: Identifiable, Equatable {
     }
 
     var hasCurrentQuota: Bool {
-        authentication == .signedIn && quotaNotice == nil && remainingPercent != nil &&
+        remainingPercent != nil && hasCurrentQuotaMeasurement
+    }
+
+    var hasCurrentQuotaMeasurement: Bool {
+        authentication == .signedIn && quotaNotice == nil &&
             (quotaState == .available || quotaState == .exhausted)
     }
 

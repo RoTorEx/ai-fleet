@@ -652,10 +652,10 @@ struct ProviderLimitRow: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(window.label).font(.system(size: 10, weight: .medium, design: .monospaced))
                                     .foregroundColor(color).lineLimit(1)
-                                LimitWindowLine(window: window, status: status, isActive: presentation.available, showsLabel: false)
+                                LimitWindowLine(window: window, status: status, isActive: status.hasCurrentQuotaMeasurement, showsLabel: false)
                             }
                         } else {
-                            LimitWindowLine(window: window, status: status, isActive: presentation.available)
+                            LimitWindowLine(window: window, status: status, isActive: status.hasCurrentQuotaMeasurement)
                         }
                     }
                 }

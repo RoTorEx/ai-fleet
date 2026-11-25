@@ -63,7 +63,7 @@ actor ClaudeQuotaPoller {
         }
         defaults.removeObject(forKey: prefix + ".at")
         defaults.removeObject(forKey: prefix + ".failures")
-        let good = result.status.remainingPercent != nil ? result.status : nil
+        let good = result.status.hasCurrentQuotaMeasurement ? result.status : nil
         entries[key] = Entry(status: result.status, lastGood: good,
                             nextAttempt: startedAt.addingTimeInterval(Self.pollInterval), rateLimitFailures: 0)
         return result.status
