@@ -6,6 +6,8 @@ extension ProviderLimitWindow {
     var isWeeklyQuota: Bool {
         durationSeconds == WeeklyQuotaPace.weekSeconds || weeklyModel != nil
     }
+
+    var quotaDisplayLabel: String { id == "monthly" ? "Monthly" : label }
 }
 
 extension StatisticsProviderReport {
@@ -14,6 +16,24 @@ extension StatisticsProviderReport {
             if ($0.weeklyModel == nil) != ($1.weeklyModel == nil) { return $0.weeklyModel == nil }
             return $0.label.localizedStandardCompare($1.label) == .orderedAscending
         }
+    }
+}
+
+struct QuotaLimitReading {
+    let window: ProviderLimitWindow?
+    let measuredAt: Date?
+    let now: Date
+    let markedStale: Bool
+
+    var usedPercent: Int? {
+        guard let window, (0...100).contains(window.remainingPercent) else { return nil }
+        return 100 - window.remainingPercent
+    }
+
+    var isStale: Bool {
+        guard !markedStale, let measuredAt else { return true }
+        let age = now.timeIntervalSince(measuredAt)
+        return age < -WeeklyQuotaPace.clockTolerance || age > WeeklyQuotaPace.maximumObservationAge
     }
 }
 

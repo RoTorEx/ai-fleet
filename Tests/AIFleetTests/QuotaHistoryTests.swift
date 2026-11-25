@@ -6,6 +6,33 @@ final class QuotaHistoryTests: XCTestCase {
     private let base = Date(timeIntervalSince1970: 1_800_000_000)
     private let hour = UsageHours.hour
 
+    @MainActor
+    func testKimiReportsItsOwnLimitsInTheSameChartWithoutInventingHistory() throws {
+        let connection = ProviderConnection(id: "kimi-fixture", providerID: "kimi")
+        let account = FleetAccount(id: "account", badgeIndex: 0, name: "Fixture", email: "fixture@example.test",
+                                   connections: [connection])
+        let session = ProviderLimitWindow(id: "rolling-0-5h", label: "5h", remainingPercent: 100,
+                                          resetAt: base.addingTimeInterval(3 * hour))
+        let month = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 26,
+                                        resetAt: base.addingTimeInterval(10 * 24 * hour))
+        let status = ProviderStatus(id: "kimi", name: "Kimi", state: .ok, detail: "Current", lastUpdated: base,
+                                    remainingPercent: 26, limitWindows: [session, month])
+        let row = MenuAccountConnection(account: account, connection: connection, status: status, isSelected: true)
+        let target = try XCTUnwrap(QuotaHistoryTarget(row: row, codex: CodexMonitoringStore.shared))
+        XCTAssertNil(target.report)
+        XCTAssertEqual(target.selectedWindow(nil), month)
+        XCTAssertEqual(target.selectedWindow(session.id), session)
+
+        let data = target.quotaFigure(window: month, history: WeeklyQuotaHistory(), now: base)
+        guard case .currentQuota(let reading) = data else { return XCTFail("Expected the observed monthly reading") }
+        XCTAssertEqual(reading.usedPercent, 74)
+        XCTAssertFalse(reading.isStale)
+        let drawing = QuotaHistoryDrawing(data: data)
+        XCTAssertTrue(drawing.accessibilityDetails(for: .overview, selectedHour: nil).contains("Monthly quota · 74% used"))
+        XCTAssertTrue(drawing.accessibilityDetails(for: .hourly, selectedHour: nil).contains("Hourly history unavailable"))
+        XCTAssertNil(drawing.hour(at: CGPoint(x: 200, y: 46), in: CGSize(width: 480, height: QuotaHistoryPanel.hourly.height)))
+    }
+
     func testScopeAndTimestampKeepAccountsAndModelCapsIndependent() throws {
         let first = report("a", at: base, reset: base.addingTimeInterval(48 * hour), used: 20, modelUsed: 11)
         let second = report("b", at: base, reset: base.addingTimeInterval(48 * hour), used: 67)
@@ -112,7 +139,7 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertTrue(chart.hours.dropLast().allSatisfy { $0.partialPercentagePoints == nil })
     }
 
-    func testNativeFigureKeepsTheReferenceCapAndDrawsTheMeasuredHour() throws {
+    func testCompactChartsKeepTheCapAndDrawTheMeasuredHour() throws {
         let reset = base.addingTimeInterval(123 * hour)
         var history = WeeklyQuotaHistory()
         for minutes in stride(from: -120, through: 0, by: 10) {
@@ -124,32 +151,38 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertGreaterThan(try XCTUnwrap(chart.forecasts.first?.atReset), 200)
         let figure = QuotaHistoryDrawing(data: .quota(chart))
 
-        let width = 1300
-        let height = 910
-        let bytesPerRow = width * 4
-        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+        let overview = CGSize(width: 480, height: QuotaHistoryPanel.overview.height)
+        let hourly = CGSize(width: overview.width, height: QuotaHistoryPanel.hourly.height)
+        let pixelWidth = Int(overview.width * 2)
+        let pixelHeight = Int((overview.height + hourly.height) * 2)
+        let bytesPerRow = pixelWidth * 4
+        let context = try XCTUnwrap(CGContext(data: nil, width: pixelWidth, height: pixelHeight, bitsPerComponent: 8,
                                               bytesPerRow: bytesPerRow, space: CGColorSpace(name: CGColorSpace.sRGB)!,
                                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-        context.translateBy(x: 0, y: CGFloat(height))
-        context.scaleBy(x: 1, y: -1)
-        figure.draw(in: context, size: CGSize(width: width, height: height))
+        context.translateBy(x: 0, y: CGFloat(pixelHeight))
+        context.scaleBy(x: 2, y: -2)
+        figure.draw(.overview, in: context, size: overview)
+        context.translateBy(x: 0, y: overview.height)
+        figure.draw(.hourly, in: context, size: hourly)
         let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
         func color(_ x: Int, _ y: Int) -> [Int] {
-            let offset = y * bytesPerRow + x * 4
+            let offset = 2 * y * bytesPerRow + 2 * x * 4
             return [Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2])]
         }
 
-        let rail = color(1080, 89)
+        let rail = color(380, 35)
         XCTAssertGreaterThan(rail[0] - rail[1], 100)
-        XCTAssertEqual(color(66, 280), color(66, 700))
-        XCTAssertEqual(color(1261, 280), color(1261, 700))
+        let hourlyTop = Int(overview.height)
+        XCTAssertEqual(color(44, 62), color(44, hourlyTop + 60))
+        XCTAssertEqual(color(460, 62), color(460, hourlyTop + 60))
 
-        let bar = color(1169, 600)
+        let bar = color(428, hourlyTop + 46)
         XCTAssertGreaterThan(bar[1] - bar[0], 90)
-        XCTAssertLessThan(color(751, 600)[1], 80)
-        XCTAssertEqual(figure.hour(at: CGPoint(x: 1169, y: 600), in: CGSize(width: width, height: height)),
+        XCTAssertLessThan(color(285, hourlyTop + 46)[1], 80)
+        XCTAssertEqual(figure.hour(at: CGPoint(x: 428, y: 46), in: hourly),
                        base.addingTimeInterval(-2 * hour))
-        XCTAssertNil(figure.hour(at: .zero, in: CGSize(width: width, height: height)))
+        XCTAssertNil(figure.hour(at: CGPoint(x: 428, y: 12), in: hourly))
+        XCTAssertNil(figure.hour(at: CGPoint(x: 428, y: 108), in: hourly))
     }
 
     func testClockGridUsesMidnightAndFixedLocalHoursAcrossDaylightSaving() throws {

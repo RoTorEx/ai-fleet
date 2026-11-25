@@ -4,6 +4,7 @@ struct QuotaHistoryTarget: Identifiable, Equatable {
     let id: String
     let provider: StatisticsProvider
     let label: String
+    let status: ProviderStatus
     let report: StatisticsProviderReport?
 
     @MainActor
@@ -12,7 +13,29 @@ struct QuotaHistoryTarget: Identifiable, Equatable {
         self.provider = provider
         id = row.id
         label = row.isSetup ? provider.title : "\(provider.title) (\(row.accountScope))"
+        status = row.status
         report = row.statisticsReport(codex: codex)
+    }
+
+    var quotaWindows: [ProviderLimitWindow] {
+        guard status.hasCurrentQuotaMeasurement || (status.authentication == .signedIn && status.quotaState == .stale)
+        else { return [] }
+        return status.limitWindows.filter { (0...100).contains($0.remainingPercent) }
+    }
+
+    func selectedWindow(_ id: String?) -> ProviderLimitWindow? {
+        let windows = quotaWindows
+        return windows.first { $0.id == id }
+            ?? windows.first { $0.isWeeklyQuota && $0.weeklyModel == nil }
+            ?? windows.max { ($0.durationSeconds ?? 0) < ($1.durationSeconds ?? 0) }
+    }
+
+    func quotaFigure(window: ProviderLimitWindow?, history: WeeklyQuotaHistory, now: Date) -> QuotaHistoryFigureData {
+        if let window, let report, report.weeklyWindows.contains(window) {
+            return .quota(WeeklyQuotaChart(report: report, window: window, history: history, now: now))
+        }
+        return .currentQuota(QuotaLimitReading(window: window, measuredAt: status.lastUpdated, now: now,
+                                              markedStale: status.quotaState == .stale))
     }
 }
 
@@ -35,6 +58,7 @@ struct QuotaHistoryView: View {
     @Binding var selection: QuotaHistoryRequest?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
+    private var controlLabelWidth: CGFloat { openInStatistics == nil ? 142 : 110 }
 
     init(targets: [QuotaHistoryTarget], selection: Binding<QuotaHistoryRequest?>,
          openInStatistics: ((QuotaHistoryRequest) -> Void)? = nil) {
@@ -49,23 +73,20 @@ struct QuotaHistoryView: View {
                 let now = timeline.date
                 let model = selection?.provider == target.provider ? selection?.model : nil
                 let tokens = LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model, now: now)
-                let windows = target.report?.weeklyWindows ?? []
                 let windowID = selection?.targetID == target.id ? selection?.windowID : nil
-                let window = windows.first { $0.id == windowID } ?? windows.first
+                let window = target.selectedWindow(windowID)
                 let request = QuotaHistoryRequest(targetID: target.id, provider: target.provider,
                     windowID: window?.id, model: model.flatMap { tokens.models.contains($0) ? $0 : nil })
                 VStack(alignment: .leading, spacing: 8) {
-                    quotaControls(target: target, windows: windows, window: window, request: request)
-                    if let report = target.report, let window {
-                        QuotaHistoryFigure(data: .quota(WeeklyQuotaChart(report: report, window: window,
-                                                                        history: quotaHistory.history, now: now)))
-                    } else {
-                        Text("No verified weekly quota for this connection.")
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    VStack(alignment: .leading, spacing: 5) {
-                        tokenControls(models: tokens.models, request: request)
-                        QuotaHistoryFigure(data: .tokens(tokens))
+                    controls(target: target, models: tokens.models, request: request)
+                    VStack(spacing: 0) {
+                        if target.provider != .qwen {
+                            let quota = QuotaHistoryDrawing(data: target.quotaFigure(window: window,
+                                history: quotaHistory.history, now: now))
+                            QuotaHistoryFigure(drawing: quota, panel: .overview)
+                            QuotaHistoryFigure(drawing: quota, panel: .hourly)
+                        }
+                        QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: .tokens(tokens)), panel: .hourly)
                     }
                     if let openInStatistics {
                         Button("Open in Statistics") {
@@ -79,10 +100,25 @@ struct QuotaHistoryView: View {
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
     }
 
-    private func quotaControls(target: QuotaHistoryTarget, windows: [ProviderLimitWindow],
-                               window: ProviderLimitWindow?, request: QuotaHistoryRequest) -> some View {
-        HStack(spacing: 9) {
-            if targets.count > 1 {
+    private func controls(target: QuotaHistoryTarget, models: [String], request: QuotaHistoryRequest) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                quotaControls(target: target, request: request)
+                Spacer(minLength: 0)
+                modelPicker(models: models, request: request)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                quotaControls(target: target, request: request)
+                modelPicker(models: models, request: request)
+            }
+        }
+        .controlSize(.small)
+    }
+
+    private func quotaControls(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {
+        let windows = target.quotaWindows
+        return HStack(spacing: 8) {
+            if openInStatistics == nil {
                 Picker("Provider and account", selection: Binding(
                     get: { target.id },
                     set: { value in
@@ -93,49 +129,40 @@ struct QuotaHistoryView: View {
                 )) {
                     ForEach(targets) { Text($0.label).tag($0.id) }
                 }
-                .labelsHidden().frame(maxWidth: 142)
+                .labelsHidden().frame(width: controlLabelWidth, alignment: .leading)
+                .disabled(targets.count < 2)
             } else {
                 Text(target.label)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
+                    .frame(width: controlLabelWidth, alignment: .leading)
             }
-            if windows.count > 1, let window {
-                Picker("Quota window", selection: Binding(get: { window.id }, set: { id in
+            if target.provider != .qwen {
+                Picker("Quota window", selection: Binding(get: { request.windowID }, set: { id in
                     var next = request
                     next.windowID = id
                     selection = next
                 })) {
-                    ForEach(windows) { scope in Text(scope.weeklyModel ?? "Account quota").tag(scope.id) }
+                    if windows.isEmpty { Text("Quota unavailable").tag(String?.none) }
+                    ForEach(windows) { scope in Text(scope.quotaDisplayLabel).tag(Optional(scope.id)) }
                 }
-                .labelsHidden().frame(maxWidth: 150)
-            } else if let name = window?.weeklyModel {
-                Text(name).font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-            if window != nil {
-                Text("Provider reports").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                .labelsHidden().frame(width: 150, alignment: .leading)
+                .disabled(windows.count < 2)
             }
         }
-        .controlSize(.small)
     }
 
-    private func tokenControls(models: [String], request: QuotaHistoryRequest) -> some View {
-        HStack(spacing: 9) {
-            Text("Local tokens").font(.system(size: 12, weight: .semibold))
-            if !models.isEmpty {
-                Picker("Model", selection: Binding(get: { request.model }, set: { model in
-                    var next = request
-                    next.model = model
-                    selection = next
-                })) {
-                    Text("All models").tag(String?.none)
-                    ForEach(models, id: \.self) { Text($0).tag(Optional($0)) }
-                }
-                .labelsHidden().frame(maxWidth: 150)
-            }
-            Spacer(minLength: 0)
-            Text("On this Mac").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+    private func modelPicker(models: [String], request: QuotaHistoryRequest) -> some View {
+        Picker("Local token model", selection: Binding(get: { request.model }, set: { model in
+            var next = request
+            next.model = model
+            selection = next
+        })) {
+            Text("All models").tag(String?.none)
+            ForEach(models, id: \.self) { Text($0).tag(Optional($0)) }
         }
-        .controlSize(.small)
+        .labelsHidden().frame(width: 150)
+        .disabled(models.isEmpty)
+        .help("Filter the local token chart by model")
     }
 }

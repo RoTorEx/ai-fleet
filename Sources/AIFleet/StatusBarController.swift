@@ -520,7 +520,7 @@ final class StatusBarController: NSObject {
         guard let identifier = event.window?.identifier?.rawValue else {
             return false
         }
-        return identifier == "ai-fleet-settings" || identifier == MenuProviderDetails.windowIdentifier.rawValue
+        return identifier == "ai-fleet-settings" || identifier == MenuQuotaHistory.windowIdentifier.rawValue
     }
 }
 

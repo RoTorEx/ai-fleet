@@ -2,17 +2,18 @@
 <title>AI Fleet · Quota history</title>
 <!--
 VPM-40 design board.
-Click the chart button on each provider account row to open both charts beside
+Click the chart button on each provider account row to open the chart group beside
 the menu. Click it again to close the popover. The same charts appear in the
 Quota History tab, below the shared provider filters. This board shows that
-tab selected. The adjacent Token Spend action in the app uses local provider
-totals for the current Statistics period.
+tab selected. The app uses these quota plot regions for both weekly history
+and reported windows with only a current reading, such as Kimi's 5h and monthly limits.
 Full quota history uses the provider's reset cycle, a daily carry-forward
 budget, a limit line, actual observations, and two projections from the latest
 fresh sample. The hourly readout distinguishes unmeasured hours from zero use.
 Scoped quota uses only verified provider windows. Local tokens use provider and
 logged model without account attribution. The fixtures illustrate each source.
-The VPM-40 attachment and native renderer define the precise plot coordinates.
+The VPM-40 attachment defines the visual style. The native renderer lays out all
+three charts in one compact stack at fixed heights.
 -->
 <style>
   #fleet-quota-design {

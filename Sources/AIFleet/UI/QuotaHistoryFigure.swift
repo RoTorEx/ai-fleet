@@ -3,6 +3,7 @@ import SwiftUI
 
 enum QuotaHistoryFigureData {
     case quota(WeeklyQuotaChart)
+    case currentQuota(QuotaLimitReading)
     case tokens(LocalTokenHistory)
 }
 
@@ -29,47 +30,55 @@ struct QuotaHourTick: Equatable {
     }
 }
 
+enum QuotaHistoryPanel: Equatable {
+    case overview
+    case hourly
+
+    var height: CGFloat { self == .overview ? 168 : 120 }
+}
+
 struct QuotaHistoryFigure: View {
-    let data: QuotaHistoryFigureData
+    let drawing: QuotaHistoryDrawing
+    let panel: QuotaHistoryPanel
     @State private var selectedHour: Date?
 
     var body: some View {
-        let drawing = QuotaHistoryDrawing(data: data)
-        Canvas { graphics, size in
-            graphics.withCGContext { drawing.draw(in: $0, size: size, selectedHour: selectedHour) }
+        let hour = panel == .hourly && drawing.hasHourlySamples ? selectedHour : nil
+        let chart = Canvas { graphics, size in
+            graphics.withCGContext { drawing.draw(panel, in: $0, size: size, selectedHour: hour) }
         }
-        .aspectRatio(drawing.size.width / drawing.size.height, contentMode: .fit)
-        .overlay {
-            GeometryReader { geometry in
-                Color.clear.contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location): selectedHour = drawing.hour(at: location, in: geometry.size)
-                        case .ended: selectedHour = nil
+        .frame(height: panel.height)
+        .accessibilityLabel(drawing.accessibilityTitle(for: panel))
+        .accessibilityValue(drawing.accessibilityDetails(for: panel, selectedHour: hour))
+
+        if panel == .hourly && drawing.hasHourlySamples {
+            chart.overlay {
+                GeometryReader { geometry in
+                    Color.clear.contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location): selectedHour = drawing.hour(at: location, in: geometry.size)
+                            case .ended: selectedHour = nil
+                            }
                         }
-                    }
-                    .accessibilityHidden(true)
+                        .accessibilityHidden(true)
+                }
             }
-        }
-        .accessibilityLabel(drawing.accessibilityTitle)
-        .accessibilityValue(drawing.accessibilityDetails(selectedHour: selectedHour))
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment: selectedHour = drawing.adjacentHour(to: selectedHour, offset: 1)
-            case .decrement: selectedHour = drawing.adjacentHour(to: selectedHour, offset: -1)
-            @unknown default: break
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: selectedHour = drawing.adjacentHour(to: selectedHour, offset: 1)
+                case .decrement: selectedHour = drawing.adjacentHour(to: selectedHour, offset: -1)
+                @unknown default: break
+                }
             }
+        } else {
+            chart
         }
     }
 }
 
-/// Coordinates in the 1300 × 910 VPM-40 reference. Typography and the axis gutter
-/// also have minimum sizes in screen points.
+/// Uses the VPM-40 chart styling with plot bounds measured in window points.
 struct QuotaHistoryDrawing {
-    static let referenceSize = CGSize(width: 1300, height: 910)
-    static let weekPlot = CGRect(x: 66.5, y: 49.5, width: 1195, height: 440)
-    static let hoursPlot = CGRect(x: 66.5, y: 566.5, width: 1195, height: 294)
-
     private struct Hour {
         let start: Date
         let parts: [Double]?
@@ -78,20 +87,23 @@ struct QuotaHistoryDrawing {
 
     private let data: QuotaHistoryFigureData
     private let hours: [Hour]
-    private let drawsWeek: Bool
+    private let drawsQuota: Bool
 
     init(data: QuotaHistoryFigureData) {
         self.data = data
         switch data {
         case .quota(let quota):
-            drawsWeek = true
+            drawsQuota = true
             hours = quota.hours.map { hour in
                 Hour(start: hour.start,
                      parts: (hour.percentagePoints ?? hour.partialPercentagePoints).map { [Double($0)] },
                      partial: hour.partialPercentagePoints != nil)
             }
+        case .currentQuota(let reading):
+            drawsQuota = true
+            hours = UsageHours(now: reading.now).starts.map { Hour(start: $0, parts: nil) }
         case .tokens(let tokens):
-            drawsWeek = false
+            drawsQuota = false
             hours = tokens.hours.map { hour in
                 Hour(start: hour.start, parts: hour.tokens.map {
                     [Double($0.billableInputTokens), Double($0.cachedInputTokens) + Double($0.cacheWriteInputTokens),
@@ -101,8 +113,8 @@ struct QuotaHistoryDrawing {
         }
     }
 
-    var size: CGSize { drawsWeek ? Self.referenceSize : CGSize(width: Self.referenceSize.width, height: 392) }
-    private var hoursFrame: CGRect { drawsWeek ? Self.hoursPlot : Self.hoursPlot.offsetBy(dx: 0, dy: -518) }
+    var hasHourlySamples: Bool { hours.contains { $0.parts != nil } }
+
     private var hoursDomain: ClosedRange<Date> {
         let first = hours.first?.start ?? .now
         let last = hours.last?.start ?? first
@@ -111,28 +123,36 @@ struct QuotaHistoryDrawing {
         return first.addingTimeInterval(-padding)...last.addingTimeInterval(padding)
     }
 
-    var accessibilityTitle: String {
-        drawsWeek ? "Weekly quota and hourly usage" : "Hourly local tokens"
+    func accessibilityTitle(for panel: QuotaHistoryPanel) -> String {
+        if panel == .overview { return "Provider quota" }
+        return drawsQuota ? "Hourly provider quota" : "Hourly local tokens"
     }
 
-    func accessibilityDetails(selectedHour: Date?) -> String {
-        if let selectedHour, let hour = hours.first(where: { $0.start == selectedHour }) {
-            return hourDescription(hour)
+    func accessibilityDetails(for panel: QuotaHistoryPanel, selectedHour: Date?) -> String {
+        if panel == .hourly {
+            guard hasHourlySamples else { return emptyHoursText }
+            if let selectedHour, let hour = hours.first(where: { $0.start == selectedHour }) {
+                return hourDescription(hour)
+            }
+            let observed = hours.filter { $0.parts != nil }.count
+            return "\(observed) hours with \(drawsQuota ? "quota observations" : "recorded tokens")"
         }
         if case .quota(let quota) = data {
             let forecasts = quota.forecasts.map { forecastText($0, latest: quota.latest) }
             return ([weekTitle(quota.pace)] + forecasts).joined(separator: ". ")
         }
-        return "\(hours.filter { $0.parts?.contains(where: { $0 > 0 }) == true }.count) hours with recorded tokens"
+        if case .currentQuota(let reading) = data {
+            return readingTitle(reading)
+        }
+        return ""
     }
 
     func hour(at point: CGPoint, in canvas: CGSize) -> Date? {
-        guard canvas.width > 0, canvas.height > 0 else { return nil }
-        let referencePoint = CGPoint(x: point.x * size.width / canvas.width, y: point.y * size.height / canvas.height)
-        let plot = FigureLayout(scale: canvas.width / size.width).frame(hoursFrame)
-        guard plot.contains(referencePoint), let first = hours.first else { return nil }
+        guard hasHourlySamples else { return nil }
+        let plot = FigureLayout(canvas: canvas, panel: .hourly).plot
+        guard plot.contains(point), let first = hours.first else { return nil }
         let axis = PlotAxes(frame: plot, time: hoursDomain, maximum: 1)
-        let timestamp = axis.time(at: referencePoint.x)
+        let timestamp = axis.time(at: point.x)
         let index = Int((timestamp.timeIntervalSince(first.start) / UsageHours.hour).rounded())
         return hours.indices.contains(index) ? hours[index].start : nil
     }
@@ -144,32 +164,35 @@ struct QuotaHistoryDrawing {
     }
 
     /// The caller provides an upper-left coordinate system.
-    func draw(in context: CGContext, size canvas: CGSize, selectedHour: Date? = nil) {
+    func draw(_ panel: QuotaHistoryPanel, in context: CGContext, size canvas: CGSize, selectedHour: Date? = nil) {
         guard canvas.width > 0, canvas.height > 0 else { return }
-        let layout = FigureLayout(scale: canvas.width / size.width)
+        let layout = FigureLayout(canvas: canvas, panel: panel)
         context.saveGState()
-        context.scaleBy(x: layout.scale, y: canvas.height / size.height)
         context.setAllowsFontSmoothing(false)
         context.setShouldSmoothFonts(false)
-        fill(CGRect(origin: .zero, size: size), Palette.canvas, in: context)
-        switch data {
-        case .quota(let quota):
+        fill(CGRect(origin: .zero, size: canvas), Palette.canvas, in: context)
+        switch (panel, data) {
+        case (.overview, .quota(let quota)):
             drawWeek(quota, layout: layout, in: context)
+        case (.overview, .currentQuota(let reading)):
+            drawReading(reading, layout: layout, in: context)
+        case (.hourly, .quota(let quota)):
             drawHours(guide: quota.sustainablePerHour, firstObservation: quota.firstObservation,
                       selectedHour: selectedHour, layout: layout, in: context)
-        case .tokens:
+        case (.hourly, _):
             drawHours(guide: nil, firstObservation: nil, selectedHour: selectedHour, layout: layout, in: context)
+        case (.overview, .tokens):
+            break
         }
         context.restoreGState()
     }
 
     private func drawWeek(_ quota: WeeklyQuotaChart, layout: FigureLayout, in context: CGContext) {
-        let plot = layout.frame(Self.weekPlot)
-        Label(weekTitle(quota.pace), size: layout.font(reference: 24, minimum: 12), color: Palette.heading)
-            .draw(at: CGPoint(x: plot.midX, y: 38), alignment: 0.5, in: context)
+        let plot = layout.plot
+        layout.drawTitle(weekTitle(quota.pace), in: context)
         fill(plot, Palette.plot, in: context)
         guard let start = quota.cycleStart, let latest = quota.latest, start < latest.reset else {
-            Label("Waiting for a quota measurement with a reset time.", size: layout.labelSize)
+            Label("Waiting for a quota measurement with a reset time.", size: layout.labelSize, maximumWidth: plot.width - 12)
                 .draw(at: CGPoint(x: plot.midX, y: plot.midY), alignment: 0.5, in: context)
             frame(plot, in: context)
             return
@@ -207,30 +230,29 @@ struct QuotaHistoryDrawing {
         context.fillPath()
         grid(axis, dates: dates, levels: levels.map(\.value), in: context)
         let budget = days.map { axis.point($0, WeeklyQuotaPace.budget(at: $0, cycleStart: start)) }
-        stroke(steps(budget), Palette.budget, width: 2.1, in: context)
-        let limit = floor(axis.y(100))
-        stroke([CGPoint(x: plot.minX, y: limit), CGPoint(x: plot.maxX, y: limit)], Palette.limit, width: 2, in: context)
+        stroke(steps(budget), Palette.budget, width: 1, in: context)
+        drawLimit(axis, in: context)
         for segment in quota.segments {
             let points = segment.map { axis.point($0.time, Double($0.used)) }
             if points.count == 1, let point = points.first {
                 context.setFillColor(Palette.actual)
-                context.fillEllipse(in: CGRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6))
+                context.fillEllipse(in: CGRect(x: point.x - 2, y: point.y - 2, width: 4, height: 4))
             } else {
-                stroke(steps(points), Palette.actual, width: 3.5, in: context)
+                stroke(steps(points), Palette.actual, width: 1.5, in: context)
             }
         }
         for forecast in quota.forecasts {
             let endpoint = forecast.plotEndpoint(reset: latest.reset)
             guard endpoint.time > latest.time else { continue }
             stroke([axis.point(latest.time, Double(latest.used)), axis.point(endpoint.time, endpoint.used)],
-                   forecast.period == .window ? Palette.amber : Palette.coral, width: 2.8, dash: [2.8, 4.6], in: context)
+                   forecast.period == .window ? Palette.amber : Palette.coral, width: 1.2, dash: [1.5, 2.5], in: context)
         }
         context.restoreGState()
 
         axes(axis, dates: dates, levels: levels, showHour: false, layout: layout, in: context)
         var keys = [
-            LegendKey("Usage, %", Palette.actual, .line(3.5)),
-            LegendKey("Cumulative budget · 14.3%/day", Palette.budget, .line(2.1))
+            LegendKey("Usage, %", Palette.actual, .line(1.5)),
+            LegendKey("Cumulative budget · 14.3%/day", Palette.budget, .line(1))
         ]
         if let headroom = quota.pace.headroomPoints {
             let amount = formattedNumber(abs(headroom), fractionDigits: 0)
@@ -239,36 +261,61 @@ struct QuotaHistoryDrawing {
         }
         for forecast in quota.forecasts {
             keys.append(LegendKey(forecastText(forecast, latest: latest),
-                                  forecast.period == .window ? Palette.amber : Palette.coral, .line(2.8, [2.8, 4.6])))
+                                  forecast.period == .window ? Palette.amber : Palette.coral, .line(1.2, [1.5, 2.5])))
         }
-        let legend = Legend(keys, minimumWidth: 661, fontSize: layout.legendSize)
-        let left = CGPoint(x: plot.minX + 8, y: plot.minY + 8)
+        let content = plot.insetBy(dx: 5, dy: 5)
+        let legend = Legend(keys, fontSize: layout.labelSize, maximumWidth: content.width)
         let earlyLimit = quota.forecasts.contains { forecast in
-            forecast.exhaustion.map { axis.x($0) < left.x + legend.size.width } ?? false
+            forecast.exhaustion.map { axis.x($0) < content.minX + legend.size.width } ?? false
         }
         let origin = earlyLimit
-            ? CGPoint(x: plot.maxX - 8 - legend.size.width, y: plot.maxY - 8 - legend.size.height) : left
+            ? CGPoint(x: content.maxX - legend.size.width, y: content.maxY - legend.size.height) : content.origin
         legend.draw(at: origin, in: context)
     }
 
+    private func drawReading(_ reading: QuotaLimitReading, layout: FigureLayout, in context: CGContext) {
+        let plot = layout.plot
+        layout.drawTitle(readingTitle(reading), in: context)
+        fill(plot, Palette.plot, in: context)
+
+        // The reading supplies one observation. Only the percentage axis is known here.
+        let axis = PlotAxes(frame: plot, time: reading.now...reading.now.addingTimeInterval(1), maximum: 110)
+        let levels = stride(from: 0, through: 100, by: 20).map { (value: Double($0), label: String($0)) }
+        grid(axis, dates: [], levels: levels.map(\.value), in: context)
+        drawLimit(axis, in: context)
+        axes(axis, dates: [], levels: levels, showHour: false, layout: layout, in: context)
+        guard let used = reading.usedPercent else {
+            Label("Waiting for a quota reading", size: layout.labelSize)
+                .draw(at: CGPoint(x: plot.midX, y: plot.midY), alignment: 0.5, in: context)
+            return
+        }
+
+        let y = axis.y(Double(used))
+        let color = reading.isStale ? Palette.budget : Palette.actual
+        context.setFillColor(color)
+        context.fillEllipse(in: CGRect(x: plot.midX - 3, y: y - 3, width: 6, height: 6))
+        let timestamp = reading.measuredAt.map { "Read \(hourDescriptionDate($0))" } ?? "Latest reading"
+        Label(timestamp, size: layout.labelSize, maximumWidth: plot.width - 12)
+            .draw(at: CGPoint(x: plot.midX, y: plot.maxY + 16), alignment: 0.5, in: context)
+    }
+
     private func drawHours(guide: Double?, firstObservation: Date?, selectedHour: Date?, layout: FigureLayout, in context: CGContext) {
-        let plot = layout.frame(hoursFrame)
-        let maximum = max(drawsWeek ? 1 : 10, guide ?? 0, hours.compactMap { $0.parts?.reduce(0, +) }.max() ?? 0)
+        let plot = layout.plot
+        let maximum = max(drawsQuota ? 1 : 10, guide ?? 0, hours.compactMap { $0.parts?.reduce(0, +) }.max() ?? 0)
         let axis = PlotAxes(frame: plot, time: hoursDomain, maximum: maximum * 1.05)
         let ticks = hourlyLevels(maximum: maximum)
         let levels = ticks.map { value in
-            let label = drawsWeek ? formattedNumber(value, fractionDigits: maximum <= 5 ? 1 : 0)
+            let label = drawsQuota ? formattedNumber(value, fractionDigits: maximum <= 5 ? 1 : 0)
                 : compactCount(Int(min(value, Double(Int.max / 2)))).replacingOccurrences(of: ".00", with: "")
             return (value: value, label: label)
         }
-        let colors = drawsWeek ? [Palette.mint] : [Palette.actual, Palette.cache, Palette.mint]
+        let colors = drawsQuota ? [Palette.mint] : [Palette.actual, Palette.cache, Palette.mint]
         let clockTicks = QuotaHourTick.inDomain(axis.time)
         let dates = clockTicks.filter(\.isMajor).map(\.date)
         let minorDates = clockTicks.filter { !$0.isMajor }.map(\.date)
-        let selected = selectedHour.flatMap { start in hours.first { $0.start == start } }
-        let title = drawsWeek ? "Hourly usage, % of weekly quota (last 72h)" : "Tokens per hour (last 72h)"
-        Label(title, size: layout.font(reference: 20, minimum: 12), color: Palette.heading)
-            .draw(at: CGPoint(x: plot.midX, y: plot.minY - 10), alignment: 0.5, in: context)
+        let selected = hasHourlySamples ? selectedHour.flatMap { start in hours.first { $0.start == start } } : nil
+        let title = drawsQuota ? "Quota used per hour (% · last 72h)" : "Local tokens per hour (last 72h)"
+        layout.drawTitle(title, in: context)
         fill(plot, Palette.plot, in: context)
 
         context.saveGState()
@@ -291,20 +338,19 @@ struct QuotaHistoryDrawing {
         grid(axis, dates: dates, minorDates: minorDates, levels: ticks, in: context)
         if let guide {
             stroke([CGPoint(x: plot.minX, y: axis.y(guide)), CGPoint(x: plot.maxX, y: axis.y(guide))],
-                   Palette.amber, width: 1.8, dash: [6, 4], in: context)
+                   Palette.amber, width: 1, dash: [3, 2], in: context)
         }
         if let selected {
             let x = axis.x(selected.start)
-            stroke([CGPoint(x: x, y: plot.minY), CGPoint(x: x, y: plot.maxY)], Palette.budget, width: 1.3, in: context)
+            stroke([CGPoint(x: x, y: plot.minY), CGPoint(x: x, y: plot.maxY)], Palette.budget, width: 0.8, in: context)
         }
         context.restoreGState()
 
         axes(axis, dates: dates, minorDates: minorDates, levels: levels, showHour: true, layout: layout, in: context)
-        let hasSamples = hours.contains { $0.parts != nil }
         var keys: [LegendKey] = []
         if let guide {
             keys.append(LegendKey("Sustainable average: \(formattedNumber(guide, fractionDigits: 2))%/h",
-                                  Palette.amber, .line(1.8, [6, 4])))
+                                  Palette.amber, .line(1, [3, 2])))
         }
         if hours.contains(where: \.partial) {
             keys.append(LegendKey("Observed part of hour", Palette.mint.copy(alpha: 0.56) ?? Palette.mint, .block))
@@ -312,28 +358,37 @@ struct QuotaHistoryDrawing {
         if let firstObservation, let first = hours.first?.start, firstObservation.timeIntervalSince(first) > UsageHours.hour {
             keys.append(LegendKey("Recording since \(hourDescriptionDate(firstObservation))", Palette.labels, .none))
         }
-        if !drawsWeek, hasSamples {
+        if !drawsQuota, hasHourlySamples {
             keys = [LegendKey("Uncached input", Palette.actual, .block), LegendKey("Cache", Palette.cache, .block),
                     LegendKey("Output", Palette.mint, .block)]
         }
-        let legendOrigin = CGPoint(x: plot.minX + 8, y: plot.minY + 8)
-        let legend = keys.isEmpty ? nil : Legend(keys, minimumWidth: drawsWeek ? 357 : 0,
-            fontSize: layout.legendSize, horizontal: !drawsWeek)
+        let legendOrigin = CGPoint(x: plot.minX + 5, y: plot.minY + 5)
+        let legend = keys.isEmpty ? nil : Legend(keys, fontSize: layout.labelSize,
+            maximumWidth: plot.width - 10, preferHorizontal: !drawsQuota)
         legend?.draw(at: legendOrigin, in: context)
-        if !hasSamples {
-            Label(drawsWeek ? "Collecting hourly quota history" : "No recorded tokens for this period", size: layout.labelSize)
-                .draw(at: CGPoint(x: plot.midX, y: plot.midY + 6), alignment: 0.5, in: context)
+        if !hasHourlySamples {
+            let baseline = max(plot.midY + 4, legendOrigin.y + (legend?.size.height ?? 0) + layout.labelSize + 4)
+            Label(emptyHoursText, size: layout.labelSize, maximumWidth: plot.width - 12)
+                .draw(at: CGPoint(x: plot.midX, y: baseline), alignment: 0.5, in: context)
         }
         if let selected {
-            let label = Label(hourDescription(selected), size: layout.labelSize, maximumWidth: plot.width - 26)
-            let right = plot.maxX - 12
-            let left = right - label.width - 8
-            var top = plot.minY + 9
+            let label = Label(hourDescription(selected), size: layout.labelSize, maximumWidth: plot.width - 14)
+            let right = plot.maxX - 7
+            let left = right - label.width - 4
+            var top = plot.minY + 5
             if let legend, left < legendOrigin.x + legend.size.width {
-                top = legendOrigin.y + legend.size.height + 8
+                top = min(legendOrigin.y + legend.size.height + 4, plot.maxY - layout.labelSize - 5)
             }
-            fill(CGRect(x: left, y: top, width: label.width + 16, height: layout.labelSize + 14), Palette.plot, in: context)
-            label.draw(at: CGPoint(x: right, y: top + layout.labelSize + 3), alignment: 1, in: context)
+            fill(CGRect(x: left, y: top, width: label.width + 8, height: layout.labelSize + 5), Palette.plot, in: context)
+            label.draw(at: CGPoint(x: right, y: top + layout.labelSize + 1), alignment: 1, in: context)
+        }
+    }
+
+    private var emptyHoursText: String {
+        switch data {
+        case .quota: return "Collecting hourly quota history"
+        case .currentQuota: return "Hourly history unavailable for this window"
+        case .tokens: return "No recorded tokens for this period"
         }
     }
 
@@ -341,27 +396,35 @@ struct QuotaHistoryDrawing {
         let amount: String
         if let parts = hour.parts {
             let total = parts.reduce(0, +)
-            amount = drawsWeek
+            amount = drawsQuota
                 ? "\(hour.partial ? "≥ " : "")\(formattedNumber(total, fractionDigits: 0))% of weekly quota"
                 : "\(groupedInteger(Int(min(total, Double(Int.max / 2))))) tokens"
         } else {
-            amount = drawsWeek ? "No sample" : "No recorded data"
+            amount = drawsQuota ? "No sample" : "No recorded data"
         }
         return "\(hourDescriptionDate(hour.start)) · \(amount)"
     }
 }
 
 private struct FigureLayout {
-    let scale: CGFloat
+    let canvas: CGSize
+    let stackedHourLabels: Bool
+    let plot: CGRect
+    let labelSize: CGFloat = 11
 
-    var labelSize: CGFloat { font(reference: 18, minimum: 10.5) }
-    var legendSize: CGFloat { font(reference: 18.5, minimum: 10.5) }
+    init(canvas: CGSize, panel: QuotaHistoryPanel) {
+        self.canvas = canvas
+        stackedHourLabels = panel == .hourly && canvas.width < 400
+        let left = min(44, canvas.width * 0.23)
+        let right = min(20, canvas.width * 0.1)
+        let top: CGFloat = 24
+        let bottom: CGFloat = stackedHourLabels ? 30 : 22
+        plot = CGRect(x: left, y: top, width: canvas.width - left - right, height: max(0, canvas.height - top - bottom))
+    }
 
-    func font(reference: CGFloat, minimum: CGFloat) -> CGFloat { max(reference, minimum / scale) }
-
-    func frame(_ reference: CGRect) -> CGRect {
-        let left = max(reference.minX, min(reference.width * 0.23, 44 / scale))
-        return CGRect(x: left, y: reference.minY, width: reference.maxX - left, height: reference.height)
+    func drawTitle(_ title: String, in context: CGContext) {
+        Label(title, size: 13, color: Palette.heading, maximumWidth: canvas.width - 16)
+            .draw(at: CGPoint(x: plot.midX, y: 17), alignment: 0.5, in: context)
     }
 }
 
@@ -387,15 +450,15 @@ private func grid(_ axis: PlotAxes, dates: [Date], minorDates: [Date] = [], leve
     let minorColor = Palette.grid.copy(alpha: 0.60) ?? Palette.grid
     for date in minorDates {
         let x = axis.x(date)
-        stroke([CGPoint(x: x, y: axis.frame.minY), CGPoint(x: x, y: axis.frame.maxY)], minorColor, width: 0.7, in: context)
+        stroke([CGPoint(x: x, y: axis.frame.minY), CGPoint(x: x, y: axis.frame.maxY)], minorColor, width: 0.4, in: context)
     }
     for date in dates {
         let x = axis.x(date)
-        stroke([CGPoint(x: x, y: axis.frame.minY), CGPoint(x: x, y: axis.frame.maxY)], Palette.grid, width: 0.9, in: context)
+        stroke([CGPoint(x: x, y: axis.frame.minY), CGPoint(x: x, y: axis.frame.maxY)], Palette.grid, width: 0.6, in: context)
     }
     for value in levels {
         let y = axis.y(value)
-        stroke([CGPoint(x: axis.frame.minX, y: y), CGPoint(x: axis.frame.maxX, y: y)], Palette.grid, width: 0.9, in: context)
+        stroke([CGPoint(x: axis.frame.minX, y: y), CGPoint(x: axis.frame.maxX, y: y)], Palette.grid, width: 0.6, in: context)
     }
 }
 
@@ -405,27 +468,37 @@ private func axes(_ axis: PlotAxes, dates: [Date], minorDates: [Date] = [],
     frame(plot, in: context)
     for date in minorDates {
         let x = axis.x(date)
-        stroke([CGPoint(x: x, y: plot.maxY), CGPoint(x: x, y: plot.maxY + 3)], Palette.budget, width: 1, in: context)
+        stroke([CGPoint(x: x, y: plot.maxY), CGPoint(x: x, y: plot.maxY + 2)], Palette.budget, width: 0.6, in: context)
     }
     for date in dates {
         let x = axis.x(date)
-        stroke([CGPoint(x: x, y: plot.maxY), CGPoint(x: x, y: plot.maxY + 6)], Palette.labels, width: 1, in: context)
-        let label = Label(axisDate(date, withHour: showHour), size: layout.labelSize)
-        let halfLabel = label.width / 2 + 4
-        let textX = min(max(x, halfLabel), QuotaHistoryDrawing.referenceSize.width - halfLabel)
-        label.draw(at: CGPoint(x: textX, y: plot.maxY + max(26, layout.labelSize + 5)), alignment: 0.5, in: context)
+        stroke([CGPoint(x: x, y: plot.maxY), CGPoint(x: x, y: plot.maxY + 4)], Palette.labels, width: 0.6, in: context)
+        let lines = axisLabels(date, showHour: showHour, stacked: layout.stackedHourLabels)
+        for (index, line) in lines.enumerated() {
+            let label = Label(line, size: layout.labelSize)
+            let halfLabel = label.width / 2 + 3
+            let textX = min(max(x, halfLabel), layout.canvas.width - halfLabel)
+            let baseline = plot.maxY + 15 + CGFloat(index) * 12
+            label.draw(at: CGPoint(x: textX, y: baseline), alignment: 0.5, in: context)
+        }
     }
     for (value, label) in levels {
         let y = axis.y(value)
-        stroke([CGPoint(x: plot.minX - 6, y: y), CGPoint(x: plot.minX, y: y)], Palette.labels, width: 1, in: context)
-        Label(label, size: layout.labelSize, maximumWidth: plot.minX - 16)
-            .draw(at: CGPoint(x: plot.minX - 12, y: y + layout.labelSize * 0.36), alignment: 1, in: context)
+        stroke([CGPoint(x: plot.minX - 4, y: y), CGPoint(x: plot.minX, y: y)], Palette.labels, width: 0.6, in: context)
+        Label(label, size: layout.labelSize, maximumWidth: plot.minX - 10)
+            .draw(at: CGPoint(x: plot.minX - 7, y: y + layout.labelSize * 0.36), alignment: 1, in: context)
     }
+}
+
+private func drawLimit(_ axis: PlotAxes, in context: CGContext) {
+    let limit = floor(axis.y(100))
+    stroke([CGPoint(x: axis.frame.minX, y: limit), CGPoint(x: axis.frame.maxX, y: limit)],
+           Palette.limit, width: 1, in: context)
 }
 
 private func frame(_ rect: CGRect, in context: CGContext) {
     context.setStrokeColor(Palette.frame)
-    context.setLineWidth(1.4)
+    context.setLineWidth(0.8)
     context.setLineDash(phase: 0, lengths: [])
     context.stroke(rect)
 }
@@ -454,16 +527,16 @@ private func fill(_ rect: CGRect, _ color: CGColor, in context: CGContext) {
 }
 
 private func hourlyLevels(maximum: Double) -> [Double] {
-    let interval = maximum / 6
+    let interval = maximum / 4
     let magnitude = pow(10, floor(log10(interval)))
-    let factor = [1.0, 2, 2.5, 5, 10].first { $0 * magnitude >= interval } ?? 10
+    let factor = [1.0, 2, 5, 10].first { $0 * magnitude >= interval } ?? 10
     let step = factor * magnitude
     return (0...Int(floor(maximum / step + 1e-9))).map { Double($0) * step }
 }
 
 private func weekTitle(_ pace: WeeklyQuotaPace) -> String {
-    var title = "Weekly limit"
-    if let used = pace.usedPercent { title += ": \(used)%" }
+    var title = "Weekly quota"
+    if let used = pace.usedPercent { title += " · \(used)% used" }
     switch pace.state {
     case .current:
         if let remaining = pace.timeToReset { title += " · \(Int(ceil(remaining / UsageHours.hour)))h to reset" }
@@ -475,6 +548,16 @@ private func weekTitle(_ pace: WeeklyQuotaPace) -> String {
     return title
 }
 
+private func readingTitle(_ reading: QuotaLimitReading) -> String {
+    guard let used = reading.usedPercent, let window = reading.window else { return "Provider quota" }
+    let title = "\(window.quotaDisplayLabel) quota · \(used)% used"
+    if reading.isStale { return title + " · Stale measurement" }
+    guard let reset = window.resetAt else { return title + " · Reset time unavailable" }
+    let remaining = reset.timeIntervalSince(reading.now)
+    guard remaining > 0 else { return title + " · Reset due" }
+    return title + " · \(WeeklyQuotaPace.countdownText(remaining)) to reset"
+}
+
 private func forecastText(_ forecast: WeeklyQuotaChart.Forecast, latest: WeeklyQuotaObservation?) -> String {
     let rate = forecast.period == .window ? "week average" : "last 24h"
     if let exhaustion = forecast.exhaustion, let latest {
@@ -484,11 +567,12 @@ private func forecastText(_ forecast: WeeklyQuotaChart.Forecast, latest: WeeklyQ
     return "Forecast: \(formattedNumber(forecast.atReset, fractionDigits: 0))% (\(rate))"
 }
 
-private func axisDate(_ date: Date, withHour: Bool = false) -> String {
+private func axisLabels(_ date: Date, showHour: Bool, stacked: Bool) -> [String] {
     let fields = Calendar.autoupdatingCurrent.dateComponents([.day, .month, .hour], from: date)
     let day = String(format: "%02d.%02d", fields.day ?? 0, fields.month ?? 0)
-    guard withHour else { return day }
-    return fields.hour == 12 ? "12:00" : day + " 00:00"
+    guard showHour else { return [day] }
+    if fields.hour == 12 { return ["12:00"] }
+    return stacked ? ["00:00", day] : [day + " 00:00"]
 }
 
 private func hourDescriptionDate(_ date: Date) -> String {
@@ -514,45 +598,50 @@ private struct LegendKey {
 }
 
 private struct Legend {
+    private static let labelOffset: CGFloat = 23
+    private static let entryPadding: CGFloat = 9
+    private static let swatchWidth: CGFloat = 16
     private let rows: [(key: LegendKey, label: Label)]
     private let horizontal: Bool
     private let rowHeight: CGFloat
     private let fontSize: CGFloat
     let size: CGSize
 
-    init(_ keys: [LegendKey], minimumWidth: CGFloat, fontSize: CGFloat, horizontal: Bool = false) {
-        rows = keys.map { ($0, Label($0.text, size: fontSize)) }
-        self.horizontal = horizontal
+    init(_ keys: [LegendKey], fontSize: CGFloat, maximumWidth: CGFloat, preferHorizontal: Bool = false) {
+        let entryOverhead = Self.labelOffset + Self.entryPadding
+        rows = keys.map { ($0, Label($0.text, size: fontSize, maximumWidth: maximumWidth - entryOverhead)) }
         self.fontSize = fontSize
-        rowHeight = max(27, fontSize + 6)
-        let widths = rows.map { $0.label.width + 66 }
-        let width = horizontal ? widths.reduce(0, +) : widths.max() ?? 0
-        let height = (horizontal ? 1 : CGFloat(keys.count)) * rowHeight + 6.5
-        size = CGSize(width: max(minimumWidth, ceil(width)), height: height)
+        rowHeight = fontSize + 3
+        let widths = rows.map { $0.label.width + entryOverhead }
+        let combinedWidth = widths.reduce(0, +)
+        horizontal = preferHorizontal && combinedWidth <= maximumWidth
+        let width = horizontal ? combinedWidth : widths.max() ?? 0
+        let height = (horizontal ? 1 : CGFloat(keys.count)) * rowHeight + 5
+        size = CGSize(width: ceil(width), height: height)
     }
 
     func draw(at origin: CGPoint, in context: CGContext) {
         let rect = CGRect(origin: origin, size: size)
-        let background = CGPath(roundedRect: rect, cornerWidth: 3.7, cornerHeight: 3.7, transform: nil)
+        let background = CGPath(roundedRect: rect, cornerWidth: 3, cornerHeight: 3, transform: nil)
         context.addPath(background)
         context.setFillColor(Palette.plot.copy(alpha: 0.8) ?? Palette.plot)
         context.setStrokeColor(Palette.legendBorder)
-        context.setLineWidth(1.8)
+        context.setLineWidth(0.8)
         context.setLineDash(phase: 0, lengths: [])
         context.drawPath(using: .fillStroke)
-        var left = origin.x + 8
+        var left = origin.x + 5
         for (index, row) in rows.enumerated() {
             let center = origin.y + 2.5 + (CGFloat(horizontal ? 0 : index) + 0.5) * rowHeight
             switch row.key.mark {
             case .line(let width, let dash):
-                stroke([CGPoint(x: left, y: center), CGPoint(x: left + 37, y: center)], row.key.color,
+                stroke([CGPoint(x: left, y: center), CGPoint(x: left + Self.swatchWidth, y: center)], row.key.color,
                        width: width, dash: dash, in: context)
             case .block:
-                fill(CGRect(x: left, y: center - 6, width: 37, height: 12), row.key.color, in: context)
+                fill(CGRect(x: left, y: center - 3, width: Self.swatchWidth, height: 6), row.key.color, in: context)
             case .none: break
             }
-            row.label.draw(at: CGPoint(x: left + 50, y: center + fontSize * 0.33), in: context)
-            if horizontal { left += row.label.width + 66 }
+            row.label.draw(at: CGPoint(x: left + Self.labelOffset, y: center + fontSize * 0.33), in: context)
+            if horizontal { left += row.label.width + Self.labelOffset + Self.entryPadding }
         }
     }
 }
@@ -567,8 +656,8 @@ private struct Label {
     private let line: CTLine
     let width: CGFloat
 
-    init(_ text: String, size: CGFloat = 18, color: CGColor = Palette.labels, maximumWidth: CGFloat? = nil) {
-        func makeLine(_ size: CGFloat) -> CTLine {
+    init(_ text: String, size: CGFloat, color: CGColor = Palette.labels, maximumWidth: CGFloat? = nil) {
+        func makeLine(_ text: String) -> CTLine {
             let font = Self.typeface.map { CTFontCreateWithGraphicsFont($0, size, nil, nil) }
                 ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
             return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [
@@ -576,10 +665,9 @@ private struct Label {
                 NSAttributedString.Key(kCTForegroundColorAttributeName as String): color
             ]))
         }
-        let preferred = makeLine(size)
-        let preferredWidth = CTLineGetTypographicBounds(preferred, nil, nil, nil)
-        if let maximumWidth, preferredWidth > maximumWidth {
-            line = makeLine(size * maximumWidth / preferredWidth)
+        let preferred = makeLine(text)
+        if let maximumWidth, CTLineGetTypographicBounds(preferred, nil, nil, nil) > maximumWidth {
+            line = CTLineCreateTruncatedLine(preferred, max(1, maximumWidth), .end, makeLine("…")) ?? makeLine("")
         } else {
             line = preferred
         }

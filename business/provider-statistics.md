@@ -70,19 +70,25 @@ remains unsupported; local history does not establish subscription availability.
 ## Quota history
 
 Click the chart icon on a supported provider row to open the compact popover.
-Click the icon again to close it. The same charts appear at the top of Quota
-History in Statistics, followed by provider reports. The weekly and hourly
-quota charts appear above the local token chart in one view. Open in Statistics carries the provider,
-account, quota window and local model selection and includes the provider in
-the visible filter. The quota figure uses the 1300 × 910 VPM-40 reference with
-minimum label sizes and space for the larger axes. Both hourly charts mark
-four-hour intervals from local midnight and label midnight and noon. The
-menu popover points at the clicked chart button, resizes to the content and
+Click the icon again to close it. The quota overview, hourly quota and local
+hourly tokens form one compact stack in the popover and at the top of Quota
+History in Statistics. Provider reports follow the chart group. Claude, Codex
+and Kimi share the layout. Qwen shows the local token chart.
+The default is the account-wide weekly limit when present, followed by the
+longest reported window. Open in Statistics carries the provider, account,
+quota window and local model selection and includes the provider in the visible
+filter. The plots use a shared axis gutter and fixed heights so changing the
+window width keeps all three charts in view at the default Statistics size.
+Label sizes stay constant. Both hourly charts mark four-hour intervals from local
+midnight and label midnight and noon. The menu popover points at the clicked
+chart button, resizes to the content and
 scrolls when the charts exceed the display's available height.
 
-The adjacent Token Spend button appears for providers with recorded tokens in
-the current Statistics period. The compact summary shows local totals, input,
-output and the API estimate for the provider on this Mac.
+The main menu reports remaining quota. The chart labels the used percentage,
+calculated as 100 minus remaining. A current-only limit uses the reading from
+the selected Providers row, marks stale readings and labels unavailable hourly
+history. Kimi's 5h and monthly windows use this state. Weekly history and
+forecasts require a verified weekly window with the corresponding inputs.
 
 ### Provider quota
 

@@ -1,7 +1,7 @@
 # Local statistics contract
 
 LocalStatistics and StatisticsCost are independent of SwiftUI. Token Spend uses
-the same local totals in Statistics and the provider menu summary.
+the selected local totals in Statistics.
 
 ## Scope and selection
 

@@ -174,11 +174,13 @@ subscription charges.
   the grid extends with empty future days through the end of the first year
   measured from the first recorded vibecoding day; after it, through the end of
   the current month, opening with that month at the right.
-  Quota History opens with the charts above Provider reports. The right-edge
-  chart button on supported provider rows opens and closes the same charts.
-  The adjacent Token Spend button shows a provider's recorded totals in the
-  current Statistics period when local token data exists. Quota percentages
-  follow the verified account and provider window. Local hourly tokens follow
+  Quota History opens with the quota overview, hourly quota and local hourly
+  tokens in one compact group above Provider reports. The right-edge chart
+  button on supported provider rows opens and closes the same group.
+  Claude, Codex and Kimi share the same quota window control and plot layout.
+  Quota charts label percentage used and show the selected provider window.
+  Weekly history follows the verified account. The current reading is shown
+  when history is unavailable for a reported limit. Local hourly tokens follow
   the provider and recorded model.
   Provider reports (Codex accounts and Kimi quota windows) remain
   identity-bound. [Provider statistics](business/provider-statistics.md) owns

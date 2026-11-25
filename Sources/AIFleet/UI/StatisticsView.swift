@@ -284,14 +284,13 @@ private enum StatisticsTab: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
-enum StatisticsPeriod: String, CaseIterable, Identifiable {
+private enum StatisticsPeriod: String, CaseIterable, Identifiable {
     case sevenDays = "7d"
     case thirtyDays = "30d"
     case ninetyDays = "90d"
     case allTime = "All"
 
     var id: String { rawValue }
-    var title: String { days.map { "Last \($0) days" } ?? "All time" }
     var days: Int? {
         switch self {
         case .sevenDays: return 7
