@@ -134,6 +134,16 @@ enum GrokAuthReader {
 }
 
 enum QwenAuthReader {
+    static let subscriptionFile = "subscription_credentials.json"
+    static let credentialFiles = ["oauth_creds.json", "credentials.json", subscriptionFile]
+
+    private struct Credentials: Decodable {
+        let access_token: String?
+        let refresh_token: String?
+        let expiry_date: Double?
+        let expiresAt: Double?
+    }
+
     // Local credentials indicate a configured OAuth login, not server-verified access.
     static func read(urls: [URL], now: Date = Date()) -> LocalProviderAuth {
         var result = LocalProviderAuth.signedOut
@@ -142,7 +152,7 @@ enum QwenAuthReader {
                 result = .unknown
                 continue
             }
-            switch decode(data, now: now) {
+            switch decode(data, now: now, subscription: url.lastPathComponent == subscriptionFile) {
             case .signedIn: return .signedIn
             case .unknown: result = .unknown
             case .signedOut: break
@@ -151,21 +161,29 @@ enum QwenAuthReader {
         return result
     }
 
-    static func decode(_ data: Data, now: Date) -> LocalProviderAuth {
-        struct Credentials: Decodable {
-            let access_token: String?
-            let refresh_token: String?
-            let expiry_date: Double?
-        }
-        guard let credentials = try? JSONDecoder().decode(Credentials.self, from: data) else {
-            return .unknown
+    static func decode(_ data: Data, now: Date, subscription: Bool = false) -> LocalProviderAuth {
+        let decoder = JSONDecoder()
+        let credentials: Credentials
+        if subscription {
+            struct Subscription: Decodable {
+                let baseUrl: String
+                let clientId: String
+                let tokens: Credentials?
+            }
+            guard let login = try? decoder.decode(Subscription.self, from: data),
+                  login.baseUrl == "https://auth.qwen.ai", login.clientId == "qwen-code-cli" else { return .unknown }
+            guard let tokens = login.tokens else { return .signedOut }
+            credentials = tokens
+        } else {
+            guard let tokens = try? decoder.decode(Credentials.self, from: data) else { return .unknown }
+            credentials = tokens
         }
         func nonempty(_ value: String?) -> Bool {
             !(value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         }
         if nonempty(credentials.refresh_token) { return .signedIn }
         guard nonempty(credentials.access_token) else { return .signedOut }
-        if let expiry = credentials.expiry_date, expiry <= now.timeIntervalSince1970 * 1000 {
+        if let expiry = credentials.expiresAt ?? credentials.expiry_date, expiry <= now.timeIntervalSince1970 * 1000 {
             return .signedOut
         }
         return .signedIn

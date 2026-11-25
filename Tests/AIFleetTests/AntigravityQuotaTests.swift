@@ -2,6 +2,29 @@ import XCTest
 @testable import AIFleet
 
 final class AntigravityQuotaTests: XCTestCase {
+    func testSignInUsesTheCLIsACPBrowserAuthentication() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("agy")
+        let script = #"""
+        #!/bin/sh
+        set -eu
+        test "$#" -eq 1 && test "$1" = acp
+        IFS= read -r initialization
+        case "$initialization" in *'"method":"initialize"'*) ;; *) exit 1 ;; esac
+        printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"authMethods":[{"id":"oauth-personal"}]}}'
+        IFS= read -r login
+        case "$login" in *'"method":"authenticate"'*) ;; *) exit 2 ;; esac
+        case "$login" in *'"methodId":"oauth-personal"'*) ;; *) exit 3 ;; esac
+        printf '%s\n' '{"jsonrpc":"2.0","method":"test/notification"}' '{"jsonrpc":"2.0","id":2,"result":{}}'
+        """# + "\n"
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+
+        try AntigravityAuthentication().run(executable: executable, timeout: 3)
+    }
+
     private func stored(_ json: String) -> Data {
         Data(("go-keyring-base64:" + Data(json.utf8).base64EncodedString() + "\n").utf8)
     }

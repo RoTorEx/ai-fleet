@@ -79,9 +79,7 @@ enum ProviderCatalog {
         id: "qwen",
         name: "Qwen",
         executableNames: ["qwen"],
-        credentialPaths: [
-            ".qwen/oauth_creds.json",
-            ".qwen/credentials.json",
+        credentialPaths: QwenAuthReader.credentialFiles.map { ".qwen/" + $0 } + [
             ".qwen-code/oauth_creds.json",
             ".qwen-code/credentials.json",
             ".qwen-code/credentials/qwen-code.json",
@@ -103,7 +101,9 @@ enum ProviderCatalog {
     static let antigravity = ProviderDefinition(id: "antigravity", name: "Antigravity",
         executableNames: ["agy", "antigravity"], credentialPaths: [])
 
-    static let all = [codex, kimi, claude, qwen, gemini, antigravity, grok]
+    static let glm = ProviderDefinition(id: "glm", name: "GLM", executableNames: [], credentialPaths: [])
+
+    static let all = [codex, kimi, claude, qwen, gemini, antigravity, grok, glm]
 
     static var allIDs: [String] {
         all.map(\.id)
@@ -114,7 +114,7 @@ enum ProviderCatalog {
     }
 
     static func isInstalled(_ provider: ProviderDefinition) -> Bool {
-        executableURL(for: provider) != nil
+        provider.executableNames.isEmpty || executableURL(for: provider) != nil
     }
 
     static func isInstalled(_ providerID: String) -> Bool {

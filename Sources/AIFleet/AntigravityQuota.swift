@@ -70,7 +70,8 @@ enum AntigravityQuota {
         switch snapshot.auth {
         case .signedOut: return status("Sign in required", auth: .signInRequired, account: account)
         case .unknown:
-            return status(snapshot.expired ? "Open agy to renew sign-in" : "Sign in required", auth: .unknown, account: account)
+            return status(snapshot.expired ? "Open agy to renew sign-in" : "Auth status unknown", account: account,
+                          reason: snapshot.expired ? .credentialsExpired : .identityUnverified)
         case .signedIn: break // Locally usable credential; server identity still needs verification.
         }
         guard let token = snapshot.accessToken else { return status("Sign in required", account: account) }

@@ -10,6 +10,7 @@ struct MenuAccountConnection: Identifiable {
     var usesAccountLogin = false
     var isSetup = false
     var id: String { connection.statusID }
+    var accountScope: String { account.badge.isEmpty ? "Unassigned" : account.badge }
     /// A saved login is current only when selected for future commands and still signed in.
     var isCurrentAccount: Bool {
         !isSetup && status.authentication == .signedIn && isCurrentCLI == true

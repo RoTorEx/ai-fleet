@@ -13,6 +13,7 @@ It sits in the menu bar as a ship icon and shows a simple dropdown:
 - **Claude** — remaining 5h/7d subscription quota and native sign-in.
 - **Gemini** — native Google login, email/plan, and model quota with reset times.
 - **Antigravity** — the CLI that replaced Gemini CLI: email/plan and quota per model with reset times.
+- **GLM** — remaining Z.ai Coding Plan quota and reset times for a connected API key.
 - **Accounts** — shared α/β/γ badges across providers; email and plan on hover.
 
 No dock icon. AI Fleet monitors and opens native sign-in for each provider’s global login.
@@ -96,15 +97,29 @@ to renew access; AI Fleet does not rewrite Google tokens. See [Gemini integratio
 
 ### Antigravity
 
-Install the CLI with `brew install --cask antigravity-cli` and sign in on the
-first run of `agy`. AI Fleet reads that sign-in from the login Keychain, checks
-the actual email, and shows the plan and the quota of each model. Quota updates
-are spaced five minutes apart.
+Install the CLI with `brew install --cask antigravity-cli`, then choose
+**Antigravity → Sign in with Google** and complete Google's browser flow. AI
+Fleet reads that sign-in from the login Keychain, checks the actual email, and
+shows the plan and model quotas. Quota updates are spaced five minutes apart.
 
 The CLI renews its access token hourly and only while it runs. With `agy`
 closed for longer, the row turns gray and reads **Open agy to renew sign-in**;
 start `agy` and refresh. AI Fleet does not rewrite Google tokens, and sign-out
 stays in the CLI. See [Antigravity integration](business/antigravity.md).
+
+### Qwen
+
+Install Qwen Code with `npm install -g @qwen-code/qwen-code@latest`, then start
+`qwen` and use `/auth`. Qwen Account with Subscription requires an active Plus
+or Pro subscription. Qwen Code also accepts API keys for supported providers.
+Fleet detects local Qwen subscription credentials and reads local token history.
+
+### GLM
+
+Choose **GLM → Set up connection** in Providers, select an account and save its
+Z.ai Coding Plan API key. Fleet stores the key in Keychain and shows the reported
+5h and 7d model quota windows. Use a supported coding client to run GLM. See
+[GLM Coding Plan monitoring](business/glm.md).
 
 ### Accounts
 

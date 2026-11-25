@@ -29,9 +29,13 @@ module owns sign-in state and quota.
   actual email before quota is attributed, as for Gemini.
 - Tokens stay in memory and are never logged or stored in preferences.
   Redirects are rejected, so a bearer token cannot follow another host.
-- Sign in happens inside `agy` on its first run; there is no login subcommand.
-  Fleet opens no terminal for it. Local sign-out is unsupported: the Keychain
-  item belongs to the CLI.
+- **Sign in with Google** starts `agy acp` and asks for its advertised
+  `oauth-personal` method. The CLI owns the browser flow and writes the native
+  Keychain item. Fleet waits up to **600 seconds**, the same browser window as
+  Codex, then stops its own authentication process. Cancel closes that process.
+  Fleet verifies the resulting Google email before presenting sign-in as
+  complete. Older CLIs can sign in interactively with `agy`.
+- The Keychain item belongs to the CLI. Local sign-out stays in the CLI.
 - There is no verified home selector, so Antigravity has one native login, no
   private profiles and no Switch.
 
@@ -50,8 +54,10 @@ public API, and only reads are made:
 
 The response shape comes from the API descriptors embedded in the 1.5.15 binary
 (`FetchAvailableModelsResponse`, `ModelDetails`, `QuotaInfo`) and from the
-endpoints its log shows it calling. It was not observed live while this was
-written, so the first signed-in refresh is the real check.
+endpoints its log shows it calling. The tested personal Google login passed
+identity verification and returned HTTP 403 for the quota request. The native
+CLI listed models and completed a headless prompt for that login. Successful
+quota responses have fixture coverage.
 
 Rules:
 
@@ -76,7 +82,7 @@ produces measurements.
 
 ## Checks
 
-AntigravityQuotaTests covers the Keychain record (live, expired, empty,
+AntigravityQuotaTests covers the ACP sign-in exchange and the Keychain record (live, expired, empty,
 malformed, plain JSON), the renew hint, model decoding (joined thinking levels,
 zero by omitted fraction, skipped models), the request flow with and without a
 plan, a rejected token, and the provider's place in the catalog, the Processes

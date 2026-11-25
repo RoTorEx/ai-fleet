@@ -89,7 +89,7 @@ final class GlobalAccountsTests: XCTestCase {
     }
 
     func testGlobalLoginCommandsUseNativeLocationsAndUnsetInheritedOverrides() {
-        for provider in ProviderCatalog.all {
+        for provider in ProviderCatalog.all where !provider.executableNames.isEmpty {
             let connection = ProviderConnection.global(provider.id)
             let command = AccountLaunch.command(connection: connection, executable: URL(fileURLWithPath: "/tool/cli"),
                 directory: URL(fileURLWithPath: "/native/home"), login: true)

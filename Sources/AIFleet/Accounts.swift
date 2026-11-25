@@ -114,7 +114,7 @@ struct FleetAccount: Codable, Identifiable, Equatable {
 
     static let defaultID = "default"
     static let current = FleetAccount(id: defaultID, badgeIndex: -1, name: "Default", email: "",
-        connections: ProviderCatalog.all.map { ProviderConnection(id: $0.id, providerID: $0.id, configDirectory: nil) })
+        connections: ProviderCatalog.all.filter { !$0.executableNames.isEmpty }.map { ProviderConnection.global($0.id) })
     var badge: String {
         guard badgeIndex >= 0 else { return "" }
         let alphabet = Array("αβγδεζηθικλμνξοπρστυφχψω").map(String.init)
@@ -141,8 +141,10 @@ final class AccountStore: ObservableObject {
     @Published private(set) var codexSigningIn = false
     @Published private(set) var signingInProviderID: String?
     private var codexLoginOperation: CodexAuthenticationOperation?
+    private var antigravityLogin: AntigravityAuthentication?
 
     func cancelCodexSignIn() { codexLoginOperation?.cancel() }
+    func cancelAntigravitySignIn() { antigravityLogin?.cancel() }
     private let defaults: UserDefaults
     private let home: URL
     private var nextBadge: Int
@@ -203,7 +205,8 @@ final class AccountStore: ObservableObject {
         if !values.contains(where: { $0.id == FleetAccount.defaultID }) { values.insert(FleetAccount(id: "default", badgeIndex: -1, name: "Default", email: "", connections: []), at: 0) }
         let defaultIndex = values.firstIndex { $0.id == FleetAccount.defaultID }!
         let dismissedNative = Set(defaults.stringArray(forKey: "accounts.dismissedNativeProviders") ?? [])
-        for provider in ProviderCatalog.all where !dismissedNative.contains(provider.id) && !values.contains(where: { $0.connections.contains { $0.providerID == provider.id && $0.isNativeDefault } }) {
+        for provider in ProviderCatalog.all where !provider.executableNames.isEmpty && !dismissedNative.contains(provider.id)
+            && !values.contains(where: { $0.connections.contains { $0.providerID == provider.id && $0.isNativeDefault } }) {
             values[defaultIndex].connections.append(ProviderConnection(id: provider.id, providerID: provider.id, configDirectory: nil))
         }
         accounts = values
@@ -351,7 +354,8 @@ final class AccountStore: ObservableObject {
     }
 
     func signInGlobally(_ providerID: String, accountID: String? = nil) {
-        guard !SwitchCoordinator.shared.active.contains(providerID), StatusService.shared.signingOutProvider == nil, !codexSigningIn else { return }
+        guard !SwitchCoordinator.shared.active.contains(providerID), StatusService.shared.signingOutProvider == nil,
+              !codexSigningIn, signingInProviderID == nil else { return }
         if let accountID, let account = accounts.first(where: { $0.id == accountID }) {
             if providerID == "codex" { CodexMonitoringStore.shared.signIn(CodexMonitoringStore.shared.ensureProfile(for: account)); return }
             if providerID == "claude" { ProviderLaunchStore.shared.signIn(account, providerID: providerID); return }
@@ -368,7 +372,10 @@ final class AccountStore: ObservableObject {
             startCodexSignIn(executable: executable)
             return
         }
-        guard signingInProviderID == nil else { return }
+        if providerID == "antigravity" {
+            startAntigravitySignIn(executable: executable, expectedEmail: accounts.first { $0.id == accountID }?.email)
+            return
+        }
         guard ["claude", "kimi", "grok"].contains(providerID) else {
             launchError = "Complete login in the provider CLI, then refresh AI Fleet. No terminal was opened."
             return
@@ -382,6 +389,36 @@ final class AccountStore: ObservableObject {
             }.value
             self.signingInProviderID = nil
             self.launchError = result?.exitCode == 0 ? nil : "Login did not complete. Check the provider's browser login."
+            StatusService.shared.refresh()
+        }
+    }
+
+    private func startAntigravitySignIn(executable: URL, expectedEmail: String?) {
+        let operation = AntigravityAuthentication()
+        antigravityLogin = operation
+        signingInProviderID = "antigravity"
+        Task {
+            let error = await Task.detached(priority: .userInitiated) { () -> String? in
+                do {
+                    try operation.run(executable: executable)
+                    let status = await AntigravityQuota.check()
+                    guard status.authentication == .signedIn else {
+                        return "Antigravity sign-in could not be verified. Check the CLI login and refresh."
+                    }
+                    if let expectedEmail, !expectedEmail.isEmpty,
+                       status.account?.email?.caseInsensitiveCompare(expectedEmail) != .orderedSame {
+                        return "Antigravity signed in with a different Google account."
+                    }
+                    return nil
+                } catch AntigravityAuthentication.Failure.cancelled {
+                    return nil
+                } catch {
+                    return error.localizedDescription
+                }
+            }.value
+            antigravityLogin = nil
+            signingInProviderID = nil
+            launchError = error
             StatusService.shared.refresh()
         }
     }

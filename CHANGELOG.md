@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Start Antigravity's native Google browser sign-in from the Providers menu and Settings.
+- Detect Qwen Code's current subscription login alongside legacy OAuth credentials.
+- Add GLM Coding Plan quota tracking using per-connection API keys in the macOS Keychain.
+- Show account scope on every Providers row, including unassigned connections.
+
 ## [1.6.7] - 2026-11-23
 
 - Stop the Fleet menu from flashing open and closed when you click a session alert. macOS delivers the click as a relaunch too, and a relaunch shows the menu; it now waits 0.3 s and stays closed when a banner click came with it.

@@ -115,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         statusBarController?.stopAgentMonitoring()
         AccountStore.shared.cancelCodexSignIn()
+        AccountStore.shared.cancelAntigravitySignIn()
         CodexMonitoringStore.shared.stop()
     }
 

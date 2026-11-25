@@ -172,10 +172,11 @@ struct AIFleetMenuView: View {
                     Text(detail).font(.system(size: 11))
                         .foregroundColor(operationStatus.failed ? FleetPalette.warning : FleetPalette.muted)
                         .fixedSize(horizontal: false, vertical: true)
-                    if codexProfiles.authenticatingID != nil || accounts.codexSigningIn {
+                    if codexProfiles.authenticatingID != nil || accounts.codexSigningIn || accounts.signingInProviderID == "antigravity" {
                         Button("Cancel") {
                             if codexProfiles.authenticatingID != nil { codexProfiles.cancelAuthentication() }
-                            else { accounts.cancelCodexSignIn() }
+                            else if accounts.codexSigningIn { accounts.cancelCodexSignIn() }
+                            else { accounts.cancelAntigravitySignIn() }
                         }
                         .buttonStyle(.link).font(.system(size: 11))
                     }
@@ -610,10 +611,8 @@ struct ProviderLimitRow: View {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(status.name)
                             .font(.system(size: FleetRowMetrics.nameFontSize, weight: .medium))
-                        if !entry.account.badge.isEmpty {
-                            Text("(\(entry.account.badge))")
-                                .font(.system(size: 10, weight: .medium))
-                        }
+                        Text("(\(entry.accountScope))")
+                            .font(.system(size: 10, weight: .medium))
                     }
                     .foregroundColor(color)
                     .padding(.horizontal, 4)
@@ -633,7 +632,7 @@ struct ProviderLimitRow: View {
                 .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal, -4)
                 .onHover { isNameHovered = $0 }
-                .accessibilityLabel("\(status.name) \(entry.account.badge) actions")
+                .accessibilityLabel("\(status.name) (\(entry.accountScope)) actions")
                 .accessibilityHint(Text(subscription))
                 Spacer(minLength: 8)
             }
@@ -694,6 +693,15 @@ struct ProviderLimitRow: View {
             items.append(.init(title: "Set up connection", enabled: !busy) {
                 SettingsNavigation.shared.addAccount(for: status.providerID); openSettings()
             })
+        } else if status.providerID == GLMCodingPlan.providerID {
+            items.append(.init(title: "Set API key…", enabled: !busy) {
+                SettingsNavigation.shared.editCodingPlan(for: entry.account.id); openSettings()
+            })
+            if status.lastUpdated != nil {
+                items.append(.init(title: "Remove API key", enabled: !busy) {
+                    providerLaunch.signOut(entry.account, providerID: status.providerID)
+                })
+            }
         } else if entry.usesAccountLogin {
             let profile = codexProfiles.profile(for: entry.account)
             if let profile, status.authentication == .signedIn {
@@ -715,7 +723,13 @@ struct ProviderLimitRow: View {
         } else {
             let signOutFailed = service.signOutFailedProvider == status.providerID
                 && service.globalAccountIDs[status.providerID] == entry.account.id
-            if entry.isSelected || signOutFailed {
+            if status.providerID == "antigravity" {
+                if status.authentication != .signedIn {
+                    items.append(.init(title: "Sign in with Google", enabled: !busy) {
+                        providerLaunch.signIn(entry.account, providerID: status.providerID)
+                    })
+                }
+            } else if entry.isSelected || signOutFailed {
                 items.append(.init(title: "Sign out", enabled: !busy) {
                     providerLaunch.signOut(entry.account, providerID: status.providerID)
                 })

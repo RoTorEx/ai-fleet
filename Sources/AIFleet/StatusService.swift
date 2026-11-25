@@ -131,6 +131,11 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         providerStatuses.first { $0.id == connection.statusID }
     }
 
+    func codingPlanKeyChanged(for connection: ProviderConnection) {
+        subscriptions.removeAll { $0.id == connection.statusID }
+        refresh()
+    }
+
     func status(for providerID: String) -> ProviderStatus {
         switch providerID {
         case ProviderCatalog.codex.id:
@@ -147,6 +152,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return qwen
         case ProviderCatalog.grok.id:
             return grok
+        case ProviderCatalog.glm.id:
+            return GLMCodingPlan.setup
         default:
             return ProviderStatus(
                 id: providerID,
@@ -230,7 +237,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             await previous?.value
             guard !Task.isCancelled else { return }
             lastError = nil
-            let connections = ProviderCatalog.all.map { ProviderConnection.global($0.id) }
+            let connections = ProviderCatalog.all.filter { !$0.executableNames.isEmpty }.map { ProviderConnection.global($0.id) }
+                + AccountStore.shared.visibleAccounts.compactMap { $0.connection(for: GLMCodingPlan.providerID) }
             var results: [ProviderStatus] = []
             await withTaskGroup(of: ProviderStatus.self) { group in
                 for connection in connections {
@@ -325,14 +333,21 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             return accounts.accounts.first { $0.id == profile.accountID }?.connection(for: profile.providerID)?.statusID
         })
         let retainedScoped = subscriptions.filter { scopedIDs.contains($0.id) }
+        let globalResults = results.filter { $0.id == $0.providerID }
+        let glmResults = results.filter { $0.providerID == GLMCodingPlan.providerID && $0.id != $0.providerID }
         var owners: [String: String] = [:]
-        for result in results {
+        for result in globalResults {
             owners[result.providerID] = accounts.globalAccount(for: result)
         }
         globalAccountIDs = owners
         subscriptions = accounts.accounts.flatMap { account in
             account.connections.compactMap { connection -> ProviderStatus? in
-                guard let result = results.first(where: { $0.providerID == connection.providerID }) else { return nil }
+                if connection.providerID == GLMCodingPlan.providerID {
+                    return glmResults.first { $0.id == connection.statusID }
+                        ?? subscriptions.first { $0.id == connection.statusID }
+                        ?? connection.status(from: GLMCodingPlan.setup)
+                }
+                guard let result = globalResults.first(where: { $0.providerID == connection.providerID }) else { return nil }
                 if owners[connection.providerID] == account.id { return connection.status(from: result) }
                 let ambiguous = owners[connection.providerID] == nil && result.account?.email.map {
                     $0.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(
@@ -366,6 +381,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         guard AppSettings.shared.isEnabled(provider.id) else { return connection.status(from: Self.disabledStatus(for: provider)) }
         let result: ProviderStatus
         switch provider.id {
+        case GLMCodingPlan.providerID: result = await GLMCodingPlan.check(connection)
         case "gemini":
             result = await GeminiQuota.check(home: connection.configDirectory.map {
                 URL(fileURLWithPath: $0).deletingLastPathComponent()
@@ -377,8 +393,9 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
         case "kimi": result = await checkKimi(connection: connection)
         case "grok": result = GrokAuthReader.read(connection.credentialURL()!).status(for: provider)
         case "qwen":
-            let urls = connection.configDirectory == nil ? ProviderCatalog.credentialURLs(for: provider)
-                : [connection.credentialURL()!, URL(fileURLWithPath: connection.configDirectory!).appendingPathComponent("credentials.json")]
+            let urls = connection.configDirectory.map { directory in
+                QwenAuthReader.credentialFiles.map { URL(fileURLWithPath: directory).appendingPathComponent($0) }
+            } ?? ProviderCatalog.credentialURLs(for: provider)
             result = QwenAuthReader.read(urls: urls).status(for: provider)
         default: result = LocalProviderAuth.unknown.status(for: provider)
         }

@@ -27,6 +27,9 @@ struct MenuConnectionState {
     var available: Bool { status.hasCurrentQuota }
     var marker: String { available ? "○" : status.authentication.needsAccess ? "×" : "?" }
     var detail: String {
+        if status.providerID == GLMCodingPlan.providerID || status.providerID == "antigravity" && status.quotaFailure == .credentialsExpired {
+            return status.detail
+        }
         switch status.quotaFailureReason {
         case .cliMissing: return "CLI not installed"
         case .signInRequired: return "Sign in required"

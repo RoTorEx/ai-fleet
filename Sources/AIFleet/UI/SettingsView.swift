@@ -7,9 +7,15 @@ final class SettingsNavigation: ObservableObject {
     static let shared = SettingsNavigation()
     @Published var tab = "general"
     @Published var addingProviderID: String?
+    @Published var codingPlanAccountID: String?
 
     func addAccount(for providerID: String) {
         addingProviderID = providerID
+        tab = "accounts"
+    }
+
+    func editCodingPlan(for accountID: String) {
+        codingPlanAccountID = accountID
         tab = "accounts"
     }
 }

@@ -38,8 +38,8 @@ subscription charges.
   across accounts. [Saved Codex login](business/codex-profiles.md) owns storage.
 - Provider installation, login, and quota support are separate states. Claude
   login comes from the CLI's structured `auth status` result, never from
-  `.claude.json` settings. Qwen requires OAuth token fields, not merely a
-  nonempty file; expired access without a refresh token requires sign-in.
+  `.claude.json` settings. Qwen reads the native subscription and legacy OAuth
+  token records. Expired access without a refresh token requires sign-in.
   Qwen's local check does not validate credentials with the server. Confirmed
   missing login reads `Sign in required` in both Settings and the menu; failed
   or unrecognized local checks read `Auth status unknown`. Qwen quota retrieval
@@ -65,10 +65,14 @@ subscription charges.
   request-gating and error rules.
 - Antigravity CLI, the successor of Gemini CLI, is a separate provider. Its Google
   sign-in is read from the login Keychain and its quota per model from the same
-  endpoints the CLI calls. Only the CLI renews its hourly token, so with `agy`
+  endpoints the CLI calls. Fleet can start Google's browser sign-in through the
+  CLI's Agent Client Protocol. Only the CLI renews its hourly token, so with `agy`
   closed the row reads `Open agy to renew sign-in` and shows no quota. It has one
   native login: no private profiles, no Switch and no local sign-out.
   [Antigravity](business/antigravity.md) owns these rules.
+- GLM shows Z.ai Coding Plan quota for each explicitly linked API key. Its
+  [monitoring contract](business/glm.md) owns credential storage, account
+  attribution and reported quota windows.
 - Opening the menu or Settings refreshes provider status so a login completed
   outside AI Fleet is picked up without waiting for the next periodic poll.
 - Accounts are provider-independent labelled identities with stable α, β, γ
@@ -273,6 +277,7 @@ subscription charges.
 - Claude subscription usage: `Sources/AIFleet/ClaudeQuota.swift`
 - Gemini model quota and native OAuth: `Sources/AIFleet/GeminiQuota.swift`
 - Antigravity model quota and Keychain sign-in: `Sources/AIFleet/AntigravityQuota.swift`
+- GLM Coding Plan quota and keys: `Sources/AIFleet/GLMCodingPlan.swift`
 - Local login detection: `Sources/AIFleet/LocalProviderAuth.swift`
 - Shared accounts, provider connections, and launch: `Sources/AIFleet/Accounts.swift`
 - Next-launch provider selection and isolation: `Sources/AIFleet/ProviderTerminalLaunch.swift`

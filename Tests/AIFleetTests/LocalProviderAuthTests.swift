@@ -57,6 +57,19 @@ final class LocalProviderAuthTests: XCTestCase {
         XCTAssertFalse(ProviderTerminalLaunch.providers.contains("grok"))
     }
 
+    func testQwenSubscriptionChecksTheNativeTokenRecord() {
+        let now = Date(timeIntervalSince1970: 100)
+        func read(_ tokens: String, host: String = "https://auth.qwen.ai") -> LocalProviderAuth {
+            let json = #"{"baseUrl":"\#(host)","clientId":"qwen-code-cli","tokens":\#(tokens)}"#
+            return QwenAuthReader.decode(Data(json.utf8), now: now, subscription: true)
+        }
+        XCTAssertEqual(read(#"{"access_token":"sample","expiresAt":101000}"#), .signedIn)
+        XCTAssertEqual(read(#"{"access_token":"sample","expiresAt":99000}"#), .signedOut)
+        XCTAssertEqual(read(#"{"access_token":"sample","expiresAt":99000,"refresh_token":"refresh"}"#), .signedIn)
+        XCTAssertEqual(read("null"), .signedOut)
+        XCTAssertEqual(read(#"{"access_token":"sample"}"#, host: "https://example.test"), .unknown)
+    }
+
     func testQwenReadsCredentialsRatherThanFilePresence() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

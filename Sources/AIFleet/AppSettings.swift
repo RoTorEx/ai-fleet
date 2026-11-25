@@ -60,6 +60,9 @@ final class AppSettings: ObservableObject {
     @Published var grokEnabled: Bool {
         didSet { defaults.set(grokEnabled, forKey: "provider.grok.enabled") }
     }
+    @Published var glmEnabled: Bool {
+        didSet { defaults.set(glmEnabled, forKey: "provider.glm.enabled") }
+    }
     @Published var notifyStepPercent: Int {
         didSet { defaults.set(notifyStepPercent, forKey: "notify.stepPercent") }
     }
@@ -96,6 +99,7 @@ final class AppSettings: ObservableObject {
         qwenEnabled = defaults.object(forKey: "provider.qwen.enabled") as? Bool ?? true
         grokEnabled = defaults.object(forKey: "provider.grok.enabled") as? Bool ?? false
         antigravityEnabled = defaults.object(forKey: "provider.antigravity.enabled") as? Bool ?? true
+        glmEnabled = defaults.object(forKey: "provider.glm.enabled") as? Bool ?? true
 
         let storedStep = defaults.integer(forKey: "notify.stepPercent")
         notifyStepPercent = storedStep > 0 ? storedStep : 10
@@ -140,6 +144,8 @@ final class AppSettings: ObservableObject {
             return grokEnabled
         case "antigravity":
             return antigravityEnabled
+        case "glm":
+            return glmEnabled
         default:
             return true
         }
@@ -161,6 +167,8 @@ final class AppSettings: ObservableObject {
             grokEnabled = isEnabled
         case "antigravity":
             antigravityEnabled = isEnabled
+        case "glm":
+            glmEnabled = isEnabled
         default:
             break
         }

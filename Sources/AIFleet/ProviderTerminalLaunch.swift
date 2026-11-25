@@ -130,7 +130,7 @@ enum ProviderTerminalLaunch {
         switch profile.providerID {
         case "claude": names = [".credentials.json", ".claude.json"]
         case "kimi": names = ["credentials", "credentials/kimi-code.json", "config.toml"]
-        case "qwen": names = ["oauth_creds.json", "credentials.json"]
+        case "qwen": names = QwenAuthReader.credentialFiles
         case "gemini": names = ["oauth_creds.json", "google_accounts.json"]
         default: throw Failure.invalidProfile
         }
@@ -315,9 +315,13 @@ final class ProviderLaunchStore: ObservableObject {
 
     func signIn(_ account: FleetAccount, providerID: String, executable: URL? = nil) {
         guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
+        if providerID == GLMCodingPlan.providerID {
+            SettingsNavigation.shared.editCodingPlan(for: account.id)
+            return
+        }
         // Providers without per-account launch profiles share the native CLI login.
         guard ProviderTerminalLaunch.providers.contains(providerID) || providerID == "codex" else {
-            AccountStore.shared.signInGlobally(providerID); return
+            AccountStore.shared.signInGlobally(providerID, accountID: account.id); return
         }
         messageAccountID = account.id; messageProviderID = providerID
         do {
@@ -332,7 +336,9 @@ final class ProviderLaunchStore: ObservableObject {
             try ProviderTerminalLaunch.validateCredentialPaths(profile, home: home)
             try ProviderTerminalLaunch.prepare(profile, home: home)
             guard ["claude", "kimi"].contains(providerID) else {
-                message = "Complete native sign-in on the first \(providerID) launch after Switch. Existing sessions and their logins are unchanged."
+                message = providerID == "qwen"
+                    ? "Select Switch, start qwen in your terminal and use /auth to connect your Qwen account or API provider."
+                    : "Complete native sign-in on the first \(providerID) launch after Switch. Existing sessions and their logins are unchanged."
                 return
             }
             guard let executable = executable ?? ProviderCatalog.executableURL(for: ProviderCatalog.definition(for: providerID)!) else {
@@ -373,6 +379,18 @@ final class ProviderLaunchStore: ObservableObject {
     func signOut(_ account: FleetAccount, providerID: String) {
         guard !busy, !SwitchCoordinator.shared.active.contains(providerID) else { return }
         messageAccountID = account.id; messageProviderID = providerID
+        if providerID == GLMCodingPlan.providerID, let connection = account.connection(for: providerID) {
+            do {
+                try GLMCodingPlan.removeKey(for: connection)
+                message = nil
+                messageIsError = false
+                StatusService.shared.codingPlanKeyChanged(for: connection)
+            } catch {
+                message = error.localizedDescription
+                messageIsError = true
+            }
+            return
+        }
         guard let profile = profile(providerID, accountID: account.id), !profile.native else {
             Task { await StatusService.shared.signOutGlobally(providerID) }
             return
@@ -395,7 +413,7 @@ final class ProviderLaunchStore: ObservableObject {
                                 return "Native sign-out did not complete. Credentials were not removed by AI Fleet."
                             }
                         } else {
-                            let names = providerID == "gemini" ? ["oauth_creds.json"] : ["oauth_creds.json", "credentials.json"]
+                            let names = providerID == "gemini" ? ["oauth_creds.json"] : QwenAuthReader.credentialFiles
                             for name in names { try CodexTerminalLaunch.checkPath(directory.appendingPathComponent(name)) }
                             for name in names {
                                 let file = directory.appendingPathComponent(name)

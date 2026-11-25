@@ -1,8 +1,8 @@
 # Shared accounts and global provider login
 
 An AI Fleet account is a labelled identity with a stable Greek badge (the first ten are α, β, γ, δ, ε, ζ, η, θ, ι, κ) and
-zero or one association with each supported provider. One badge can represent
-Claude, Codex, Kimi, Qwen, Gemini, and Grok. Labels are app metadata, not credentials.
+zero or one association with each supported provider. A badge can group Claude,
+Codex, Kimi, Qwen, Gemini, Antigravity, GLM and Grok. Labels are app metadata.
 
 ## Account model and interface
 
@@ -88,7 +88,10 @@ Kimi, Qwen, and Gemini remove monitored file-backed credentials; Gemini also
 clears its cached active Google account, and Kimi clears Fleet's fallback API
 key. An inherited `KIMI_API_KEY` blocks sign-out until removed and the app
 restarted. Redirected credential paths are rejected. External API keys and
-stores outside these integrations remain outside local sign-out. No provider login action opens a terminal. Supported browser-capable CLI login runs directly; other integrations report that manual login is required.
+stores outside these integrations remain outside local sign-out. Supported
+browser-capable CLI login runs directly. Antigravity uses the CLI's ACP browser
+login. Qwen sign-in uses `/auth` inside Qwen Code. GLM uses a connection-specific
+API key saved to Keychain.
 
 Status checks read only one native default connection per provider, regardless
 of the number of registered identities. A reported email matches a unique label
@@ -134,8 +137,9 @@ Switch is hidden). It asks for confirmation and removes only that provider link
 through the same scoped disconnect flow as Settings. It preserves credentials,
 history and running sessions. An explicitly removed native link stays removed
 across refresh and restart; an explicit native import or reconnect restores it.
-Removing the last saved connection may leave an unbadged setup row for an enabled
-provider; it is not the removed account record.
+Removing the last saved connection leaves a setup row for an enabled provider.
+Every Providers row shows its account scope in parentheses. The setup row shows
+`(Unassigned)` until connected to a labelled account.
 There are no per-row ellipsis buttons or overlapping hover popups. Saving the
 current terminal login stays in Settings → Accounts; a failed sign-out is
 retried with the same Sign out.
@@ -187,7 +191,8 @@ suffix; the account's existing Sign in action remains available.
   requires sign-in; it is not a network error. Rate limiting, server failures,
   malformed responses and transport failures retain their distinct quota reasons.
   Failed refreshes preserve the saved credentials. Qwen
-  retains local OAuth detection and explicitly unsupported quota.
+  reads the native subscription and legacy OAuth token records. Qwen quota
+  remains unsupported.
 - `codex.activeAccountID` tracks the saved checkpoint of the standard credentials.
   `codex.nextLaunchAccountID` mirrors the account selected in CodexLaunch/default.json;
   it never claims that already running processes changed identity.

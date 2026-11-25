@@ -40,14 +40,16 @@ struct AccountsSettingsView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .sheet(item: $sheet) { sheet in
+        .sheet(item: $sheet, onDismiss: consumeCodingPlanRequest) { sheet in
             switch sheet {
             case let .add(providerID): AddAccountSheet(providerID: providerID)
             case let .edit(id): EditAccountSheet(accountID: id)
+            case let .codingPlan(id): CodingPlanKeySheet(accountID: id)
             }
         }
-        .onAppear { codex.synchronizeAccounts(store); consumeAddRequest(); service.refresh() }
+        .onAppear { codex.synchronizeAccounts(store); consumeAddRequest(); consumeCodingPlanRequest(); service.refresh() }
         .onChange(of: navigation.addingProviderID) { _ in consumeAddRequest() }
+        .onChange(of: navigation.codingPlanAccountID) { _ in consumeCodingPlanRequest() }
     }
 
     @ViewBuilder private var notices: some View {
@@ -58,6 +60,13 @@ struct AccountsSettingsView: View {
             Button("Cancel \(provider.capitalized) switch") { switching.cancel(provider) }.controlSize(.small)
         }
         CodexAccountAuthenticationStatus(store: codex, accounts: store)
+        if store.signingInProviderID == "antigravity" {
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Complete Antigravity sign-in in your browser…")
+                Button("Cancel sign-in") { store.cancelAntigravitySignIn() }
+            }.font(.caption)
+        }
         if let error = store.launchError {
             Text(error).font(.caption).foregroundStyle(FleetPalette.danger).fixedSize(horizontal: false, vertical: true)
         }
@@ -69,15 +78,23 @@ struct AccountsSettingsView: View {
         sheet = .add(providerID: requested)
         navigation.addingProviderID = nil
     }
+
+    private func consumeCodingPlanRequest() {
+        guard sheet == nil, let accountID = navigation.codingPlanAccountID else { return }
+        sheet = .codingPlan(accountID)
+        navigation.codingPlanAccountID = nil
+    }
 }
 
 private enum AccountSheet: Identifiable {
     case add(providerID: String?)
     case edit(String)
+    case codingPlan(String)
     var id: String {
         switch self {
         case let .add(provider): return "add:" + (provider ?? "")
         case let .edit(id): return "edit:" + id
+        case let .codingPlan(id): return "coding-plan:" + id
         }
     }
 }
@@ -212,7 +229,8 @@ private struct ConnectionRow: View {
     private var signedIn: Bool { status?.authentication == .signedIn }
     private var sharedLogin: Bool { isCodex && codex.profile(for: account) == nil }
     private var busy: Bool {
-        providerLaunch.busy || codex.authenticatingID != nil || service.signingOutProvider != nil || (isCodex && codex.refreshing)
+        providerLaunch.busy || codex.authenticatingID != nil || service.signingOutProvider != nil
+            || store.signingInProviderID != nil || (isCodex && codex.refreshing)
     }
 
     var body: some View {
@@ -270,7 +288,16 @@ private struct ConnectionRow: View {
                                                      global: service.status(for: connection.providerID))
                     }
                 }
-                if signedIn {
+                if connection.providerID == GLMCodingPlan.providerID {
+                    Button("Set API key…") { providerLaunch.signIn(account, providerID: connection.providerID) }
+                    if status?.lastUpdated != nil {
+                        Button("Remove API key") { providerLaunch.signOut(account, providerID: connection.providerID) }
+                    }
+                } else if connection.providerID == "antigravity" {
+                    if !signedIn {
+                        Button("Sign in with Google") { providerLaunch.signIn(account, providerID: connection.providerID) }
+                    }
+                } else if signedIn {
                     Button("Sign out") { providerLaunch.signOut(account, providerID: connection.providerID) }
                 } else {
                     Button("Sign in") { providerLaunch.signIn(account, providerID: connection.providerID) }
@@ -291,6 +318,45 @@ private struct ConnectionRow: View {
         else { do { try providerLaunch.forgetProvider(connection.providerID, accountID: account.id) } catch { return } }
         store.detach(connection.providerID, from: account.id)
         service.refresh()
+    }
+}
+
+private struct CodingPlanKeySheet: View {
+    let accountID: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var key = ""
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Connect GLM Coding Plan").font(.headline)
+            Text("Enter the API key for this account’s Z.ai Coding Plan.")
+                .foregroundStyle(.secondary)
+            SecureField("Z.ai API key", text: $key)
+            if let error { Text(error).font(.caption).foregroundStyle(FleetPalette.danger) }
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Save", action: save).keyboardShortcut(.defaultAction)
+                    .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
+    }
+
+    private func save() {
+        guard let connection = AccountStore.shared.accounts.first(where: { $0.id == accountID })?.connection(for: GLMCodingPlan.providerID) else {
+            error = "This GLM connection was removed."
+            return
+        }
+        do {
+            try GLMCodingPlan.saveKey(key, for: connection)
+            StatusService.shared.codingPlanKeyChanged(for: connection)
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 

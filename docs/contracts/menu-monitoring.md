@@ -5,7 +5,9 @@
 Enabled providers remain visible without an installed CLI or verified login.
 Rows sort by provider name, then stable account badge. Setup rows have no saved
 account, create no records and only open connection setup. Existing internal
-native-default metadata remains readable without consuming a badge.
+native-default metadata remains readable without consuming a badge. Each row
+shows its account scope in parentheses. Rows with no labelled account show
+`(Unassigned)`.
 
 MonitoringSummary counts saved, labelled connections of enabled providers.
 Setup and internal fallback rows are excluded. A current zero quota counts as
