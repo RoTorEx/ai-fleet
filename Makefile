@@ -37,6 +37,7 @@ bundle-app: dist-dir build
 	@mkdir -p "$(APP_MACOS)" "$(APP_RESOURCES)"
 	@cp "$(SWIFT_BUILD_PATH)/release/ai-fleet" "$(APP_MACOS)/$(APP_NAME)"
 	@cp "$(CARGO_TARGET_DIR)/release/fleet-session-engine" "$(APP_MACOS)/fleet-session-engine"
+	@cp Sources/AIFleet/Resources/DejaVuSans.ttf Sources/AIFleet/Resources/DejaVuSans-LICENSE.txt "$(APP_RESOURCES)/"
 	@chmod +x $(APP_MACOS)/$(APP_NAME)
 	@xcrun actool AppBundle/Assets.xcassets --compile "$(APP_RESOURCES)" --platform macosx --minimum-deployment-target 13.0 --app-icon AppIcon --output-partial-info-plist "$(APP_RESOURCES)/partial.plist" >/dev/null 2>&1
 	@cp AppBundle/Info.plist "$(APP_CONTENTS)/Info.plist"

@@ -5,6 +5,7 @@ Tracks real product and release progress.
 ## [Unreleased]
 
 - Open the compact quota charts on click and resize the popover when switching between quota and local tokens. Keep the chart's 100% limit at the top and stop projections at the estimated limit crossing. Show partial coverage while hourly quota history accumulates.
+- Render both native chart surfaces from the VPM-40 plot coordinates. Scale the reference proportions, tick and legend placement, grid and line styles together.
 
 ## [1.7.0] - 2026-11-25
 

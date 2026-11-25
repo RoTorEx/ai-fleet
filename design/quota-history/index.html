@@ -10,6 +10,7 @@ budget, a limit line, actual observations, and two projections from the latest
 fresh sample. The hourly readout distinguishes unmeasured hours from zero use.
 Scoped quota uses only verified provider windows. Local tokens use provider and
 logged model without account attribution. The fixtures illustrate each source.
+The VPM-40 attachment and native renderer define the precise plot coordinates.
 -->
 <style>
   #fleet-quota-design {
@@ -142,21 +143,21 @@ logged model without account attribution. The fixtures illustrate each source.
   #fleet-quota-design .scope-controls { display: inline-flex; gap: 3px; }
   #fleet-quota-design .scope-controls [aria-pressed="true"] { border-color: var(--budget); background: var(--selected); }
   #fleet-quota-design figure {
-    --plot: #1b1e24;
+    --plot: #1b1f25;
     --muted: #c7c9d0;
-    --grid: #2b2e36;
-    --border: #414550;
-    --usage: #7ba1fa;
-    --budget: #969ba7;
-    --headroom: #25413b;
+    --grid: #2c3036;
+    --border: #3d4147;
+    --usage: #7da2fa;
+    --budget: #9499a3;
+    --headroom: #26403b;
     --overspend: #412b31;
-    --limit: #e35d68;
-    --mint: #65d7a4;
-    --gold: #ffb75d;
-    --coral: #ef8157;
+    --limit: #e8565d;
+    --mint: #5ed5a0;
+    --gold: #f4b558;
+    --coral: #e9784c;
     --cache: #a4b9ee;
     padding: 5px 5px 0;
-    background: #17181c;
+    background: #15171a;
     color: #e8e9ed;
   }
   #fleet-quota-design .chart-caption { justify-content: center; gap: 4px; margin: 0 0 4px; }
@@ -174,7 +175,7 @@ logged model without account attribution. The fixtures illustrate each source.
     max-width: calc(100% - 58px);
     border: 1px solid var(--border);
     border-radius: 2px;
-    background: var(--plot);
+    background: color-mix(in srgb, var(--plot) 80%, transparent);
     color: var(--muted);
     font-size: 10px;
     line-height: 1.15;

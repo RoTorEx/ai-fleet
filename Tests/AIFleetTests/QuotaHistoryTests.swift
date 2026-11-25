@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 @testable import AIFleet
 
@@ -82,6 +83,46 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertNil(chart.hours.last?.percentagePoints)
         XCTAssertEqual(chart.hours.last?.partialPercentagePoints, 3)
         XCTAssertTrue(chart.hours.dropLast().allSatisfy { $0.partialPercentagePoints == nil })
+    }
+
+    func testNativeFigureKeepsTheReferenceCapAndDrawsTheMeasuredHour() throws {
+        let reset = base.addingTimeInterval(123 * hour)
+        var history = WeeklyQuotaHistory()
+        for minutes in stride(from: -120, through: 0, by: 10) {
+            let time = base.addingTimeInterval(Double(minutes * 60))
+            history.observe([report("a", at: time, reset: reset, used: minutes < -100 ? 53 : 56)], now: time)
+        }
+        let latest = report("a", at: base, reset: reset, used: 56)
+        let chart = WeeklyQuotaChart(report: latest, window: latest.limits[0], history: history, now: base)
+        XCTAssertGreaterThan(try XCTUnwrap(chart.forecasts.first?.atReset), 200)
+        let figure = QuotaHistoryDrawing(data: .quota(chart))
+
+        let width = 1300
+        let height = 910
+        let bytesPerRow = width * 4
+        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: bytesPerRow, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 1, y: -1)
+        figure.draw(in: context, size: CGSize(width: width, height: height))
+        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+        func color(_ x: Int, _ y: Int) -> [Int] {
+            let offset = y * bytesPerRow + x * 4
+            return [Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2])]
+        }
+
+        let rail = color(1080, 89)
+        XCTAssertGreaterThan(rail[0] - rail[1], 100)
+        XCTAssertEqual(color(66, 280), color(66, 700))
+        XCTAssertEqual(color(1261, 280), color(1261, 700))
+
+        let bar = color(1169, 600)
+        XCTAssertGreaterThan(bar[1] - bar[0], 90)
+        XCTAssertLessThan(color(751, 600)[1], 80)
+        XCTAssertEqual(figure.hour(at: CGPoint(x: 1169, y: 600), in: CGSize(width: width, height: height)),
+                       base.addingTimeInterval(-2 * hour))
+        XCTAssertNil(figure.hour(at: .zero, in: CGSize(width: width, height: height)))
     }
 
     func testHourlySpikeGapsCorrectionAndReset() {

@@ -69,9 +69,11 @@ remains unsupported; local history does not establish subscription availability.
 Click the chart icon on a supported provider row to open the compact popover.
 Click the icon again to close it. The same charts appear under Quota history in
 Statistics. Open in Statistics carries the provider, account, data source and
-model selection. Both displays use centered titles, aligned dark plot areas,
-and inset legends. The menu popover resizes to the selected chart source and
-scrolls when the charts exceed the display's available height.
+model selection. Both displays scale the VPM-40 figure uniformly from its
+1300 × 910 reference. The shared renderer owns both plot rectangles, title
+baselines, strokes, tick positions and inset legends. The menu popover resizes
+to the selected chart source and scrolls when the charts exceed the display's
+available height.
 
 ### Provider quota
 
@@ -93,7 +95,9 @@ for a weekly one.
 - The daily budget steps up by one seventh of the weekly limit at the start
   of each 24-hour provider day. Earlier allowance carries forward. Headroom
   is that day's cumulative budget minus the observed usage, in percentage
-  points. The shaded region shows headroom or overspend.
+  points. The blue steps show reported cumulative use. The gray steps show
+  cumulative budget, with green fill for spare budget and red fill for
+  over-budget use where there are observations.
 - A current sample is at most 15 minutes old. That covers three normal Claude
   or saved Codex refresh intervals and fifteen regular polls. Longer gaps break
   the actual series and cannot establish an hourly distribution.
@@ -102,18 +106,18 @@ for a weekly one.
   correction it waits for an hour of observations. The second projection uses
   two observations about 24 hours apart, with the earlier observation no more
   than 15 minutes before the target. Keep the weekly chart on a fixed percentage
-  scale with a little headroom above 100%. A projection below 100% ends at
-  reset. A projection that reaches 100% ends at the limit and shows when it
-  will be crossed.
+  scale with the red limit at 100%. The gold dotted forecast uses the cycle
+  average and the coral dotted forecast uses the last 24 hours. Each ends at
+  reset or at the projected limit crossing, whichever comes first.
 - An hourly bin requires sufficient observation coverage and a single cycle.
   A nonzero change spanning an hour boundary cannot identify the spend in
   either hour. A measured zero and an uncovered hour have distinct treatment.
   When observation starts mid-hour, any measured increase within that first
   hour appears as a partial bar. The current hour covers the elapsed observed
-  portion. Show when observations started if the log covers only part of the
-  last 72 hours. The guide is remaining percentage divided by hours left. Old data
-  can still be viewed, and the pace and forecast guides require a fresh
-  measurement.
+  portion. The mint bars show measured hourly changes. Show when observations
+  started if the log covers only part of the last 72 hours. The dashed amber
+  guide is remaining quota divided by hours to reset. Old data can still be
+  viewed, and the pace and forecast guides require a fresh measurement.
 
 ### Local tokens
 
@@ -125,10 +129,10 @@ No provider quota or account attribution is inferred from the local totals.
 Expired buckets are pruned during the next scan. Unscanned hours are marked
 separately from a scanned hour with zero recorded tokens.
 
-`QuotaHistoryTests` covers separate accounts and model windows, deduplication,
-freshness, both projections, hourly spikes and gaps, corrections, resets and
-the repeated local hour. `WeeklyQuotaPacingTests` covers selection, budget and
-reset states.
+`QuotaHistoryTests` covers native cap and hourly mark geometry, separate
+accounts and model windows, deduplication, freshness, projections, spikes,
+gaps, corrections, resets and the repeated local hour.
+`WeeklyQuotaPacingTests` covers selection, budget and reset states.
 
 ## Evidence and checks
 

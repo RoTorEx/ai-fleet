@@ -16,7 +16,7 @@ visual reference and is updated when the design changes.
 | Surface | Board | Status |
 | --- | --- | --- |
 | Notifications | [`notifications/index.html`](notifications/index.html) | Revision 4 accepted 2026-11-22 |
-| Quota history | [`quota-history/index.html`](quota-history/index.html) | Full charts from the provider row and Statistics |
+| Quota history | [`quota-history/index.html`](quota-history/index.html) | Click to open from Providers and Statistics. VPM-40 defines the native figure. |
 
 ## Notifications
 
@@ -26,3 +26,12 @@ Open the board with `open design/notifications/index.html`. Append
 The board approximates the macOS banner. To judge the real system rendering of
 the proposed texts (truncation, line count, font weights), run
 `design/notifications/preview.sh`; its header lists the options.
+
+## Quota history
+
+The board exercises the interaction and chart states. The chart attached to
+VPM-40 sets the native visual geometry. The
+[native renderer](../Sources/AIFleet/UI/QuotaHistoryFigure.swift) scales the
+1300 × 910 reference and uses the packaged regular DejaVu Sans face for
+the app's English labels.
+[DejaVu Sans release](https://github.com/dejavu-fonts/dejavu-fonts/releases/tag/version_2_37)
