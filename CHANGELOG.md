@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Make quota history compact and open the provider popover on click. Match the reference chart proportions, inset legends, and show the average pace from the first fresh quota measurement once the cycle is an hour old.
+
 ## [1.7.0] - 2026-11-25
 
 - Open Logs from Options to review scan diagnostics and current app errors. Statistics keeps its usage panels clear of diagnostics. Fix false Kimi partial-accounting warnings from tool results without event UUIDs.

@@ -56,7 +56,7 @@ struct QuotaHistoryView: View {
                     ? LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model, now: now) : nil
                 let windows = target.report?.weeklyWindows ?? []
                 let window = windows.first { $0.id == windowID } ?? windows.first
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 7) {
                     controls(target: target, windows: windows, window: window, models: tokenHistory?.models ?? [])
                     if let tokenHistory {
                         LocalTokenChartView(history: tokenHistory)
@@ -80,7 +80,7 @@ struct QuotaHistoryView: View {
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
         .onAppear {
             if let request { apply(request) }
-            else if targets.count == 1, targets.first?.provider == .qwen { mode = .tokens }
+            else if targets.count == 1, targets.first?.report?.weeklyWindows.isEmpty != false { mode = .tokens }
         }
         .onChange(of: request) { if let request = $0 { apply(request) } }
     }
@@ -107,6 +107,7 @@ struct QuotaHistoryView: View {
             } else {
                 Text(mode == .tokens ? target.provider.title : target.label)
                     .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
             }
             if mode == .tokens, !models.isEmpty {
                 Picker("Model", selection: Binding(get: { model.flatMap { models.contains($0) ? $0 : nil } },
@@ -126,6 +127,7 @@ struct QuotaHistoryView: View {
             Spacer(minLength: 0)
             Text(mode == .quota ? "Provider reports" : "On this Mac")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
+                .lineLimit(1)
         }
         .controlSize(.small)
     }
@@ -152,76 +154,87 @@ private struct WeeklyQuotaChartView: View {
     }
 
     let data: WeeklyQuotaChart
-    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedHour: Date?
-    private var colors: HistoryChartColors { HistoryChartColors(dark: colorScheme == .dark) }
+    private let colors = HistoryChartColors()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            chartHeading("Weekly limit", detail: summary)
+        let samples = data.hours.map { hour in
+            HourlyChartSample(time: hour.start,
+                parts: (hour.percentagePoints ?? hour.partialPercentagePoints).map { [Double($0)] },
+                partial: hour.partialPercentagePoints != nil)
+        }
+        VStack(spacing: 5) {
+            chartHeading(heading)
             if let start = data.cycleStart, let latest = data.latest {
                 weekly(start: start, latest: latest)
-                weeklyLegend
             } else {
-                Text("Waiting for an observation with a reported reset time.")
-                    .font(.callout).foregroundStyle(.secondary)
+                Text("Waiting for a quota measurement with a reset time.")
+                    .font(.system(size: 10)).foregroundStyle(colors.labels).padding(.vertical, 8)
             }
-            chartHeading("Quota used per hour · Last 72 hours", detail: "Sampled · up to 15 min between observations")
-            let samples = data.hours.map { HourlyChartSample(time: $0.start, parts: $0.percentagePoints.map { [Double($0)] }) }
+            chartHeading("Hourly usage, % of weekly limit · Last 72h")
             HoursChart(samples: samples, colors: [colors.mint], guide: data.sustainablePerHour,
-                       percent: true, selected: $selectedHour)
-            HStack(spacing: 12) {
-                swatch("Measured", colors.mint, fill: true)
-                swatch("Missing sample", .secondary, fill: true)
-                if let guide = data.sustainablePerHour {
-                    swatch("\(formattedNumber(guide, fractionDigits: 2))%/h sustainable", colors.gold, dotted: true)
-                }
-            }
-            if let selectedHour, let hour = data.hours.first(where: { $0.start == selectedHour }) {
-                Text("\(historyHourText(hour.start)) · \(hour.percentagePoints.map { "\($0)% of weekly quota" } ?? "Missing sample")")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-            }
+                       percent: true, selected: $selectedHour, selectionText: selectedHourText)
         }
+        .padding([.vertical, .leading], 7)
+        .padding(.trailing, 13)
+        .background(colors.canvas, in: RoundedRectangle(cornerRadius: 6))
     }
 
-    private var summary: String {
-        var items = data.pace.usedPercent.map { ["\($0)% used"] } ?? []
+    private var heading: String {
+        var items = ["Weekly limit"]
+        if let used = data.pace.usedPercent { items.append("\(used)% used") }
         switch data.pace.state {
         case .current:
-            if let remaining = data.pace.timeToReset { items.append("\(WeeklyQuotaPace.countdownText(remaining)) to reset") }
-            if data.forecasts.isEmpty { items.append("Collecting history") }
+            if let remaining = data.pace.timeToReset {
+                items.append("\(Int(ceil(remaining / UsageHours.hour)))h to reset")
+            }
         case .stale: items.append("Stale measurement")
         case .resetPending: items.append("Reset due")
         case .partial: items.append("Reset time unavailable")
-        case .unavailable: items.append("Weekly quota unavailable")
+        case .unavailable: items.append("Unavailable")
         }
         return items.joined(separator: " · ")
     }
 
+    private var selectedHourText: String? {
+        guard let selectedHour, let hour = data.hours.first(where: { $0.start == selectedHour }) else { return nil }
+        let text: String
+        if let measured = hour.percentagePoints { text = "\(measured)% measured" }
+        else if let partial = hour.partialPercentagePoints { text = "≥ \(partial)% observed" }
+        else { text = "No sample" }
+        return "\(historyHourText(hour.start)) · \(text)"
+    }
+
     private func weekly(start: Date, latest: WeeklyQuotaObservation) -> some View {
         let days = (0...7).map { start.addingTimeInterval(Double($0) * WeeklyQuotaPace.daySeconds) }
-        let top = min(170, max(110, ceil((data.forecasts.map(\.atReset).max() ?? 100) / 20) * 20 + 10))
+        let calendar = Calendar.autoupdatingCurrent
+        let firstDay = calendar.startOfDay(for: start)
+        let ticks = (0...7).compactMap { calendar.date(byAdding: .day, value: $0, to: firstDay) }
+            .filter { start <= $0 && $0 < latest.reset }
+        let top = min(210, max(110, ceil((data.forecasts.map(\.atReset).max() ?? 100) / 20) * 20 + 10))
+        let levels = Array(stride(from: 0.0, through: top, by: 20.0))
         let shades = shadingSpans(cycleStart: start, days: days)
         return Chart {
             ForEach(shades) { shade in
                 shadingMark(shade)
             }
-            RuleMark(y: .value("Limit", 100))
-                .foregroundStyle(colors.limit).lineStyle(StrokeStyle(lineWidth: 1))
+            plotGrid(times: ticks, levels: levels)
             ForEach(days, id: \.self) { day in
                 LineMark(x: .value("Day", day), y: .value("Budget", WeeklyQuotaPace.budget(at: day, cycleStart: start)),
                          series: .value("Series", "Daily budget"))
-                    .interpolationMethod(.stepEnd).foregroundStyle(colors.budget).lineStyle(StrokeStyle(lineWidth: 1.3))
+                    .interpolationMethod(.stepEnd).foregroundStyle(colors.budget).lineStyle(StrokeStyle(lineWidth: 1))
             }
+            RuleMark(y: .value("Limit", 100))
+                .foregroundStyle(colors.limit).lineStyle(StrokeStyle(lineWidth: 0.9))
             ForEach(Array(data.segments.enumerated()), id: \.offset) { section in
                 ForEach(section.element, id: \.time) { sample in
                     LineMark(x: .value("Observed", sample.time), y: .value("Used", sample.used),
                              series: .value("Series", "Actual \(section.offset)"))
-                        .interpolationMethod(.stepEnd).foregroundStyle(colors.actual).lineStyle(StrokeStyle(lineWidth: 2))
+                        .interpolationMethod(.stepEnd).foregroundStyle(colors.actual).lineStyle(StrokeStyle(lineWidth: 1.7))
                 }
-                if let sample = section.element.last, section.element.count == 1 || sample == latest {
+                if section.element.count == 1, let sample = section.element.first {
                     PointMark(x: .value("Observed", sample.time), y: .value("Used", sample.used))
-                        .symbolSize(16).foregroundStyle(colors.actual)
+                        .symbolSize(12).foregroundStyle(colors.actual)
                 }
             }
             ForEach(data.forecasts) { forecast in
@@ -230,7 +243,7 @@ private struct WeeklyQuotaChartView: View {
                     LineMark(x: .value("Time", time),
                              y: .value("Projected used", time == latest.time ? Double(latest.used) : forecast.atReset),
                              series: .value("Series", forecast.period.rawValue))
-                        .foregroundStyle(color).lineStyle(StrokeStyle(lineWidth: 2, dash: [2, 4]))
+                        .foregroundStyle(color).lineStyle(StrokeStyle(lineWidth: 1.3, lineCap: .round, dash: [0.2, 2.6]))
                 }
             }
         }
@@ -238,21 +251,27 @@ private struct WeeklyQuotaChartView: View {
         .chartXScale(domain: start...latest.reset)
         .chartYScale(domain: 0...top)
         .chartXAxis {
-            AxisMarks(values: Array(days.dropLast())) {
-                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.18))
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated))
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .stride(by: 20)) { value in
-                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.18))
-                AxisValueLabel {
-                    if let percent = value.as(Double.self) { Text("\(formattedNumber(percent, fractionDigits: 0))%") }
+            AxisMarks(values: ticks) { value in
+                AxisTick(centered: false, length: 3).foregroundStyle(colors.border)
+                AxisValueLabel(centered: false, anchor: .top, collisionResolution: .disabled,
+                               offsetsMarks: false, verticalSpacing: 3) {
+                    if let date = value.as(Date.self) { axisLabel(historyAxisDate(date)) }
                 }
             }
         }
-        .chartPlotStyle { $0.background(colors.plot).clipped() }
-        .frame(height: 219)
+        .chartYAxis {
+            AxisMarks(position: .leading, values: levels) { value in
+                AxisTick(length: 3).foregroundStyle(colors.border)
+                AxisValueLabel {
+                    if let percent = value.as(Double.self) { yAxisLabel(formattedNumber(percent, fractionDigits: 0)) }
+                }
+            }
+        }
+        .chartPlotStyle { plot in
+            plot.background(colors.plot).clipped().border(colors.border, width: 0.6)
+                .overlay(alignment: .topLeading) { weeklyLegend.padding(4) }
+        }
+        .aspectRatio(2.66, contentMode: .fit)
         .accessibilityLabel("Weekly quota, cumulative use, daily budget, and projections")
     }
 
@@ -276,29 +295,24 @@ private struct WeeklyQuotaChartView: View {
         let upper = max(shade.used, shade.budget)
         return RectangleMark(xStart: .value("Start", shade.time.lowerBound), xEnd: .value("End", shade.time.upperBound),
                              yStart: .value("Low", lower), yEnd: .value("High", upper))
-            .foregroundStyle(color.opacity(0.16))
+            .foregroundStyle(color.opacity(0.17))
     }
 
     private var weeklyLegend: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 12) {
-                swatch("Used", colors.actual)
-                swatch("Daily budget", colors.budget)
-                swatch("100% limit", colors.limit)
-                if let points = data.pace.headroomPoints {
-                    swatch("\(formattedNumber(abs(points), fractionDigits: 1)) pp \(points >= 0 ? "headroom" : "over plan")",
-                           points >= 0 ? colors.mint : colors.limit, fill: true)
-                }
+        insetLegend {
+            swatch("Usage, %", colors.actual)
+            swatch("Daily budget · 14.3%/day with carryover", colors.budget)
+            if let points = data.pace.headroomPoints {
+                let amount = formattedNumber(abs(points), fractionDigits: 1)
+                swatch(points >= 0 ? "End-of-day headroom · \(amount) pp" : "Over today's budget · \(amount) pp",
+                       (points >= 0 ? colors.mint : colors.limit).opacity(0.45), fill: true)
             }
-            if !data.forecasts.isEmpty {
-                HStack(spacing: 12) {
-                    ForEach(data.forecasts) { forecast in
-                        let estimate = formattedNumber(forecast.atReset, fractionDigits: 0)
-                        let end = forecast.exhaustion.map { " · limit " + historyHourText($0) } ?? ""
-                        swatch("\(forecast.period.rawValue) \(estimate)%\(end)",
-                               forecast.period == .window ? colors.gold : colors.coral, dotted: true)
-                    }
-                }
+            ForEach(data.forecasts) { forecast in
+                let estimate = formattedNumber(forecast.atReset, fractionDigits: 0)
+                let rate = forecast.period == .window ? "Week pace" : "24h pace"
+                let limit = forecast.exhaustion.map { " · 100% " + historyHourText($0) } ?? ""
+                swatch("\(rate) · \(estimate)% at reset\(limit)",
+                       forecast.period == .window ? colors.gold : colors.coral, dotted: true)
             }
         }
     }
@@ -306,40 +320,36 @@ private struct WeeklyQuotaChartView: View {
 
 private struct LocalTokenChartView: View {
     let history: LocalTokenHistory
-    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedHour: Date?
+    private let colors = HistoryChartColors()
 
     var body: some View {
-        let colors = HistoryChartColors(dark: colorScheme == .dark)
         let samples = history.hours.map { hour in
             HourlyChartSample(time: hour.start, parts: hour.tokens.map {
                 [Double($0.billableInputTokens), Double($0.cachedInputTokens) + Double($0.cacheWriteInputTokens), Double($0.outputTokens)]
             })
         }
-        VStack(alignment: .leading, spacing: 8) {
-            chartHeading("Tokens per hour · Last 72 hours",
-                         detail: history.scannedAt.map { "Scanned " + historyHourText($0) } ?? "Session timestamps")
-            if history.models.isEmpty {
-                Text("No recorded tokens for this period.").font(.callout).foregroundStyle(.secondary)
-            }
+        VStack(spacing: 5) {
+            chartHeading("Local tokens per hour · Last 72h")
             HoursChart(samples: samples, colors: [colors.actual, colors.cache, colors.mint],
-                       guide: nil, percent: false, selected: $selectedHour)
-            HStack(spacing: 12) {
-                swatch("Uncached input", colors.actual, fill: true)
-                swatch("Cache", colors.cache, fill: true)
-                swatch("Output", colors.mint, fill: true)
-            }
-            if let selectedHour, let hour = history.hours.first(where: { $0.start == selectedHour }) {
-                let text = hour.tokens.map { "\(groupedInteger($0.totalTokens)) tokens" } ?? "No recorded data"
-                Text("\(historyHourText(hour.start)) · \(text)").font(.system(size: 11)).foregroundStyle(.secondary)
-            }
+                       guide: nil, percent: false, selected: $selectedHour, selectionText: selectedHourText)
         }
+        .padding([.vertical, .leading], 7)
+        .padding(.trailing, 13)
+        .background(colors.canvas, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var selectedHourText: String? {
+        guard let selectedHour, let hour = history.hours.first(where: { $0.start == selectedHour }) else { return nil }
+        let text = hour.tokens.map { "\(groupedInteger($0.totalTokens)) tokens" } ?? "No recorded data"
+        return "\(historyHourText(hour.start)) · \(text)"
     }
 }
 
 private struct HourlyChartSample: Identifiable {
     let time: Date
     let parts: [Double]?
+    var partial = false
     var id: Date { time }
 }
 
@@ -349,58 +359,77 @@ private struct HoursChart: View {
     let guide: Double?
     let percent: Bool
     @Binding var selected: Date?
-    @Environment(\.colorScheme) private var colorScheme
+    let selectionText: String?
+    private let palette = HistoryChartColors()
 
     var body: some View {
-        let palette = HistoryChartColors(dark: colorScheme == .dark)
-        let ceiling = max(percent ? 1 : 10, samples.compactMap { $0.parts?.reduce(0, +) }.max() ?? 0, guide ?? 0) * 1.08
+        let maximum = max(percent ? 1 : 10, samples.compactMap { $0.parts?.reduce(0, +) }.max() ?? 0, guide ?? 0)
+        let levels = hourlyAxisLevels(maximum: maximum)
+        let ceiling = (levels.last ?? maximum) * 1.05
+        let ticks = samples.dropFirst(4).enumerated().filter { $0.offset.isMultiple(of: 12) }.map(\.element.time)
         Chart {
+            plotGrid(times: ticks, levels: levels)
             ForEach(samples) { sample in
-                let end = sample.time.addingTimeInterval(UsageHours.hour)
                 if let parts = sample.parts {
                     ForEach(Array(parts.indices), id: \.self) { index in
                         let low = parts.prefix(index).reduce(0, +)
-                        RectangleMark(xStart: .value("Hour", sample.time.addingTimeInterval(360)),
-                                      xEnd: .value("Hour end", end.addingTimeInterval(-360)),
+                        RectangleMark(xStart: .value("Hour", sample.time.addingTimeInterval(240)),
+                                      xEnd: .value("Hour end", sample.time.addingTimeInterval(UsageHours.hour - 240)),
                                       yStart: .value("Subtotal", low), yEnd: .value("Total", low + parts[index]))
-                            .foregroundStyle(colors[index])
+                            .foregroundStyle(colors[index].opacity(sample.partial ? 0.55 : 1))
                     }
-                } else {
-                    RectangleMark(xStart: .value("Hour", sample.time.addingTimeInterval(360)),
-                                  xEnd: .value("Hour end", end.addingTimeInterval(-360)),
-                                  yStart: .value("Base", 0), yEnd: .value("Gap", ceiling * 0.017))
-                        .foregroundStyle(Color.secondary.opacity(0.45))
                 }
             }
             if let guide {
                 RuleMark(y: .value("Sustainable pace", guide))
-                    .foregroundStyle(palette.gold).lineStyle(StrokeStyle(lineWidth: 1.3, dash: [4, 3]))
+                    .foregroundStyle(palette.gold).lineStyle(StrokeStyle(lineWidth: 0.9, dash: [3, 2]))
             }
             if let selected {
                 RuleMark(x: .value("Selected hour", selected.addingTimeInterval(UsageHours.hour / 2)))
-                    .foregroundStyle(Color.secondary.opacity(0.6))
+                    .foregroundStyle(palette.labels.opacity(0.5))
             }
         }
         .chartLegend(.hidden)
+        .chartXScale(domain: hourDomain)
         .chartYScale(domain: 0...ceiling)
         .chartXAxis {
-            AxisMarks(values: samples.enumerated().filter { $0.offset.isMultiple(of: 12) }.map(\.element.time)) {
-                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.18))
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated).hour())
+            AxisMarks(values: ticks) { value in
+                AxisTick(centered: false, length: 3).foregroundStyle(palette.border)
+                AxisValueLabel(centered: false, anchor: .top, collisionResolution: .disabled,
+                               offsetsMarks: false, verticalSpacing: 3) {
+                    if let date = value.as(Date.self) { axisLabel(historyAxisDate(date, includingHour: true)) }
+                }
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
-                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.18))
+            AxisMarks(position: .leading, values: levels) { value in
+                AxisTick(length: 3).foregroundStyle(palette.border)
                 AxisValueLabel {
                     if let number = value.as(Double.self) {
-                        Text(percent ? "\(formattedNumber(number, fractionDigits: ceiling <= 5 ? 1 : 0))%"
-                            : compactCount(Int(min(number, Double(Int.max / 2)))))
+                        yAxisLabel(percent ? formattedNumber(number, fractionDigits: ceiling <= 5 ? 1 : 0)
+                            : compactCount(Int(min(number, Double(Int.max / 2)))), width: percent ? 20 : 27)
                     }
                 }
             }
         }
-        .chartPlotStyle { $0.background(palette.plot) }
+        .chartPlotStyle { plot in
+            plot.background(palette.plot).clipped().border(palette.border, width: 0.6)
+                .overlay(alignment: .topLeading) { legend.padding(4) }
+                .overlay {
+                    if !samples.contains(where: { $0.parts != nil }) {
+                        Text(percent ? "Collecting hourly quota history" : "No recorded tokens for this period")
+                            .font(.system(size: 10)).foregroundStyle(palette.labels).padding(4)
+                            .background(palette.plot.opacity(0.93), in: RoundedRectangle(cornerRadius: 3))
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if let selectionText {
+                        Text(selectionText).font(.system(size: 9)).foregroundStyle(palette.labels)
+                            .lineLimit(1).padding(4)
+                            .background(palette.plot, in: RoundedRectangle(cornerRadius: 3)).padding(4)
+                    }
+                }
+        }
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 Rectangle().fill(.clear).contentShape(Rectangle())
@@ -417,43 +446,98 @@ private struct HoursChart: View {
                     }
             }
         }
-        .frame(height: 153)
+        .aspectRatio(3.85, contentMode: .fit)
         .accessibilityLabel(percent ? "Hourly percentage of weekly quota" : "Hourly local input, cache, and output tokens")
+    }
+
+    private var hourDomain: ClosedRange<Date> {
+        let first = samples.first?.time ?? .now
+        let last = samples.last?.time ?? first
+        return first...last.addingTimeInterval(UsageHours.hour)
+    }
+
+    @ViewBuilder private var legend: some View {
+        if percent {
+            if guide != nil || samples.contains(where: \.partial) {
+                insetLegend {
+                    if let guide {
+                        swatch("Sustainable pace · \(formattedNumber(guide, fractionDigits: 2))%/h", palette.gold, dotted: true)
+                    }
+                    if samples.contains(where: \.partial) {
+                        swatch("Observed part of hour", palette.mint.opacity(0.55), fill: true)
+                    }
+                }
+            }
+        } else if samples.contains(where: { $0.parts != nil }) {
+            insetLegend {
+                HStack(spacing: 7) {
+                    swatch("Uncached input", palette.actual, fill: true)
+                    swatch("Cache", palette.cache, fill: true)
+                    swatch("Output", palette.mint, fill: true)
+                }
+            }
+        }
     }
 }
 
 private struct HistoryChartColors {
-    let actual: Color
-    let budget: Color
-    let limit: Color
-    let gold: Color
-    let coral: Color
-    let mint: Color
-    let cache: Color
-    let plot: Color
+    let canvas = chartColor(0x17181c)
+    let plot = chartColor(0x1b1e24)
+    let labels = chartColor(0xc7c9d0)
+    let title = chartColor(0xe8e9ed)
+    let grid = chartColor(0x2b2e36)
+    let border = chartColor(0x414550)
+    let actual = chartColor(0x7ba1fa)
+    let budget = chartColor(0x969ba7)
+    let limit = chartColor(0xe35d68)
+    let gold = chartColor(0xffb75d)
+    let coral = chartColor(0xef8157)
+    let mint = chartColor(0x65d7a4)
+    let cache = chartColor(0xa4b9ee)
+}
 
-    init(dark: Bool) {
-        func tone(_ light: UInt32, _ darkValue: UInt32) -> Color {
-            let rgb = dark ? darkValue : light
-            return Color(red: Double((rgb >> 16) & 255) / 255, green: Double((rgb >> 8) & 255) / 255, blue: Double(rgb & 255) / 255)
-        }
-        actual = tone(0x275eba, 0x77a6fd)
-        budget = tone(0x596778, 0x8e939b)
-        limit = tone(0xbd3840, 0xe8565d)
-        gold = tone(0x955b06, 0xf4b558)
-        coral = tone(0xb14728, 0xe9784c)
-        mint = tone(0x157652, 0x5ed99c)
-        cache = tone(0x5973ac, 0xa4b9ee)
-        plot = tone(0xffffff, 0x1b1f25)
+private func chartColor(_ rgb: UInt32) -> Color {
+    Color(red: Double((rgb >> 16) & 255) / 255, green: Double((rgb >> 8) & 255) / 255, blue: Double(rgb & 255) / 255)
+}
+
+@ChartContentBuilder
+private func plotGrid(times: [Date], levels: [Double]) -> some ChartContent {
+    let grid = HistoryChartColors().grid
+    ForEach(times, id: \.self) { time in
+        RuleMark(x: .value("Time", time)).foregroundStyle(grid).lineStyle(StrokeStyle(lineWidth: 0.5))
+    }
+    ForEach(levels, id: \.self) { level in
+        RuleMark(y: .value("Level", level)).foregroundStyle(grid).lineStyle(StrokeStyle(lineWidth: 0.5))
     }
 }
 
-private func chartHeading(_ title: String, detail: String) -> some View {
-    HStack {
-        Text(title).font(.system(size: 12, weight: .semibold))
-        Spacer(minLength: 6)
-        Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
-    }
+private func hourlyAxisLevels(maximum: Double) -> [Double] {
+    let interval = maximum / 6
+    let magnitude = pow(10, floor(log10(interval)))
+    let factor = [1.0, 2, 2.5, 5, 10].first { $0 * magnitude >= interval } ?? 10
+    let step = factor * magnitude
+    return (0...Int(ceil(maximum / step))).map { Double($0) * step }
+}
+
+private func chartHeading(_ title: String) -> some View {
+    Text(title).font(.system(size: 11)).foregroundStyle(HistoryChartColors().title)
+        .lineLimit(1).frame(maxWidth: .infinity)
+}
+
+private func axisLabel(_ text: String) -> some View {
+    Text(text).font(.system(size: 9)).foregroundStyle(HistoryChartColors().labels).fixedSize()
+}
+
+private func yAxisLabel(_ text: String, width: CGFloat = 20) -> some View {
+    axisLabel(text).monospacedDigit().frame(width: width, alignment: .trailing)
+}
+
+private func insetLegend<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    let palette = HistoryChartColors()
+    return VStack(alignment: .leading, spacing: 1, content: content)
+        .padding(.horizontal, 4).padding(.vertical, 3)
+        .background(palette.plot.opacity(0.92), in: RoundedRectangle(cornerRadius: 2))
+        .overlay(RoundedRectangle(cornerRadius: 2).strokeBorder(palette.border, lineWidth: 0.6))
 }
 
 private func swatch(_ label: String, _ color: Color, fill: Bool = false, dotted: Bool = false) -> some View {
@@ -465,13 +549,20 @@ private func swatch(_ label: String, _ color: Color, fill: Bool = false, dotted:
                 var line = Path()
                 line.move(to: CGPoint(x: 0, y: size.height / 2))
                 line.addLine(to: CGPoint(x: size.width, y: size.height / 2))
-                context.stroke(line, with: .color(color), style: StrokeStyle(lineWidth: 1.5, dash: dotted ? [2, 2] : []))
+                context.stroke(line, with: .color(color), style: StrokeStyle(lineWidth: 1.1,
+                    lineCap: .round, dash: dotted ? [0.2, 2.4] : []))
             }
         }
-        .frame(width: 14, height: 8).accessibilityHidden(true)
-        Text(label)
+        .frame(width: 14, height: 7).accessibilityHidden(true)
+        Text(label).lineLimit(1)
     }
-    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+    .font(.system(size: 9)).foregroundStyle(HistoryChartColors().labels)
+}
+
+private func historyAxisDate(_ date: Date, includingHour: Bool = false) -> String {
+    let fields = Calendar.autoupdatingCurrent.dateComponents([.day, .month, .hour], from: date)
+    let day = String(format: "%02d.%02d", fields.day ?? 0, fields.month ?? 0)
+    return includingHour ? day + String(format: " %02dh", fields.hour ?? 0) : day
 }
 
 private func historyHourText(_ date: Date) -> String {

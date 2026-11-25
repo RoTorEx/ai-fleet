@@ -66,11 +66,11 @@ remains unsupported; local history does not establish subscription availability.
 
 ## Quota history
 
-Open the full charts with the chart button in Statistics or the chart icon on a
-supported provider row. The icon previews the charts on hover and keeps them
-open on click. The pointer can cross into the popover. Open in Statistics
-carries the provider, account, data source and model selection into the same
-chart view.
+Click the chart icon on a supported provider row to open the compact popover.
+Click the icon again to close it. The same charts appear under Quota history in
+Statistics. Open in Statistics carries the provider, account, data source and
+model selection. Both displays use centered titles, aligned dark plot areas,
+and inset legends.
 
 ### Provider quota
 
@@ -96,17 +96,20 @@ for a weekly one.
 - A current sample is at most 15 minutes old. That covers three normal Claude
   or saved Codex refresh intervals and fifteen regular polls. Longer gaps break
   the actual series and cannot establish an hourly distribution.
-- After at least one hour of observations in the current cycle, the window
-  projection uses cumulative percent divided by elapsed cycle time. The
-  second projection uses two observations about 24 hours apart, with the
-  earlier observation no more than 15 minutes before the target. Both extend
-  to the same reset and show when a projection crosses 100%.
+- Once one hour of the cycle has elapsed, the window projection uses the
+  reported cumulative percent divided by elapsed cycle time. After a downward
+  correction it waits for an hour of observations. The second projection uses
+  two observations about 24 hours apart, with the earlier observation no more
+  than 15 minutes before the target. Both extend to the same reset and show
+  when a projection crosses 100%.
 - An hourly bin requires sufficient observation coverage and a single cycle.
   A nonzero change spanning an hour boundary cannot identify the spend in
   either hour. A measured zero and an uncovered hour have distinct treatment.
-  The current hour covers the elapsed observed portion. The guide is remaining
-  percentage divided by hours left. Old data can still be viewed, and the
-  pace and forecast guides require a fresh measurement.
+  When observation starts mid-hour, any measured increase within that first
+  hour appears as a partial bar. The current hour covers the elapsed observed
+  portion. The guide is remaining percentage divided by hours left. Old data
+  can still be viewed, and the pace and forecast guides require a fresh
+  measurement.
 
 ### Local tokens
 

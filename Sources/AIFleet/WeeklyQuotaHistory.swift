@@ -140,7 +140,8 @@ struct WeeklyQuotaChart {
 
     struct Hour: Identifiable {
         let start: Date
-        let percentagePoints: Int?
+        var percentagePoints: Int? = nil
+        var partialPercentagePoints: Int? = nil
         var id: Date { start }
     }
 
@@ -170,7 +171,7 @@ struct WeeklyQuotaChart {
             currentCycle[index].used < currentCycle[index - 1].used
         }
         let forecastSamples = correction.map { Array(currentCycle[$0...]) } ?? currentCycle
-        forecasts = pace.state == .current ? Self.forecasts(for: forecastSamples) : []
+        forecasts = pace.state == .current ? Self.forecasts(for: forecastSamples, afterCorrection: correction != nil) : []
         hours = Self.hourlyUsage(samples, now: now, calendar: calendar)
     }
 
@@ -193,12 +194,12 @@ struct WeeklyQuotaChart {
         }
     }
 
-    private static func forecasts(for samples: [WeeklyQuotaObservation]) -> [Forecast] {
-        guard let first = samples.first, let last = samples.last,
-              last.time.timeIntervalSince(first.time) >= UsageHours.hour else { return [] }
+    private static func forecasts(for samples: [WeeklyQuotaObservation], afterCorrection: Bool) -> [Forecast] {
+        guard let first = samples.first, let last = samples.last else { return [] }
+        if afterCorrection, last.time.timeIntervalSince(first.time) < UsageHours.hour { return [] }
         let cycleStart = last.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
         let elapsed = last.time.timeIntervalSince(cycleStart)
-        guard elapsed > 0 else { return [] }
+        guard elapsed >= UsageHours.hour else { return [] }
         let remainingTime = last.reset.timeIntervalSince(last.time)
         let used = Double(last.used)
         func forecast(_ period: Forecast.Period, rate: Double) -> Forecast {
@@ -223,9 +224,13 @@ struct WeeklyQuotaChart {
             while firstIndex + 1 < samples.count, samples[firstIndex + 1].time <= start {
                 firstIndex += 1
             }
-            guard let newest = samples.last else { return Hour(start: start, percentagePoints: nil) }
+            guard let newest = samples.last else { return Hour(start: start) }
             let end = start == hours.last ? min(nominalEnd, newest.time) : nominalEnd
-            guard start < end, samples[firstIndex].time <= start else { return Hour(start: start, percentagePoints: nil) }
+            guard start < end else { return Hour(start: start) }
+            if samples[firstIndex].time > start {
+                let observed = samples[firstIndex...].prefix { $0.time <= end }
+                return Hour(start: start, partialPercentagePoints: partialChange(in: observed))
+            }
             var index = firstIndex
             var used = 0
             while index + 1 < samples.count, samples[index].time < end {
@@ -235,12 +240,21 @@ struct WeeklyQuotaChart {
                 guard left.sharesCycle(with: right), delta >= 0,
                       right.time.timeIntervalSince(left.time) <= WeeklyQuotaPace.maximumObservationAge,
                       delta == 0 || (left.time >= start && right.time <= end) else {
-                    return Hour(start: start, percentagePoints: nil)
+                    return Hour(start: start)
                 }
                 used += delta
                 index += 1
             }
             return Hour(start: start, percentagePoints: samples[index].time >= end ? used : nil)
         }
+    }
+
+    private static func partialChange(in observations: ArraySlice<WeeklyQuotaObservation>) -> Int? {
+        guard let first = observations.first, let last = observations.last, last.used > first.used,
+              zip(observations, observations.dropFirst()).allSatisfy({ left, right in
+                  left.sharesCycle(with: right) && right.used >= left.used
+                      && right.time.timeIntervalSince(left.time) <= WeeklyQuotaPace.maximumObservationAge
+              }) else { return nil }
+        return last.used - first.used
     }
 }

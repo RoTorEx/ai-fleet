@@ -35,8 +35,11 @@ final class QuotaHistoryTests: XCTestCase {
         let current = report("a", at: base, reset: reset, used: 43)
         var history = WeeklyQuotaHistory()
         let initial = WeeklyQuotaChart(report: current, window: current.limits[0], history: history, now: base)
-        XCTAssertTrue(initial.forecasts.isEmpty)
+        XCTAssertEqual(initial.forecasts.map(\.period), [.window])
+        XCTAssertEqual(try XCTUnwrap(initial.forecasts.first?.atReset), 43.0 * 168 / 92, accuracy: 1e-8)
         XCTAssertEqual(try XCTUnwrap(initial.pace.dailyBudgetPercent), 4.0 / 7 * 100, accuracy: 1e-8)
+        let justReset = report("a", at: base, reset: base.addingTimeInterval(167.5 * hour), used: 1)
+        XCTAssertTrue(WeeklyQuotaChart(report: justReset, window: justReset.limits[0], history: history, now: base).forecasts.isEmpty)
         history.observe([first], now: previous)
         history.observe([current], now: base)
 
@@ -56,6 +59,25 @@ final class QuotaHistoryTests: XCTestCase {
             XCTAssertGreaterThan(forecast.atReset, 100)
             XCTAssertLessThan(try XCTUnwrap(forecast.exhaustion), reset)
         }
+        let corrected = report("a", at: base, reset: reset, used: 28)
+        XCTAssertTrue(WeeklyQuotaChart(report: corrected, window: corrected.limits[0], history: history, now: base).forecasts.isEmpty)
+    }
+
+    func testTheFirstPartialHourShowsOnlyItsObservedIncrease() throws {
+        let reset = base.addingTimeInterval(76 * hour)
+        let observations = [(10, 40), (20, 42), (30, 43)].map { minute, used in
+            report("a", at: base.addingTimeInterval(Double(minute * 60)), reset: reset, used: used)
+        }
+        var history = WeeklyQuotaHistory()
+        for item in observations {
+            history.observe([item], now: try XCTUnwrap(item.fetchedAt))
+        }
+        let latest = try XCTUnwrap(observations.last)
+        let chart = WeeklyQuotaChart(report: latest, window: latest.limits[0], history: history,
+                                     now: try XCTUnwrap(latest.fetchedAt))
+        XCTAssertNil(chart.hours.last?.percentagePoints)
+        XCTAssertEqual(chart.hours.last?.partialPercentagePoints, 3)
+        XCTAssertTrue(chart.hours.dropLast().allSatisfy { $0.partialPercentagePoints == nil })
     }
 
     func testHourlySpikeGapsCorrectionAndReset() {

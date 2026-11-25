@@ -208,6 +208,8 @@ struct StatisticsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 PanelTitle("Quota history")
                 QuotaHistoryView(targets: targets, request: historyRequest)
+                    .frame(maxWidth: 650)
+                    .frame(maxWidth: .infinity)
             }
             .padding(12)
             .fleetCard(hovering: false)

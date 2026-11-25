@@ -238,13 +238,14 @@ configured for Kimi and Qwen, so a total that includes them shows its priced par
 as `≥ $…`. Kimi's quota windows appear under **Provider reports**. Local token statistics do not provide Qwen subscription quotas.
 See [provider statistics](business/provider-statistics.md) for format support.
 
-Hover the chart button on a supported Providers row for the full **Quota history**
-popover. Click to keep it open and click again to close it. The chart button in
-Statistics opens the same view. **Quota %** follows the verified account and
+Click the chart icon on a supported Providers row to open **Quota history**.
+Click it again to close the popover. The chart button in Statistics opens the
+same charts. **Quota %** follows the verified account and
 its provider-reported weekly limits, including explicit model caps. **Local
 tokens** shows input, cache and output by provider and recorded model across the
 last 72 hourly buckets. The weekly plot shows the daily budget, actual
-observations, and forecasts as measurements accumulate.
+observations and the projection based on average pace since the cycle began.
+The 24-hour projection and quota bars appear as measurements accumulate.
 
 Choose **Claude** for local Claude Code tokens, input/cache/output breakdowns,
 standard API-equivalent estimates, models, daily totals, and Activity. This reads
