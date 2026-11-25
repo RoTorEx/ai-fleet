@@ -246,8 +246,9 @@ hourly tokens. Claude, Codex and Kimi list their current limits together and
 plot the primary account quota. A current reading appears when the primary window has no hourly history. Weekly
 history follows the verified account and weekly limit, including model caps.
 Local tokens shows input, cache and output by provider and recorded
-model across the last 72 hourly buckets. The hourly charts share four-hour
-markers and place the date below the hours. The weekly plot shows
+model across the last 72 hourly buckets. Hover for each category's exact count or
+select a category to see it on its own scale. The hourly charts use the device's
+time zone and place the date below each day's hours. The weekly plot shows
 the daily budget, observations and the projection based on average pace since
 the cycle began.
 The 24-hour projection and quota bars appear as measurements accumulate.

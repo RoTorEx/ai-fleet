@@ -218,6 +218,8 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(tokens.maximum, 150_000_000)
         XCTAssertEqual(tokens.levels.last, tokens.maximum)
         XCTAssertGreaterThanOrEqual(tokens.levels.count, 5)
+        let output = HourlyChartScale(measuredMaximum: 306_000, minimum: 10)
+        XCTAssertEqual(compactCount(Int(output.maximum), trimsTrailingZeros: true), "320K")
     }
 
     func testClockGridUsesMidnightAndFixedLocalHoursAcrossDaylightSaving() throws {
@@ -294,6 +296,45 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(codex.hours.suffix(2).map { $0.tokens?.totalTokens }, [25, 45])
         let claude = LocalTokenHistory(snapshot: snapshot, provider: .claude, now: now, calendar: calendar)
         XCTAssertTrue(claude.hours.allSatisfy { $0.tokens == nil })
+    }
+
+    func testChartTimestampUsesTheSameTimeZoneAsTheHourBins() throws {
+        let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-26T00:45:00Z"))
+        var calendar = Calendar(identifier: .gregorian)
+        let locale = Locale(identifier: "en_GB")
+        for (zone, time, expectedHour) in [("Europe/Warsaw", "01:45", 1), ("Asia/Kathmandu", "06:30", 6)] {
+            calendar.timeZone = try XCTUnwrap(TimeZone(identifier: zone))
+            let label = chartTimestamp(date, calendar: calendar, locale: locale)
+            XCTAssertTrue(label.contains(time), label)
+            XCTAssertTrue(label.contains(zone), label)
+            let bucket = UsageHours(now: date, calendar: calendar).last
+            XCTAssertEqual(calendar.component(.hour, from: bucket), expectedHour)
+            XCTAssertEqual(calendar.component(.minute, from: bucket), 0)
+        }
+    }
+
+    func testTokenHoverSeparatesUncachedInputCacheAndOutput() {
+        let calendar = Calendar.current
+        let now = base.addingTimeInterval(600)
+        let last = UsageHours(now: now, calendar: calendar).last
+        var snapshot = UsageAnalyticsSnapshot.empty
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
+        snapshot.timeZoneIdentifier = calendar.timeZone.identifier
+        snapshot.refreshedAt = now
+        snapshot.codex.hourlyModels = [HourlyModelUsage(hour: last, model: "Fixture", tokens: UsageTotals(
+            inputTokens: 1_200, cachedInputTokens: 700, cacheWriteInputTokens: 300, outputTokens: 13,
+            reasoningOutputTokens: 0, estimatedCostUSD: 0))]
+        let history = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: now, calendar: calendar)
+        let stack = QuotaHistoryDrawing(data: .tokens(history), calendar: calendar)
+        let description = stack.accessibilityDetails(for: .hourly, selectedTime: last)
+        XCTAssertTrue(description.contains("Uncached input · 200 tokens"))
+        XCTAssertTrue(description.contains("Cache · 1 000 tokens"))
+        XCTAssertTrue(description.contains("Output · 13 tokens"))
+
+        let output = QuotaHistoryDrawing(data: .tokens(history, series: .output), calendar: calendar)
+        let filtered = output.accessibilityDetails(for: .hourly, selectedTime: last)
+        XCTAssertTrue(filtered.contains("Output · 13 tokens"))
+        XCTAssertFalse(filtered.contains("Cache"))
     }
 
     private func report(_ id: String, at date: Date, reset: Date, used: Int, modelUsed: Int? = nil,

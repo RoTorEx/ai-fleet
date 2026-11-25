@@ -32,10 +32,10 @@ struct QuotaHistoryTarget: Identifiable, Equatable {
             }
     }
 
-    func quotaFigure(history: WeeklyQuotaHistory, now: Date) -> QuotaHistoryFigureData {
+    func quotaFigure(history: WeeklyQuotaHistory, now: Date, calendar: Calendar = .current) -> QuotaHistoryFigureData {
         let window = primaryQuotaWindow
         if let window, window.weeklyModel == nil, let report, report.weeklyWindows.contains(window) {
-            return .quota(WeeklyQuotaChart(report: report, window: window, history: history, now: now))
+            return .quota(WeeklyQuotaChart(report: report, window: window, history: history, now: now, calendar: calendar))
         }
         return .currentQuota(QuotaLimitReading(window: window, measuredAt: status.lastUpdated, now: now,
                                               markedStale: status.quotaState == .stale))
@@ -46,6 +46,7 @@ struct QuotaHistoryRequest: Equatable {
     let targetID: String
     let provider: StatisticsProvider
     var model: String?
+    var tokenSeries: LocalTokenSeries? = nil
 }
 
 @MainActor
@@ -73,22 +74,26 @@ struct QuotaHistoryView: View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             if let target = targets.first(where: { $0.id == selection?.targetID }) ?? targets.first {
                 let now = timeline.date
+                let calendar = Calendar.current
                 let model = selection?.provider == target.provider ? selection?.model : nil
-                let tokens = LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model, now: now)
+                let tokens = LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model, now: now, calendar: calendar)
                 let request = QuotaHistoryRequest(targetID: target.id, provider: target.provider,
-                    model: model.flatMap { tokens.models.contains($0) ? $0 : nil })
+                    model: model.flatMap { tokens.models.contains($0) ? $0 : nil }, tokenSeries: selection?.tokenSeries)
                 VStack(alignment: .leading, spacing: 8) {
                     controls(target: target, models: tokens.models, request: request)
                     if target.provider != .qwen, !target.quotaWindows.isEmpty {
-                        quotaReadings(target.quotaWindows, stale: target.status.quotaState == .stale)
+                        quotaReadings(target.quotaWindows, stale: target.status.quotaState == .stale, calendar: calendar)
                     }
                     VStack(spacing: 0) {
                         if target.provider != .qwen {
-                            let quota = QuotaHistoryDrawing(data: target.quotaFigure(history: quotaHistory.history, now: now))
+                            let data = target.quotaFigure(history: quotaHistory.history, now: now, calendar: calendar)
+                            let quota = QuotaHistoryDrawing(data: data, calendar: calendar)
                             QuotaHistoryFigure(drawing: quota, panel: .overview)
                             QuotaHistoryFigure(drawing: quota, panel: .hourly)
                         }
-                        QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: .tokens(tokens)), panel: .hourly)
+                        let data = QuotaHistoryFigureData.tokens(tokens, series: request.tokenSeries)
+                        QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: data, calendar: calendar), panel: .hourly)
+                            .id(request.tokenSeries)
                     }
                     if let openInStatistics {
                         Button("Open in Statistics") {
@@ -107,11 +112,11 @@ struct QuotaHistoryView: View {
             HStack(spacing: 8) {
                 providerControl(target: target, request: request)
                 Spacer(minLength: 0)
-                modelPicker(models: models, request: request)
+                tokenControls(models: models, request: request)
             }
             VStack(alignment: .leading, spacing: 6) {
                 providerControl(target: target, request: request)
-                modelPicker(models: models, request: request)
+                tokenControls(models: models, request: request)
             }
         }
         .controlSize(.small)
@@ -124,7 +129,7 @@ struct QuotaHistoryView: View {
                 set: { value in
                     guard let next = targets.first(where: { $0.id == value }) else { return }
                     selection = QuotaHistoryRequest(targetID: next.id, provider: next.provider,
-                        model: next.provider == target.provider ? request.model : nil)
+                        model: next.provider == target.provider ? request.model : nil, tokenSeries: request.tokenSeries)
                 }
             )) {
                 ForEach(targets) { Text($0.label).tag($0.id) }
@@ -139,23 +144,23 @@ struct QuotaHistoryView: View {
         }
     }
 
-    private func quotaReadings(_ windows: [ProviderLimitWindow], stale: Bool) -> some View {
+    private func quotaReadings(_ windows: [ProviderLimitWindow], stale: Bool, calendar: Calendar) -> some View {
         let title = stale ? "Last used" : "Used"
         return HStack(alignment: .top, spacing: 10) {
             Text(title).foregroundStyle(.secondary)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 14) {
-                    ForEach(windows, content: quotaReading)
+                    ForEach(windows) { quotaReading($0, calendar: calendar) }
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 105), alignment: .leading)], alignment: .leading) {
-                    ForEach(windows, content: quotaReading)
+                    ForEach(windows) { quotaReading($0, calendar: calendar) }
                 }
             }
         }
         .font(.system(size: 11))
     }
 
-    private func quotaReading(_ window: ProviderLimitWindow) -> some View {
+    private func quotaReading(_ window: ProviderLimitWindow, calendar: Calendar) -> some View {
         let value = quotaPercent(Double(100 - window.remainingPercent))
         return HStack(spacing: 5) {
             Text(window.quotaDisplayLabel).foregroundStyle(.secondary)
@@ -164,7 +169,26 @@ struct QuotaHistoryView: View {
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(window.quotaDisplayLabel) quota, \(value) used")
-        .help(window.resetAt.map { "Resets \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Reset time unavailable")
+        .help(window.resetAt.map { "Resets \(chartTimestamp($0, calendar: calendar))" } ?? "Reset time unavailable")
+    }
+
+    private func tokenControls(models: [String], request: QuotaHistoryRequest) -> some View {
+        HStack(spacing: 8) {
+            modelPicker(models: models, request: request)
+            Picker("Token category", selection: Binding(get: { request.tokenSeries }, set: { series in
+                var next = request
+                next.tokenSeries = series
+                selection = next
+            })) {
+                Text("All tokens").tag(LocalTokenSeries?.none)
+                ForEach(LocalTokenSeries.allCases) { series in
+                    Text(series.rawValue).tag(Optional(series))
+                }
+            }
+            .labelsHidden().frame(width: 124)
+            .disabled(models.isEmpty)
+            .help("Show all tokens together or inspect one category")
+        }
     }
 
     private func modelPicker(models: [String], request: QuotaHistoryRequest) -> some View {

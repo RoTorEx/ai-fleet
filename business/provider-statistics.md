@@ -77,7 +77,7 @@ and Kimi share the layout. Qwen shows the local token chart.
 Reported quota windows show their current percentages together. The charts use
 the account-wide weekly limit when present, followed by the longest account
 window. Open in Statistics carries the provider, account and local model
-selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
+and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
 Label sizes stay constant. Both hourly plots share 72 hour bins and a four-hour
 grid from local midnight, with hours and dates on separate rows. The highest
@@ -86,6 +86,11 @@ bin exceeds it. An off-scale sustainable rate appears in the legend. Charts
 keep the zero baseline and omit its label. Hover over the info icon next to a chart's title to see its legend
 inside the plot. The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
+
+Use the device calendar and current time zone for hourly bins and date labels.
+Hover and reset readouts name that zone. The local token chart stacks uncached
+input, cache reads and writes, and output in distinct colors. Hover shows each
+exact count. Select one category to inspect it on a scale fitted to its own values.
 
 The main menu reports remaining quota. The chart labels the used percentage,
 calculated as 100 minus remaining. A current-only limit uses the reading from

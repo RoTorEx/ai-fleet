@@ -93,7 +93,7 @@ func formattedNumber(_ value: Double, fractionDigits: Int) -> String {
 }
 
 
-func compactCount(_ value: Int) -> String {
+func compactCount(_ value: Int, trimsTrailingZeros: Bool = false) -> String {
     let magnitude = Decimal(value.magnitude)
     for (threshold, unit, digits) in [(1_000_000_000, "B", 2), (1_000_000, "M", 2), (1_000, "K", 1)] {
         var scaled = magnitude / Decimal(threshold)
@@ -102,7 +102,8 @@ func compactCount(_ value: Int) -> String {
         if magnitude >= Decimal(threshold) || (unit != "K" && (unit == "B" ? magnitude >= 999_995_000 : magnitude >= 999_950)) {
             let number = NumberFormatter()
             number.locale = Locale(identifier: "en_US_POSIX")
-            number.minimumFractionDigits = digits; number.maximumFractionDigits = digits
+            number.minimumFractionDigits = trimsTrailingZeros ? 0 : digits
+            number.maximumFractionDigits = digits
             number.decimalSeparator = "."; number.groupingSeparator = " "
             number.usesGroupingSeparator = true; number.numberStyle = .decimal
             return (number.string(from: NSDecimalNumber(decimal: Decimal(value) / Decimal(threshold))) ?? "—") + unit

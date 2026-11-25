@@ -4,7 +4,17 @@ import SwiftUI
 enum QuotaHistoryFigureData {
     case quota(WeeklyQuotaChart)
     case currentQuota(QuotaLimitReading)
-    case tokens(LocalTokenHistory)
+    case tokens(LocalTokenHistory, series: LocalTokenSeries? = nil)
+}
+
+private extension LocalTokenSeries {
+    var color: CGColor {
+        switch self {
+        case .uncachedInput: return Palette.uncachedInput
+        case .cache: return Palette.cache
+        case .output: return Palette.mint
+        }
+    }
 }
 
 struct QuotaHourTick: Equatable {
@@ -122,17 +132,22 @@ struct QuotaHistoryDrawing {
         let start: Date
         let parts: [Double]?
         var partial = false
+        var tokenTotals: UsageTotals? = nil
     }
 
     private let data: QuotaHistoryFigureData
     private let hours: [Hour]
     private let drawsQuota: Bool
+    private let calendar: Calendar
+    private let tokenSeries: [LocalTokenSeries]
 
-    init(data: QuotaHistoryFigureData) {
+    init(data: QuotaHistoryFigureData, calendar: Calendar = .current) {
         self.data = data
+        self.calendar = calendar
         switch data {
         case .quota(let quota):
             drawsQuota = true
+            tokenSeries = []
             hours = quota.hours.map { hour in
                 Hour(start: hour.start,
                      parts: (hour.percentagePoints ?? hour.partialPercentagePoints).map { [Double($0)] },
@@ -140,14 +155,17 @@ struct QuotaHistoryDrawing {
             }
         case .currentQuota(let reading):
             drawsQuota = true
-            hours = UsageHours(now: reading.now).starts.map { Hour(start: $0, parts: nil) }
-        case .tokens(let tokens):
+            tokenSeries = []
+            hours = UsageHours(now: reading.now, calendar: calendar).starts.map { Hour(start: $0, parts: nil) }
+        case .tokens(let tokens, let series):
             drawsQuota = false
+            let visible = series.map { [$0] } ?? LocalTokenSeries.allCases
+            tokenSeries = visible
             hours = tokens.hours.map { hour in
-                Hour(start: hour.start, parts: hour.tokens.map {
-                    [Double($0.billableInputTokens), Double($0.cachedInputTokens) + Double($0.cacheWriteInputTokens),
-                     Double($0.outputTokens)]
-                })
+                guard let totals = hour.tokens else { return Hour(start: hour.start, parts: nil) }
+                let counts = visible.compactMap { $0.count(in: totals) }
+                guard counts.count == visible.count else { return Hour(start: hour.start, parts: nil) }
+                return Hour(start: hour.start, parts: counts.map(Double.init), tokenTotals: totals)
             }
         }
     }
@@ -174,7 +192,8 @@ struct QuotaHistoryDrawing {
         switch (panel, data) {
         case (.overview, .quota(let quota)): return weekTitle(quota.pace)
         case (.overview, .currentQuota(let reading)): return readingTitle(reading)
-        case (.overview, .tokens), (.hourly, .tokens): return "Local tokens per hour (last 72h)"
+        case (_, .tokens(_, let series)):
+            return "\(series?.rawValue ?? "Local tokens") per hour (last 72h)"
         case (.hourly, _): return "Quota used per hour (% · last 72h)"
         }
     }
@@ -187,13 +206,13 @@ struct QuotaHistoryDrawing {
         if panel == .hourly {
             guard hasHourlySamples else { return emptyHoursText }
             if let selectedTime, let hour = hours.first(where: { $0.start == selectedTime }) {
-                return hourDescription(hour)
+                return hourReadout(hour).map(\.text).joined(separator: ". ")
             }
             let observed = hours.filter { $0.parts != nil }.count
             return "\(observed) hours with \(drawsQuota ? "quota observations" : "recorded tokens")"
         }
         if let selectedTime, case .quota(let quota) = data, let cycle = quota.cycleRange {
-            return weekDescription(quota, at: selectedTime, cycleStart: cycle.lowerBound)
+            return weekDescription(quota, at: selectedTime, cycleStart: cycle.lowerBound, calendar: calendar)
         }
         return title(for: panel)
     }
@@ -287,7 +306,6 @@ struct QuotaHistoryDrawing {
         let start = time.lowerBound
         let axis = PlotAxes(frame: plot, time: time, maximum: 100)
         let days = (0...7).map { start.addingTimeInterval(Double($0) * WeeklyQuotaPace.daySeconds) }
-        let calendar = Calendar.autoupdatingCurrent
         let firstDay = calendar.startOfDay(for: start)
         let dates = (0...7).compactMap { calendar.date(byAdding: .day, value: $0, to: firstDay) }
             .filter { start <= $0 && $0 < latest.reset }
@@ -336,11 +354,11 @@ struct QuotaHistoryDrawing {
         context.restoreGState()
 
         axes(axis, levels: levels, layout: layout, in: context)
-        drawDateAxis(axis, dates: dates, layout: layout, in: context)
+        drawDateAxis(axis, dates: dates, layout: layout, calendar: calendar, in: context)
         drawLimit(plot, in: context)
         if let selectedTime, time.contains(selectedTime) {
             drawCursor(at: axis.x(selectedTime), in: plot, context: context)
-            drawReadout(weekDescription(quota, at: selectedTime, cycleStart: start), layout: layout, in: context)
+            drawReadout(weekDescription(quota, at: selectedTime, cycleStart: start, calendar: calendar), layout: layout, in: context)
         }
     }
 
@@ -366,14 +384,13 @@ struct QuotaHistoryDrawing {
             }
             if let first = hours.first?.start, let observation = quota.firstObservation,
                observation.timeIntervalSince(first) > UsageHours.hour {
-                keys.append(LegendKey("Recording since \(hourDescriptionDate(observation))", Palette.labels, .none))
+                keys.append(LegendKey("Recording since \(chartTimestamp(observation, calendar: calendar))", Palette.labels, .none))
             }
             return keys
         case (.hourly, .currentQuota):
             return [measured]
         case (_, .tokens):
-            return [LegendKey("Uncached input", Palette.actual, .block), LegendKey("Cache", Palette.cache, .block),
-                    LegendKey("Output", Palette.mint, .block)]
+            return tokenSeries.map { LegendKey($0.rawValue, $0.color, .block) }
         }
     }
 
@@ -417,7 +434,7 @@ struct QuotaHistoryDrawing {
         context.setFillColor(color)
         context.fillEllipse(in: CGRect(x: plot.midX - 3, y: y - 3, width: 6, height: 6))
         context.restoreGState()
-        let timestamp = reading.measuredAt.map { "Read \(hourDescriptionDate($0))" } ?? "Latest reading"
+        let timestamp = reading.measuredAt.map { "Read \(chartTimestamp($0, calendar: calendar))" } ?? "Latest reading"
         Label(timestamp, size: layout.labelSize, maximumWidth: plot.width - 12)
             .draw(at: CGPoint(x: plot.midX, y: plot.maxY + 16), alignment: 0.5, in: context)
         if selectedTime != nil {
@@ -432,11 +449,11 @@ struct QuotaHistoryDrawing {
         let ticks = scale.levels
         let levels = ticks.map { value in
             let label = drawsQuota ? formattedNumber(value, fractionDigits: 1)
-                : compactCount(Int(min(value, Double(Int.max / 2)))).replacingOccurrences(of: ".00", with: "")
+                : compactCount(Int(min(value, Double(Int.max / 2))), trimsTrailingZeros: true)
             return (value: value, label: label)
         }
-        let colors = drawsQuota ? [Palette.mint] : [Palette.actual, Palette.cache, Palette.mint]
-        let clockTicks = QuotaHourTick.inDomain(axis.time)
+        let colors = drawsQuota ? [Palette.mint] : tokenSeries.map(\.color)
+        let clockTicks = QuotaHourTick.inDomain(axis.time, calendar: calendar)
         let dates = clockTicks.filter(\.isMajor).map(\.date)
         let minorDates = clockTicks.filter { !$0.isMajor }.map(\.date)
         let selected = hasHourlySamples ? selectedHour.flatMap { start in hours.first { $0.start == start } } : nil
@@ -467,14 +484,15 @@ struct QuotaHistoryDrawing {
         context.restoreGState()
 
         axes(axis, levels: levels, layout: layout, in: context)
-        drawHourAxis(axis, ticks: clockTicks, layout: layout, in: context)
+        drawHourAxis(axis, ticks: clockTicks, layout: layout, calendar: calendar, in: context)
         if !hasHourlySamples {
             Label(emptyHoursText, size: layout.labelSize, maximumWidth: plot.width - 12)
                 .draw(at: CGPoint(x: plot.midX, y: plot.midY + 4), alignment: 0.5, in: context)
         }
         if let selected {
-            drawCursor(at: axis.x(selected.start.addingTimeInterval(UsageHours.hour / 2)), in: plot, context: context)
-            drawReadout(hourDescription(selected), layout: layout, in: context)
+            let x = axis.x(selected.start.addingTimeInterval(UsageHours.hour / 2))
+            drawCursor(at: x, in: plot, context: context)
+            drawReadout(hourReadout(selected), layout: layout, alignLeft: x > plot.midX, in: context)
         }
     }
 
@@ -486,17 +504,22 @@ struct QuotaHistoryDrawing {
         }
     }
 
-    private func hourDescription(_ hour: Hour) -> String {
+    private func hourReadout(_ hour: Hour) -> [ReadoutLine] {
+        let timestamp = chartTimestamp(hour.start, calendar: calendar)
+        if let totals = hour.tokenTotals {
+            let rows = tokenSeries.compactMap { series in
+                series.count(in: totals).map { ReadoutLine("\(series.rawValue) · \(groupedInteger($0)) tokens", color: series.color) }
+            }
+            let heading = tokenSeries.count > 1 ? "\(timestamp) · \(groupedInteger(totals.totalTokens)) total" : timestamp
+            return [ReadoutLine(heading)] + rows
+        }
         let amount: String
-        if let parts = hour.parts {
-            let total = parts.reduce(0, +)
-            amount = drawsQuota
-                ? "\(hour.partial ? "≥ " : "")\(quotaPercent(total)) of weekly quota"
-                : "\(groupedInteger(Int(min(total, Double(Int.max / 2))))) tokens"
+        if let value = hour.parts?.first {
+            amount = "\(hour.partial ? "≥ " : "")\(quotaPercent(value)) of weekly quota"
         } else {
             amount = drawsQuota ? "No sample" : "No recorded data"
         }
-        return "\(hourDescriptionDate(hour.start)) · \(amount)"
+        return [ReadoutLine("\(timestamp) · \(amount)")]
     }
 }
 
@@ -579,16 +602,16 @@ private func axes(_ axis: PlotAxes, levels: [(value: Double, label: String)], la
     }
 }
 
-private func drawDateAxis(_ axis: PlotAxes, dates: [Date], layout: FigureLayout, in context: CGContext) {
+private func drawDateAxis(_ axis: PlotAxes, dates: [Date], layout: FigureLayout, calendar: Calendar, in context: CGContext) {
     for date in dates {
         let x = axis.x(date)
         let y = axis.frame.maxY
         stroke([CGPoint(x: x, y: y), CGPoint(x: x, y: y + 4)], Palette.labels, width: 0.6, in: context)
-        drawTimeLabel(axisDate(date), x: x, y: y + 15, layout: layout, in: context)
+        drawTimeLabel(axisDate(date, calendar: calendar), x: x, y: y + 15, layout: layout, in: context)
     }
 }
 
-private func drawHourAxis(_ axis: PlotAxes, ticks: [QuotaHourTick], layout: FigureLayout, in context: CGContext) {
+private func drawHourAxis(_ axis: PlotAxes, ticks: [QuotaHourTick], layout: FigureLayout, calendar: Calendar, in context: CGContext) {
     let positions = ticks.map { axis.x($0.date) }
     let spacing = zip(positions, positions.dropFirst()).map { left, right in right - left }.min() ?? .infinity
     let showsMinutes = spacing >= Label("00:00", size: layout.labelSize).width + 4
@@ -605,13 +628,12 @@ private func drawHourAxis(_ axis: PlotAxes, ticks: [QuotaHourTick], layout: Figu
     }
 
     // The second row names each visible day once, centered below its hours.
-    let calendar = Calendar.autoupdatingCurrent
     var day = calendar.startOfDay(for: axis.time.lowerBound)
     while day < axis.time.upperBound,
           let next = calendar.date(byAdding: .day, value: 1, to: day), next > day {
         let left = axis.x(max(day, axis.time.lowerBound))
         let right = axis.x(min(next, axis.time.upperBound))
-        let label = Label(axisDate(day), size: layout.labelSize, color: Palette.budget)
+        let label = Label(axisDate(day, calendar: calendar), size: layout.labelSize, color: Palette.budget)
         if right - left >= label.width + 4 {
             label.draw(at: CGPoint(x: (left + right) / 2, y: y + 28), alignment: 0.5, in: context)
         }
@@ -636,14 +658,32 @@ private func drawCursor(at x: CGFloat, in plot: CGRect, context: CGContext) {
     stroke([CGPoint(x: x, y: plot.minY), CGPoint(x: x, y: plot.maxY)], Palette.budget, width: 0.8, in: context)
 }
 
+private struct ReadoutLine {
+    let text: String
+    let color: CGColor
+
+    init(_ text: String, color: CGColor = Palette.labels) {
+        self.text = text
+        self.color = color
+    }
+}
+
 private func drawReadout(_ text: String, layout: FigureLayout, in context: CGContext) {
+    drawReadout([ReadoutLine(text)], layout: layout, alignLeft: false, in: context)
+}
+
+private func drawReadout(_ lines: [ReadoutLine], layout: FigureLayout, alignLeft: Bool, in context: CGContext) {
     let plot = layout.plot
-    let label = Label(text, size: layout.labelSize, maximumWidth: plot.width - 14)
-    let right = plot.maxX - 7
-    let left = right - label.width - 4
+    let labels = lines.map { Label($0.text, size: layout.labelSize, color: $0.color, maximumWidth: plot.width - 22) }
+    let width = (labels.map(\.width).max() ?? 0) + 8
+    let left = alignLeft ? plot.minX + 7 : plot.maxX - 7 - width
     let top = plot.minY + 5
-    fill(CGRect(x: left, y: top, width: label.width + 8, height: layout.labelSize + 5), Palette.plot, in: context)
-    label.draw(at: CGPoint(x: right, y: top + layout.labelSize + 1), alignment: 1, in: context)
+    let rowHeight = layout.labelSize + 2
+    fill(CGRect(x: left, y: top, width: width, height: CGFloat(labels.count) * rowHeight + 3), Palette.canvas, in: context)
+    for (index, label) in labels.enumerated() {
+        let baseline = top + layout.labelSize + 1 + CGFloat(index) * rowHeight
+        label.draw(at: CGPoint(x: left + 4, y: baseline), in: context)
+    }
 }
 
 private func frame(_ rect: CGRect, in context: CGContext) {
@@ -680,7 +720,7 @@ func quotaPercent(_ value: Double) -> String {
     "\(formattedNumber(value, fractionDigits: 1))%"
 }
 
-private func weekDescription(_ quota: WeeklyQuotaChart, at date: Date, cycleStart: Date) -> String {
+private func weekDescription(_ quota: WeeklyQuotaChart, at date: Date, cycleStart: Date, calendar: Calendar) -> String {
     let reading: String
     if let used = quota.measuredUse(at: date) {
         reading = "\(quotaPercent(Double(used))) used"
@@ -690,7 +730,7 @@ private func weekDescription(_ quota: WeeklyQuotaChart, at date: Date, cycleStar
         reading = "No sample"
     }
     let budget = quotaPercent(WeeklyQuotaPace.budget(at: date, cycleStart: cycleStart))
-    return "\(hourDescriptionDate(date)) · \(reading) · Budget \(budget)"
+    return "\(chartTimestamp(date, calendar: calendar)) · \(reading) · Budget \(budget)"
 }
 
 private func weekTitle(_ pace: WeeklyQuotaPace) -> String {
@@ -726,13 +766,17 @@ private func forecastText(_ forecast: WeeklyQuotaChart.Forecast, latest: WeeklyQ
     return "Forecast: \(quotaPercent(forecast.atReset)) (\(rate))"
 }
 
-private func axisDate(_ date: Date) -> String {
-    let fields = Calendar.autoupdatingCurrent.dateComponents([.day, .month], from: date)
+private func axisDate(_ date: Date, calendar: Calendar) -> String {
+    let fields = calendar.dateComponents([.day, .month], from: date)
     return String(format: "%02d.%02d", fields.day ?? 0, fields.month ?? 0)
 }
 
-private func hourDescriptionDate(_ date: Date) -> String {
-    date.formatted(.dateTime.day().month(.abbreviated).hour().minute().timeZone(.specificName(.short)))
+func chartTimestamp(_ date: Date, calendar: Calendar, locale: Locale = .autoupdatingCurrent) -> String {
+    var style = Date.FormatStyle.dateTime.day().month(.abbreviated).hour().minute()
+    style.calendar = calendar
+    style.timeZone = calendar.timeZone
+    style.locale = locale
+    return "\(style.format(date)) (\(calendar.timeZone.identifier))"
 }
 
 private struct LegendKey {
@@ -861,7 +905,8 @@ private enum Palette {
     static let mint = rgb(0x5ed5a0)
     static let amber = rgb(0xf4b558)
     static let coral = rgb(0xe9784c)
-    static let cache = rgb(0xa4b9ee)
+    static let uncachedInput = rgb(0x6eabff)
+    static let cache = rgb(0xf2b66d)
 
     private static func rgb(_ value: UInt32) -> CGColor {
         CGColor(srgbRed: Double((value >> 16) & 255) / 255,

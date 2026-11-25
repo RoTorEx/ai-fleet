@@ -47,6 +47,22 @@ struct HourlyModelUsage: Codable, Equatable {
     }
 }
 
+enum LocalTokenSeries: String, CaseIterable, Identifiable {
+    case uncachedInput = "Uncached input"
+    case cache = "Cache"
+    case output = "Output"
+
+    var id: Self { self }
+
+    func count(in totals: UsageTotals) -> Int? {
+        switch self {
+        case .uncachedInput: return totals.billableInputTokens
+        case .cache: return checkedStatisticsSum([totals.cachedInputTokens, totals.cacheWriteInputTokens])
+        case .output: return totals.outputTokens
+        }
+    }
+}
+
 struct LocalTokenHistory {
     struct Hour: Identifiable {
         let start: Date

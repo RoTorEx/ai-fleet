@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Use the device time zone for chart hour bins, axes, reset times, and hover readouts.
+- Give local token series distinct colors, show per-category counts on hover, and let each category use its own scale when selected.
+
 ## [1.7.3] - 2026-11-25
 
 - Fit the quota overview, hourly quota and local hourly tokens in one compact chart group in the provider popover and Statistics. Use the same layout for Claude, Codex and Kimi, including current readings and unavailable history.
