@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-25
+
 - Use Claude's account-wide quota for the provider color and lowest-balance indicator. Keep Fable's model quota visible on its own line.
 - Retain 90 days of local provider quota observations across weekly resets.
 - Show provider quota and local tokens together and attach the popover arrow to the clicked provider chart button. Mark four-hour intervals on the hourly charts, with labels at local midnight and noon.
