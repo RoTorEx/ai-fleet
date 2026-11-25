@@ -172,8 +172,14 @@ subscription charges.
   the grid extends with empty future days through the end of the first year
   measured from the first recorded vibecoding day; after it, through the end of
   the current month, opening with that month at the right.
-  Provider reports (Codex accounts, Kimi quota windows) are identity-bound and
-  never enter the local totals above.
+  Quota history is available from the Statistics toolbar and the right-edge
+  chart button on supported provider rows. Hover previews the full charts, and
+  click keeps them open. The same charts and controls are available in both
+  places. Quota percentages follow the verified account and provider window.
+  Local hourly tokens follow the provider and recorded model.
+  Provider reports (Codex accounts and Kimi quota windows) remain
+  identity-bound. [Provider statistics](business/provider-statistics.md) owns
+  history, forecasts and the two chart sources.
   Activity panel uses only its content height instead of filling empty space.
 - Token help cycles on each hover through `15` explicitly approximate
   English-word-count comparisons: The Little Prince, The Hobbit, the complete
@@ -222,8 +228,8 @@ subscription charges.
   Agents tab its session count.
   Sign-in progress and errors add one detail line below it; a manual refresh spins the
   Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status. Options is a native menu:
-  Statistics, Settings…, Logs, Quit. Logs shows statistics source diagnostics and
-  current app issues. Statistics links to Logs through a single issue count.
+  Statistics, Settings…, Logs, Quit. Logs owns statistics source diagnostics and
+  current app issues. Statistics displays usage and quota data.
   The menu grows to 80% of the screen's visible
   height, after which only the active tab scrolls (header, tabs and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not

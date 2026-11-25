@@ -16,6 +16,7 @@ visual reference and is updated when the design changes.
 | Surface | Board | Status |
 | --- | --- | --- |
 | Notifications | [`notifications/index.html`](notifications/index.html) | Revision 4 accepted 2026-11-22 |
+| Quota history | [`quota-history/index.html`](quota-history/index.html) | Full charts from the provider row and Statistics |
 
 ## Notifications
 

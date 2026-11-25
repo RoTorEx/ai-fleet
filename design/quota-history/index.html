@@ -1,0 +1,710 @@
+<meta charset="utf-8">
+<title>AI Fleet · Quota history</title>
+<!--
+VPM-40 design board.
+The chart button on each provider account row opens both charts beside the
+menu. Pointer crossing keeps the popover open. Clicking the button pins or
+closes it. The same charts appear in Statistics with the selected scope.
+Full quota history uses the provider's reset cycle, a daily carry-forward
+budget, a limit line, actual observations, and two projections from the latest
+fresh sample. Missing hours and measured zero have distinct marks.
+Scoped quota uses only verified provider windows. Local tokens use provider and
+logged model without account attribution. The fixtures illustrate each source.
+-->
+<style>
+  #fleet-quota-design {
+    color-scheme: light dark;
+    --window: light-dark(#f8f9fb, #15171a);
+    --panel: light-dark(#ffffff, #22252a);
+    --plot: light-dark(#ffffff, #1b1f25);
+    --text: light-dark(#1c222c, #eceef2);
+    --muted: light-dark(#555f70, #bfc5d0);
+    --border: light-dark(#d7dce4, #3b4149);
+    --grid: light-dark(#e7eaf0, #2c3036);
+    --selected: light-dark(#e7eaf1, #353a43);
+    --usage: light-dark(#275eba, #77a6fd);
+    --budget: light-dark(#596778, #8e939b);
+    --headroom: light-dark(#ddf0e7, #26403b);
+    --overspend: light-dark(#f8e2e3, #412b31);
+    --limit: light-dark(#bd3840, #e8565d);
+    --mint: light-dark(#157652, #5ed99c);
+    --gold: light-dark(#955b06, #f4b558);
+    --coral: light-dark(#b14728, #e9784c);
+    --cache: light-dark(#5973ac, #a4b9ee);
+    --shadow: 0 9px 23px light-dark(#18243a1e, #0000004d);
+    max-width: 1016px;
+    margin: 0 auto;
+    padding: 10px 4px 4px;
+    color: var(--text);
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  #fleet-quota-design *, #fleet-quota-design *::before { box-sizing: border-box; }
+  #fleet-quota-design [hidden] { display: none !important; }
+  #fleet-quota-design h1, #fleet-quota-design h2, #fleet-quota-design p,
+  #fleet-quota-design figure { margin: 0; }
+  #fleet-quota-design h1 { font-size: 14px; font-weight: 650; }
+  #fleet-quota-design h2 { font-size: 13px; font-weight: 650; }
+  #fleet-quota-design button, #fleet-quota-design select {
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 9px;
+    font: inherit;
+  }
+  #fleet-quota-design :is(button, select):focus-visible { outline: 2px solid var(--usage); outline-offset: 2px; }
+  #fleet-quota-design .muted { color: var(--muted); }
+  #fleet-quota-design .small { font-size: 11px; }
+  #fleet-quota-design .menu-stage {
+    display: grid;
+    grid-template-columns: minmax(208px, 280px) minmax(0, 1fr);
+    align-items: start;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 0 20px;
+  }
+  #fleet-quota-design .provider-menu, #fleet-quota-design .quota-peek, #fleet-quota-design .stats-window {
+    background: var(--window);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    min-width: 0;
+  }
+  #fleet-quota-design .provider-menu { padding: 11px; }
+  #fleet-quota-design .menu-header, #fleet-quota-design .window-header,
+  #fleet-quota-design .peek-header, #fleet-quota-design .chart-caption,
+  #fleet-quota-design .history-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 12px;
+    flex-wrap: wrap;
+  }
+  #fleet-quota-design .menu-header { margin: 1px 1px 7px; }
+  #fleet-quota-design .quota-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 4px 3px 8px;
+    border-radius: 6px;
+  }
+  #fleet-quota-design .quota-row:has(.chart-button[aria-expanded="true"]) {
+    background: var(--selected);
+  }
+  #fleet-quota-design .chart-button {
+    display: inline-grid;
+    min-width: 27px;
+    min-height: 26px;
+    place-items: center;
+    padding: 3px;
+    color: var(--muted);
+    background: transparent;
+    border-color: transparent;
+  }
+  #fleet-quota-design .chart-button:is(:hover, [aria-expanded="true"]) {
+    color: var(--text);
+    background: var(--selected);
+  }
+  #fleet-quota-design .chart-button[aria-pressed="true"] { border-color: var(--budget); }
+  #fleet-quota-design .chart-glyph {
+    display: block;
+    width: 15px;
+    height: 13px;
+    background:
+      linear-gradient(currentColor, currentColor) left bottom / 3px 6px no-repeat,
+      linear-gradient(currentColor, currentColor) center bottom / 3px 10px no-repeat,
+      linear-gradient(currentColor, currentColor) right bottom / 3px 13px no-repeat;
+  }
+  #fleet-quota-design .chart-glyph:has(svg) { background: none; }
+  #fleet-quota-design .chart-glyph svg { display: block; width: 15px; height: 13px; }
+  #fleet-quota-design .peek-header {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #fleet-quota-design .peek-action { margin: 0 14px 12px; }
+  #fleet-quota-design .window-header {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    background: var(--panel);
+  }
+  #fleet-quota-design .window-title { display: flex; align-items: center; gap: 9px; }
+  #fleet-quota-design .window-lights { display: flex; gap: 4px; }
+  #fleet-quota-design .window-lights i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  #fleet-quota-design .history-content {
+    min-width: 0;
+    padding: 13px 14px 11px;
+    container-type: inline-size;
+  }
+  #fleet-quota-design .history-controls { justify-content: flex-start; margin-bottom: 11px; }
+  #fleet-quota-design .scope-controls { display: inline-flex; gap: 3px; }
+  #fleet-quota-design .scope-controls [aria-pressed="true"] { border-color: var(--budget); background: var(--selected); }
+  #fleet-quota-design .chart-caption { margin: 0 0 4px; }
+  #fleet-quota-design .chart-area { position: relative; }
+  #fleet-quota-design svg.chart { display: block; width: 100%; height: clamp(188px, 34vw, 330px); }
+  #fleet-quota-design svg.hours { height: clamp(155px, 23vw, 220px); }
+  #fleet-quota-design .quota-peek svg.chart { height: clamp(182px, 30vw, 264px); }
+  #fleet-quota-design .quota-peek svg.hours { height: clamp(144px, 21vw, 176px); }
+  #fleet-quota-design .histogram { margin-top: 12px; }
+  #fleet-quota-design .legend {
+    display: flex;
+    align-items: center;
+    gap: 3px 13px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  #fleet-quota-design .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  #fleet-quota-design .legend i { width: 15px; border-top: 2px solid var(--swatch); }
+  #fleet-quota-design .legend .dotted i { border-top-style: dotted; }
+  #fleet-quota-design .legend .filled i { height: 7px; border: 0; background: var(--swatch); }
+  @container (min-width: 590px) {
+    #fleet-quota-design .chart-area > .legend {
+      position: absolute;
+      top: 13px;
+      left: 49px;
+      display: grid;
+      gap: 2px;
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--plot);
+    }
+  }
+  #fleet-quota-design .readout { min-height: 16px; text-align: right; margin-top: 2px; }
+  #fleet-quota-design .notice { padding: 12px 0; }
+  #fleet-quota-design svg.chart text { fill: var(--muted); font: 11px -apple-system, BlinkMacSystemFont, sans-serif; }
+  @media (max-width: 650px) {
+    #fleet-quota-design .menu-stage { grid-template-columns: minmax(0, 1fr); }
+    #fleet-quota-design .history-content { padding: 10px; }
+  }
+  @media (pointer: coarse) {
+    #fleet-quota-design :is(button, select) { min-height: 44px; }
+    #fleet-quota-design .chart-button { min-width: 44px; min-height: 44px; }
+    #fleet-quota-design select { font-size: 16px; }
+  }
+</style>
+
+<main id="fleet-quota-design" aria-label="AI Fleet quota history design">
+  <div class="menu-stage" aria-label="Provider menu and chart popover">
+    <section class="provider-menu" aria-label="Providers">
+      <div class="menu-header"><h2>Providers</h2><span class="small muted">7d left</span></div>
+      <div class="quota-row">
+        <span>Codex (α)</span><span>57%</span>
+        <button class="chart-button cursor-interaction" type="button" data-chart-account="codex" aria-label="Quota history for Codex (α)"
+                aria-controls="fleet-quota-peek" aria-haspopup="dialog" aria-expanded="true" aria-pressed="false">
+          <span class="chart-glyph" aria-hidden="true"><i data-lucide="chart-column"></i></span>
+        </button>
+      </div>
+      <div class="quota-row">
+        <span>Claude (β)</span><span>38%</span>
+        <button class="chart-button cursor-interaction" type="button" data-chart-account="claude" aria-label="Quota history for Claude (β)"
+                aria-controls="fleet-quota-peek" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false">
+          <span class="chart-glyph" aria-hidden="true"><i data-lucide="chart-column"></i></span>
+        </button>
+      </div>
+      <div class="quota-row">
+        <span>Claude (γ)</span><span class="muted">73% · Stale</span>
+        <button class="chart-button cursor-interaction" type="button" data-chart-account="claude-stale" aria-label="Quota history for Claude (γ)"
+                aria-controls="fleet-quota-peek" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false">
+          <span class="chart-glyph" aria-hidden="true"><i data-lucide="chart-column"></i></span>
+        </button>
+      </div>
+      <div class="quota-row">
+        <span>Qwen (δ)</span><span>—</span>
+        <button class="chart-button cursor-interaction" type="button" data-chart-account="qwen" aria-label="Usage history for Qwen (δ)"
+                aria-controls="fleet-quota-peek" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false">
+          <span class="chart-glyph" aria-hidden="true"><i data-lucide="chart-column"></i></span>
+        </button>
+      </div>
+    </section>
+    <aside class="quota-peek" id="fleet-quota-peek" role="dialog" aria-labelledby="fleet-quota-peek-title">
+      <header class="peek-header">
+        <h2 id="fleet-quota-peek-title">Codex (α) · Quota history</h2>
+        <span class="small muted" data-pinned hidden>Pinned</span>
+      </header>
+      <div class="history-content" data-popup-charts></div>
+      <button class="peek-action" type="button" data-history>Open in Statistics</button>
+    </aside>
+  </div>
+  <section class="stats-window" aria-labelledby="fleet-quota-window-title">
+    <header class="window-header">
+      <div class="window-title">
+        <span class="window-lights" aria-hidden="true"><i></i><i></i><i></i></span>
+        <h1 id="fleet-quota-window-title">AI Fleet Statistics</h1>
+      </div>
+      <span class="small muted">Example data</span>
+    </header>
+    <div class="history-content" data-statistics-charts></div>
+  </section>
+  <template id="fleet-quota-charts">
+      <div class="history-controls">
+        <div class="scope-controls" role="group" aria-label="Data source">
+          <button type="button" data-mode="quota" aria-pressed="true">Quota %</button>
+          <button type="button" data-mode="tokens" aria-pressed="false">Local tokens</button>
+        </div>
+        <select aria-label="Provider and account" data-account-picker>
+          <option value="codex">Codex (α)</option><option value="claude">Claude (β)</option><option value="claude-stale">Claude (γ)</option><option value="qwen">Qwen (δ)</option>
+        </select>
+        <select aria-label="Weekly quota scope" data-model-picker hidden></select>
+        <span class="small muted" data-source>Provider reports</span>
+      </div>
+      <p class="chart-caption small muted" aria-live="polite" data-selection></p>
+      <p class="notice muted" data-notice hidden></p>
+      <figure data-weekly>
+        <figcaption class="chart-caption"><h2>Weekly limit</h2><span class="small muted" data-window-note></span></figcaption>
+        <div class="chart-area">
+          <svg class="chart" role="img" aria-label="Weekly quota consumption, daily budget and projections" data-week-chart></svg>
+          <div class="legend" data-week-legend></div>
+        </div>
+      </figure>
+      <figure class="histogram" data-histogram>
+        <figcaption class="chart-caption"><h2 data-hours-title>Hourly usage · Last 72 hours</h2><span class="small muted" data-hours-note></span></figcaption>
+        <div class="chart-area">
+          <svg class="chart hours" role="img" aria-label="Hourly usage over the last 72 hours" data-hour-chart></svg>
+          <div class="legend" data-hour-legend></div>
+        </div>
+        <p class="readout muted small" data-hour-readout></p>
+      </figure>
+  </template>
+</main>
+
+<script>
+(() => {
+  const root = document.getElementById("fleet-quota-design");
+  const peek = root.querySelector("#fleet-quota-peek");
+  const peekTitle = root.querySelector("#fleet-quota-peek-title");
+  const buttons = [...root.querySelectorAll("[data-chart-account]")];
+  const charts = root.querySelector("#fleet-quota-charts");
+  function mountCharts(container) {
+    const panel = root.querySelector(container);
+    panel.append(charts.content.cloneNode(true));
+    return {
+      find: attr => panel.querySelector(`[data-${attr}]`),
+      modes: [...panel.querySelectorAll("[data-mode]")]
+    };
+  }
+  const preview = mountCharts("[data-popup-charts]");
+  const statistics = mountCharts("[data-statistics-charts]");
+  preview.find("account-picker").hidden = true;
+
+  const resetHour = 168;
+  const latestHour = 92;
+  const resetIn = resetHour - latestHour;
+  const cycleStart = Date.UTC(2026, 10, 6, 13);
+  const dayLabel = new Intl.DateTimeFormat("en-GB", {day: "numeric", month: "short", timeZone: "Europe/Warsaw"});
+  const clockLabel = new Intl.DateTimeFormat("en-GB", {hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Warsaw"});
+  const fixtureTimeZone = "Warsaw · CET (UTC+01:00)";
+  const hourDate = hour => new Date(cycleStart + hour * 3600000);
+  const hourlyCaption = hour => `${dayLabel.format(hourDate(hour))} ${clockLabel.format(hourDate(hour))}`;
+  const pct = value => `${Math.round(value)}%`;
+  const budget = hour => Math.min(100, (Math.floor(hour / 24) + 1) * 100 / 7);
+  function quotaFixture(label, used, initial, lastDay, offset = 0, stale = false) {
+    const weights = [1, 0, 0, 1, 3, 2, 3, 1, 0, 1, 3, 0, 2, 1, 0, 1, 1];
+    const pattern = Array.from({length: 72}, (_, i) => {
+      if (i < 19) return i % 11 === 3 ? 1 : 0;
+      if (i > 59 && i % 5 !== 2) return 0;
+      return weights[(i + offset) % weights.length];
+    });
+    const distribute = (values, total) => {
+      const sum = values.reduce((previous, next) => previous + next, 0);
+      return values.map(weight => weight / sum * total);
+    };
+    const deltas = [...distribute(pattern.slice(0, 48), used - initial - lastDay),
+                    ...distribute(pattern.slice(48), lastDay)];
+    const missing = new Set([7, 8, 46]);
+    const firstHour = latestHour - deltas.length;
+    const samples = [[0, 0], [firstHour / 2, initial / 3], [firstHour, initial]];
+    let cumulative = initial;
+    for (const [i, delta] of deltas.entries()) {
+      cumulative += delta;
+      if (missing.has(i)) {
+        if (samples.at(-1) !== null) samples.push(null);
+      } else {
+        samples.push([firstHour + i + 1, i === 71 ? used : cumulative]);
+      }
+    }
+    return {label, samples, recentStart: used - lastDay, stale, hours: deltas.map((delta, i) => missing.has(i) ? null : delta)};
+  }
+  const claudeModels = {"all":"All models","fable":"Fable","sonnet":"Sonnet"};
+  const providers = {
+    codex: {name: "Codex", badge: "α", caps: {account: quotaFixture("Account quota", 42.8, 3, 13)},
+      models: {"all":"All models","sol":"GPT-6.1 Sol","astra":"GPT-6 Astra"}},
+    claude: {name: "Claude", badge: "β", caps: {
+      account: quotaFixture("Account quota", 62, 6, 14, 4),
+      fable: quotaFixture("Fable cap", 31, 2, 7, 9),
+      sonnet: {label: "Sonnet cap", samples: [[92, 23]], hours: Array(72).fill(null)}
+    }, models: claudeModels},
+    "claude-stale": {name: "Claude", badge: "γ", localProvider: "claude",
+      caps: {account: quotaFixture("Account quota", 27, 2, 5, 12, true)}, models: claudeModels},
+    qwen: {name: "Qwen", badge: "δ", caps: {}, models: {"all":"All models","coder":"Qwen3-Coder"}}
+  };
+  const state = {account: "codex", mode: "quota", cap: "account", model: "all"};
+  let popover = {...state, pinned: false};
+  const localAccount = account => providers[account].localProvider ?? account;
+
+  function svgElement(svg, tag, attrs, label) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+    if (label !== undefined) el.textContent = label;
+    svg.append(el);
+    return el;
+  }
+
+  function chartSpace(svg, margin, maxValue, extent) {
+    const w = svg.clientWidth;
+    const h = svg.clientHeight;
+    svg.replaceChildren();
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    const x = hour => margin.left + hour / extent * (w - margin.left - margin.right);
+    const y = value => margin.top + (1 - value / maxValue) * (h - margin.top - margin.bottom);
+    return {w, h, x, y};
+  }
+
+  function frame(svg, space, extent, ymax, ticks, xText, yText) {
+    const {w, h, x, y} = space;
+    svgElement(svg, "rect", {x: x(0), y: y(ymax), width: x(extent) - x(0), height: y(0) - y(ymax), fill: "var(--plot)", stroke: "var(--border)"});
+    for (const tick of ticks) {
+      svgElement(svg, "line", {x1: x(0), x2: x(extent), y1: y(tick), y2: y(tick), stroke: "var(--grid)"});
+      svgElement(svg, "text", {x: x(0) - 6, y: y(tick) + 4, "text-anchor": "end"}, yText(tick));
+    }
+    const count = w >= 650 ? 7 : (w >= 440 ? 4 : 3);
+    for (let i = 0; i <= count; i++) {
+      const hour = i === count ? extent : Math.round(extent * i / count);
+      svgElement(svg, "line", {x1: x(hour), x2: x(hour), y1: y(0), y2: y(ymax), stroke: "var(--grid)"});
+      const alignment = i === 0 ? "start" : (i === count ? "end" : "middle");
+      svgElement(svg, "text", {x: x(hour), y: h - 5, "text-anchor": alignment}, xText(hour, w));
+    }
+  }
+
+  function stepped(samples, {x, y}) {
+    return samples.map(([hour, value], i) =>
+      i === 0 ? `M ${x(hour)} ${y(value)}` : `H ${x(hour)} V ${y(value)}`).join(" ");
+  }
+
+  function projection(cap) {
+    if (cap.stale || cap.samples.length < 2) return null;
+    const used = cap.samples.at(-1)[1];
+    return [{label: "Window average", color: "--gold", end: used / latestHour * resetHour},
+            {label: "Trailing 24h", color: "--coral", end: used + (used - cap.recentStart) / 24 * resetIn}];
+  }
+
+  function weeklyChart(svg, cap) {
+    if (!svg.clientWidth) return;
+    const limit = 100;
+    const predictions = projection(cap);
+    const ymax = Math.ceil(Math.max(...(predictions || []).map(p => p.end), limit) / 20) * 20 + 10;
+    const extent = resetHour;
+    const space = chartSpace(svg, {left: 41, right: 10, top: 6, bottom: 23}, ymax, extent);
+    const {x, y} = space;
+    const budgetSteps = Array.from({length: 7}, (_, i) => [24 * i, (i + 1) * 100 / 7]).filter(point => point[0] < extent);
+    budgetSteps.push([extent, budget(extent - 0.001)]);
+    frame(svg, space, extent, ymax, Array.from({length: Math.floor(ymax / 20) + 1}, (_, i) => i * 20), hour => dayLabel.format(hourDate(hour)), value => `${value}%`);
+    const observed = [[]];
+    for (const sample of cap.samples) {
+      if (sample === null) observed.push([]);
+      else observed.at(-1).push(sample);
+    }
+    for (const segment of observed) {
+      for (let index = 0; index < segment.length - 1; index++) {
+        const [start, used] = segment[index];
+        const [end] = segment[index + 1];
+        const cuts = [start, ...budgetSteps.map(s => s[0]).filter(h => h > start && h < end), end];
+        for (let j = 1; j < cuts.length; j++) {
+          const allowance = budget(cuts[j - 1]);
+          svgElement(svg, "rect", {x: x(cuts[j - 1]), y: y(Math.max(used, allowance)),
+            width: x(cuts[j]) - x(cuts[j - 1]), height: Math.abs(y(used) - y(allowance)),
+            fill: used <= allowance ? "var(--headroom)" : "var(--overspend)",
+            "shape-rendering": "crispEdges", "pointer-events": "none"});
+        }
+      }
+    }
+    svgElement(svg, "line", {x1: x(0), x2: x(extent), y1: y(limit), y2: y(limit), stroke: "var(--limit)", "stroke-width": 1.4});
+    svgElement(svg, "path", {d: stepped(budgetSteps, space), fill: "none", stroke: "var(--budget)", "stroke-width": 1.4});
+    for (const segment of observed.filter(set => set.length)) {
+      svgElement(svg, "path", {d: stepped(segment, space), fill: "none", stroke: "var(--usage)", "stroke-width": 2.5});
+    }
+    const used = cap.samples.at(-1)[1];
+    svgElement(svg, "circle", {cx: x(latestHour), cy: y(used), r: 3, fill: "var(--usage)"});
+    for (const predict of predictions || []) {
+      const line = svgElement(svg, "line", {x1: x(latestHour), x2: x(extent), y1: y(used), y2: y(predict.end),
+        stroke: `var(${predict.color})`, "stroke-dasharray": "2 4", "stroke-width": 2.5});
+      const exhaustion = predict.end > 100 ? Math.round(resetIn * (100 - used) / (predict.end - used)) : null;
+      line.dataset.tooltip = `${predict.label} · ${pct(predict.end)} at reset${exhaustion === null ? "" : ` · limit in ${exhaustion}h`}`;
+    }
+  }
+
+  function tokenHours(selection) {
+    const models = Object.keys(providers[localAccount(selection.account)].models).filter(model => model !== "all");
+    const active = selection.model === "all" ? models : [selection.model];
+    return Array.from({length: 72}, (_, hour) => active.reduce((totals, model) => {
+      const offset = model.length + model.charCodeAt(0);
+      const scale = hour % 7 >= 5 || (hour + offset) % 13 === 0 ? 0 : (hour + offset) % 11;
+      return [totals[0] + scale * 17000, totals[1] + scale * 28000, totals[2] + scale * 6500];
+    }, [0, 0, 0]));
+  }
+
+  function hourlyChart({find}, cap, selection) {
+    const svg = find("hour-chart");
+    if (!svg.clientWidth) return;
+    const tokens = selection.mode === "tokens";
+    const values = tokens ? tokenHours(selection) : cap.hours;
+    const totals = values.map(value => Array.isArray(value) ? value.reduce((a, b) => a + b, 0) : value);
+    const ceiling = tokens ? Math.max(100000, Math.ceil(Math.max(...totals) / 100000) * 100000)
+      : Math.max(2, Math.ceil(Math.max(...totals) * 2) / 2);
+    const space = chartSpace(svg, {left: 41, right: 10, top: 6, bottom: 23}, ceiling, 72);
+    const {x, y} = space;
+    const format = value => tokens ? `${Math.round(value / 1000)}k` : `${Number(value.toFixed(1))}%`;
+    const ticks = !tokens && space.w >= 650 ? Array.from({length: ceiling * 2 + 1}, (_, i) => i / 2)
+      : [0, ceiling * .25, ceiling * .5, ceiling * .75, ceiling];
+    frame(svg, space, 72, ceiling, ticks,
+      (hour, width) => width >= 650 ? hourlyCaption(latestHour - 72 + hour) : dayLabel.format(hourDate(latestHour - 72 + hour)), format);
+    const barWidth = Math.max(1, (x(1) - x(0)) * .76);
+    const colors = tokens ? ["--usage", "--cache", "--mint"] : ["--mint"];
+    for (const [i, value] of values.entries()) {
+      const barX = x(i + .5) - barWidth / 2;
+      const hour = hourlyCaption(latestHour - 72 + i);
+      let accumulated = 0;
+      for (const [k, height] of (Array.isArray(value) ? value : [value]).entries()) {
+        if (height === null) {
+          svgElement(svg, "rect", {x: barX, y: y(0) - 3, width: barWidth, height: 3, fill: "var(--budget)"});
+        } else if (height > 0) {
+          svgElement(svg, "rect", {x: barX, y: y(accumulated + height), width: barWidth,
+            height: y(accumulated) - y(accumulated + height), fill: `var(${colors[k]})`});
+        }
+        accumulated += height || 0;
+      }
+      const mark = svgElement(svg, "rect", {x: x(i), y: y(ceiling), width: x(i + 1) - x(i),
+        height: y(0) - y(ceiling), fill: "transparent"});
+      const label = value === null ? "No reliable measurement" : (tokens ? `${totals[i].toLocaleString("en-GB")} tokens` : `${Number(value.toFixed(2))}% of weekly quota`);
+      mark.dataset.tooltip = `${hour} · ${label}`;
+      mark.addEventListener("pointerenter", () => { find("hour-readout").textContent = `${hour} ${fixtureTimeZone} · ${label}`; });
+      mark.addEventListener("pointerleave", () => { find("hour-readout").textContent = ""; });
+    }
+    if (!tokens && !cap.stale) {
+      const sustainable = (100 - cap.samples.at(-1)[1]) / resetIn;
+      svgElement(svg, "line", {x1: x(0), x2: x(72), y1: y(sustainable), y2: y(sustainable),
+        stroke: "var(--gold)", "stroke-width": 1.5, "stroke-dasharray": "4 3", "pointer-events": "none"});
+    }
+  }
+
+  function legend(parent, entries) {
+    parent.replaceChildren(...entries.map(([label, color, style]) => {
+      const item = document.createElement("span");
+      const sample = document.createElement("i");
+      sample.style.setProperty("--swatch", `var(${color})`);
+      if (style) item.classList.add(style);
+      item.append(sample, label);
+      return item;
+    }));
+  }
+
+  function drawCharts(view, selection) {
+    const cap = providers[selection.account].caps[selection.cap];
+    if (selection.mode === "tokens") {
+      hourlyChart(view, null, selection);
+    } else if (cap) {
+      weeklyChart(view.find("week-chart"), cap);
+      hourlyChart(view, cap, selection);
+    }
+  }
+
+  function render(view, selection) {
+    const {find, modes} = view;
+    const provider = providers[selection.account];
+    const tokens = selection.mode === "tokens";
+    const choices = tokens ? providers[localAccount(selection.account)].models
+      : Object.fromEntries(Object.entries(provider.caps).map(([key, cap]) => [key, cap.label]));
+    const scope = tokens ? selection.model : selection.cap;
+    const modelPicker = find("model-picker");
+    modelPicker.replaceChildren(...Object.entries(choices).map(([id, label]) => new Option(label, id, false, id === scope)));
+    modelPicker.hidden = Object.keys(choices).length < 2;
+    modelPicker.setAttribute("aria-label", tokens ? "Model" : "Weekly quota scope");
+    for (const mode of modes) mode.setAttribute("aria-pressed", String(mode.dataset.mode === selection.mode));
+    const accountPicker = find("account-picker");
+    for (const option of accountPicker.options) {
+      const p = providers[option.value];
+      option.text = tokens ? p.name : `${p.name} (${p.badge})`;
+      option.hidden = tokens && Boolean(p.localProvider);
+    }
+    accountPicker.value = tokens ? localAccount(selection.account) : selection.account;
+    accountPicker.setAttribute("aria-label", tokens ? "Provider" : "Provider and account");
+    find("source").textContent = tokens ? "On this Mac" : "Provider reports";
+    const cap = provider.caps[selection.cap];
+    find("weekly").hidden = tokens || !cap;
+    find("histogram").hidden = !tokens && !cap;
+    find("notice").hidden = tokens || Boolean(cap);
+    find("notice").textContent = "No weekly quota reported for this provider.";
+    find("hour-readout").textContent = "";
+    const selectionLabel = choices[scope] ?? "";
+    find("selection").textContent = view === preview ? selectionLabel
+      : (tokens ? `${provider.name} · ${selectionLabel}` : (cap ? `${provider.name} (${provider.badge}) · ${selectionLabel}` : ""));
+    if (!tokens && !cap) return;
+    find("hours-title").textContent = tokens ? "Tokens per hour · Last 72 hours" : "Quota used per hour · Last 72 hours";
+    find("hours-note").textContent = `${tokens ? "Session timestamps" : "Hourly bins"} · ${fixtureTimeZone}`;
+    find("hour-chart").setAttribute("aria-label",
+      tokens ? "Local tokens by hour over the last 72 hours" : "Provider quota used per hour over the last 72 hours");
+    if (tokens) {
+      legend(find("hour-legend"), [["Uncached input", "--usage", "filled"], ["Cache", "--cache", "filled"], ["Output", "--mint", "filled"]]);
+    } else {
+      const used = cap.samples.at(-1)[1];
+      const context = cap.stale ? "Stale measurement" : `${resetIn}h to reset${cap.samples.length === 1 ? " · Collecting history" : ""}`;
+      find("window-note").textContent = `${pct(used)} used · ${context}`;
+      const currentBudget = budget(latestHour);
+      const delta = currentBudget - used;
+      const forecasts = (projection(cap) || []).map(p => {
+        const exhaustion = p.end > 100 ? Math.round(resetIn * (100 - used) / (p.end - used)) : null;
+        return [`${p.label} ${pct(p.end)}${exhaustion === null ? "" : ` · limit in ${exhaustion}h`}`, p.color, "dotted"];
+      });
+      legend(find("week-legend"), [["Used", "--usage"], ["Daily budget", "--budget"],
+        [`${Math.round(Math.abs(delta))} pp ${delta >= 0 ? "headroom" : "over plan"}`, delta >= 0 ? "--headroom" : "--overspend", "filled"],
+        ["100% limit", "--limit"], ...forecasts]);
+      const guide = cap.stale ? [] : [[`${((100 - used) / resetIn).toFixed(2)}%/h sustainable`, "--gold", "dotted"]];
+      legend(find("hour-legend"), [["Measured", "--mint", "filled"], ["Missing sample", "--budget", "filled"], ...guide]);
+    }
+    drawCharts(view, selection);
+  }
+
+  let hideTimer;
+
+  function renderPopover() {
+    peek.hidden = !popover;
+    for (const button of buttons) {
+      const expanded = button.dataset.chartAccount === popover?.account;
+      button.setAttribute("aria-expanded", String(expanded));
+      button.setAttribute("aria-pressed", String(expanded && popover.pinned));
+    }
+    if (!popover) return;
+    const provider = providers[popover.account];
+    peekTitle.textContent = popover.mode === "tokens" ? `${provider.name} · Local tokens`
+      : `${provider.name} (${provider.badge}) · Quota history`;
+    peek.querySelector("[data-pinned]").hidden = !popover.pinned;
+    render(preview, popover);
+  }
+
+  function showPopover(account, pinned) {
+    clearTimeout(hideTimer);
+    if (popover?.account === account) {
+      popover.pinned = pinned;
+    } else {
+      popover = {account, mode: providers[account].caps.account ? "quota" : "tokens", cap: "account", model: "all", pinned};
+    }
+    renderPopover();
+  }
+
+  function closePopover() {
+    clearTimeout(hideTimer);
+    popover = null;
+    renderPopover();
+  }
+
+  const activeButton = () => buttons.find(button => button.dataset.chartAccount === popover?.account);
+  const insidePopover = target => target instanceof Node && (peek.contains(target) || activeButton()?.contains(target));
+
+  function scheduleDismiss(event) {
+    if (!popover || popover.pinned || insidePopover(event.relatedTarget)) return;
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (popover && !popover.pinned &&
+          !peek.matches(":hover") && !activeButton()?.matches(":hover") &&
+          !insidePopover(document.activeElement)) closePopover();
+    }, 240);
+  }
+
+  for (const button of buttons) {
+    const account = button.dataset.chartAccount;
+    button.addEventListener("pointerenter", event => {
+      if (event.pointerType !== "touch" && !popover?.pinned) showPopover(account, false);
+    });
+    button.addEventListener("pointerleave", scheduleDismiss);
+    button.addEventListener("click", event => {
+      if (popover?.account === account && popover.pinned) {
+        closePopover();
+      } else {
+        showPopover(account, true);
+        if (event.detail === 0) preview.modes.find(mode => mode.dataset.mode === popover.mode).focus();
+      }
+    });
+  }
+  peek.addEventListener("pointerenter", () => clearTimeout(hideTimer));
+  peek.addEventListener("pointerleave", scheduleDismiss);
+  document.addEventListener("pointerdown", event => {
+    if (popover && !insidePopover(event.target)) closePopover();
+  });
+  root.addEventListener("focusout", scheduleDismiss);
+  root.addEventListener("keydown", event => {
+    if (event.key === "Escape" && popover && !event.defaultPrevented) {
+      const button = activeButton();
+      event.preventDefault();
+      closePopover();
+      button?.focus({preventScroll: true});
+    }
+  });
+
+  function updateStatistics(selection) {
+    Object.assign(state, selection);
+    render(statistics, state);
+    save();
+  }
+
+  root.querySelector("[data-history]").addEventListener("click", () => {
+    if (!popover) return;
+    const {account, mode, cap, model} = popover;
+    updateStatistics({account, mode, cap, model});
+    closePopover();
+    statistics.find("account-picker").focus();
+  });
+  statistics.find("account-picker").addEventListener("change", event => {
+    updateStatistics({account: event.target.value, cap: "account", model: "all"});
+  });
+  for (const mode of statistics.modes) {
+    mode.addEventListener("click", () => updateStatistics({mode: mode.dataset.mode}));
+  }
+  statistics.find("model-picker").addEventListener("change", event => {
+    updateStatistics({[state.mode === "quota" ? "cap" : "model"]: event.target.value});
+  });
+  for (const mode of preview.modes) {
+    mode.addEventListener("click", () => {
+      if (!popover) return;
+      popover.mode = mode.dataset.mode;
+      renderPopover();
+    });
+  }
+  preview.find("model-picker").addEventListener("change", event => {
+    if (!popover) return;
+    popover[popover.mode === "quota" ? "cap" : "model"] = event.target.value;
+    renderPopover();
+  });
+
+  function restore(saved) {
+    const value = saved?.modelContent;
+    if (!value || !Object.hasOwn(providers, value.account)) return;
+    state.mode = value.mode === "tokens" ? "tokens" : "quota";
+    state.account = state.mode === "tokens" ? localAccount(value.account) : value.account;
+    state.cap = Object.hasOwn(providers[state.account].caps, value.cap) ? value.cap : "account";
+    state.model = Object.hasOwn(providers[state.account].models, value.model) ? value.model : "all";
+  }
+  function save() {
+    const {mode, cap, model} = state;
+    const account = mode === "tokens" ? localAccount(state.account) : state.account;
+    window.openai?.setWidgetState?.({modelContent: {account, mode, cap, model}})?.catch(() => {});
+  }
+  restore(window.openai?.widgetState);
+  window.addEventListener("openai:set_globals", event => {
+    restore(event.detail?.globals?.widgetState);
+    render(statistics, state);
+  });
+  render(statistics, state);
+  renderPopover();
+  const resize = new ResizeObserver(() => {
+    drawCharts(statistics, state);
+    if (popover) drawCharts(preview, popover);
+  });
+  for (const view of [statistics, preview]) {
+    resize.observe(view.find("week-chart"));
+    resize.observe(view.find("hour-chart"));
+  }
+})();
+</script>

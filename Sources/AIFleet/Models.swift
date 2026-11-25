@@ -8,6 +8,7 @@ struct ProviderLimitWindow: Codable, Identifiable, Equatable {
     let usedCount: Int?
     let limitCount: Int?
     let unit: String?
+    let weeklyModel: String?
 
     init(
         id: String,
@@ -16,7 +17,8 @@ struct ProviderLimitWindow: Codable, Identifiable, Equatable {
         resetAt: Date?,
         usedCount: Int? = nil,
         limitCount: Int? = nil,
-        unit: String? = nil
+        unit: String? = nil,
+        weeklyModel: String? = nil
     ) {
         self.id = id
         self.label = label
@@ -25,6 +27,7 @@ struct ProviderLimitWindow: Codable, Identifiable, Equatable {
         self.usedCount = usedCount
         self.limitCount = limitCount
         self.unit = unit
+        self.weeklyModel = weeklyModel
     }
 }
 

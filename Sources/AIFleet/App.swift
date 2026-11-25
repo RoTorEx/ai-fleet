@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         StatusService.shared.onNotificationAction = { [weak statusBarController] action in
             statusBarController?.handleNotification(action)
         }
+        observeQuotaHistory()
         StatusService.shared.start()
 
         hotkeyObserver = AppSettings.shared.$hotkey
@@ -106,6 +107,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         .store(in: &cancellables)
         registerToggleHotKey()
+    }
+
+    private func observeQuotaHistory() {
+        let status = StatusService.shared
+        let codex = CodexMonitoringStore.shared
+        let accounts = AccountStore.shared
+        let changes = [
+            status.$subscriptions.map { _ in () }.eraseToAnyPublisher(),
+            status.$codex.map { _ in () }.eraseToAnyPublisher(),
+            codex.$results.map { _ in () }.eraseToAnyPublisher()
+        ]
+        Publishers.MergeMany(changes)
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .sink {
+                let rows = menuProviderRows(accounts: accounts.accounts, enabled: AppSettings.shared.isEnabled,
+                    global: status.status(for:), statusForConnection: status.status(for:), codex: codex)
+                WeeklyQuotaHistoryStore.shared.observe(rows.compactMap { $0.statisticsReport(codex: codex) })
+            }
+            .store(in: &cancellables)
     }
 
     /// Launching the running app again (Finder, Spotlight, `open`) shows the menu.
@@ -141,9 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         if statisticsWindowController == nil {
-            statisticsWindowController = StatisticsWindowController { [weak self] in
-                self?.openLogs(anchorFrame: self?.statisticsWindowController?.window?.frame)
-            }
+            statisticsWindowController = StatisticsWindowController()
         }
 
         statisticsWindowController?.showStatistics(relativeTo: anchorFrame)
@@ -178,8 +196,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private final class StatisticsWindowController: NSWindowController {
     private let defaultWindowSize = NSSize(width: 900, height: 650)
 
-    init(openLogs: @escaping () -> Void) {
-        let hostingController = NSHostingController(rootView: StatisticsView(openLogs: openLogs))
+    init() {
+        let hostingController = NSHostingController(rootView: StatisticsView())
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 650),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],

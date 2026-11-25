@@ -124,7 +124,8 @@ enum ClaudeQuota {
                 guard kind == "weekly_scoped", let model = scope?.model?.display_name, !model.isEmpty,
                       let percent, percent.isFinite, (0...100).contains(percent) else { return nil }
                 return ProviderLimitWindow(id: "weekly_scoped_\(model.lowercased())", label: "7d (\(model))",
-                                           remainingPercent: Int((100 - percent).rounded()), resetAt: date(resets_at))
+                                           remainingPercent: Int((100 - percent).rounded()), resetAt: date(resets_at),
+                                           weeklyModel: model)
             }
         }
         let limits: [Limit]?

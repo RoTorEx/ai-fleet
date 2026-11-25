@@ -13,6 +13,7 @@ struct AIFleetMenuView: View {
     @State private var isLegendShown = false
     // Owned here so the Processes tab shows its count; scans only while the menu is open.
     @StateObject private var processes = CodexProcessesService()
+    @StateObject private var quotaPopover = MenuQuotaHistory()
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
@@ -65,7 +66,8 @@ struct AIFleetMenuView: View {
         .padding(.bottom, 10)
         .frame(width: FleetMenuLayout.width)
         .onAppear { processes.start() }
-        .onDisappear { processes.stopMonitoring() }
+        .onDisappear { processes.stopMonitoring(); quotaPopover.dismiss() }
+        .onChange(of: screen.tab) { _ in quotaPopover.dismiss() }
         .overlay(alignment: .topLeading) {
             if isLegendShown {
                 VStack(alignment: .leading, spacing: 9) {
@@ -103,7 +105,10 @@ struct AIFleetMenuView: View {
     private var providerRows: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(menuRowsAvailableFirst(connections)) { entry in
-                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings)
+                let history = QuotaHistoryTarget(row: entry, codex: codexProfiles).map {
+                    MenuQuotaHistoryButton(target: $0, presentation: quotaPopover, openStatistics: openStatistics)
+                }
+                ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings, historyButton: history)
             }
         }
     }
@@ -582,6 +587,7 @@ struct ProviderLimitRow: View {
     let entry: MenuAccountConnection
     let mark: String
     let openSettings: () -> Void
+    var historyButton: MenuQuotaHistoryButton? = nil
     @ObservedObject private var accounts = AccountStore.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
@@ -637,6 +643,7 @@ struct ProviderLimitRow: View {
                 .accessibilityLabel("\(status.name) (\(entry.accountScope)) actions")
                 .accessibilityHint(Text(subscription))
                 Spacer(minLength: 8)
+                historyButton
             }
             if !status.limitWindows.isEmpty {
                 VStack(alignment: .leading, spacing: FleetRowMetrics.quotaLineSpacing) {

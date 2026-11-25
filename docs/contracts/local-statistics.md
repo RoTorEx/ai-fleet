@@ -25,10 +25,13 @@ stale and the application lifecycle schedules background reconstruction on a
 system-zone change. Opening views and changing filters do not scan files.
 
 Remote lifetime totals, quota windows and provider day buckets never enter local
-arithmetic, including All. providerReports exports existing identity-bound account
+arithmetic, including All. StatisticsProviderReport provides identity-bound account
 measurements separately with account ID, identity, fetch time and native usage/
 quota scope. Legacy anonymous usage is retained as unattributedAccountUsage;
 it is not assigned to the current login. Local scans initiate no remote reads.
+WeeklyQuotaChart derives weekly charts from verified reports and saved
+observations with an injected clock. LocalTokenHistory reads the separate
+provider and model aggregates. Both models are independent of SwiftUI.
 
 ## Accounting and prices
 
@@ -75,9 +78,10 @@ proven byte-prefix continuation; divergent copies are flagged and excluded.
 For equal copies the active location wins over archive, then lexical path order.
 
 Per-provider parser revision, catalog revision and timezone are checked
-independently of mtime/size. Snapshot revision 5 triggers a background rebuild
-at startup. Kimi uses parser revision 5, and unchanged Codex, Claude and Qwen
-records at revision 4 can still be reused.
+independently of mtime/size. Snapshot revision 6 triggers a background rebuild
+to populate hourly model buckets. The per-file hourly field is optional for
+decoding older caches. Its first absence triggers a reparse. Later refreshes
+reuse matching per-file buckets and expire hours outside the rolling selection.
 Legacy aggregates are retained separately with unverified prices and are not
 silently advertised as corrected. Unavailable source file cache records remain
 retained but are excluded from active totals. Partial/unreadable/ambiguous sources

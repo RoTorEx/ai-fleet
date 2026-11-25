@@ -42,15 +42,7 @@ enum LocalUsageProvider: String, CaseIterable {
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
         let provider: StatisticsProvider = self == .kimi ? .kimi : .qwen
         let parsed = self == .kimi ? KimiUsageLogReader().parseEntries(from: file.url) : QwenUsageLogReader().parseEntries(from: file.url)
-        let entries = parsed.entries
-        let reader = CodexUsageLogReader()
-        return CodexFileUsageRecord(
-            path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
-            dailyModels: reader.dailyModelUsage(entries: entries), timeZoneIdentifier: reader.calendar.timeZone.identifier,
-            parserRevision: provider.parserRevision, rateRevision: CodexAPIRates.revision,
-            sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable,
-            modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
-        )
+        return CodexUsageLogReader().usageRecord(for: file, provider: provider, parsed: parsed)
     }
 
     func analytics(from records: [CodexFileUsageRecord]) -> CodexUsageAnalytics {

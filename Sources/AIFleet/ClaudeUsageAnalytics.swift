@@ -16,14 +16,7 @@ struct ClaudeUsageLogReader {
     }
 
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
-        let parsed = parseEntries(from: file.url)
-        return CodexFileUsageRecord(
-            path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
-            dailyModels: CodexUsageLogReader().dailyModelUsage(entries: parsed.entries),
-            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier, parserRevision: StatisticsProvider.claude.parserRevision,
-            rateRevision: CodexAPIRates.revision, sourceIssue: file.issue ?? parsed.issue,
-            excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970
-        )
+        CodexUsageLogReader().usageRecord(for: file, provider: .claude, parsed: parseEntries(from: file.url))
     }
 
     func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }

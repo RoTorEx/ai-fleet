@@ -66,19 +66,12 @@ struct StatisticsProviderReport {
     }
 }
 
-extension UsageAnalyticsService {
-    func providerReports(providers: Set<StatisticsProvider>? = nil) -> [StatisticsProviderReport] {
-        let providers = providers ?? selectedProviders
-        let accounts = AccountStore.shared.visibleAccounts
-        let codex = CodexMonitoringStore.shared
-        return accounts.flatMap { account in
-            account.connections.compactMap { connection -> StatisticsProviderReport? in
-                guard let provider = StatisticsProvider(rawValue: connection.providerID), providers.contains(provider) else { return nil }
-                let result = provider == .codex ? codex.profile(for: account).flatMap { codex.results[$0.id] } : nil
-                guard let status = result?.status ?? StatusService.shared.status(for: connection) else { return nil }
-                return StatisticsProviderReport.make(account: account, connection: connection, status: status, measurement: result)
-            }
-        }
+extension MenuAccountConnection {
+    @MainActor
+    func statisticsReport(codex: CodexMonitoringStore) -> StatisticsProviderReport? {
+        guard !isSetup, !account.badge.isEmpty, StatisticsProvider(rawValue: connection.providerID) != nil else { return nil }
+        let result = connection.providerID == "codex" ? codex.profile(for: account).flatMap { codex.results[$0.id] } : nil
+        return StatisticsProviderReport.make(account: account, connection: connection, status: status, measurement: result)
     }
 }
 

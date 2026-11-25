@@ -9,6 +9,7 @@ struct LogsView: View {
     @ObservedObject private var codexProfiles = CodexMonitoringStore.shared
     @ObservedObject private var providerLaunch = ProviderLaunchStore.shared
     @ObservedObject private var updater = UpdateService.shared
+    @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var sourceIssues: [StatisticsSourceIssue] = []
 
     var body: some View {
@@ -82,6 +83,9 @@ struct LogsView: View {
         }
         if case .failed(let message) = updater.state {
             notes.append(.init(label: "Update", text: message, severity: .error))
+        }
+        if let issue = quotaHistory.issue {
+            notes.append(.init(label: "Quota history", text: issue, severity: .error))
         }
         return Set(notes.filter { $0.severity != .info }).sorted {
             if $0.severity != $1.severity { return $0.severity == .error }

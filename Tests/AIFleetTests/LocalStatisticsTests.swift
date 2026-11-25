@@ -210,6 +210,7 @@ extension LocalStatisticsTests {
         var cached = CodexFileUsageRecord(path: file.url.path, modifiedAt: file.modifiedAt, size: file.size, dailyModels: [], timeZoneIdentifier: TimeZone.current.identifier)
         XCTAssertFalse(cached.matches(file, revision: 4))
         cached.parserRevision = 4; cached.rateRevision = CodexAPIRates.revision
+        cached.hourlyModels = []
         cached.modifiedAtEpoch = file.modifiedAt.timeIntervalSince1970
         XCTAssertTrue(cached.matches(file, revision: 4))
         XCTAssertFalse(cached.matches(file, revision: StatisticsProvider.kimi.parserRevision))

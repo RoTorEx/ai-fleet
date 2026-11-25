@@ -3,10 +3,12 @@ import SwiftUI
 
 /// One screen for every provider's local history; provider chips choose what the totals include.
 struct StatisticsView: View {
-    let openLogs: () -> Void
     @ObservedObject private var analytics = UsageAnalyticsService.shared
     @ObservedObject private var service = StatusService.shared
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var accounts = AccountStore.shared
+    @ObservedObject private var codexMonitoring = CodexMonitoringStore.shared
+    @State private var historyRequest: QuotaHistoryRequest?
     @State private var period = StatisticsPeriod(rawValue: UserDefaults.standard.string(forKey: "statistics.period") ?? "") ?? .allTime
 
     private var enabled: [StatisticsProvider] {
@@ -17,30 +19,40 @@ struct StatisticsView: View {
 
     var body: some View {
         let stats = stats
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 12) {
-                header
-                if chosen.isEmpty {
-                    Text("Choose at least one provider above.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                } else {
-                    scopeLine(stats)
-                    summary(stats)
-                    providerBreakdown
-                    HStack(alignment: .top, spacing: 10) {
-                        ModelTablePanel(models: stats.models).frame(minWidth: 420, maxWidth: .infinity)
-                        DailyTablePanel(daily: stats.daily).frame(minWidth: 300, maxWidth: .infinity)
+        ScrollViewReader { scroll in
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 12) {
+                    header { scroll.scrollTo("quota-history", anchor: .top) }
+                    if chosen.isEmpty {
+                        Text("Choose at least one provider above.")
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 200)
+                    } else {
+                        scopeLine(stats)
+                        summary(stats)
+                        providerBreakdown
+                        HStack(alignment: .top, spacing: 10) {
+                            ModelTablePanel(models: stats.models).frame(minWidth: 420, maxWidth: .infinity)
+                            DailyTablePanel(daily: stats.daily).frame(minWidth: 300, maxWidth: .infinity)
+                        }
+                        ActivityHeatmap(
+                            days: selectedDays(stats),
+                            sourceLabel: "Local",
+                            displayThrough: period == .allTime ? stats.daily.first.map { heatmapHorizon(startingAt: $0.day) } : nil
+                        )
                     }
-                    ActivityHeatmap(
-                        days: selectedDays(stats),
-                        sourceLabel: "Local",
-                        displayThrough: period == .allTime ? stats.daily.first.map { heatmapHorizon(startingAt: $0.day) } : nil
-                    )
+                    quotaHistory.id("quota-history")
+                    providerReports
                 }
-                providerReports
+                .padding(16)
             }
-            .padding(16)
+            .onReceive(QuotaHistoryNavigation.shared.$request.compactMap { $0 }) { request in
+                historyRequest = request
+                DispatchQueue.main.async {
+                    scroll.scrollTo("quota-history", anchor: .top)
+                    if QuotaHistoryNavigation.shared.request == request { QuotaHistoryNavigation.shared.request = nil }
+                }
+            }
         }
         .frame(minWidth: 820, minHeight: 600, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -54,7 +66,7 @@ struct StatisticsView: View {
 
     // MARK: Header
 
-    private var header: some View {
+    private func header(showQuotaHistory: @escaping () -> Void) -> some View {
         HStack(alignment: .center, spacing: 6) {
             Chip(title: "All", selected: chosen.count == enabled.count && !enabled.isEmpty) {
                 analytics.selectedProviders = Set(enabled)
@@ -76,24 +88,18 @@ struct StatisticsView: View {
                           isRefreshing: analytics.isRefreshing,
                           refresh: { analytics.refresh(kimi: service.kimi) })
                 .padding(.leading, 8)
+            if !historyProviders.isEmpty {
+                Button(action: showQuotaHistory) { Image(systemName: "chart.xyaxis.line") }
+                    .buttonStyle(.borderless)
+                    .help("Quota history")
+                    .accessibilityLabel("Quota history")
+            }
         }
     }
 
     private func scopeLine(_ stats: LocalStatistics) -> some View {
-        HStack(spacing: 10) {
-            Text("Local history on this Mac · \(rangeText(stats))")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-            let issueCount = stats.sourceIssues.count
-            if issueCount > 0 {
-                Button(action: openLogs) {
-                    Label(issueCount == 1 ? "1 issue · Logs" : "\(groupedInteger(issueCount)) issues · Logs",
-                          systemImage: "exclamationmark.triangle")
-                }
-                .buttonStyle(.link)
-                .font(.system(size: 11))
-                .help("Show source details in Logs")
-            }
-        }
+        Text("Local history on this Mac · \(rangeText(stats))")
+            .font(.system(size: 11)).foregroundStyle(.secondary)
     }
 
     private func rangeText(_ stats: LocalStatistics) -> String {
@@ -187,6 +193,26 @@ struct StatisticsView: View {
     }
 
     // MARK: Provider reports
+
+    private var historyProviders: Set<StatisticsProvider> {
+        guard let historyRequest, enabled.contains(historyRequest.provider) else { return chosen }
+        return chosen.union([historyRequest.provider])
+    }
+
+    @ViewBuilder private var quotaHistory: some View {
+        let rows = menuProviderRows(accounts: accounts.accounts,
+            enabled: { id in StatisticsProvider(rawValue: id).map(historyProviders.contains) ?? false },
+            global: service.status(for:), statusForConnection: service.status(for:), codex: codexMonitoring)
+        let targets = rows.compactMap { QuotaHistoryTarget(row: $0, codex: codexMonitoring) }
+        if !targets.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                PanelTitle("Quota history")
+                QuotaHistoryView(targets: targets, request: historyRequest)
+            }
+            .padding(12)
+            .fleetCard(hovering: false)
+        }
+    }
 
     @ViewBuilder private var providerReports: some View {
         if settings.isEnabled("codex") || (settings.isEnabled("kimi") && !analytics.snapshot.kimi.windows.isEmpty) {

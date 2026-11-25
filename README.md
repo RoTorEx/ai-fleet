@@ -232,11 +232,19 @@ Provider chips choose which local histories the totals, By provider bars, models
 days and Activity include; Option-click a chip to see only that provider. Kimi reads `wire.jsonl`
 under `~/.kimi-code/sessions` and legacy `~/.kimi/sessions`; Qwen reads JSONL
 chat records under `~/.qwen/projects/*/chats`. Refresh scans retained logs;
-opening Statistics or changing chips uses the cache. The issue count beside the
-date range opens **Logs** with detailed scan messages and current app issues. API prices are not
+opening Statistics or changing chips uses the cache. **Options → Logs** contains
+scan diagnostics and current app issues. API prices are not
 configured for Kimi and Qwen, so a total that includes them shows its priced part
 as `≥ $…`. Kimi's quota windows appear under **Provider reports**. Local token statistics do not provide Qwen subscription quotas.
 See [provider statistics](business/provider-statistics.md) for format support.
+
+Hover the chart button on a supported Providers row for the full **Quota history**
+popover. Click to keep it open and click again to close it. The chart button in
+Statistics opens the same view. **Quota %** follows the verified account and
+its provider-reported weekly limits, including explicit model caps. **Local
+tokens** shows input, cache and output by provider and recorded model across the
+last 72 hourly buckets. The weekly plot shows the daily budget, actual
+observations, and forecasts as measurements accumulate.
 
 Choose **Claude** for local Claude Code tokens, input/cache/output breakdowns,
 standard API-equivalent estimates, models, daily totals, and Activity. This reads

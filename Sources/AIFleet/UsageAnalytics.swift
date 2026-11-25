@@ -1,7 +1,7 @@
 import Foundation
 
 struct UsageAnalyticsSnapshot: Codable, Equatable {
-    static let currentRevision = 5
+    static let currentRevision = 6
 
     var codex: CodexUsageAnalytics
     var kimi: KimiQuotaAnalytics
@@ -69,6 +69,7 @@ struct CodexUsageAnalytics: Codable, Equatable {
     var fileCount: Int
     var source: String
     var accountUsage: CodexAccountUsage?
+    var hourlyModels: [HourlyModelUsage] = []
 
     static let empty = CodexUsageAnalytics(
         total: .zero,
@@ -95,7 +96,8 @@ struct CodexUsageAnalytics: Codable, Equatable {
         eventCount: Int,
         fileCount: Int,
         source: String,
-        accountUsage: CodexAccountUsage? = nil
+        accountUsage: CodexAccountUsage? = nil,
+        hourlyModels: [HourlyModelUsage] = []
     ) {
         self.total = total
         self.today = today
@@ -108,11 +110,12 @@ struct CodexUsageAnalytics: Codable, Equatable {
         self.fileCount = fileCount
         self.source = source
         self.accountUsage = accountUsage
+        self.hourlyModels = hourlyModels
     }
 
     private enum CodingKeys: String, CodingKey {
         case total, today, sevenDays, thirtyDays, daily, models, dailyModels
-        case eventCount, fileCount, source, accountUsage
+        case eventCount, fileCount, source, accountUsage, hourlyModels
     }
 
     init(from decoder: Decoder) throws {
@@ -128,6 +131,7 @@ struct CodexUsageAnalytics: Codable, Equatable {
         fileCount = try container.decode(Int.self, forKey: .fileCount)
         source = try container.decode(String.self, forKey: .source)
         accountUsage = try container.decodeIfPresent(CodexAccountUsage.self, forKey: .accountUsage)
+        hourlyModels = try container.decodeIfPresent([HourlyModelUsage].self, forKey: .hourlyModels) ?? []
     }
 }
 
@@ -189,13 +193,16 @@ struct CodexFileUsageRecord: Codable, Equatable {
     var sourceIssue: String? = nil
     var excluded: Bool? = nil
     var modifiedAtEpoch: Double? = nil
+    var hourlyModels: [HourlyModelUsage]? = nil
 
     var eventCount: Int {
         dailyModels.reduce(0) { $0 + $1.events }
     }
 
     func matches(_ file: CodexLogFile, timeZone: TimeZone = .autoupdatingCurrent, revision: Int? = nil) -> Bool {
-        (sourceIssue == nil && file.issue == nil) && (revision == nil || (parserRevision == revision && rateRevision == CodexAPIRates.revision)) && timeZoneIdentifier == timeZone.identifier
+        (sourceIssue == nil && file.issue == nil)
+            && (revision == nil || (parserRevision == revision && rateRevision == CodexAPIRates.revision && hourlyModels != nil))
+            && timeZoneIdentifier == timeZone.identifier
             && size == file.size && (modifiedAtEpoch.map { $0 == file.modifiedAt.timeIntervalSince1970 }
                 ?? (revision == nil && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1))
     }
@@ -456,7 +463,12 @@ final class UsageAnalyticsService: ObservableObject {
             } + existingFileCache.keys.filter { nextFileCache[$0] == nil && !FileManager.default.fileExists(atPath: $0) }.map { StatisticsSourceIssue(provider: statisticsProvider(for: $0), message: "Missing source: " + $0) }
             self.snapshot = nextSnapshot
             // Missing records remain available for migration/recovery but not active totals.
-            self.fileCache = existingFileCache.merging(nextFileCache) { _, current in current }
+            let recentHours = UsageHours(now: completedAt)
+            self.fileCache = existingFileCache.merging(nextFileCache) { _, current in current }.mapValues { value in
+                var record = value
+                record.hourlyModels?.removeAll { !recentHours.contains($0.hour) }
+                return record
+            }
             self.progress = UsageAnalyticsLoadProgress(
                 isLoading: false,
                 processedFiles: files.count,
@@ -640,19 +652,30 @@ struct CodexUsageLogReader {
     }
 
     func analytics(from entries: [CodexUsageLogEntry], fileCount: Int) -> CodexUsageAnalytics {
-        analytics(from: dailyModelUsage(entries: entries), fileCount: fileCount)
+        var result = analytics(from: dailyModelUsage(entries: entries), fileCount: fileCount)
+        result.hourlyModels = HourlyModelUsage.aggregate(entries: entries, now: Date(), calendar: calendar)
+        return result
     }
 
     func analytics(from records: [CodexFileUsageRecord], fileCount: Int) -> CodexUsageAnalytics {
-        analytics(from: mergeDailyModels(records.flatMap(\.dailyModels)), fileCount: fileCount)
+        var result = analytics(from: mergeDailyModels(records.flatMap(\.dailyModels)), fileCount: fileCount)
+        result.hourlyModels = HourlyModelUsage.merge(records.lazy.flatMap { $0.hourlyModels ?? [] },
+                                                   in: UsageHours(now: Date(), calendar: calendar))
+        return result
     }
 
     func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
-        let parsed = parseEntries(from: file.url)
-        return CodexFileUsageRecord(path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
+        usageRecord(for: file, provider: .codex, parsed: parseEntries(from: file.url))
+    }
+
+    func usageRecord(for file: CodexLogFile, provider: StatisticsProvider,
+                     parsed: (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool)) -> CodexFileUsageRecord {
+        CodexFileUsageRecord(path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
             dailyModels: dailyModelUsage(entries: parsed.entries), timeZoneIdentifier: calendar.timeZone.identifier,
-            parserRevision: StatisticsProvider.codex.parserRevision, rateRevision: CodexAPIRates.revision,
-            sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable, modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970)
+            parserRevision: provider.parserRevision, rateRevision: CodexAPIRates.revision,
+            sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable,
+            modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970,
+            hourlyModels: HourlyModelUsage.aggregate(entries: parsed.entries, now: Date(), calendar: calendar))
     }
 
     private func analytics(from dailyModels: [DailyModelUsage], fileCount: Int) -> CodexUsageAnalytics {
