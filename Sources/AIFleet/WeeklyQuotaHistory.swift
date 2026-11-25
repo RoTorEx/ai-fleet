@@ -60,13 +60,19 @@ struct WeeklyQuotaObservation: Codable, Equatable {
 }
 
 struct WeeklyQuotaHistory: Codable, Equatable {
+    private static let retention: TimeInterval = 90 * 24 * 60 * 60
+
     private(set) var records: [WeeklyQuotaHistoryKey: [WeeklyQuotaObservation]] = [:]
 
     mutating func observe(_ reports: [StatisticsProviderReport], now: Date) {
-        let cutoff = now.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
-        for key in Array(records.keys) {
-            records[key]?.removeAll { $0.time < cutoff }
-            if records[key]?.isEmpty == true { records.removeValue(forKey: key) }
+        let cutoff = now.addingTimeInterval(-Self.retention)
+        for (key, samples) in records {
+            let retained = samples.drop(while: { $0.time < cutoff })
+            if retained.isEmpty {
+                records.removeValue(forKey: key)
+            } else if retained.count < samples.count {
+                records[key] = Array(retained)
+            }
         }
         for report in reports where report.quotaState == .available || report.quotaState == .exhausted {
             for window in report.weeklyWindows {

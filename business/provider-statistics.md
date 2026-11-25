@@ -87,9 +87,10 @@ for a weekly one.
 - Reuse existing quota measurements with their original timestamps. Record
   provider, stable account, window, a digest of the verified identity, reset
   time and used percent. Deduplicate repeated timestamps and keep the latest
-  seven days of observations. Seven days covers the active cycle and the
-  72-hour histogram across a reset. The provider replies used by Fleet supply
-  a current measurement. Quota history starts at the first saved observation.
+  90 days of local observations across quota resets. Prune older observations
+  on refresh. The charts show the active cycle and a 72-hour histogram across
+  resets. Provider replies supply a current measurement. Quota history starts
+  at the first saved observation.
 - The provider's reset times delimit the cycles. Up to 60 seconds of reset-time
   rounding can identify the same cycle. A passed reset time never implies a
   fresh balance. A decrease within one cycle breaks the plotted series and

@@ -29,6 +29,33 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains(first.identity.email))
     }
 
+    func testRetainsNinetyDaysOfObservationsAcrossWeeklyResets() throws {
+        let day = 24 * hour
+        let daysAgo = [91, 90, 30, 8, 0]
+        let reports = daysAgo.map { days in
+            let time = base.addingTimeInterval(-Double(days) * day)
+            return report("a", at: time, reset: time.addingTimeInterval(2 * day), used: 20)
+        }
+        let expiredAccount = report("b", at: base.addingTimeInterval(-91 * day),
+                                    reset: base.addingTimeInterval(-89 * day), used: 50)
+        var history = WeeklyQuotaHistory()
+        history.observe([expiredAccount], now: try XCTUnwrap(expiredAccount.fetchedAt))
+        for sample in reports {
+            history.observe([sample], now: try XCTUnwrap(sample.fetchedAt))
+        }
+
+        let latest = try XCTUnwrap(reports.last)
+        let window = try XCTUnwrap(latest.weeklyWindows.first)
+        let key = WeeklyQuotaHistoryKey(report: latest, window: window)
+        let retainedTimes = daysAgo.dropFirst().map { base.addingTimeInterval(-Double($0) * day) }
+        XCTAssertEqual(history.records[key]?.map(\.time), retainedTimes)
+        XCTAssertEqual(history.records.count, 1)
+
+        let chart = WeeklyQuotaChart(report: latest, window: window, history: history, now: base)
+        XCTAssertEqual(chart.segments.flatMap { $0 }.map(\.time), [base])
+        XCTAssertEqual(chart.hours.count, 72)
+    }
+
     func testWindowAndDayForecastsAreDistinctAndNeedFreshHistory() throws {
         let reset = base.addingTimeInterval(76 * hour)
         let previous = base.addingTimeInterval(-24 * hour)

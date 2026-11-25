@@ -4,6 +4,7 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Retain 90 days of local provider quota observations across weekly resets.
 - Show provider quota and local tokens together and attach the popover arrow to the clicked provider chart button. Mark four-hour intervals on the hourly charts, with labels at local midnight and noon.
 - Keep the chart's 100% limit at the top and stop projections at the estimated limit crossing. Show partial coverage while hourly quota history accumulates.
 - Render both native chart surfaces from the VPM-40 plot coordinates. Scale the reference proportions, tick and legend placement, grid and line styles together.
