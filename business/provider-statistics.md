@@ -86,8 +86,9 @@ window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
 Label sizes stay constant. Both hourly plots share a 3-, 4-, or 7-day range.
-The 3-day default preserves the initial view. The plot dimensions stay fixed
-as the one-hour bins become denser. The six-hour grid follows local midnight,
+The initial range is 7 days. The range, model, and token category controls
+sit above the hourly charts. The model and category filter local tokens.
+The plot dimensions stay fixed as the one-hour bins become denser. The six-hour grid follows local midnight,
 with dates on a separate row and abbreviated labels when space is limited.
 The charts use the current macOS light or dark appearance. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
@@ -120,9 +121,8 @@ quota cannot stand in for an account's weekly one.
   time and used percent. Deduplicate repeated timestamps. Keep saved
   observations across resets without an age limit in
   `~/Library/Application Support/AI Fleet/weekly-quota-history.json`.
-  The overview opens on the latest cycle. Its arrows visit saved cycles for
-  the same provider, account, and quota window. Historical views show the
-  usage recorded in that cycle. The two hourly charts remain on the selected
+  The overview shows the latest recorded cycle for the selected provider,
+  account, and quota window. The two hourly charts remain on the selected
   recent range. Provider replies supply the current measurement and quota
   history starts at the first saved observation.
 - The provider's reset times delimit the cycles. Up to 60 seconds of reset-time

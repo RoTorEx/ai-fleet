@@ -173,21 +173,13 @@ struct WeeklyQuotaChart {
     let forecasts: [Forecast]
     let hours: [Hour]
     let range: QuotaHistoryRange
-    let cycleResets: [Date]
-    let cycleIndex: Int
     let latest: WeeklyQuotaObservation?
     let firstObservation: Date?
     var sustainablePerHour: Double? { pace.sustainablePercentPerDay.map { $0 / 24 } }
-    var isHistorical: Bool { cycleIndex > 0 }
 
     var cycleRange: ClosedRange<Date>? {
         guard let cycleStart, let latest, cycleStart < latest.reset else { return nil }
         return cycleStart...latest.reset
-    }
-
-    func cycleReset(offset: Int) -> Date? {
-        let next = cycleIndex + offset
-        return cycleResets.indices.contains(next) ? cycleResets[next] : nil
     }
 
     func measuredUse(at date: Date) -> Int? {
@@ -210,8 +202,7 @@ struct WeeklyQuotaChart {
     }
 
     init(report: StatisticsProviderReport, window: ProviderLimitWindow, history: WeeklyQuotaHistory,
-         now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays,
-         displayedReset: Date? = nil) {
+         now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays) {
         self.range = range
         pace = WeeklyQuotaPace.make(report: report, window: window, now: now)
         var samples = history.records[WeeklyQuotaHistoryKey(report: report, window: window)] ?? []
@@ -220,37 +211,22 @@ struct WeeklyQuotaChart {
             if samples.last?.time == sample.time { samples.removeLast() }
             samples.append(sample)
         }
-        let cycles = Self.cycles(in: samples)
-        let resets = cycles.compactMap { $0.last?.reset }
-        cycleResets = resets
-        let index = displayedReset.flatMap { reset in
-            resets.firstIndex { abs($0.timeIntervalSince(reset)) <= WeeklyQuotaPace.clockTolerance }
-        } ?? 0
-        cycleIndex = index
-        let displayed = cycles.isEmpty ? [] : Array(cycles[index])
+        let current = samples.last
+        let firstInCycle = current.flatMap { latest in
+            samples.lastIndex { !$0.sharesCycle(with: latest) }.map { $0 + 1 }
+        } ?? samples.startIndex
+        let currentCycle = Array(samples[firstInCycle...])
         firstObservation = samples.first?.time
-        latest = displayed.last
-        cycleStart = displayed.last?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
-        segments = Self.segments(from: displayed)
-        let correction = displayed.indices.dropFirst().last { index in
-            displayed[index].used < displayed[index - 1].used
+        latest = current
+        cycleStart = current?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
+        segments = Self.segments(from: currentCycle)
+        let correction = currentCycle.indices.dropFirst().last { index in
+            currentCycle[index].used < currentCycle[index - 1].used
         }
-        let forecastSamples = correction.map { Array(displayed[$0...]) } ?? displayed
-        forecasts = index == 0 && pace.state == .current
+        let forecastSamples = correction.map { Array(currentCycle[$0...]) } ?? currentCycle
+        forecasts = pace.state == .current
             ? Self.forecasts(for: forecastSamples, afterCorrection: correction != nil) : []
         hours = Self.hourlyUsage(samples, window: UsageHours(now: now, calendar: calendar, range: range), now: now)
-    }
-
-    private static func cycles(in samples: [WeeklyQuotaObservation]) -> [ArraySlice<WeeklyQuotaObservation>] {
-        var cycles: [ArraySlice<WeeklyQuotaObservation>] = []
-        var end = samples.endIndex
-        while end > samples.startIndex {
-            let newest = samples[end - 1]
-            let start = samples[..<end].lastIndex { !$0.sharesCycle(with: newest) }.map { $0 + 1 } ?? samples.startIndex
-            cycles.append(samples[start..<end])
-            end = start
-        }
-        return cycles
     }
 
     private static func segments(from samples: [WeeklyQuotaObservation]) -> [[WeeklyQuotaObservation]] {

@@ -85,7 +85,7 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(chart.hours.count, 72)
     }
 
-    func testWeeklyCycleNavigationKeepsTheHourlyChartOnTheSelectedRange() throws {
+    func testWeeklyResetShowsTheNewCycleAndKeepsThePreviousMeasurements() throws {
         let oldReset = base.addingTimeInterval(-2 * hour)
         let currentReset = oldReset.addingTimeInterval(WeeklyQuotaPace.weekSeconds)
         let oldTime = oldReset.addingTimeInterval(-hour)
@@ -98,17 +98,11 @@ final class QuotaHistoryTests: XCTestCase {
                                     now: base, range: .sevenDays)
         XCTAssertEqual(live.latest?.used, 2)
         XCTAssertNil(live.measuredUse(at: oldTime))
-        let earlier = try XCTUnwrap(live.cycleReset(offset: 1))
-        XCTAssertEqual(earlier, oldReset)
-        let archived = WeeklyQuotaChart(report: current, window: current.limits[0], history: history,
-                                        now: base, range: .sevenDays, displayedReset: earlier)
-        XCTAssertTrue(archived.isHistorical)
-        XCTAssertEqual(archived.measuredUse(at: oldTime), 89)
-        XCTAssertTrue(archived.forecasts.isEmpty)
-        XCTAssertEqual(archived.cycleReset(offset: -1), currentReset)
-        XCTAssertEqual(archived.hours.count, 168)
-        XCTAssertEqual(archived.hours.map(\.percentagePoints), live.hours.map(\.percentagePoints))
-        XCTAssertEqual(archived.sustainablePerHour, live.sustainablePerHour)
+        XCTAssertEqual(live.hours.count, 168)
+        let saved = try JSONDecoder().decode(WeeklyQuotaHistory.self, from: JSONEncoder().encode(history))
+        let key = WeeklyQuotaHistoryKey(report: current, window: current.limits[0])
+        XCTAssertEqual(saved.records[key]?.map(\.reset), [oldReset, currentReset])
+        XCTAssertEqual(saved.records[key]?.map(\.used), [89, 2])
     }
 
     func testSevenDayTokensPreserveMissingCoverageFromAnOlderSnapshot() {

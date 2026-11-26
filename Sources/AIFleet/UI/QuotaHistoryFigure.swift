@@ -113,7 +113,7 @@ struct QuotaHistoryFigure: View {
         .overlay {
             GeometryReader { geometry in
                 let layout = FigureLayout(canvas: geometry.size, panel: panel)
-                let caption = drawing.caption(for: panel, plot: layout.plot)
+                let caption = ChartCaption(drawing.title(for: panel), plot: layout.plot)
                 ZStack(alignment: .topLeading) {
                     Color.clear.accessibilityHidden(true)
                     Image(systemName: "info.circle")
@@ -213,23 +213,13 @@ struct QuotaHistoryDrawing {
 
     fileprivate func title(for panel: QuotaHistoryPanel) -> String {
         switch (panel, data) {
-        case (.overview, .quota(let quota)): return weekTitle(quota, calendar: calendar)
+        case (.overview, .quota(let quota)): return weekTitle(quota.pace)
         case (.overview, .currentQuota(let reading)): return readingTitle(reading)
         case (.overview, .unsupportedQuota): return "Provider quota"
         case (_, .tokens(_, let series)):
             return "\(series?.rawValue ?? "Local tokens") per hour (last \(range.label))"
         case (.hourly, _): return "Quota used per hour (% · last \(range.label))"
         }
-    }
-
-    fileprivate func caption(for panel: QuotaHistoryPanel, plot: CGRect) -> ChartCaption {
-        var bounds = plot
-        if panel == .overview, case .quota = data {
-            let inset = max(0, 56 - plot.minX)
-            bounds.origin.x += inset
-            bounds.size.width = max(1, bounds.width - inset)
-        }
-        return ChartCaption(title(for: panel), plot: bounds)
     }
 
     fileprivate func legendDescription(for panel: QuotaHistoryPanel) -> String {
@@ -306,7 +296,7 @@ struct QuotaHistoryDrawing {
                         selectedTime: Date?, showsLegend: Bool) {
         guard canvas.width > 0, canvas.height > 0 else { return }
         let layout = FigureLayout(canvas: canvas, panel: panel)
-        let caption = caption(for: panel, plot: layout.plot)
+        let caption = ChartCaption(title(for: panel), plot: layout.plot)
         let selection = showsLegend ? nil : selectedTime
         context.saveGState()
         context.setAllowsFontSmoothing(false)
@@ -457,12 +447,12 @@ struct QuotaHistoryDrawing {
             LegendKey("Usage, %", Palette.actual, .line(1.5)),
             LegendKey("Cumulative budget · 14.3%/day", Palette.budget, .line(1))
         ]
-        if !quota.isHistorical, let headroom = quota.pace.headroomPoints {
+        if let headroom = quota.pace.headroomPoints {
             let amount = formattedNumber(abs(headroom), fractionDigits: 0)
             keys.append(LegendKey(headroom >= 0 ? "End-of-day headroom: \(amount)% of weekly quota"
                 : "Over today's budget: \(amount)% of weekly quota", headroom >= 0 ? Palette.headroom : Palette.overspend, .block))
         }
-        if !quota.isHistorical, quota.pace.state == .current {
+        if quota.pace.state == .current {
             for period in WeeklyQuotaChart.Forecast.Period.allCases {
                 let style = period.strokeStyle
                 let text: String
@@ -593,7 +583,7 @@ struct QuotaHistoryDrawing {
     }
 }
 
-fileprivate struct ChartCaption {
+private struct ChartCaption {
     let infoFrame: CGRect
     private let label: Label
     private let labelCenterX: CGFloat
@@ -804,13 +794,7 @@ private func weekReadout(_ quota: WeeklyQuotaChart, at date: Date, cycleStart: D
     }
 }
 
-private func weekTitle(_ quota: WeeklyQuotaChart, calendar: Calendar) -> String {
-    if quota.isHistorical, let latest = quota.latest {
-        var date = Date.FormatStyle.dateTime.day().month(.abbreviated).year()
-        date.timeZone = calendar.timeZone
-        return "Weekly quota · \(quotaPercent(Double(latest.used))) recorded · \(latest.time.formatted(date))"
-    }
-    let pace = quota.pace
+private func weekTitle(_ pace: WeeklyQuotaPace) -> String {
     var title = "Weekly quota"
     if let used = pace.usedPercent { title += " · \(quotaPercent(Double(used))) used" }
     switch pace.state {
