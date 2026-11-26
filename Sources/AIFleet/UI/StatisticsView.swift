@@ -11,6 +11,7 @@ struct StatisticsView: View {
     @State private var tab: StatisticsTab = .tokenSpend
     @State private var historySelection: QuotaHistoryRequest?
     @State private var quotaScrollID = UUID()
+    @State private var quotaReadout = QuotaChartReadoutState()
 
     private var enabled: [StatisticsProvider] {
         StatisticsProvider.allCases.filter { settings.isEnabled($0.rawValue) }
@@ -44,9 +45,15 @@ struct StatisticsView: View {
                         }
                     }
                 }
-                .padding(.vertical, 12)
+                .padding(.top, tab == .quotaHistory ? 6 : 12)
+                .padding(.bottom, 12)
             }
             .id(tab == .quotaHistory ? quotaScrollID : nil)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if tab == .quotaHistory && !chosen.isEmpty {
+                    StatisticsQuotaReadout(readout: quotaReadout)
+                }
+            }
         }
         .onReceive(QuotaHistoryNavigation.shared.$request.compactMap { $0 }) { request in
             if enabled.contains(request.provider) {
@@ -234,10 +241,11 @@ struct StatisticsView: View {
             global: service.status(for:), statusForConnection: service.status(for:), codex: codexMonitoring)
         let targets = rows.compactMap { QuotaHistoryTarget(row: $0, codex: codexMonitoring) }
         if !targets.isEmpty {
-            QuotaHistoryView(targets: targets, selection: $historySelection)
+            QuotaHistoryView(targets: targets, selection: $historySelection, statisticsReadout: quotaReadout)
                 .frame(maxWidth: 740)
                 .frame(maxWidth: .infinity)
-                .padding(12)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
                 .fleetCard(hovering: false)
         }
     }

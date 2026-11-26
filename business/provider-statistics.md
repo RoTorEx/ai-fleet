@@ -107,7 +107,8 @@ to the content and scrolls when the charts exceed the display's available height
 Use the device calendar and current time zone for hourly bins and date labels.
 A fixed-height strip beneath the plots shows the latest hour at rest and
 details for the selected time on hover. The plots' data marks and axes stay
-visible. The strip starts with the date and local time, followed by the
+visible. In Statistics the strip stays at the bottom of the window while its
+content scrolls. It starts with the date and local time, followed by the
 measurement. The weekly chart has its own cursor.
 Observed daily-plan crossings display a red cross in the weekly plot. Plan and
 limit crossings snap within 60 minutes on either side of the point. The two

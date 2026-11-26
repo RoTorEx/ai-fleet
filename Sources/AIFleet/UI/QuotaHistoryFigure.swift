@@ -204,34 +204,48 @@ struct QuotaHistoryFigure: View {
 }
 
 struct QuotaChartReadout: View {
-    let quota: QuotaHistoryDrawing?
-    let tokens: QuotaHistoryDrawing
-    let overviewTime: Date?
-    let hourlyTime: Date?
+    struct Values: Equatable {
+        let timestamp: String
+        let latest: Bool
+        fileprivate let measurements: [ReadoutLine]
+        fileprivate let details: [ReadoutLine]
+
+        init?(quota: QuotaHistoryDrawing?, tokens: QuotaHistoryDrawing, overviewTime: Date?, hourlyTime: Date?,
+              colorScheme: ColorScheme) {
+            if let overviewTime,
+               let lines = quota?.readout(for: .overview, at: overviewTime, colorScheme: colorScheme),
+               let first = lines.first {
+                timestamp = first.text
+                latest = false
+                measurements = Array(lines.dropFirst().prefix(2))
+                details = Array(lines.dropFirst(3))
+            } else {
+                guard let hour = hourlyTime ?? tokens.latestHour else { return nil }
+                let local = tokens.readout(for: .hourly, at: hour, colorScheme: colorScheme)
+                guard let first = local.first, let reading = local.dropFirst().first else { return nil }
+                timestamp = first.text
+                latest = hourlyTime == nil
+                if let quota {
+                    let measured = quota.readout(for: .hourly, at: hour, colorScheme: colorScheme).dropFirst().first
+                    measurements = [ReadoutLine("Account quota · \(measured?.displayText ?? "Unavailable")"), reading]
+                } else {
+                    measurements = [reading]
+                }
+                details = Array(local.dropFirst(2))
+            }
+        }
+    }
+
+    let values: Values?
 
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if let overviewTime,
-               let lines = quota?.readout(for: .overview, at: overviewTime, colorScheme: colorScheme),
-               let timestamp = lines.first {
-                timestampRow(timestamp.text, latest: false)
-                row(Array(lines.dropFirst().prefix(2)))
-                row(Array(lines.dropFirst(3)))
-            } else if let hour = hourlyTime ?? tokens.latestHour {
-                let local = tokens.readout(for: .hourly, at: hour, colorScheme: colorScheme)
-                if let timestamp = local.first, let reading = local.dropFirst().first {
-                    timestampRow(timestamp.text, latest: hourlyTime == nil)
-                    HStack(spacing: 14) {
-                        if let quota {
-                            let measured = quota.readout(for: .hourly, at: hour, colorScheme: colorScheme).dropFirst().first
-                            line(ReadoutLine("Account quota · \(measured?.displayText ?? "Unavailable")"))
-                        }
-                        line(reading)
-                    }
-                    row(Array(local.dropFirst(2)))
-                }
+            if let values {
+                timestampRow(values.timestamp, latest: values.latest)
+                row(values.measurements)
+                row(values.details)
             }
         }
         .font(.system(size: 11))
@@ -266,6 +280,23 @@ struct QuotaChartReadout: View {
             .foregroundStyle(item.color.map { Color(cgColor: $0) } ?? .primary)
             .lineLimit(1)
             .minimumScaleFactor(0.88)
+    }
+}
+
+final class QuotaChartReadoutState: ObservableObject {
+    @Published var values: QuotaChartReadout.Values?
+}
+
+struct StatisticsQuotaReadout: View {
+    @ObservedObject var readout: QuotaChartReadoutState
+
+    var body: some View {
+        QuotaChartReadout(values: readout.values)
+            .frame(maxWidth: 740)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 6)
+            .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -848,9 +879,10 @@ struct QuotaHistoryDrawing {
                 }
             }
             let coverage = hour.partial ? " · partial hour" : ""
+            let compactCoverage = hour.partial ? " (partial)" : ""
             let totalLabel = groupedInteger(total)
             return [ReadoutLine("Total · \(totalLabel) tokens\(coverage)",
-                                compactText: "Local tokens · \(totalLabel) total\(coverage)")] + rows
+                                compactText: "Local tokens · \(totalLabel) total\(compactCoverage)")] + rows
         }
         if case .tokens(let tokens, _) = data {
             guard let scannedAt = tokens.scannedAt else { return [ReadoutLine("Awaiting first local log scan")] }
@@ -864,10 +896,12 @@ struct QuotaHistoryDrawing {
         let amount: String
         if let value = hour.parts?.first {
             let coverage = hour.partial ? " · partial hour" : ""
+            let compactCoverage = hour.partial ? " (partial)" : ""
             let percentage = quotaPercent(value)
-            return [ReadoutLine("\(percentage) of weekly quota\(coverage)", compactText: "\(percentage) used\(coverage)")]
+            return [ReadoutLine("\(percentage) of weekly quota\(coverage)", compactText: "\(percentage) used\(compactCoverage)")]
         } else if !hasHourlySamples {
-            amount = emptyHoursText
+            let compact = if case .quota = data { "Collecting history" } else { "No hourly history" }
+            return [ReadoutLine(emptyHoursText, compactText: drawsQuota ? compact : "No recorded tokens")]
         } else {
             amount = drawsQuota ? "No sample" : "No recorded data"
         }
@@ -1001,7 +1035,7 @@ private func drawCross(at point: CGPoint, radius: CGFloat, color: CGColor, in co
            color, width: 1.4, in: context)
 }
 
-fileprivate struct ReadoutLine {
+fileprivate struct ReadoutLine: Equatable {
     let text: String
     let color: CGColor?
     let compactText: String?
@@ -1050,7 +1084,8 @@ func quotaPercent(_ value: Double) -> String {
 }
 
 private func weekReadout(_ quota: WeeklyQuotaChart, at date: Date, cycle: ClosedRange<Date>, calendar: Calendar) -> [ReadoutLine] {
-    let scheduledReset = ReadoutLine("Scheduled reset · \(chartTimestamp(cycle.upperBound, calendar: calendar))")
+    let resetLabel = chartTimestamp(cycle.upperBound, calendar: calendar)
+    let scheduledReset = ReadoutLine("Scheduled reset · \(resetLabel)", compactText: "Reset \(resetLabel)")
     if let reset = quota.earlyResetAt, date >= reset {
         return [
             ReadoutLine("Quota cycle ended"),
@@ -1061,7 +1096,10 @@ private func weekReadout(_ quota: WeeklyQuotaChart, at date: Date, cycle: Closed
     let measured = quota.measuredUse(at: date).map { "\(quotaPercent(Double($0))) used" } ?? "No quota sample"
     let budget = quotaPercent(WeeklyQuotaPace.budget(at: date, cycleStart: cycle.lowerBound))
     let projections = quota.projections(at: date).map { period, used in
-        ReadoutLine("\(period.rawValue) · \(quotaPercent(used)) projected", color: period.strokeStyle.color)
+        let label = period == .window ? "Cycle forecast" : "24h forecast"
+        let value = quotaPercent(used)
+        return ReadoutLine("\(period.rawValue) · \(value) projected", color: period.strokeStyle.color,
+                           compactText: "\(label) \(value)")
     }
     return [ReadoutLine(measured), ReadoutLine("Pacing plan · \(budget)")] + projections + [scheduledReset]
 }
