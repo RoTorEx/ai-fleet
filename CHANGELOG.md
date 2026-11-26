@@ -18,7 +18,7 @@ Tracks real product and release progress.
 - Mark observed daily-plan crossings with a red cross and snap the weekly cursor within 60 minutes on either side of a crossing.
 - Keep the hourly range and local token filters together above the hourly charts. Label the Statistics tab Quota & Usage and use softer light-mode chart surfaces.
 - Show hover readings in bordered cards beside the selected marks. Match the vertical spacing across the three plots, align the info icons with the titles, and explain local token scope in the info legend.
-- Use one summary line per chart. Draw Claude's current five-hour quota as a vertical meter beside the weekly plot.
+- Use one summary line per chart. Show the current five-hour quota as a right-aligned percentage for providers that report it.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 

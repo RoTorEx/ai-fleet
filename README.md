@@ -243,9 +243,9 @@ Click the chart icon on a supported Providers row to open **Quota history**.
 Click it again to close the popover. The **Quota & Usage** tab in Statistics
 starts with the same compact stack of quota overview, hourly quota and local
 hourly tokens. Claude, Codex and Kimi list their current limits together and
-plot the primary account quota. The current five-hour account limit has a
-separate meter when shown alongside the weekly plot. A current reading appears when the primary
-window has no hourly history. Weekly history follows the verified account and
+plot the primary account quota. A reported five-hour account limit appears on
+the right of the summary row, with its reset time on hover. A current reading
+appears when the primary window has no hourly history. Weekly history follows the verified account and
 weekly limit. The hourly charts share a 3-, 5- or 7-day range and use the device's
 time zone. Local tokens shows input, cache and output from the selected
 provider's logs on this Mac. Account ownership is unknown for those records.

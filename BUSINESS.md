@@ -179,9 +179,9 @@ subscription charges.
   tokens in one compact group above Provider reports. The right-edge chart
   button on supported provider rows opens and closes the same group.
   Claude, Codex and Kimi share the same quota readouts and plot layout. The
-  overview header shows the plotted window's used percentage. When the provider
-  reports a five-hour account limit alongside the weekly limit, the overview
-  shows a separate 0–100% meter for the latest five-hour reading.
+  overview header shows the plotted window's used percentage. A reported
+  five-hour account limit appears as an aligned `5h` percentage at the right
+  end of the same summary row.
   Weekly and hourly quota follow the verified account.
   A current reading is shown when history is unavailable. The local chart
   shows the selected provider's recorded tokens on this Mac across accounts.

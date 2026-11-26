@@ -80,6 +80,11 @@ struct QuotaHistoryHeaderMetric {
     let color: CGColor
 }
 
+struct QuotaHistoryHeaderReadout {
+    var leading: [ReadoutLine] = []
+    var fiveHour: ReadoutLine?
+}
+
 struct HourlyChartScale {
     let maximum: Double
     let levels: [Double]
@@ -113,9 +118,8 @@ struct QuotaHistoryFigure: View {
         let selectedTime = legendHovered ? nil : cursor?.time
         let details = drawing.accessibilityDetails(for: panel, selectedTime: selectedTime)
         let header = drawing.headerReadout(for: panel, colorScheme: colorScheme)
-        let meter = panel == .overview ? drawing.fiveHourMeter : nil
         let description = selectedTime == nil
-            ? ([details] + header.map(\.text) + [meter?.help].compactMap { $0 }
+            ? ([details] + header.leading.map(\.text) + [header.fiveHour?.text, header.fiveHour?.help].compactMap { $0 }
                 + [drawing.legendDescription(for: panel)]).joined(separator: ". ")
             : details
         let chart = Canvas { graphics, size in
@@ -156,18 +160,9 @@ struct QuotaHistoryFigure: View {
                             }
                         }
                         .accessibilityHidden(true)
-                    heading(drawing.heading(for: panel), summary: header, meter: meter)
+                    heading(drawing.heading(for: panel), summary: header)
                         .frame(width: max(0, layout.plot.width), height: layout.plot.minY, alignment: .topLeading)
                         .offset(x: layout.plot.minX)
-                    if let meter {
-                        let rail = layout.meterFrame
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .frame(width: rail.width, height: rail.height)
-                            .offset(x: rail.minX, y: rail.minY)
-                            .help(meter.help)
-                            .accessibilityHidden(true)
-                    }
                 }
             }
         }
@@ -183,7 +178,7 @@ struct QuotaHistoryFigure: View {
         }
     }
 
-    private func heading(_ title: String, summary: [ReadoutLine], meter: QuotaHistoryDrawing.FiveHourMeter?) -> some View {
+    private func heading(_ title: String, summary: QuotaHistoryHeaderReadout) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 13, weight: .bold))
@@ -204,16 +199,12 @@ struct QuotaHistoryFigure: View {
                         }
                 }
             HStack(spacing: 12) {
-                ForEach(Array(summary.enumerated()), id: \.offset) { _, line in
-                    Text(line.text)
-                        .foregroundStyle(line.color.map { Color(cgColor: $0) } ?? .secondary)
-                        .help(line.help ?? "")
+                ForEach(Array(summary.leading.enumerated()), id: \.offset) { _, line in
+                    summaryText(line)
                 }
-                if let meter {
+                if let fiveHour = summary.fiveHour {
                     Spacer(minLength: 0)
-                    Text("5h \(meter.amount)")
-                        .foregroundStyle(meter.isStale ? Color.secondary : Color.teal)
-                        .help(meter.help)
+                    summaryText(fiveHour)
                 }
             }
             .frame(height: 13)
@@ -225,23 +216,16 @@ struct QuotaHistoryFigure: View {
         .padding(.top, 8)
         .accessibilityHidden(true)
     }
+
+    private func summaryText(_ line: ReadoutLine) -> some View {
+        Text(line.text)
+            .foregroundStyle(line.color.map { Color(cgColor: $0) } ?? .secondary)
+            .help(line.help ?? "")
+    }
 }
 
 /// Uses the VPM-40 chart styling with plot bounds measured in window points.
 struct QuotaHistoryDrawing {
-    struct FiveHourMeter {
-        let used: Int
-        let isStale: Bool
-        let reset: String?
-
-        var amount: String {
-            let percent = quotaPercent(Double(used))
-            return isStale ? "\(percent) used (last reading)" : "\(percent) used"
-        }
-
-        var help: String { ["5-hour quota \(amount)", reset].compactMap { $0 }.joined(separator: ". ") }
-    }
-
     private struct Hour {
         let start: Date
         let parts: [Double]?
@@ -395,30 +379,20 @@ struct QuotaHistoryDrawing {
         return metrics
     }
 
-    fileprivate func headerReadout(for panel: QuotaHistoryPanel, colorScheme: ColorScheme) -> [ReadoutLine] {
+    func headerReadout(for panel: QuotaHistoryPanel, colorScheme: ColorScheme) -> QuotaHistoryHeaderReadout {
         if panel == .hourly {
-            return headerMetrics(for: panel, colorScheme: colorScheme).map { ReadoutLine($0.label, color: $0.color) }
+            let lines = headerMetrics(for: panel, colorScheme: colorScheme).map { ReadoutLine($0.label, color: $0.color) }
+            return QuotaHistoryHeaderReadout(leading: lines)
         }
         guard let appearance = colorScheme == .dark ? Palette.darkAppearance : Palette.lightAppearance else {
             return overviewReadout
         }
-        var summary: [ReadoutLine] = []
+        var summary = QuotaHistoryHeaderReadout()
         appearance.performAsCurrentDrawingAppearance { summary = overviewReadout }
         return summary
     }
 
-    private var fiveHourWindow: ProviderLimitWindow? {
-        otherLimits.first { $0.weeklyModel == nil && $0.durationSeconds == 5 * UsageHours.hour }
-    }
-
-    var fiveHourMeter: FiveHourMeter? {
-        guard case .quota(let quota) = data, !quota.isHistorical, let window = fiveHourWindow else { return nil }
-        let stale = [.stale, .unavailable].contains(quota.pace.state) || window.resetAt.map { $0 <= quota.now } == true
-        let reset = window.resetAt.map { "Reset \(chartTimestamp($0, calendar: calendar))" }
-        return FiveHourMeter(used: 100 - window.remainingPercent, isStale: stale, reset: reset)
-    }
-
-    private var overviewReadout: [ReadoutLine] {
+    private var overviewReadout: QuotaHistoryHeaderReadout {
         switch data {
         case .quota(let quota):
             let used = quota.isHistorical ? quota.latest?.used : (quota.pace.usedPercent ?? quota.latest?.used)
@@ -428,27 +402,36 @@ struct QuotaHistoryDrawing {
                 ?? ReadoutLine("No weekly readings")
             if quota.isHistorical {
                 let archived = quota.cycleLabel(calendar: calendar) ?? "Archived cycle"
-                return [main, ReadoutLine(archived)]
+                return QuotaHistoryHeaderReadout(leading: [main, ReadoutLine(archived)])
             }
-            return [main] + otherLimitReadout(at: quota.now, stale: stale, excluding: fiveHourWindow?.id)
+            return liveQuotaReadout(at: quota.now, stale: stale, leading: [main])
         case .currentQuota(let reading):
-            guard let window = reading.window, let used = reading.usedPercent else { return [] }
-            let stale = reading.isStale || window.resetAt.map { $0 <= reading.now } == true
-            return [limitText(window.quotaDisplayLabel, used: used, stale: stale, color: Palette.actual)]
-                + otherLimitReadout(at: reading.now, stale: reading.isStale)
+            guard let window = reading.window, reading.usedPercent != nil else { return QuotaHistoryHeaderReadout() }
+            return liveQuotaReadout(at: reading.now, stale: reading.isStale, primary: window)
         case .unsupportedQuota, .tokens:
-            return []
+            return QuotaHistoryHeaderReadout()
         }
     }
 
-    private func otherLimitReadout(at now: Date, stale: Bool, excluding id: String? = nil) -> [ReadoutLine] {
-        let windows = otherLimits.filter { $0.id != id }
-        guard !windows.isEmpty else { return [] }
-        return windows.map { limit in
+    private func liveQuotaReadout(at now: Date, stale: Bool, primary: ProviderLimitWindow? = nil,
+                                  leading: [ReadoutLine] = []) -> QuotaHistoryHeaderReadout {
+        let windows = (primary.map { [$0] } ?? []) + otherLimits
+        let fiveHourIndex = windows.firstIndex { $0.weeklyModel == nil && $0.durationSeconds == 5 * UsageHours.hour }
+        var summary = QuotaHistoryHeaderReadout(leading: leading)
+        for (index, limit) in windows.enumerated() {
+            let fiveHour = index == fiveHourIndex
             let old = stale || limit.resetAt.map { $0 <= now } == true
             let reset = limit.resetAt.map { "Resets \(chartTimestamp($0, calendar: calendar))" }
-            return limitText(limit.quotaDisplayLabel, used: 100 - limit.remainingPercent, stale: old, help: reset)
+            let color = fiveHour ? Palette.fiveHour : (primary?.id == limit.id ? Palette.actual : nil)
+            let line = limitText(fiveHour ? "5h" : limit.quotaDisplayLabel, used: 100 - limit.remainingPercent,
+                                 stale: old, color: color, help: reset)
+            if fiveHour {
+                summary.fiveHour = line
+            } else {
+                summary.leading.append(line)
+            }
         }
+        return summary
     }
 
     private func limitText(_ label: String, used: Int, stale: Bool, color: CGColor? = nil, help: String? = nil) -> ReadoutLine {
@@ -547,7 +530,6 @@ struct QuotaHistoryDrawing {
         switch (panel, data) {
         case (.overview, .quota(let quota)):
             drawWeek(quota, layout: layout, in: context)
-            if let meter = fiveHourMeter { drawFiveHourMeter(meter, at: layout.meterFrame, in: context) }
         case (.overview, .currentQuota(let reading)):
             drawReading(reading, layout: layout, in: context)
         case (_, .unsupportedQuota):
@@ -587,29 +569,6 @@ struct QuotaHistoryDrawing {
             context.restoreGState()
         }
         context.restoreGState()
-    }
-
-    private func drawFiveHourMeter(_ meter: FiveHourMeter, at rect: CGRect, in context: CGContext) {
-        guard !rect.isEmpty else { return }
-        let radius = rect.width / 2
-        let track = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
-        context.addPath(track)
-        context.setFillColor(Palette.plot)
-        context.fillPath()
-
-        let height = rect.height * CGFloat(meter.used) / 100
-        let filled = CGRect(x: rect.minX, y: rect.maxY - height, width: rect.width, height: height)
-        context.saveGState()
-        context.addPath(track)
-        context.clip()
-        fill(filled, meter.isStale ? Palette.budget : Palette.fiveHour, in: context)
-        context.restoreGState()
-
-        context.addPath(track)
-        context.setStrokeColor(Palette.frame)
-        context.setLineWidth(0.8)
-        context.setLineDash(phase: 0, lengths: [])
-        context.strokePath()
     }
 
     private func drawWeek(_ quota: WeeklyQuotaChart, layout: FigureLayout, in context: CGContext) {
@@ -953,11 +912,6 @@ private struct FigureLayout {
     var overlayArea: CGRect {
         CGRect(x: plot.minX, y: plot.minY, width: plot.width, height: max(0, canvas.height - plot.minY - 2))
     }
-    var meterFrame: CGRect {
-        let left = plot.maxX + 2
-        return CGRect(x: left, y: plot.minY, width: min(9, max(0, canvas.width - left - 4)), height: plot.height)
-    }
-
     init(canvas: CGSize, panel: QuotaHistoryPanel) {
         self.canvas = canvas
         let left = min(44, canvas.width * 0.23)
@@ -1122,7 +1076,7 @@ private func drawReadout(_ lines: [ReadoutLine], beside anchor: ClosedRange<CGFl
     }
 }
 
-fileprivate struct ReadoutLine {
+struct ReadoutLine {
     let text: String
     let color: CGColor?
     let compactText: String?

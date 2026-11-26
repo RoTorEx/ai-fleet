@@ -29,10 +29,19 @@ final class QuotaHistoryTests: XCTestCase {
         guard case .currentQuota(let reading) = data else { return XCTFail("Expected the observed monthly reading") }
         XCTAssertEqual(reading.usedPercent, 74)
         XCTAssertFalse(reading.isStale)
-        let drawing = QuotaHistoryDrawing(data: data)
+        let drawing = QuotaHistoryDrawing(data: data, otherLimits: [session])
+        let summary = drawing.headerReadout(for: .overview, colorScheme: .dark)
+        XCTAssertEqual(summary.leading.map(\.text), ["Monthly 74.0% used"])
+        XCTAssertEqual(summary.fiveHour?.text, "5h 0.0% used")
         XCTAssertEqual(drawing.accessibilityDetails(for: .overview, selectedTime: nil), "Monthly quota")
         XCTAssertTrue(drawing.accessibilityDetails(for: .overview, selectedTime: base).hasSuffix(". 74.0% used"))
         XCTAssertTrue(drawing.accessibilityDetails(for: .hourly, selectedTime: nil).contains("Hourly history unavailable"))
+
+        let shortOnly = QuotaHistoryDrawing(data: .currentQuota(QuotaLimitReading(
+            window: session, measuredAt: base, now: base, markedStale: false)))
+        let shortSummary = shortOnly.headerReadout(for: .overview, colorScheme: .dark)
+        XCTAssertTrue(shortSummary.leading.isEmpty)
+        XCTAssertEqual(shortSummary.fiveHour?.text, "5h 0.0% used")
     }
 
     func testScopeAndTimestampKeepAccountsAndModelCapsIndependent() throws {
@@ -116,45 +125,33 @@ final class QuotaHistoryTests: XCTestCase {
     }
 
     @MainActor
-    func testFiveHourMeterFollowsItsOwnResetAndStaysOffArchivedCycles() throws {
+    func testFiveHourSummaryFollowsItsOwnResetAndStaysOffArchivedCycles() throws {
         let week = WeeklyQuotaPace.weekSeconds
         let oldTime = base.addingTimeInterval(-week)
         let oldReset = base.addingTimeInterval(-hour)
         let newReset = oldReset.addingTimeInterval(week)
         let shortReset = base.addingTimeInterval(60)
         let weekly = ProviderLimitWindow(id: "seven_day", label: "7d", remainingPercent: 18, resetAt: newReset)
-        let short = ProviderLimitWindow(id: "five_hour", label: "5h", remainingPercent: 95, resetAt: shortReset)
-        let previous = try target(.claude, id: "claude", windows: [
-            ProviderLimitWindow(id: weekly.id, label: weekly.label, remainingPercent: 13, resetAt: oldReset)
-        ], now: oldTime)
-        let current = try target(.claude, id: "claude", windows: [weekly, short], now: base)
-        var history = WeeklyQuotaHistory()
-        history.observe([try XCTUnwrap(previous.report)], now: oldTime)
-        func drawing(at time: Date, displayedReset: Date? = nil) -> QuotaHistoryDrawing {
-            let data = current.quotaFigure(history: history, now: time, displayedReset: displayedReset)
-            return QuotaHistoryDrawing(data: data, otherLimits: [short])
+        let previousWeek = ProviderLimitWindow(id: weekly.id, label: weekly.label, remainingPercent: 13, resetAt: oldReset)
+        for provider in [StatisticsProvider.claude, .codex] {
+            let short = ProviderLimitWindow(id: provider == .claude ? "five_hour" : "secondary",
+                                            label: provider == .claude ? "5h" : "300m",
+                                            remainingPercent: 95, resetAt: shortReset)
+            let previous = try target(provider, id: provider.rawValue, windows: [previousWeek], now: oldTime)
+            let current = try target(provider, id: provider.rawValue, windows: [weekly, short], now: base)
+            var history = WeeklyQuotaHistory()
+            history.observe([try XCTUnwrap(previous.report)], now: oldTime)
+            func summary(at time: Date, displayedReset: Date? = nil) -> QuotaHistoryHeaderReadout {
+                let data = current.quotaFigure(history: history, now: time, displayedReset: displayedReset)
+                return QuotaHistoryDrawing(data: data, otherLimits: [short]).headerReadout(for: .overview, colorScheme: .dark)
+            }
+            let active = summary(at: base)
+            XCTAssertEqual(active.leading.map(\.text), ["7d 82.0% used"])
+            XCTAssertEqual(active.fiveHour?.text, "5h 5.0% used")
+            XCTAssertEqual(active.fiveHour?.help, "Resets \(chartTimestamp(shortReset, calendar: .current))")
+            XCTAssertEqual(summary(at: shortReset).fiveHour?.text, "5h 5.0% used (last reading)")
+            XCTAssertNil(summary(at: base, displayedReset: oldReset).fiveHour)
         }
-        let active = try XCTUnwrap(drawing(at: base).fiveHourMeter)
-        XCTAssertEqual(active.used, 5)
-        XCTAssertFalse(active.isStale)
-        XCTAssertEqual(active.reset, "Reset \(chartTimestamp(shortReset, calendar: .current))")
-        XCTAssertTrue(try XCTUnwrap(drawing(at: shortReset).fiveHourMeter).isStale)
-        XCTAssertNil(drawing(at: base, displayedReset: oldReset).fiveHourMeter)
-
-        let panel = QuotaHistoryPanel.overview
-        let size = CGSize(width: 480, height: panel.height)
-        let width = Int(size.width * 2)
-        let height = Int(size.height * 2)
-        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
-                                              bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-        context.translateBy(x: 0, y: CGFloat(height))
-        context.scaleBy(x: 2, y: -2)
-        drawing(at: base).draw(panel, in: context, size: size)
-        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
-        let bottom = Int(panel.headerHeight + panel.plotHeight)
-        func green(at y: Int) -> Int { Int(pixels[(y * 2 * width + 466 * 2) * 4 + 1]) }
-        XCTAssertGreaterThan(green(at: bottom - 3), green(at: bottom - 9) + 100)
     }
 
     func testWeeklyResetShowsTheNewCycleAndKeepsThePreviousMeasurements() throws {
