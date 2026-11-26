@@ -80,16 +80,15 @@ and Kimi share the layout. The Statistics account picker keeps the quota
 readings and all three chart positions stable when quota data is missing.
 Qwen shows unavailable quota states in those slots and opens only its local
 token chart in the compact popover.
-The header places compact current quota readings to the right of the account
-label. Cycle arrows sit in the weekly chart header. Archive navigation shows the archive
-state in the same space. The charts use the account-wide weekly limit when
+The header places compact current quota readings and cycle arrows to the right
+of the account label. Archive navigation shows the archive state in the space
+used for current readings. The charts use the account-wide weekly limit when
 present, followed by the longest account window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
-Label sizes stay constant. Both hourly plots share a 3-, 5-, or 7-day range.
-The initial range is 7 days. The range control sits in the Hourly usage group
-header and applies to both hourly plots. The model and category controls sit
-in the local token chart header.
+Label sizes stay constant. Both hourly plots share a 3-, 5-, or 7-day range
+with a 7-day default. One row above them holds the range control and the local
+token model and category controls.
 The plot dimensions stay fixed as the one-hour bins become denser. The six-hour grid follows local midnight,
 with dates on a separate row and abbreviated labels when space is limited.
 The charts use the current macOS light or dark appearance, with a soft-gray
@@ -106,14 +105,15 @@ The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
-Hover readouts use a fixed size within each plot. They start with the date and
-local time, followed by the measurement. The weekly chart has its own cursor.
+A fixed-height strip beneath the plots shows the latest hour at rest and
+details for the selected time on hover. The plots' data marks and axes stay
+visible. The strip starts with the date and local time, followed by the
+measurement. The weekly chart has its own cursor.
 Observed daily-plan crossings display a red cross in the weekly plot. Plan and
 limit crossings snap within 60 minutes on either side of the point. The two
-hourly charts share the selected hour and show the local hour interval and
-the measurement for that bucket. Their bars use
-muted colors at rest. Both highlight the selected hour and brighten its bars,
-with the readout placed beside the selected column. A covered time with missing
+hourly charts share the selected hour. Their bars use muted colors at rest.
+Both highlight the selected hour and brighten its bars. The strip compares the
+account quota change and local tokens for that hour. A time with missing
 evidence is labelled as such. Token hours beyond the last scan identify that
 scan in the readout. Refresh local tokens in the popover reuses the background
 log scan without starting a provider quota refresh. Statistics uses its existing
@@ -198,7 +198,9 @@ The On this Mac section uses timestamps from the retained session records.
 Its consecutive hour buckets include the current hour and retain
 both occurrences of a repeated local hour at daylight-saving transitions.
 Choose a provider and recorded model, with an input, cache and output breakdown.
-No provider quota or account attribution is inferred from the local totals.
+Standard session roots are shared across logins. The local chart is titled
+On this Mac for its provider scope, and its legend identifies the account as
+unknown. Local counts cannot assign a portion of the account quota to a machine.
 The cache aggregates up to seven days of hourly token events from local session
 logs. The next scan rebuilds older three-day cache entries that can contribute
 to that range. The average and median follow the selected model and token

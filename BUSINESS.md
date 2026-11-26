@@ -180,8 +180,9 @@ subscription charges.
   Claude, Codex and Kimi share the same quota readouts and plot layout. All
   reported windows show percentage used together. The trend uses the account's
   primary quota window. Weekly history follows the verified account. The current reading is shown
-  when history is unavailable for a reported limit. Local hourly tokens follow
-  the provider and recorded model.
+  when history is unavailable for a reported limit. Local hourly tokens show
+  the selected provider and recorded model on this Mac. Quota and token
+  measurements appear in a fixed strip beneath the plots when inspected.
   Provider reports (Codex accounts and Kimi quota windows) remain
   identity-bound. [Provider statistics](business/provider-statistics.md) owns
   history, forecasts and the two chart sources.

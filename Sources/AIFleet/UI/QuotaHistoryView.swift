@@ -66,9 +66,6 @@ struct QuotaHistoryView: View {
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
     @State private var refreshingLocalTokens = UsageAnalyticsService.shared.isRefreshing
-    @State private var overviewCursor: QuotaChartCursor?
-    @State private var hourlyCursor: QuotaChartCursor?
-    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("quotaHistory.hourlyDays") private var range: QuotaHistoryRange = .sevenDays
     private var isStatistics: Bool { openInStatistics == nil }
     private var controlLabelWidth: CGFloat { isStatistics ? 142 : 110 }
@@ -108,28 +105,15 @@ struct QuotaHistoryView: View {
                         } else {
                             quotaReadings(target, calendar: calendar)
                         }
+                        if quota != nil {
+                            cycleControls(weekly, request: request)
+                        }
                     }
                     .controlSize(.small)
-                    if let quota {
-                        QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $overviewCursor,
-                                           headerControls: cycleControls(weekly, request: request).controlSize(.small))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    VStack(spacing: 0) {
-                        hourlyControlBar
-                        if let quota {
-                            QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $hourlyCursor)
-                            Rectangle()
-                                .fill(Color.white.opacity(colorScheme == .dark ? 0.24 : 1))
-                                .frame(height: 3)
-                                .accessibilityHidden(true)
-                        }
-                        let data = QuotaHistoryFigureData.tokens(tokens, series: request.tokenSeries)
-                        QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: data, calendar: calendar),
-                                           panel: .hourly, cursor: $hourlyCursor,
-                                           headerControls: tokenControls(models: tokens.models, request: request).controlSize(.small))
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    let tokenDrawing = QuotaHistoryDrawing(data: .tokens(tokens, series: request.tokenSeries), calendar: calendar)
+                    QuotaHistoryCharts(quota: quota, tokens: tokenDrawing, cycle: request.cycleReset, range: range,
+                                       hourlyControls: hourlyControls(models: tokens.models, request: request))
+                        .id(target.id)
                     if let openInStatistics {
                         HStack(spacing: 8) {
                             Button("Open in Statistics") {
@@ -148,12 +132,6 @@ struct QuotaHistoryView: View {
         }
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
         .onReceive(UsageAnalyticsService.shared.$isRefreshing) { refreshingLocalTokens = $0 }
-        .onChange(of: selection?.targetID) { _ in
-            overviewCursor = nil
-            hourlyCursor = nil
-        }
-        .onChange(of: selection?.cycleReset) { _ in overviewCursor = nil }
-        .onChange(of: range) { _ in hourlyCursor = nil }
     }
 
     private func cycleControls(_ chart: WeeklyQuotaChart?, request: QuotaHistoryRequest) -> some View {
@@ -182,18 +160,19 @@ struct QuotaHistoryView: View {
         .help(label)
     }
 
-    private var hourlyControlBar: some View {
-        HStack(spacing: 8) {
-            Text("Hourly usage")
-                .font(.system(size: 12, weight: .semibold))
-                .accessibilityAddTraits(.isHeader)
-            Spacer()
-            rangePicker
+    private func hourlyControls(models: [String], request: QuotaHistoryRequest) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                rangePicker
+                tokenControls(models: models, request: request)
+            }
+            VStack(alignment: .trailing, spacing: 6) {
+                rangePicker
+                tokenControls(models: models, request: request)
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
         .controlSize(.small)
-        .background(quotaChartBackground(for: colorScheme))
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     @ViewBuilder private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {
@@ -294,5 +273,39 @@ struct QuotaHistoryView: View {
         .labelsHidden().frame(width: 116)
         .disabled(models.isEmpty)
         .help("Filter the local token chart by model")
+    }
+}
+
+private struct QuotaHistoryCharts<HourlyControls: View>: View {
+    let quota: QuotaHistoryDrawing?
+    let tokens: QuotaHistoryDrawing
+    let cycle: Date?
+    let range: QuotaHistoryRange
+    let hourlyControls: HourlyControls
+
+    @State private var overviewCursor: QuotaChartCursor?
+    @State private var hourlyCursor: QuotaChartCursor?
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if let quota {
+                QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $overviewCursor)
+            }
+            hourlyControls
+            VStack(spacing: 0) {
+                if let quota {
+                    QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $hourlyCursor)
+                    Rectangle()
+                        .fill(Color.white.opacity(colorScheme == .dark ? 0.24 : 1))
+                        .frame(height: 3)
+                        .accessibilityHidden(true)
+                }
+                QuotaHistoryFigure(drawing: tokens, panel: .hourly, cursor: $hourlyCursor)
+            }
+            QuotaChartReadout(quota: quota, tokens: tokens, overviewTime: overviewCursor?.time, hourlyTime: hourlyCursor?.time)
+        }
+        .onChange(of: cycle) { _ in overviewCursor = nil }
+        .onChange(of: range) { _ in hourlyCursor = nil }
     }
 }

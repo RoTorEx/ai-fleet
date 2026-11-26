@@ -240,15 +240,16 @@ as `≥ $…`. Kimi's quota windows appear under **Provider reports**. Local tok
 See [provider statistics](business/provider-statistics.md) for format support.
 
 Click the chart icon on a supported Providers row to open **Quota history**.
-Click it again to close the popover. The **Quota History** tab in Statistics
+Click it again to close the popover. The **Quota & Usage** tab in Statistics
 starts with the same compact stack of quota overview, hourly quota and local
 hourly tokens. Claude, Codex and Kimi list their current limits together and
-plot the primary account quota. A current reading appears when the primary window has no hourly history. Weekly
-history follows the verified account and weekly limit, including model caps.
-Local tokens shows input, cache and output by provider and recorded
-model across the last 72 hourly buckets. Hover for each category's exact count or
-select a category to see it on its own scale. The hourly charts use the device's
-time zone and place the date below each day's hours. The weekly plot shows
+plot the primary account quota. A current reading appears when the primary
+window has no hourly history. Weekly history follows the verified account and
+weekly limit. The hourly charts share a 3-, 5- or 7-day range and use the device's
+time zone. Local tokens shows input, cache and output from the selected
+provider's logs on this Mac. Account ownership is unknown for those records.
+Hover over a plot to read its measurements below the charts, or select a token
+category to fit that plot's scale to the chosen series. The weekly plot shows
 the daily budget, observations and the projection based on average pace since
 the cycle began.
 The 24-hour projection and quota bars appear as measurements accumulate.

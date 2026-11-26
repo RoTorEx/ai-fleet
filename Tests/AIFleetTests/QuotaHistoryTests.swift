@@ -560,8 +560,17 @@ final class QuotaHistoryTests: XCTestCase {
         let overviewRows = 48..<292
         let hourlyRows = (hourlyTop * 2)..<pixelHeight
         let hourlyAxisRows = ((hourlyTop + Int(hourly.height) - 32) * 2)..<pixelHeight
+        func plotLeftOfSelection() -> Data {
+            // The fixture's selected hour is near the right edge of the plot.
+            // Compare the rest of the plot to detect a readout obscuring it.
+            let first = (hourlyTop + Int(QuotaHistoryPanel.hourly.headerHeight)) * 2
+            return (first..<hourlyAxisRows.lowerBound).reduce(into: Data()) { data, y in
+                data.append(pixels.advanced(by: y * bytesPerRow), count: 440 * 2 * 4)
+            }
+        }
         let overviewWithoutLegend = rows(overviewRows)
         let hourlyWithoutLegend = rows(hourlyRows)
+        let plotWithoutSelection = plotLeftOfSelection()
         let hourlyAxis = rows(hourlyAxisRows)
         let overviewAxis = rows(292..<(hourlyTop * 2))
         context.translateBy(x: 0, y: -overview.height)
@@ -573,6 +582,7 @@ final class QuotaHistoryTests: XCTestCase {
         figure.draw(.hourly, in: context, size: hourly, selectedTime: sharedTime)
         let highlightedBar = color(446, hourlyTop + 46 + headerOffset)
         XCTAssertGreaterThan(highlightedBar[1] - highlightedBar[0], bar[1] - bar[0] + 30)
+        XCTAssertEqual(plotLeftOfSelection(), plotWithoutSelection)
         XCTAssertEqual(rows(hourlyAxisRows), hourlyAxis)
 
         if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"] {
