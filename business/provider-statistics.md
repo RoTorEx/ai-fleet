@@ -86,7 +86,11 @@ Qwen shows unavailable quota states in those slots and opens only its local
 token chart in the compact popover.
 The stack labels the account as the quota account and keeps cycle arrows at
 the right. The overview shows the displayed window and used percentage beneath
-its title. Additional limits are labelled separately and use live readings.
+its title. A current five-hour account limit beside the weekly summary has
+its own 0–100% meter and shows its reset on hover. The meter uses the same
+provider response and labels an expired or stale reading as the last one.
+It shows a single reading, while the weekly plot retains its own history.
+Additional model limits are labelled separately and use live readings.
 An archived cycle shows its own range and last measured usage. The charts use
 the account-wide weekly limit when present, followed by the longest account
 window. Open in Statistics carries the provider, account and local model
@@ -105,23 +109,23 @@ keep the zero baseline and omit its label. Hover over the info icon at the
 right edge of a chart header to see its legend inside the chart. Legends use
 one mark and label per row. The weekly legend groups fill bands ahead of lines
 and leads with the cycle dates. Hourly legends use a short gap after the source,
-followed by a continuous list of marks and reference definitions. A light rule
-separates the two hourly charts. Quota headings show the window name.
+followed by a continuous list of marks and reference definitions. A gap in the
+window background separates the two hourly charts. Quota headings show the window name.
 The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
-Reserve two lines under each chart title for its summary and cursor readout.
-Keep the info icon on the title line and leave a gap before the plot. The
-cursor replaces the summary with the date, local time and readings while
-preserving plot size and revealing all marks and axes. Exact token counts
-and category shares fit when space permits, with compact units at narrow widths.
+Keep the info icon on the title line and leave space around the title, summary,
+plot and axes. The cursor opens a bordered card beside the selected mark with
+the date, local time and readings. The card stays within the plot and clears
+the selected bar and axes. Exact token counts and category shares fit when
+space permits, with compact units at narrow widths.
 The weekly chart has its own cursor.
 Observed daily-plan crossings display a red cross in the weekly plot. Plan and
 limit crossings snap within 60 minutes on either side of the point. The two
 hourly charts share the selected hour. Their bars use equal opacity at rest.
 A diagonal hatch marks a partial hour on either plot. Both brighten only the
-selected hour's bars. Each chart header shows its own reading for that hour.
+selected hour's bars. Each chart shows its own card for that hour.
 A time with missing
 evidence is labelled as such. Token hours beyond the last scan identify that
 scan in the readout. Refresh local tokens in the popover reuses the background

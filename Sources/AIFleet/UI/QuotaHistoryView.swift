@@ -260,7 +260,6 @@ private struct QuotaHistoryCharts<HourlyControls: View>: View {
 
     @State private var overviewCursor: QuotaChartCursor?
     @State private var hourlyCursor: QuotaChartCursor?
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: spacing) {
@@ -268,13 +267,9 @@ private struct QuotaHistoryCharts<HourlyControls: View>: View {
                 QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $overviewCursor)
             }
             hourlyControls
-            VStack(spacing: 0) {
+            VStack(spacing: 5) {
                 if let quota {
                     QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $hourlyCursor)
-                    Rectangle()
-                        .fill(Color.white.opacity(colorScheme == .dark ? 0.24 : 1))
-                        .frame(height: 3)
-                        .accessibilityHidden(true)
                 }
                 QuotaHistoryFigure(drawing: tokens, panel: .hourly, cursor: $hourlyCursor)
             }

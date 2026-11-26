@@ -115,6 +115,33 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(chart.hours.count, 72)
     }
 
+    @MainActor
+    func testFiveHourMeterFollowsItsOwnResetAndStaysOffArchivedCycles() throws {
+        let week = WeeklyQuotaPace.weekSeconds
+        let oldTime = base.addingTimeInterval(-week)
+        let oldReset = base.addingTimeInterval(-hour)
+        let newReset = oldReset.addingTimeInterval(week)
+        let shortReset = base.addingTimeInterval(60)
+        let weekly = ProviderLimitWindow(id: "seven_day", label: "7d", remainingPercent: 18, resetAt: newReset)
+        let short = ProviderLimitWindow(id: "five_hour", label: "5h", remainingPercent: 95, resetAt: shortReset)
+        let previous = try target(.claude, id: "claude", windows: [
+            ProviderLimitWindow(id: weekly.id, label: weekly.label, remainingPercent: 13, resetAt: oldReset)
+        ], now: oldTime)
+        let current = try target(.claude, id: "claude", windows: [weekly, short], now: base)
+        var history = WeeklyQuotaHistory()
+        history.observe([try XCTUnwrap(previous.report)], now: oldTime)
+        func drawing(at time: Date, displayedReset: Date? = nil) -> QuotaHistoryDrawing {
+            let data = current.quotaFigure(history: history, now: time, displayedReset: displayedReset)
+            return QuotaHistoryDrawing(data: data, otherLimits: [short])
+        }
+        let active = try XCTUnwrap(drawing(at: base).fiveHourMeter)
+        XCTAssertEqual(active.used, 5)
+        XCTAssertFalse(active.isStale)
+        XCTAssertEqual(active.reset, "Reset \(chartTimestamp(shortReset, calendar: .current))")
+        XCTAssertTrue(try XCTUnwrap(drawing(at: shortReset).fiveHourMeter).isStale)
+        XCTAssertNil(drawing(at: base, displayedReset: oldReset).fiveHourMeter)
+    }
+
     func testWeeklyResetShowsTheNewCycleAndKeepsThePreviousMeasurements() throws {
         let oldReset = base.addingTimeInterval(48 * hour)
         let currentReset = base.addingTimeInterval(WeeklyQuotaPace.weekSeconds)
@@ -189,10 +216,12 @@ final class QuotaHistoryTests: XCTestCase {
         QuotaHistoryDrawing(data: .quota(chart)).draw(.overview, in: context, size: size)
         let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
         // The first and seventh plateaus both have visible plan strokes.
-        let shift = Int((QuotaHistoryPanel.overview.headerHeight - 24) * 2)
-        XCTAssertGreaterThan(Int(pixels[((257 + shift) * width + 150) * 4]), 100)
-        XCTAssertGreaterThan(Int(pixels[((51 + shift) * width + 860) * 4]), 100)
-        let offset = ((287 + shift) * width + 93) * 4
+        let panel = QuotaHistoryPanel.overview
+        let firstY = Int((panel.headerHeight + panel.plotHeight * 6 / 7) * 2)
+        let lastY = Int((panel.headerHeight + 1.7) * 2)
+        XCTAssertGreaterThan(Int(pixels[(firstY * width + 150) * 4]), 100)
+        XCTAssertGreaterThan(Int(pixels[(lastY * width + 860) * 4]), 100)
+        let offset = ((Int((panel.headerHeight + panel.plotHeight) * 2) - 5) * width + 93) * 4
         XCTAssertLessThan(Int(pixels[offset + 2]) - Int(pixels[offset]), 75)
     }
 
@@ -426,7 +455,10 @@ final class QuotaHistoryTests: XCTestCase {
         let now = Date()
         let weekly = ProviderLimitWindow(id: "weekly", label: "7d", remainingPercent: 57, resetAt: now.addingTimeInterval(76 * hour))
         let monthly = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 71, resetAt: now.addingTimeInterval(48 * hour))
-        let first = try target(.claude, id: "popover-claude", windows: [weekly], now: now)
+        let short = ProviderLimitWindow(id: "five_hour", label: "5h", remainingPercent: 95, resetAt: now.addingTimeInterval(3 * hour))
+        let fable = ProviderLimitWindow(id: "seven_day_fable", label: "7d (Fable)", remainingPercent: 0,
+                                        resetAt: weekly.resetAt, weeklyModel: "Fable")
+        let first = try target(.claude, id: "popover-claude", windows: [weekly, short, fable], now: now)
         let second = try target(.codex, id: "popover-codex", windows: [weekly], now: now)
         let third = try target(.kimi, id: "popover-kimi", windows: [monthly], now: now)
         let presentation = MenuQuotaHistory()
@@ -592,23 +624,17 @@ final class QuotaHistoryTests: XCTestCase {
         func rows(_ range: Range<Int>) -> Data {
             Data(bytes: pixels.advanced(by: range.lowerBound * bytesPerRow), count: range.count * bytesPerRow)
         }
-        let overviewAxisTop = Int((overview.height - 22) * 2)
+        let overviewAxisTop = Int((overview.height - QuotaHistoryPanel.overview.axisHeight) * 2)
         let overviewRows = (weeklyHeader * 2)..<overviewAxisTop
         let hourlyRows = (hourlyTop * 2)..<pixelHeight
-        let hourlyAxisRows = ((hourlyTop + Int(hourly.height) - 32) * 2)..<pixelHeight
-        func plotLeftOfSelection() -> Data {
-            // The fixture's selected hour is near the right edge of the plot.
-            // Compare the rest of the plot to detect a readout obscuring it.
-            let first = (hourlyTop + Int(QuotaHistoryPanel.hourly.headerHeight)) * 2
-            return (first..<hourlyAxisRows.lowerBound).reduce(into: Data()) { data, y in
-                data.append(pixels.advanced(by: y * bytesPerRow), count: 440 * 2 * 4)
-            }
-        }
+        let hourlyAxisRows = ((hourlyTop + Int(hourly.height - QuotaHistoryPanel.hourly.axisHeight) + 1) * 2)..<pixelHeight
         let overviewWithoutLegend = rows(overviewRows)
         let hourlyWithoutLegend = rows(hourlyRows)
-        let plotWithoutSelection = plotLeftOfSelection()
         let hourlyAxis = rows(hourlyAxisRows)
         let overviewAxis = rows(overviewAxisTop..<(hourlyTop * 2))
+        let tooltipY = hourlyTop + Int(QuotaHistoryPanel.hourly.headerHeight) + 13
+        let beforeTooltip = color(420, tooltipY)
+        let outsideTooltip = color(180, tooltipY)
         context.translateBy(x: 0, y: -overview.height)
         figure.draw(.overview, in: context, size: overview, showsLegend: true)
         XCTAssertNotEqual(rows(overviewRows), overviewWithoutLegend)
@@ -618,7 +644,8 @@ final class QuotaHistoryTests: XCTestCase {
         figure.draw(.hourly, in: context, size: hourly, selectedTime: sharedTime)
         let highlightedBar = color(446, hourlyTop + 46 + headerOffset)
         XCTAssertGreaterThan(highlightedBar[1] - highlightedBar[0], bar[1] - bar[0] + 30)
-        XCTAssertEqual(plotLeftOfSelection(), plotWithoutSelection)
+        XCTAssertNotEqual(color(420, tooltipY), beforeTooltip)
+        XCTAssertEqual(color(180, tooltipY), outsideTooltip)
         XCTAssertEqual(rows(hourlyAxisRows), hourlyAxis)
 
         if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"] {
@@ -626,18 +653,25 @@ final class QuotaHistoryTests: XCTestCase {
             let preview = try XCTUnwrap(CGContext(data: nil, width: pixelWidth, height: height, bitsPerComponent: 8,
                                                   bytesPerRow: bytesPerRow, space: CGColorSpace(name: CGColorSpace.sRGB)!,
                                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-            for showsLegend in [false, true] {
+            let captures: [(name: String, theme: ColorScheme, legend: Bool)] = [
+                ("quota-linked-readouts.png", .dark, false),
+                ("quota-linked-readouts-light.png", .light, false),
+                ("quota-legend-sections.png", .dark, true)
+            ]
+            for (name, theme, showsLegend) in captures {
                 preview.saveGState()
                 preview.translateBy(x: 0, y: CGFloat(height))
                 preview.scaleBy(x: 2, y: -2)
-                figure.draw(.overview, in: preview, size: overview, showsLegend: showsLegend)
+                figure.draw(.overview, in: preview, size: overview, selectedTime: selected, showsLegend: showsLegend,
+                            colorScheme: theme)
                 preview.translateBy(x: 0, y: overview.height)
-                figure.draw(.hourly, in: preview, size: hourly, selectedTime: sharedTime, showsLegend: showsLegend)
+                figure.draw(.hourly, in: preview, size: hourly, selectedTime: sharedTime, showsLegend: showsLegend,
+                            colorScheme: theme)
                 preview.translateBy(x: 0, y: hourly.height)
-                tokens.draw(.hourly, in: preview, size: hourly, selectedTime: sharedTime, showsLegend: showsLegend)
+                tokens.draw(.hourly, in: preview, size: hourly, selectedTime: sharedTime, showsLegend: showsLegend,
+                            colorScheme: theme)
                 preview.restoreGState()
                 let image = try XCTUnwrap(preview.makeImage())
-                let name = showsLegend ? "quota-legend-sections.png" : "quota-linked-readouts.png"
                 try NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to:
                     URL(fileURLWithPath: directory).appendingPathComponent(name))
             }
@@ -692,7 +726,7 @@ final class QuotaHistoryTests: XCTestCase {
         context.scaleBy(x: 2, y: -2)
         figure.draw(.overview, in: context, size: size)
         let x = Int((44 + 416 * crossing.timeIntervalSince(start) / WeeklyQuotaPace.weekSeconds) * 2)
-        let y = Int((size.height - 22 - 122 / 7.0) * 2)
+        let y = Int((size.height - QuotaHistoryPanel.overview.axisHeight - QuotaHistoryPanel.overview.plotHeight / 7) * 2)
         let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
         let hasRedMarker = (x - 5...x + 5).contains { column in
             (y - 5...y + 5).contains { row in

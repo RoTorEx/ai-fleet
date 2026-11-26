@@ -179,11 +179,14 @@ subscription charges.
   tokens in one compact group above Provider reports. The right-edge chart
   button on supported provider rows opens and closes the same group.
   Claude, Codex and Kimi share the same quota readouts and plot layout. The
-  overview header shows the plotted window's used percentage and labels any
-  separate current limits. Weekly and hourly quota follow the verified account.
+  overview header shows the plotted window's used percentage. When the provider
+  reports a five-hour account limit alongside the weekly limit, the overview
+  shows a separate 0–100% meter for the latest five-hour reading.
+  Weekly and hourly quota follow the verified account.
   A current reading is shown when history is unavailable. The local chart
   shows the selected provider's recorded tokens on this Mac across accounts.
-  Cursor readings appear beneath each chart title in a fixed-height header.
+  Its info legend explains that scope. Cursor readings appear in a bordered
+  card beside the selected time or hour, leaving the header and axes in place.
   Provider reports (Codex accounts and Kimi quota windows) remain
   identity-bound. [Provider statistics](business/provider-statistics.md) owns
   history, forecasts and the two chart sources.

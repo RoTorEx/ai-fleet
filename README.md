@@ -243,7 +243,8 @@ Click the chart icon on a supported Providers row to open **Quota history**.
 Click it again to close the popover. The **Quota & Usage** tab in Statistics
 starts with the same compact stack of quota overview, hourly quota and local
 hourly tokens. Claude, Codex and Kimi list their current limits together and
-plot the primary account quota. A current reading appears when the primary
+plot the primary account quota. The current five-hour account limit has a
+separate meter when shown alongside the weekly plot. A current reading appears when the primary
 window has no hourly history. Weekly history follows the verified account and
 weekly limit. The hourly charts share a 3-, 5- or 7-day range and use the device's
 time zone. Local tokens shows input, cache and output from the selected
@@ -253,7 +254,7 @@ the last scan's saved totals. A hatched bar represents a partial hour. Hover
 brightens the selected hour on both hourly plots. The normal Refresh action
 updates the local cache incrementally. Control-click Refresh in Statistics and
 choose **Rebuild Local Token History** to read all retained local journals again.
-Hover over a plot to read its measurements below its title, or select a token
+Hover over a plot to open a card with measurements beside the cursor, or select a token
 category to fit that plot's scale to the chosen series. The weekly plot shows
 the daily budget, observations and the projection based on average pace since
 the cycle began.

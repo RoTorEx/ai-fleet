@@ -14,10 +14,11 @@ Tracks real product and release progress.
 - Draw complete-hour average and median guides on both hourly charts. Show definitions in the legend and numeric summaries below the titles.
 - Link the selected hour across the two hourly charts and brighten its bars. Keep weekly readings independent, and label partial-hour observations and local token scope.
 - Keep observed quota use for a partial hour that contains a reset. Explain unscanned token hours and offer a local log refresh in the chart popover.
-- Lead chart legends with their data source or cycle dates. Separate the hourly charts with a light rule and show token shares in parentheses.
+- Lead chart legends with their data source or cycle dates. Separate the hourly charts with window background spacing and show token shares in parentheses.
 - Mark observed daily-plan crossings with a red cross and snap the weekly cursor within 60 minutes on either side of a crossing.
 - Keep the hourly range and local token filters together above the hourly charts. Label the Statistics tab Quota & Usage and use softer light-mode chart surfaces.
-- Show hover readings beneath each chart title, align the info icons with the titles, and distinguish quota account scope from local provider totals.
+- Show hover readings in bordered cards beside the selected marks. Add vertical breathing room, align the info icons with the titles, and explain local token scope in the info legend.
+- Give Claude's current five-hour quota its own meter next to the weekly summary.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 
