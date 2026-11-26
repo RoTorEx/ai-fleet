@@ -122,7 +122,7 @@ struct QuotaHistoryView: View {
                             QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $hourlyCursor)
                             Rectangle()
                                 .fill(Color.white.opacity(colorScheme == .dark ? 0.24 : 1))
-                                .frame(height: 1)
+                                .frame(height: 3)
                                 .accessibilityHidden(true)
                         }
                         let data = QuotaHistoryFigureData.tokens(tokens, series: request.tokenSeries)
