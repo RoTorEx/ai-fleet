@@ -20,28 +20,18 @@ enum LocalUsageProvider: String, CaseIterable {
     }
 
     func logFileMetadata(roots suppliedRoots: [URL]? = nil) -> [CodexLogFile] {
-        var files: [String: CodexLogFile] = [:]
-        for root in suppliedRoots ?? roots {
-            guard let enumerator = FileManager.default.enumerator(
-                at: root, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey],
-                options: [.skipsHiddenFiles]
-            ) else { continue }
-            for case let url as URL in enumerator {
-                guard url.pathExtension == "jsonl",
-                      self == .kimi ? url.lastPathComponent == "wire.jsonl" : url.pathComponents.contains("chats"),
-                      let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]),
-                      values.isRegularFile == true else { continue }
-                // Every Kimi agent uses the same filename; identity is the full path.
-                let path = url.resolvingSymlinksInPath().path
-                files[path] = CodexLogFile(url: url, modifiedAt: values.contentModificationDate ?? .distantPast, size: values.fileSize ?? 0)
-            }
+        let files = discoverUsageLogs(in: suppliedRoots ?? roots) { url in
+            self == .kimi ? url.lastPathComponent == "wire.jsonl" : url.pathComponents.contains("chats")
         }
-        return canonicalUsageFiles(Array(files.values))
+        return canonicalUsageFiles(files, codexCopies: false)
     }
 
-    func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
+    func usageRecord(for file: CodexLogFile, checkpoint: UsageJournalCheckpoint? = nil,
+                     saveCheckpoint: Bool = false) -> CodexFileUsageRecord {
         let provider: StatisticsProvider = self == .kimi ? .kimi : .qwen
-        let parsed = self == .kimi ? KimiUsageLogReader().parseEntries(from: file.url) : QwenUsageLogReader().parseEntries(from: file.url)
+        let parsed = self == .kimi
+            ? KimiUsageLogReader().parseEntries(from: file.url, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint)
+            : QwenUsageLogReader().parseEntries(from: file.url, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint)
         return CodexUsageLogReader().usageRecord(for: file, provider: provider, parsed: parsed)
     }
 
@@ -57,27 +47,25 @@ enum LocalUsageProvider: String, CaseIterable {
 /// Reads only accounting fields. Prompts and tool results are never retained.
 struct QwenUsageLogReader {
     func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
-    func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
-        var malformed = false
+    func parseEntries(from file: URL, checkpoint: UsageJournalCheckpoint? = nil,
+                      saveCheckpoint: Bool = false) -> ParsedUsageJournal {
         let decoder = JSONDecoder()
-        var entries: [String: CodexUsageLogEntry] = [:]
-        for line in content.split(separator: "\n") {
-            guard let record = try? decoder.decode(Record.self, from: Data(line.utf8)) else {
-                malformed = malformed || malformedAccountingLine(String(line), kinds: ["assistant"]); continue
+        let timestamps = UsageJournalTimestamps()
+        return readUsageJournal(file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint) { state, line, _ in
+            guard let record = try? decoder.decode(Record.self, from: line) else {
+                state.partial = state.partial || malformedAccountingLine(line, kinds: ["assistant"]); return
             }
             guard record.type == "assistant", let usage = record.usageMetadata,
                   let input = usage.promptTokenCount, let output = usage.candidatesTokenCount,
-                  let timestamp = usageDate(record.timestamp) else { continue }
+                  let timestamp = timestamps.date(from: record.timestamp) else { return }
             let totals = unpricedTotals(
                 input: input, cached: usage.cachedContentTokenCount ?? 0, writes: 0,
                 output: output, reasoning: usage.thoughtsTokenCount ?? 0
             )
             let key = record.uuid
-            if let previous = entries[key], previous.totals.totalTokens > totals.totalTokens { continue }
-            entries[key] = CodexUsageLogEntry(timestamp: timestamp, model: record.model ?? "Unknown model", totals: totals)
+            if let previous = state.keyedEntries[key], previous.totals.totalTokens > totals.totalTokens { return }
+            state.keyedEntries[key] = CodexUsageLogEntry(timestamp: timestamp, model: record.model ?? "Unknown model", totals: totals)
         }
-        return (entries.values.sorted { $0.timestamp < $1.timestamp }, malformed ? "Partial accounting source: " + file.path : nil, false)
     }
 
     private struct Record: Decodable {
@@ -97,29 +85,24 @@ struct QwenUsageLogReader {
 
 struct KimiUsageLogReader {
     func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
-    func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
-        var malformed = false
+    func parseEntries(from file: URL, checkpoint: UsageJournalCheckpoint? = nil,
+                      saveCheckpoint: Bool = false) -> ParsedUsageJournal {
         let decoder = JSONDecoder()
-        var model = "Unknown model"
-        var step = ""
-        var turn = 0
-        var entries: [String: CodexUsageLogEntry] = [:]
-        for (index, line) in content.split(separator: "\n").enumerated() {
-            guard let record = try? decoder.decode(Record.self, from: Data(line.utf8)) else {
-                malformed = malformed || malformedAccountingLine(String(line), kinds: ["context.append_loop_event", "StatusUpdate"]); continue
+        return readUsageJournal(file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint) { state, line, index in
+            guard let record = try? decoder.decode(Record.self, from: line) else {
+                state.partial = state.partial || malformedAccountingLine(line, kinds: ["context.append_loop_event", "StatusUpdate"]); return
             }
             if record.type == "profile.bind" || record.type == "config.update" {
-                if let alias = record.modelAlias { model = alias }
+                if let alias = record.modelAlias { state.model = alias }
             }
-            if record.message?.type == "TurnBegin" { turn += 1 }
-            if record.message?.type == "StepBegin" { step = String(record.message?.payload.n ?? index) }
+            if record.message?.type == "TurnBegin" { state.legacyTurn += 1 }
+            if record.message?.type == "StepBegin" { state.legacyStep = String(record.message?.payload.n ?? index) }
             // Kimi Code 2.x persists each completed request in its context journal.
             // Observable status/turn totals repeat those tokens and are not counted.
             if record.type == "context.append_loop_event", case let .accounting(uuid, usage)? = record.event {
                 guard let time = record.time else {
-                    malformed = true
-                    continue
+                    state.partial = true
+                    return
                 }
                 let combined = checkedStatisticsSum([usage.inputOther, usage.inputCacheRead ?? 0, usage.inputCacheCreation ?? 0])
                 var totals = unpricedTotals(
@@ -127,7 +110,8 @@ struct KimiUsageLogReader {
                     cached: usage.inputCacheRead ?? 0, writes: usage.inputCacheCreation ?? 0, output: usage.output
                 )
                 if combined == nil { totals.overflowDetected = true }
-                entries[uuid] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time / 1000), model: model, totals: totals)
+                state.keyedEntries[uuid] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time / 1000),
+                                                             model: state.model, totals: totals)
             } else if record.message?.type == "StatusUpdate", let payload = record.message?.payload,
                       let usage = payload.token_usage, let time = record.timestamp {
                 // Legacy Python CLI records per-step usage in StatusUpdate envelopes.
@@ -137,11 +121,12 @@ struct KimiUsageLogReader {
                     cached: usage.input_cache_read ?? 0, writes: usage.input_cache_creation ?? 0, output: usage.output
                 )
                 if combined == nil { totals.overflowDetected = true }
-                let key = payload.message_id ?? "\(turn)|\(step.isEmpty ? String(index) : step)"
-                entries[key] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time), model: model, totals: totals)
+                let step = state.legacyStep.isEmpty ? String(index) : state.legacyStep
+                let key = payload.message_id ?? "\(state.legacyTurn)|\(step)"
+                state.keyedEntries[key] = CodexUsageLogEntry(timestamp: Date(timeIntervalSince1970: time),
+                                                            model: state.model, totals: totals)
             }
         }
-        return (entries.values.sorted { $0.timestamp < $1.timestamp }, malformed ? "Partial accounting source: " + file.path : nil, false)
     }
 
     private struct Record: Decodable {
@@ -190,14 +175,6 @@ struct KimiUsageLogReader {
         let input_cache_read: Int?
         let input_cache_creation: Int?
     }
-}
-
-private func usageDate(_ value: String) -> Date? {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = formatter.date(from: value) { return date }
-    formatter.formatOptions = [.withInternetDateTime]
-    return formatter.date(from: value)
 }
 
 private func unpricedTotals(input: Int, cached: Int, writes: Int, output: Int, reasoning: Int = 0) -> UsageTotals {

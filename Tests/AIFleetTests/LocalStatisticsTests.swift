@@ -169,7 +169,7 @@ private final class StatisticsDiscoveryGate: @unchecked Sendable {
 
 extension LocalStatisticsTests {
     @MainActor
-    func testLateCancelledDiscoveryCannotOverwriteNewSnapshot() async throws {
+    func testRegularRequestsJoinAnActiveScanAndRebuildWaitsForIt() async throws {
         let root = try root()
         let a = root.appendingPathComponent("a.jsonl"), b = root.appendingPathComponent("b.jsonl")
         try String(decoding: JSONSerialization.data(withJSONObject: event(model: "gpt-6.1-sol", cumulative: 100)), as: UTF8.self).write(to: a, atomically: true, encoding: .utf8)
@@ -185,11 +185,69 @@ extension LocalStatisticsTests {
         for _ in 0..<100 where gate.calls == 0 { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(gate.calls, 1)
         service.refresh(kimi: quota)
+        service.refreshLocalHistory(.rebuild)
+        service.refreshLocalHistory(.rebuild)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(gate.calls, 1)
+        gate.release.signal()
         for _ in 0..<300 where service.isRefreshing { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(service.snapshot.codex.total.totalTokens, 300)
-        gate.release.signal()
-        try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertEqual(service.snapshot.codex.total.totalTokens, 300)
+        XCTAssertEqual(gate.calls, 2)
+        XCTAssertEqual(service.snapshot.lastScan?.mode, .rebuild)
+        XCTAssertEqual(service.snapshot.lastScan?.replayed, 1)
+    }
+
+    @MainActor
+    func testRegularScanReusesUnchangedFilesAndResumesLateRecordsAfterRestart() async throws {
+        let root = try root()
+        let logs = root.appendingPathComponent("logs")
+        let cache = root.appendingPathComponent("cache")
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        let replay = logs.appendingPathComponent("growing.jsonl")
+        let unchanged = logs.appendingPathComponent("unchanged.jsonl")
+        let olderTime = Date().addingTimeInterval(-48 * 3600)
+        let formatted = ISO8601DateFormatter().string(from: olderTime)
+        func line(_ cumulative: Int) throws -> Data {
+            var payload = event(model: "gpt-6.1-sol", cumulative: cumulative)
+            payload["timestamp"] = formatted
+            return try JSONSerialization.data(withJSONObject: payload) + Data([10])
+        }
+        try line(100).write(to: replay)
+        try line(100).write(to: unchanged)
+        let discover: @Sendable () -> [CodexLogFile] = {
+            CodexUsageLogReader().codexLogFileMetadata(roots: [logs])
+        }
+        let first = UsageAnalyticsService(cacheDirectory: cache, discoverFiles: discover)
+        first.refreshLocalHistory()
+        try await waitForScan(first)
+        XCTAssertEqual(first.snapshot.lastScan?.replayed, 2)
+        XCTAssertEqual(first.snapshot.codex.total.totalTokens, 200)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(first.snapshot.scannedThrough), try XCTUnwrap(first.snapshot.refreshedAt))
+
+        let handle = try FileHandle(forWritingTo: replay)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: line(100) + line(200))
+        try handle.close()
+        let reopened = UsageAnalyticsService(cacheDirectory: cache, discoverFiles: discover)
+        reopened.refreshLocalHistory()
+        try await waitForScan(reopened)
+        XCTAssertEqual(reopened.snapshot.lastScan?.reused, 1)
+        XCTAssertEqual(reopened.snapshot.lastScan?.resumed, 1)
+        XCTAssertEqual(reopened.snapshot.lastScan?.replayed, 0)
+        XCTAssertEqual(reopened.snapshot.codex.total.totalTokens, 300)
+        XCTAssertEqual(reopened.snapshot.codex.hourlyModels.map(\.tokens.totalTokens), [300])
+        let incremental = reopened.snapshot.codex
+
+        reopened.refreshLocalHistory(.rebuild)
+        try await waitForScan(reopened)
+        XCTAssertEqual(reopened.snapshot.lastScan?.replayed, 2)
+        XCTAssertEqual(reopened.snapshot.codex, incremental)
+    }
+
+    @MainActor
+    private func waitForScan(_ service: UsageAnalyticsService) async throws {
+        for _ in 0..<300 where service.isRefreshing { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertFalse(service.isRefreshing)
     }
     func testLocalDaySelectionIncludesDSTTransitionAndRejectsWrongCacheZone() throws {
         var calendar = Calendar(identifier: .gregorian)

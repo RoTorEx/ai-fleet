@@ -79,12 +79,14 @@ struct LocalTokenHistory {
     struct Hour: Identifiable {
         let start: Date
         let tokens: UsageTotals?
+        var partial = false
         var id: Date { start }
     }
 
     let models: [String]
     let hours: [Hour]
     let scannedAt: Date?
+    let scannedThrough: Date?
 
     init(snapshot: UsageAnalyticsSnapshot, provider: StatisticsProvider, model: String? = nil,
          now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays) {
@@ -102,23 +104,26 @@ struct LocalTokenHistory {
             : (history?.hourlyModels ?? []).filter { row in
                 window.contains(row.hour) && coverageStarts.map { $0 <= row.hour } != false
             }
-        let availableModels = Set(rows.map(\.model)).sorted()
-        models = availableModels
-        let selectedModel = model.flatMap { availableModels.contains($0) ? $0 : nil }
+        var availableModels = Set(rows.map(\.model))
+        if let model { availableModels.insert(model) }
+        models = availableModels.sorted()
         scannedAt = snapshot.refreshedAt
+        let cutoff = snapshot.scannedThrough ?? snapshot.refreshedAt
+        scannedThrough = cutoff
         var totals: [Date: UsageTotals] = [:]
-        for row in rows where selectedModel == nil || row.model == selectedModel {
+        for row in rows where model == nil || row.model == model {
             totals[row.hour, default: .zero].add(row.tokens)
         }
         let earliestDay = history?.dailyModels.first?.day
         hours = window.starts.map { start in
-            guard !rows.isEmpty, let scannedAt = snapshot.refreshedAt, start <= scannedAt,
+            guard !rows.isEmpty, let cutoff, start <= cutoff || totals[start] != nil,
                   coverageStarts.map({ $0 <= start }) != false,
                   earliestDay.map({ $0 <= start }) != false else {
                 return Hour(start: start, tokens: nil)
             }
             let tokens = totals[start, default: .zero]
-            return Hour(start: start, tokens: tokens.overflowDetected == true ? nil : tokens)
+            return Hour(start: start, tokens: tokens.overflowDetected == true ? nil : tokens,
+                        partial: start.addingTimeInterval(UsageHours.hour) > cutoff)
         }
     }
 }

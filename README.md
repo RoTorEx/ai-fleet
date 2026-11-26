@@ -248,6 +248,11 @@ window has no hourly history. Weekly history follows the verified account and
 weekly limit. The hourly charts share a 3-, 5- or 7-day range and use the device's
 time zone. Local tokens shows input, cache and output from the selected
 provider's logs on this Mac. Account ownership is unknown for those records.
+The account quota plot uses saved provider readings. The local token plot uses
+the last scan's saved totals. A hatched bar represents a partial hour. Hover
+brightens the selected hour on both hourly plots. The normal Refresh action
+updates the local cache incrementally. Control-click Refresh in Statistics and
+choose **Rebuild Local Token History** to read all retained local journals again.
 Hover over a plot to read its measurements below the charts, or select a token
 category to fit that plot's scale to the chosen series. The weekly plot shows
 the daily budget, observations and the projection based on average pace since

@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Update local token history with metadata checks, streaming parsers, and verified append checkpoints. Offer a separate rebuild in the Statistics refresh menu.
+- Mark partial hours with hatching, reserve brightness for the selected hour, and show when the local cache stops covering new activity.
 - Keep the provider chart popover in one window while switching accounts and place it after measuring the chart stack.
 - Offer 3-, 5-, and 7-day ranges in both hourly charts with a 7-day default, and match the active light or dark appearance.
 - Group hourly filters above both hourly plots, and place dated cycle navigation above the weekly chart. Keep all saved quota observations across resets.

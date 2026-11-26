@@ -13,8 +13,11 @@ Token Spend places the four summary cards above the compact By provider,
 Models and Days row and Activity. By provider shows recorded tokens, the
 API estimate and each provider's share of the selection's token total. Quota
 History uses the same provider chips. Opening Statistics and switching tabs,
-periods or provider chips uses cached aggregates;
-manual and scheduled refreshes scan metadata and parse only changed files.
+periods or provider chips uses saved aggregates. Scheduled scans and the normal
+Refresh action reuse unchanged files and resume growing journals from verified
+checkpoints. Control-click Refresh in Statistics to rebuild local token history
+from all retained source files. Opening charts and moving their cursors read
+saved measurements and aggregates.
 
 ## Sources and accounting
 
@@ -51,8 +54,9 @@ for account usage or quota state preserve all provider histories.
 Malformed or partial records are skipped. Negative counts are clamped to zero;
 cache and reasoning subsets cannot exceed their parent totals. No prompts,
 message content, tool results or credentials enter the aggregate cache.
-Options → Logs shows the last scan time and groups source diagnostics by
-provider. Statistics shows the resulting usage and quota data.
+Options → Logs shows the last scan time, how many files were reused, resumed or
+read from the beginning, and source diagnostics grouped by provider. Statistics
+shows the resulting usage and quota data.
 Default local paths are supported; remote account history, custom CLI data
 homes, Qwen legacy JSON snapshots and managed transcript formats are outside
 this reader. Absence of usable records means no recorded local usage, not proof
@@ -112,8 +116,9 @@ content scrolls. It starts with the date and local time, followed by the
 measurement. The weekly chart has its own cursor.
 Observed daily-plan crossings display a red cross in the weekly plot. Plan and
 limit crossings snap within 60 minutes on either side of the point. The two
-hourly charts share the selected hour. Their bars use muted colors at rest.
-Both highlight the selected hour and brighten its bars. The strip compares the
+hourly charts share the selected hour. Their bars use equal opacity at rest.
+A diagonal hatch marks a partial hour on either plot. Both brighten only the
+selected hour's bars. The strip compares the
 account quota change and local tokens for that hour. A time with missing
 evidence is labelled as such. Token hours beyond the last scan identify that
 scan in the readout. Refresh local tokens in the popover reuses the background
@@ -201,13 +206,17 @@ both occurrences of a repeated local hour at daylight-saving transitions.
 Choose a provider and recorded model, with an input, cache and output breakdown.
 Standard session roots are shared across logins. The local chart is titled
 On this Mac for its provider scope, and its legend identifies the account as
-unknown. Local counts cannot assign a portion of the account quota to a machine.
-The cache aggregates up to seven days of hourly token events from local session
-logs. The next scan rebuilds older three-day cache entries that can contribute
-to that range. The average and median follow the selected model and token
-series across local accounts. Both guides use complete scanned hours, including
-hours with zero recorded tokens. A scan ending within an hour shows the observed
-tokens for that partial hour.
+unknown. Users can change credentials and continue one session, so a session ID
+cannot establish which account handled an individual request. Local counts
+cannot assign a portion of account quota to a machine.
+The cache aggregates up to seven days of token events by their timestamps.
+Elapsed time advances the displayed hourly range. It does not initiate journal
+reads. An hour after the last scan's coverage stays empty until a scan supplies
+data. The average and median follow the selected model and token series across
+available local logs. Both guides use complete scanned hours, including hours
+with zero recorded tokens. A scan covers the period through its start, when the
+earliest files can be read. Observed events beyond that boundary can appear in
+a partial hour. The scan completion time is reported separately.
 
 `QuotaHistoryTests` covers native cap and hourly mark geometry, separate
 accounts and model windows, deduplication, freshness, projections, spikes,

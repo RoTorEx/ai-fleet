@@ -15,8 +15,9 @@ subscription charges.
   notifications for individual provider windows such as `5h` and `7d`.
 - The developer opens Statistics to explore cached Codex, Claude Code, Kimi and Qwen usage by period without
   triggering expensive work.
-- The developer may refresh statistics manually or let the app perform one
-  low-priority refresh per day at a configured local time.
+- The developer may update the saved local token totals manually or let the app
+  perform one low-priority incremental scan per day at a configured local time.
+  Statistics also offers an explicit rebuild from retained journals.
 
 ## Invariants
 

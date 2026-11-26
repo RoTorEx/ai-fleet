@@ -99,7 +99,8 @@ struct StatisticsView: View {
             }
             RefreshStatus(progress: analytics.progress, refreshedAt: analytics.snapshot.refreshedAt,
                           isRefreshing: analytics.isRefreshing,
-                          refresh: { analytics.refresh(kimi: service.kimi) })
+                          refresh: { analytics.refreshLocalHistory() },
+                          rebuild: { analytics.refreshLocalHistory(.rebuild) })
                 .padding(.leading, 8)
         }
     }
@@ -396,6 +397,7 @@ private struct RefreshStatus: View {
     let refreshedAt: Date?
     let isRefreshing: Bool
     let refresh: () -> Void
+    let rebuild: () -> Void
     @State private var hovering = false
 
     var body: some View {
@@ -414,7 +416,12 @@ private struct RefreshStatus: View {
             .buttonStyle(.plain)
             .onHover { hovering = $0 }
             .disabled(isRefreshing)
-            .help("Rescan local Codex, Claude, Kimi and Qwen history and Codex account usage")
+            .help("Update local token history. Control-click for a full rescan.")
+            .contextMenu {
+                Button("Rebuild Local Token History", action: rebuild)
+                    .disabled(isRefreshing)
+            }
+            .accessibilityAction(named: Text("Rebuild local token history"), rebuild)
         }
         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
         .foregroundStyle(.secondary)

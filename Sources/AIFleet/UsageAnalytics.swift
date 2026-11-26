@@ -15,6 +15,8 @@ struct UsageAnalyticsSnapshot: Codable, Equatable {
     var unattributedAccountUsage: CodexAccountUsage? = nil
     var legacyLocalHistory: [String: CodexUsageAnalytics]? = nil
     var refreshedAt: Date?
+    var scannedThrough: Date? = nil
+    var lastScan: UsageLogScanSummary? = nil
     var lastLoadDuration: TimeInterval?
     var hourlyHistoryDays: Int? = nil
 
@@ -31,6 +33,20 @@ struct UsageAnalyticsSnapshot: Codable, Equatable {
         statisticsRevision != Self.currentRevision || rateRevision != CodexAPIRates.revision
             || timeZoneIdentifier != timeZone.identifier
     }
+}
+
+enum UsageLogRefreshMode: String, Codable {
+    case incremental
+    case rebuild
+}
+
+struct UsageLogScanSummary: Codable, Equatable {
+    let mode: UsageLogRefreshMode
+    var reused = 0
+    var resumed = 0
+    var replayed = 0
+
+    var files: Int { reused + resumed + replayed }
 }
 
 struct UsageAnalyticsLoadProgress: Equatable {
@@ -181,6 +197,9 @@ struct CodexLogFile {
     let modifiedAt: Date
     let size: Int
     var issue: String? = nil
+    var identity: String? = nil
+    var changeEpoch: Double? = nil
+    var codexHeader: CodexJournalHeader? = nil
 }
 
 struct CodexFileUsageRecord: Codable, Equatable {
@@ -196,17 +215,28 @@ struct CodexFileUsageRecord: Codable, Equatable {
     var modifiedAtEpoch: Double? = nil
     var hourlyModels: [HourlyModelUsage]? = nil
     var hourlyHistoryDays: Int? = nil
+    var identity: String? = nil
+    var changeEpoch: Double? = nil
+    var codexHeader: CodexJournalHeader? = nil
+    var checkpoint: UsageJournalCheckpoint? = nil
 
     var eventCount: Int {
         dailyModels.reduce(0) { $0 + $1.events }
     }
 
     func matches(_ file: CodexLogFile, timeZone: TimeZone = .autoupdatingCurrent, revision: Int? = nil) -> Bool {
-        (sourceIssue == nil && file.issue == nil)
+        (excluded != true && file.issue == nil)
             && (revision == nil || (parserRevision == revision && rateRevision == CodexAPIRates.revision && hourlyModels != nil))
             && timeZoneIdentifier == timeZone.identifier
-            && size == file.size && (modifiedAtEpoch.map { $0 == file.modifiedAt.timeIntervalSince1970 }
-                ?? (revision == nil && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1))
+            && matchesMetadata(file, allowRoundedDate: revision == nil)
+    }
+
+    func matchesMetadata(_ file: CodexLogFile, allowRoundedDate: Bool = false) -> Bool {
+        guard size == file.size,
+              identity.map({ file.identity == nil || file.identity == $0 }) != false,
+              changeEpoch.map({ file.changeEpoch == nil || file.changeEpoch == $0 }) != false else { return false }
+        if let modifiedAtEpoch { return modifiedAtEpoch == file.modifiedAt.timeIntervalSince1970 }
+        return allowRoundedDate && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1
     }
 
     func coversHourlyHistory(since day: Date) -> Bool {
@@ -273,11 +303,12 @@ final class UsageAnalyticsService: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var progress = UsageAnalyticsLoadProgress.idle
 
-    private var task: Task<Void, Never>?
+    private var activeRefresh: UsageLogRefreshMode?
+    private var pendingRefresh: UsageLogRefreshMode?
     private var scheduleTimer: Timer?
-    private var fileCache: [String: CodexFileUsageRecord]
+    private var unsavedFileCache: [String: CodexFileUsageRecord]?
     private let cacheRoot: URL
-    private let discoverFiles: @Sendable () -> [CodexLogFile]
+    private let discoverFiles: @Sendable ([String: CodexFileUsageRecord]) -> [CodexLogFile]
     private var timeZoneObserver: NSObjectProtocol?
 
     init(cacheDirectory: URL? = nil, discoverFiles: (@Sendable () -> [CodexLogFile])? = nil, preferences: UserDefaults = .standard) {
@@ -287,12 +318,12 @@ final class UsageAnalyticsService: ObservableObject {
         }
         let root = cacheDirectory ?? Self.cacheDirectoryURL
         cacheRoot = root
-        self.discoverFiles = discoverFiles ?? {
-            CodexUsageLogReader().codexLogFileMetadata() + ClaudeUsageLogReader().logFileMetadata()
+        self.discoverFiles = { known in
+            if let discoverFiles { return discoverFiles() }
+            return CodexUsageLogReader().codexLogFileMetadata(known: known) + ClaudeUsageLogReader().logFileMetadata()
                 + LocalUsageProvider.allCases.flatMap { $0.logFileMetadata() }
         }
         let cached = Self.loadCachedSnapshot(directory: root)
-        fileCache = Self.loadFileCache(directory: root)
         snapshot = cached
         snapshot.unattributedAccountUsage = cached.unattributedAccountUsage ?? cached.codex.accountUsage
         snapshot.codex.accountUsage = nil
@@ -315,16 +346,17 @@ final class UsageAnalyticsService: ObservableObject {
     }
 
     func refresh(kimi: ProviderStatus) {
-        startRefresh(kimi: kimi, restartExisting: true)
+        updateKimi(kimi: kimi)
+        refreshLocalHistory()
     }
 
-    func refreshLocalHistory() {
-        startRefresh(restartExisting: false)
+    func refreshLocalHistory(_ mode: UsageLogRefreshMode = .incremental) {
+        startRefresh(mode)
     }
 
     func updateKimi(kimi: ProviderStatus) {
         let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
-        snapshot = snapshot.withKimi(kimiAnalytics)
+        if snapshot.kimi != kimiAnalytics { snapshot = snapshot.withKimi(kimiAnalytics) }
     }
 
     func refreshAccountUsageIfNeeded() { refreshAccountUsage() }
@@ -338,26 +370,35 @@ final class UsageAnalyticsService: ObservableObject {
     func startDailyRefreshSchedule() {
         if timeZoneObserver == nil {
             timeZoneObserver = NotificationCenter.default.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { [weak self] _ in
-                Task { @MainActor in self?.startRefresh(restartExisting: true) }
+                Task { @MainActor in
+                    self?.startRefresh(.incremental, afterActive: true)
+                    self?.rescheduleDailyRefresh()
+                }
             }
         }
         if snapshot.needsRebuild(timeZone: .current)
             || snapshot.hourlyHistoryDays != QuotaHistoryRange.retained.rawValue {
             refreshLocalHistory()
         }
-        rescheduleDailyRefresh()
+        rescheduleDailyRefresh(catchUp: true)
     }
 
-    func rescheduleDailyRefresh() {
+    func rescheduleDailyRefresh(catchUp: Bool = false) {
         scheduleTimer?.invalidate()
         scheduleTimer = nil
 
         let settings = AppSettings.shared
         guard settings.analyticsAutoRefreshEnabled else { return }
-        let fireDate = nextDailyRefreshDate(
-            after: Date(),
-            minutesAfterMidnight: settings.analyticsRefreshMinutes
-        )
+        let now = Date()
+        let calendar = Calendar.current
+        let minutes = settings.analyticsRefreshMinutes
+        let fireDate = nextDailyRefreshDate(after: now, minutesAfterMidnight: minutes, calendar: calendar)
+        if catchUp, let yesterday = calendar.date(byAdding: .day, value: -1, to: now) {
+            let lastScheduled = nextDailyRefreshDate(after: yesterday, minutesAfterMidnight: minutes, calendar: calendar)
+            if lastScheduled <= now, snapshot.refreshedAt.map({ $0 < lastScheduled }) ?? true {
+                refreshLocalHistory()
+            }
+        }
         let timer = Timer(fire: fireDate, interval: 0, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -369,137 +410,197 @@ final class UsageAnalyticsService: ObservableObject {
         scheduleTimer = timer
     }
 
-    private func startRefresh(kimi: ProviderStatus? = nil, restartExisting: Bool) {
-        if isRefreshing {
-            guard restartExisting else { return }
-            task?.cancel()
+    private func startRefresh(_ mode: UsageLogRefreshMode, afterActive: Bool = false) {
+        if let activeRefresh {
+            if (afterActive || (mode == .rebuild && activeRefresh == .incremental)), pendingRefresh != .rebuild {
+                pendingRefresh = mode
+            }
+            return
         }
 
+        activeRefresh = mode
         isRefreshing = true
         let startedAt = Date()
-        progress = UsageAnalyticsLoadProgress(
-            isLoading: true,
-            processedFiles: 0,
-            totalFiles: 0,
-            startedAt: startedAt,
-            lastDuration: snapshot.lastLoadDuration ?? progress.lastDuration,
-            lastCompletedAt: snapshot.refreshedAt ?? progress.lastCompletedAt,
-            currentFileName: nil
-        )
+        let calendar = Calendar.current
+        let discover = discoverFiles
+        let directory = cacheRoot
+        let unsaved = unsavedFileCache
+        progress = UsageAnalyticsLoadProgress(isLoading: true, processedFiles: 0, totalFiles: 0,
+            startedAt: startedAt, lastDuration: snapshot.lastLoadDuration, lastCompletedAt: snapshot.refreshedAt,
+            currentFileName: nil)
 
-        let kimiAnalytics = kimi.map { Self.kimiAnalytics(from: $0.limitWindows) } ?? snapshot.kimi
-        let existingFileCache = fileCache
-        snapshot = snapshot.withKimi(kimiAnalytics)
-
-        task = Task { [self, startedAt, kimiAnalytics] in
-            let discover = self.discoverFiles
-            let scanTimeZone = TimeZone.current.identifier
-            let firstHour = UsageHours(now: startedAt, range: .retained).start
-            let firstDay = Calendar.current.startOfDay(for: firstHour)
-            let files = await Task.detached(priority: .background) { discover() }.value
-            guard !Task.isCancelled else { return }
-
-            self.progress.totalFiles = files.count
-
-            var nextFileCache: [String: CodexFileUsageRecord] = [:]
-            for (index, file) in files.enumerated() {
-                guard !Task.isCancelled else { return }
-                self.progress.currentFileName = file.url.lastPathComponent
-
-                let provider = statisticsProvider(for: file.url.path)
-                if let cached = existingFileCache[file.url.path], cached.matches(file, revision: provider.parserRevision),
-                   cached.coversHourlyHistory(since: firstDay) {
-                    nextFileCache[file.url.path] = cached
-                } else {
-                    let record = await Task.detached(priority: .background) {
-                        switch provider {
-                        case .codex: return CodexUsageLogReader().usageRecord(for: file)
-                        case .claude: return ClaudeUsageLogReader().usageRecord(for: file)
-                        case .kimi: return LocalUsageProvider.kimi.usageRecord(for: file)
-                        case .qwen: return LocalUsageProvider.qwen.usageRecord(for: file)
-                        }
-                    }.value
-                    nextFileCache[file.url.path] = record
+        Task {
+            let scan = await Task.detached(priority: .background) { [weak self] in
+                let previous = unsaved ?? Self.loadFileCache(directory: directory)
+                return await Self.scanLogs(mode: mode, using: previous, startedAt: startedAt, calendar: calendar,
+                    discover: discover) { processed, total, name in
+                    await self?.reportProgress(processed: processed, total: total, name: name)
                 }
-                guard !Task.isCancelled else { return }
-                self.progress.processedFiles = index + 1
-                try? await Task.sleep(nanoseconds: 5_000_000)
-            }
-
-            let records = Array(nextFileCache.values).filter { $0.excluded != true }
-            var codex = await Task.detached(priority: .background) {
-                let codexRecords = records.filter {
-                    let url = URL(fileURLWithPath: $0.path)
-                    return !ClaudeUsageLogReader.isClaudeLog(url) && !LocalUsageProvider.allCases.contains { $0.contains(url) }
-                }
-                return CodexUsageLogReader().analytics(from: codexRecords, fileCount: codexRecords.count)
-            }.value
-            codex.accountUsage = nil
-            let claude = await Task.detached(priority: .background) {
-                let claudeRecords = records.filter { ClaudeUsageLogReader.isClaudeLog(URL(fileURLWithPath: $0.path)) }
-                var result = CodexUsageLogReader().analytics(from: claudeRecords, fileCount: claudeRecords.count)
-                result.source = "~/.claude/projects"
-                return result
             }.value
 
-            let providerUsage = await Task.detached(priority: .background) {
-                Dictionary(uniqueKeysWithValues: LocalUsageProvider.allCases.map { provider in
-                    let matching = records.filter { provider.contains(URL(fileURLWithPath: $0.path)) }
-                    return (provider, provider.analytics(from: matching))
-                })
-            }.value
-
-            guard !Task.isCancelled else { return }
-            guard TimeZone.current.identifier == scanTimeZone else {
-                self.snapshot.sourceIssues = [StatisticsSourceIssue(provider: nil, message: "Time zone changed during scan; refresh to rebuild local days.")]
-                self.progress.isLoading = false
-                self.isRefreshing = false
+            guard calendar.timeZone.identifier == TimeZone.current.identifier else {
+                pendingRefresh = pendingRefresh ?? mode
+                finishRefresh()
                 return
             }
-            let duration = Date().timeIntervalSince(startedAt)
-            let completedAt = Date()
-            var nextSnapshot = UsageAnalyticsSnapshot(
-                codex: codex,
-                kimi: kimiAnalytics,
-                claude: claude,
-                kimiUsage: providerUsage[.kimi],
-                qwen: providerUsage[.qwen],
-                refreshedAt: completedAt,
-                lastLoadDuration: duration
-            )
-            nextSnapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
-            nextSnapshot.rateRevision = CodexAPIRates.revision
-            nextSnapshot.timeZoneIdentifier = scanTimeZone
-            nextSnapshot.hourlyHistoryDays = QuotaHistoryRange.retained.rawValue
-            nextSnapshot.unattributedAccountUsage = self.snapshot.unattributedAccountUsage
-            nextSnapshot.legacyLocalHistory = self.snapshot.legacyLocalHistory
-            nextSnapshot.sourceIssues = nextFileCache.values.compactMap { record in
-                record.sourceIssue.map { StatisticsSourceIssue(provider: statisticsProvider(for: record.path), message: $0) }
-            } + existingFileCache.keys.filter { nextFileCache[$0] == nil && !FileManager.default.fileExists(atPath: $0) }.map { StatisticsSourceIssue(provider: statisticsProvider(for: $0), message: "Missing source: " + $0) }
-            self.snapshot = nextSnapshot
-            // Missing records remain available for migration/recovery but not active totals.
-            let recentHours = UsageHours(now: completedAt, range: .retained)
-            self.fileCache = existingFileCache.merging(nextFileCache) { _, current in current }.mapValues { value in
-                var record = value
-                record.hourlyModels?.removeAll { !recentHours.contains($0.hour) }
-                return record
+
+            var next = scan.snapshot.withKimi(snapshot.kimi)
+            next.unattributedAccountUsage = snapshot.unattributedAccountUsage
+            next.legacyLocalHistory = snapshot.legacyLocalHistory
+            let savedSnapshot = next
+            let (savedFiles, savedTotals) = await Task.detached(priority: .background) {
+                let savedFiles = (!scan.cacheChanged && unsaved == nil) || Self.saveFileCache(scan.cache, directory: directory)
+                let savedTotals = Self.saveCachedSnapshot(savedSnapshot, directory: directory)
+                return (savedFiles, savedTotals)
+            }.value
+            unsavedFileCache = savedFiles ? nil : scan.cache
+            guard calendar.timeZone.identifier == TimeZone.current.identifier else {
+                pendingRefresh = pendingRefresh ?? mode
+                finishRefresh()
+                return
             }
-            self.progress = UsageAnalyticsLoadProgress(
-                isLoading: false,
-                processedFiles: files.count,
-                totalFiles: files.count,
-                startedAt: nil,
-                lastDuration: duration,
-                lastCompletedAt: completedAt,
-                currentFileName: nil
-            )
-            self.isRefreshing = false
-            if !Self.saveFileCache(self.fileCache, directory: cacheRoot) {
-                self.snapshot.sourceIssues = (self.snapshot.sourceIssues ?? []) + [StatisticsSourceIssue(provider: nil, message: "Could not save incremental file cache.")]
+
+            var issues = next.sourceIssues ?? []
+            if !savedFiles {
+                issues.append(StatisticsSourceIssue(provider: nil, message: "Could not save incremental file cache."))
             }
-            if !Self.saveCachedSnapshot(nextSnapshot, directory: cacheRoot) {
-                self.snapshot.sourceIssues = (self.snapshot.sourceIssues ?? []) + [StatisticsSourceIssue(provider: nil, message: "Could not save statistics snapshot; in-memory results only.")]
+            if !savedTotals {
+                issues.append(StatisticsSourceIssue(provider: nil, message: "Could not save statistics snapshot; in-memory results only."))
             }
+            next.sourceIssues = issues
+            snapshot = next.withKimi(snapshot.kimi)
+            let count = next.lastScan?.files ?? 0
+            progress = UsageAnalyticsLoadProgress(isLoading: false, processedFiles: count, totalFiles: count,
+                startedAt: nil, lastDuration: next.lastLoadDuration, lastCompletedAt: next.refreshedAt,
+                currentFileName: nil)
+            finishRefresh()
+        }
+    }
+
+    private func reportProgress(processed: Int, total: Int, name: String?) {
+        progress.processedFiles = processed
+        progress.totalFiles = total
+        progress.currentFileName = name
+    }
+
+    private func finishRefresh() {
+        activeRefresh = nil
+        if let next = pendingRefresh {
+            pendingRefresh = nil
+            startRefresh(next)
+        } else {
+            isRefreshing = false
+        }
+    }
+
+    private struct LogScan {
+        let snapshot: UsageAnalyticsSnapshot
+        let cache: [String: CodexFileUsageRecord]
+        let cacheChanged: Bool
+    }
+
+    nonisolated private static func scanLogs(
+        mode: UsageLogRefreshMode, using previous: [String: CodexFileUsageRecord],
+        startedAt: Date, calendar: Calendar, discover: ([String: CodexFileUsageRecord]) -> [CodexLogFile],
+        progress: (Int, Int, String?) async -> Void
+    ) async -> LogScan {
+        let known = mode == .incremental ? previous : [:]
+        let files = discover(known).sorted {
+            $0.modifiedAt == $1.modifiedAt ? $0.url.path < $1.url.path : $0.modifiedAt > $1.modifiedAt
+        }
+        let firstDay = calendar.startOfDay(for: UsageHours(now: startedAt, calendar: calendar, range: .retained).start)
+        let previousDay = calendar.date(byAdding: .day, value: -1, to: startedAt) ?? startedAt
+        let checkpointCutoff = previousDay.addingTimeInterval(-10 * 60)
+        let reader = CodexUsageLogReader(calendar: calendar)
+        var remainingCheckpointEvents = 50_000
+        var summary = UsageLogScanSummary(mode: mode)
+        var next: [String: CodexFileUsageRecord] = [:]
+        next.reserveCapacity(files.count)
+        var providers: [String: StatisticsProvider] = [:]
+        providers.reserveCapacity(files.count)
+        await progress(0, files.count, nil)
+        var lastProgress = ProcessInfo.processInfo.systemUptime
+
+        for (index, file) in files.enumerated() {
+            let provider = statisticsProvider(for: file.url.path)
+            providers[file.url.path] = provider
+            let cached = known[file.url.path]
+            let keepCheckpoint = file.modifiedAt >= checkpointCutoff && remainingCheckpointEvents > 0
+            var record: CodexFileUsageRecord
+            if var reusable = cached, reusable.matches(file, timeZone: calendar.timeZone, revision: provider.parserRevision),
+               reusable.coversHourlyHistory(since: firstDay) {
+                reusable.identity = file.identity
+                reusable.changeEpoch = file.changeEpoch
+                reusable.codexHeader = file.codexHeader
+                record = reusable
+                summary.reused += 1
+            } else {
+                let checkpoint = cached.flatMap {
+                    $0.parserRevision == provider.parserRevision && $0.rateRevision == CodexAPIRates.revision ? $0.checkpoint : nil
+                }
+                record = autoreleasepool {
+                    let parsed = file.issue == nil
+                        ? readLog(file.url, provider: provider, reader: reader, checkpoint: checkpoint, saveCheckpoint: keepCheckpoint)
+                        : ParsedUsageJournal()
+                    if parsed.resumed { summary.resumed += 1 } else { summary.replayed += 1 }
+                    return reader.usageRecord(for: file, provider: provider, parsed: parsed)
+                }
+            }
+            if keepCheckpoint, let checkpoint = record.checkpoint, checkpoint.state.eventCount <= remainingCheckpointEvents {
+                remainingCheckpointEvents -= max(1, checkpoint.state.eventCount)
+            } else {
+                record.checkpoint = nil
+            }
+            next[file.url.path] = record
+            let uptime = ProcessInfo.processInfo.systemUptime
+            if uptime - lastProgress >= 0.25 {
+                await progress(index + 1, files.count, file.url.lastPathComponent)
+                lastProgress = uptime
+            }
+        }
+
+        let active = next.values.filter { $0.excluded != true }.sorted { $0.path < $1.path }
+        let byProvider = Dictionary(grouping: active) { providers[$0.path] ?? .codex }
+        let codexRecords = byProvider[.codex] ?? []
+        let claudeRecords = byProvider[.claude] ?? []
+        var claude = reader.analytics(from: claudeRecords, fileCount: claudeRecords.count)
+        claude.source = "~/.claude/projects"
+        let completedAt = Date()
+        var snapshot = UsageAnalyticsSnapshot(
+            codex: reader.analytics(from: codexRecords, fileCount: codexRecords.count), kimi: .empty, claude: claude,
+            kimiUsage: LocalUsageProvider.kimi.analytics(from: byProvider[.kimi] ?? []),
+            qwen: LocalUsageProvider.qwen.analytics(from: byProvider[.qwen] ?? []),
+            refreshedAt: completedAt, scannedThrough: startedAt, lastScan: summary,
+            lastLoadDuration: completedAt.timeIntervalSince(startedAt))
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
+        snapshot.rateRevision = CodexAPIRates.revision
+        snapshot.timeZoneIdentifier = calendar.timeZone.identifier
+        snapshot.hourlyHistoryDays = QuotaHistoryRange.retained.rawValue
+        snapshot.sourceIssues = next.values.compactMap { record in
+            record.sourceIssue.map { StatisticsSourceIssue(provider: providers[record.path], message: $0) }
+        } + previous.keys.filter { next[$0] == nil && !FileManager.default.fileExists(atPath: $0) }.map {
+            StatisticsSourceIssue(provider: statisticsProvider(for: $0), message: "Missing source: " + $0)
+        }
+
+        // Retain aggregates for missing sources for recovery, but age out their
+        // checkpoints and keep them out of the current totals.
+        let recentHours = UsageHours(now: completedAt, calendar: calendar, range: .retained)
+        let cache = previous.merging(next) { _, current in current }.mapValues { value in
+            var record = value
+            if next[value.path] == nil { record.checkpoint = nil }
+            record.hourlyModels?.removeAll { !recentHours.contains($0.hour) }
+            return record
+        }
+        return LogScan(snapshot: snapshot, cache: cache, cacheChanged: cache != previous)
+    }
+
+    nonisolated private static func readLog(_ file: URL, provider: StatisticsProvider, reader: CodexUsageLogReader,
+                                           checkpoint: UsageJournalCheckpoint?, saveCheckpoint: Bool) -> ParsedUsageJournal {
+        switch provider {
+        case .codex: return reader.parseEntries(from: file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint)
+        case .claude: return ClaudeUsageLogReader().parseEntries(from: file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint)
+        case .kimi: return KimiUsageLogReader().parseEntries(from: file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint)
+        case .qwen: return QwenUsageLogReader().parseEntries(from: file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint)
         }
     }
 
@@ -531,10 +632,6 @@ final class UsageAnalyticsService: ObservableObject {
         cacheURL.deletingLastPathComponent()
     }
 
-    private static var fileCacheURL: URL {
-        cacheDirectoryURL.appendingPathComponent("usage-analytics-files-cache.json")
-    }
-
     private static func loadCachedSnapshot(directory: URL) -> UsageAnalyticsSnapshot {
         let cacheURL = directory.appendingPathComponent("usage-analytics-cache.json")
         do {
@@ -549,7 +646,7 @@ final class UsageAnalyticsService: ObservableObject {
         }
     }
 
-    private static func saveCachedSnapshot(_ snapshot: UsageAnalyticsSnapshot, directory: URL) -> Bool {
+    nonisolated private static func saveCachedSnapshot(_ snapshot: UsageAnalyticsSnapshot, directory: URL) -> Bool {
         let cacheDirectoryURL = directory
         let cacheURL = directory.appendingPathComponent("usage-analytics-cache.json")
         do {
@@ -563,7 +660,6 @@ final class UsageAnalyticsService: ObservableObject {
             )
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(snapshot)
             try data.write(to: cacheURL, options: .atomic)
             try FileManager.default.setAttributes(
@@ -574,7 +670,7 @@ final class UsageAnalyticsService: ObservableObject {
         } catch { return false }
     }
 
-    private static func loadFileCache(directory: URL) -> [String: CodexFileUsageRecord] {
+    nonisolated private static func loadFileCache(directory: URL) -> [String: CodexFileUsageRecord] {
         let fileCacheURL = directory.appendingPathComponent("usage-analytics-files-cache.json")
         do {
             let data = try Data(contentsOf: fileCacheURL)
@@ -586,7 +682,7 @@ final class UsageAnalyticsService: ObservableObject {
         }
     }
 
-    private static func saveFileCache(_ cache: [String: CodexFileUsageRecord], directory: URL) -> Bool {
+    nonisolated private static func saveFileCache(_ cache: [String: CodexFileUsageRecord], directory: URL) -> Bool {
         let cacheDirectoryURL = directory
         let fileCacheURL = directory.appendingPathComponent("usage-analytics-files-cache.json")
         do {
@@ -597,7 +693,6 @@ final class UsageAnalyticsService: ObservableObject {
             )
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.sortedKeys]
             let data = try encoder.encode(cache)
             try data.write(to: fileCacheURL, options: .atomic)
             try FileManager.default.setAttributes(
@@ -621,7 +716,7 @@ final class UsageAnalyticsService: ObservableObject {
         )
         try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600],
-            ofItemAtPath: fileCacheURL.path
+            ofItemAtPath: directory.appendingPathComponent("usage-analytics-files-cache.json").path
         )
     }
 }
@@ -640,20 +735,23 @@ private extension UsageAnalyticsSnapshot {
     }
 }
 
-struct CodexUsageLogEntry {
-    let timestamp: Date
+struct CodexUsageLogEntry: Codable, Equatable {
+    private let timeIntervalSinceReferenceDate: TimeInterval
     let model: String
     let totals: UsageTotals
+
+    var timestamp: Date { Date(timeIntervalSinceReferenceDate: timeIntervalSinceReferenceDate) }
+
+    init(timestamp: Date, model: String, totals: UsageTotals) {
+        timeIntervalSinceReferenceDate = timestamp.timeIntervalSinceReferenceDate
+        self.model = model
+        self.totals = totals
+    }
 }
 
 struct CodexUsageLogReader {
     var calendar = Calendar.autoupdatingCurrent
-    private let iso8601 = ISO8601DateFormatter()
-    private let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
+    private let timestamps = UsageJournalTimestamps()
 
     func read() -> CodexUsageAnalytics {
         let files = codexLogFiles()
@@ -673,25 +771,28 @@ struct CodexUsageLogReader {
     }
 
     func analytics(from records: [CodexFileUsageRecord], fileCount: Int) -> CodexUsageAnalytics {
-        var result = analytics(from: mergeDailyModels(records.flatMap(\.dailyModels)), fileCount: fileCount)
+        var result = analytics(from: mergeDailyModels(records.lazy.flatMap(\.dailyModels)), fileCount: fileCount)
         result.hourlyModels = HourlyModelUsage.merge(records.lazy.flatMap { $0.hourlyModels ?? [] },
                                                    in: UsageHours(now: Date(), calendar: calendar, range: .retained))
         return result
     }
 
-    func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
-        usageRecord(for: file, provider: .codex, parsed: parseEntries(from: file.url))
+    func usageRecord(for file: CodexLogFile, checkpoint: UsageJournalCheckpoint? = nil,
+                     saveCheckpoint: Bool = false) -> CodexFileUsageRecord {
+        usageRecord(for: file, provider: .codex, parsed: parseEntries(from: file.url,
+            checkpoint: checkpoint, saveCheckpoint: saveCheckpoint))
     }
 
     func usageRecord(for file: CodexLogFile, provider: StatisticsProvider,
-                     parsed: (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool)) -> CodexFileUsageRecord {
+                     parsed: ParsedUsageJournal) -> CodexFileUsageRecord {
         CodexFileUsageRecord(path: file.url.path, modifiedAt: file.modifiedAt, size: file.size,
             dailyModels: dailyModelUsage(entries: parsed.entries), timeZoneIdentifier: calendar.timeZone.identifier,
             parserRevision: provider.parserRevision, rateRevision: CodexAPIRates.revision,
             sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable,
             modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970,
             hourlyModels: HourlyModelUsage.aggregate(entries: parsed.entries, now: Date(), calendar: calendar),
-            hourlyHistoryDays: QuotaHistoryRange.retained.rawValue)
+            hourlyHistoryDays: QuotaHistoryRange.retained.rawValue, identity: file.identity,
+            changeEpoch: file.changeEpoch, codexHeader: file.codexHeader, checkpoint: parsed.checkpoint)
     }
 
     private func analytics(from dailyModels: [DailyModelUsage], fileCount: Int) -> CodexUsageAnalytics {
@@ -723,76 +824,42 @@ struct CodexUsageLogReader {
         codexLogFileMetadata().filter { $0.issue == nil }.map(\.url)
     }
 
-    func codexLogFileMetadata(roots suppliedRoots: [URL]? = nil) -> [CodexLogFile] {
+    func codexLogFileMetadata(roots suppliedRoots: [URL]? = nil,
+                              known: [String: CodexFileUsageRecord] = [:]) -> [CodexLogFile] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let roots = suppliedRoots ?? [
             home.appendingPathComponent(".codex/sessions"),
             home.appendingPathComponent(".codex/archived_sessions")
         ]
 
-        var filesByName: [String: CodexLogFile] = [:]
-        for root in roots {
-            guard let enumerator = FileManager.default.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey],
-                options: [.skipsHiddenFiles]
-            ) else {
-                if FileManager.default.fileExists(atPath: root.path) {
-                    filesByName[root.path] = CodexLogFile(url: root, modifiedAt: .distantPast, size: 0, issue: "Unreadable history root: " + root.path)
-                }
-                continue
-            }
-
-            for item in enumerator {
-                guard let url = item as? URL, url.pathExtension == "jsonl",
-                      let values = try? url.resourceValues(
-                          forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]
-                      ),
-                      values.isRegularFile == true else {
-                    continue
-                }
-                let file = CodexLogFile(
-                    url: url,
-                    modifiedAt: values.contentModificationDate ?? .distantPast,
-                    size: values.fileSize ?? 0
-                )
-                if filesByName[url.resolvingSymlinksInPath().path] == nil {
-                    filesByName[url.resolvingSymlinksInPath().path] = file
-                }
-            }
-        }
-        return canonicalUsageFiles(Array(filesByName.values))
+        return canonicalUsageFiles(discoverUsageLogs(in: roots), codexCopies: true, known: known)
     }
 
     func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
 
-    private func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
-        var malformed = false
-        var entries: [CodexUsageLogEntry] = []
-        var model = "Unknown model"
-        var seenCounters = Set<String>()
-        var previousCumulative: [String: Int]?
-        for line in content.split(separator: "\n") {
-            guard let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { malformed = true; continue }
-            guard let payload = object["payload"] as? [String: Any] else { continue }
+    func parseEntries(from file: URL, checkpoint: UsageJournalCheckpoint? = nil,
+                      saveCheckpoint: Bool = false) -> ParsedUsageJournal {
+        readUsageJournal(file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint) { state, line, _ in
+            guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { state.partial = true; return }
+            guard let payload = object["payload"] as? [String: Any] else { return }
             let type = object["type"] as? String
             if type == "turn_context" || type == "session_meta" {
-                if let reported = payload["model"] as? String, !reported.isEmpty { model = reported }
-                continue
+                if let reported = payload["model"] as? String, !reported.isEmpty { state.model = reported }
+                return
             }
             guard type == "event_msg", payload["type"] == nil || payload["type"] as? String == "token_count",
                   let info = payload["info"] as? [String: Any],
                   let usage = info["last_token_usage"] as? [String: Any],
-                  let stamp = object["timestamp"] as? String, let timestamp = timestamp(from: stamp) else { continue }
+                  let stamp = object["timestamp"] as? String, let timestamp = timestamps.date(from: stamp) else { return }
             // Codex can repeat a token_count snapshot without another request.
             if let cumulative = info["total_token_usage"] as? [String: Int], !cumulative.isEmpty {
-                if let previousCumulative, cumulative.contains(where: { $0.value < (previousCumulative[$0.key] ?? 0) }) { seenCounters.removeAll() }
+                if let previousCumulative = state.previousCumulative,
+                   cumulative.contains(where: { $0.value < (previousCumulative[$0.key] ?? 0) }) { state.seenCounters.removeAll() }
                 let key = cumulative.keys.sorted().map { "\($0):\(cumulative[$0]!)" }.joined(separator: "|")
-                guard seenCounters.insert(key).inserted else { continue }
-                previousCumulative = cumulative
+                guard state.seenCounters.insert(key).inserted else { return }
+                state.previousCumulative = cumulative
             }
-            let reported = (usage["model"] as? String) ?? (info["model"] as? String) ?? (payload["model"] as? String) ?? model
+            let reported = (usage["model"] as? String) ?? (info["model"] as? String) ?? (payload["model"] as? String) ?? state.model
             let input = max(0, (usage["input_tokens"] as? Int) ?? 0)
             let details = usage["input_tokens_details"] as? [String: Any] ?? [:]
             let cached = min(input, max(0, (usage["cached_input_tokens"] as? Int) ?? (details["cached_tokens"] as? Int) ?? 0))
@@ -800,16 +867,11 @@ struct CodexUsageLogReader {
             let output = max(0, (usage["output_tokens"] as? Int) ?? 0)
             let outputDetails = usage["output_tokens_details"] as? [String: Any] ?? [:]
             let reasoning = min(output, max(0, (usage["reasoning_output_tokens"] as? Int) ?? (outputDetails["reasoning_tokens"] as? Int) ?? 0))
-            guard !input.addingReportingOverflow(output).overflow else { malformed = true; continue }
+            guard !input.addingReportingOverflow(output).overflow else { state.partial = true; return }
             let totals = usageTotals(model: reported, input: input, cached: cached, cacheWrite: writes,
                                      output: output, reasoning: reasoning)
-            entries.append(CodexUsageLogEntry(timestamp: timestamp, model: reported, totals: totals))
+            state.entries.append(CodexUsageLogEntry(timestamp: timestamp, model: reported, totals: totals))
         }
-        return (entries, malformed ? "Partial accounting source: " + file.path : nil, false)
-    }
-
-    private func timestamp(from value: String) -> Date? {
-        iso8601WithFractionalSeconds.date(from: value) ?? iso8601.date(from: value)
     }
 
     private func usageTotals(
@@ -862,7 +924,7 @@ struct CodexUsageLogReader {
         }
     }
 
-    private func mergeDailyModels(_ values: [DailyModelUsage]) -> [DailyModelUsage] {
+    private func mergeDailyModels(_ values: some Sequence<DailyModelUsage>) -> [DailyModelUsage] {
         var buckets: [String: DailyModelUsage] = [:]
         for value in values {
             let day = calendar.startOfDay(for: value.day)

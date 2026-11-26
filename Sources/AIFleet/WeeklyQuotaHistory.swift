@@ -177,6 +177,9 @@ struct WeeklyQuotaChart {
     let earlyResetAt: Date?
     let now: Date
     let latest: WeeklyQuotaObservation?
+    let planCrossings: [Date]
+    private let crossingTimes: [Date]
+    private let anchorTimes: [Date]
     var sustainablePerHour: Double? { pace.sustainablePercentPerDay.map { $0 / 24 } }
     var isHistorical: Bool { cycleIndex > 0 }
 
@@ -216,7 +219,7 @@ struct WeeklyQuotaChart {
         return segment?.last { $0.time <= date }?.used
     }
 
-    var planCrossings: [Date] {
+    private static func crossings(in segments: [[WeeklyQuotaObservation]], cycleStart: Date?) -> [Date] {
         guard let cycleStart else { return [] }
         return segments.flatMap { segment in
             zip(segment, segment.dropFirst()).compactMap { previous, reading in
@@ -227,11 +230,7 @@ struct WeeklyQuotaChart {
     }
 
     func hoverTime(near date: Date) -> Date {
-        let limits = segments.compactMap { segment -> Date? in
-            guard let first = segment.first, first.used < 100 else { return nil }
-            return segment.first { $0.used == 100 }?.time
-        }
-        var crossings = (planCrossings + limits + forecasts.compactMap(\.exhaustion))
+        var crossings = crossingTimes
             .filter { abs($0.timeIntervalSince(date)) <= UsageHours.hour }
         if let earlyResetAt, abs(earlyResetAt.timeIntervalSince(date)) <= UsageHours.hour / 2 {
             crossings.append(earlyResetAt)
@@ -240,8 +239,7 @@ struct WeeklyQuotaChart {
             return nearest
         }
 
-        let anchors = segments.compactMap { $0.count == 1 ? $0.first?.time : nil } + [latest?.time].compactMap { $0 }
-        let nearest = anchors.min { abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date)) }
+        let nearest = anchorTimes.min { abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date)) }
         guard let nearest, abs(nearest.timeIntervalSince(date)) <= UsageHours.hour / 2 else { return date }
         return nearest
     }
@@ -291,6 +289,13 @@ struct WeeklyQuotaChart {
         let forecastSamples = correction.map { Array(displayed[$0...]) } ?? displayed
         forecasts = index == 0 && pace.state == .current
             ? Self.forecasts(for: forecastSamples, afterCorrection: correction != nil) : []
+        planCrossings = Self.crossings(in: segments, cycleStart: cycleStart)
+        let limits = segments.compactMap { segment -> Date? in
+            guard let first = segment.first, first.used < 100 else { return nil }
+            return segment.first { $0.used == 100 }?.time
+        }
+        crossingTimes = planCrossings + limits + forecasts.compactMap(\.exhaustion)
+        anchorTimes = segments.compactMap { $0.count == 1 ? $0.first?.time : nil } + [latest?.time].compactMap { $0 }
         hours = Self.hourlyUsage(samples, window: UsageHours(now: now, calendar: calendar, range: range), now: now)
     }
 
@@ -360,7 +365,14 @@ struct WeeklyQuotaChart {
     }
 
     private static func hourlyUsage(_ samples: [WeeklyQuotaObservation], window hours: UsageHours, now: Date) -> [Hour] {
-        var firstIndex = 0
+        // Start from the observation just before the selected range.
+        var lower = 0
+        var upper = samples.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if samples[middle].time <= hours.start { lower = middle + 1 } else { upper = middle }
+        }
+        var firstIndex = max(0, lower - 1)
         return hours.starts.map { start in
             let hourEnd = start.addingTimeInterval(UsageHours.hour)
             let nominalEnd = min(hourEnd, now)

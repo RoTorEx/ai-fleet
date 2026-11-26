@@ -57,9 +57,15 @@ struct LogsView: View {
                 ProgressView().controlSize(.small)
                 Text("Scanning statistics…")
             } else if let date = analytics.snapshot.refreshedAt {
-                Text("Last statistics scan")
-                Text(date.formatted(date: .abbreviated, time: .shortened))
-                    .monospacedDigit()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Last statistics scan · \(date.formatted(date: .abbreviated, time: .shortened))")
+                    if let scan = analytics.snapshot.lastScan {
+                        let mode = scan.mode == .rebuild ? "Rebuild" : "Incremental"
+                        Text("\(mode) · \(scan.reused) cached · \(scan.resumed) resumed · \(scan.replayed) read from start")
+                            .font(.caption)
+                    }
+                }
+                .monospacedDigit()
             } else {
                 Text("Statistics scan pending")
             }

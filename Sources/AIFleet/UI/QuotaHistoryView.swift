@@ -89,7 +89,7 @@ struct QuotaHistoryView: View {
                 let tokens = LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model,
                                                now: now, calendar: calendar, range: range)
                 let request = QuotaHistoryRequest(targetID: target.id, provider: target.provider,
-                    model: model.flatMap { tokens.models.contains($0) ? $0 : nil }, tokenSeries: selection?.tokenSeries,
+                    model: model, tokenSeries: selection?.tokenSeries,
                     cycleReset: selection?.targetID == target.id ? selection?.cycleReset : nil)
                 let quotaData = isStatistics || target.provider != .qwen
                     ? target.quotaFigure(history: quotaHistory.history, now: now, calendar: calendar,
@@ -127,7 +127,7 @@ struct QuotaHistoryView: View {
                                 UsageAnalyticsService.shared.refreshLocalHistory()
                             }
                             .disabled(refreshingLocalTokens)
-                            .help("Update the local token chart from session logs")
+                            .help("Update saved token totals from new or changed local journals")
                         }
                         .controlSize(.small)
                     }

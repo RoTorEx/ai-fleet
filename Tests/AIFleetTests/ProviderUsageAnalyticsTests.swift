@@ -164,6 +164,79 @@ final class ProviderUsageAnalyticsTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(restored.kimiUsage).total.hasCostEstimate)
     }
 
+    func testStreamingCheckpointsPreserveProviderDeduplicationAcrossAnAppend() throws {
+        struct Fixture {
+            let read: (URL, UsageJournalCheckpoint?, Bool) -> ParsedUsageJournal
+            let initial: String
+            let appended: String
+            let total: Int
+        }
+        let fixtures = [
+            Fixture(read: ClaudeUsageLogReader().parseEntries(from:checkpoint:saveCheckpoint:), initial: """
+                {"type":"assistant","timestamp":"2026-11-20T11:00:00.123Z","requestId":"r","message":{"id":"m","model":"fixture","usage":{"input_tokens":10,"output_tokens":1}}}
+                """, appended: """
+                {"type":"assistant","timestamp":"2026-11-20T11:00:00.124Z","requestId":"r","message":{"id":"m","model":"fixture","usage":{"input_tokens":10,"output_tokens":20}}}
+                """, total: 30),
+            Fixture(read: QwenUsageLogReader().parseEntries(from:checkpoint:saveCheckpoint:), initial: """
+                {"type":"assistant","uuid":"r","timestamp":"2026-11-20T11:00:00Z","model":"fixture","usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":1}}
+                """, appended: """
+                {"type":"assistant","uuid":"r","timestamp":"2026-11-20T11:00:00Z","model":"fixture","usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":20}}
+                """, total: 30),
+            Fixture(read: KimiUsageLogReader().parseEntries(from:checkpoint:saveCheckpoint:), initial: """
+                {"type":"profile.bind","modelAlias":"fixture"}
+                {"type":"context.append_loop_event","time":1793055600000,"event":{"type":"step.end","uuid":"r","usage":{"inputOther":10,"output":1}}}
+                """, appended: """
+                {"type":"context.append_loop_event","time":1793055600000,"event":{"type":"step.end","uuid":"r","usage":{"inputOther":10,"output":20}}}
+                """, total: 30),
+            Fixture(read: KimiUsageLogReader().parseEntries(from:checkpoint:saveCheckpoint:), initial: """
+                {"type":"profile.bind","modelAlias":"fixture"}
+                {"timestamp":1793055600,"message":{"type":"TurnBegin","payload":{}}}
+                {"timestamp":1793055600,"message":{"type":"StepBegin","payload":{}}}
+                {"timestamp":1793055600,"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":10,"output":1}}}}
+                """, appended: """
+                {"timestamp":1793055601,"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":10,"output":20}}}}
+                """, total: 30)
+        ]
+        for fixture in fixtures {
+            try withDirectory { root in
+                let body = String(repeating: "x", count: 160_000)
+                let largeLine = "{\"type\":\"metadata\",\"payload\":\"\(body)\"}"
+                let file = try write(root, "session.jsonl", fixture.initial + "\n" + largeLine + "\n")
+                let initial = fixture.read(file, nil, true)
+                let checkpoint = try XCTUnwrap(initial.checkpoint)
+                let restored = try JSONDecoder().decode(UsageJournalCheckpoint.self, from: JSONEncoder().encode(checkpoint))
+                let handle = try FileHandle(forWritingTo: file)
+                try handle.seekToEnd()
+                try handle.write(contentsOf: Data((fixture.appended + "\n").utf8))
+                try handle.close()
+                let resumed = fixture.read(file, restored, true)
+                let full = fixture.read(file, nil, true)
+                XCTAssertTrue(resumed.resumed)
+                XCTAssertNil(resumed.issue)
+                XCTAssertEqual(resumed.checkpoint, full.checkpoint)
+                XCTAssertEqual(resumed.entries, full.entries)
+                XCTAssertEqual(resumed.entries.first?.totals.totalTokens, fixture.total)
+                XCTAssertEqual(resumed.entries.first?.model, "fixture")
+            }
+        }
+    }
+
+    func testRewrittenGrowingJournalAndUnfinishedLineReplaySafely() throws {
+        try withDirectory { root in
+            let first = "{\"type\":\"assistant\",\"uuid\":\"a\",\"timestamp\":\"2026-11-20T11:00:00Z\",\"usageMetadata\":{\"promptTokenCount\":10,\"candidatesTokenCount\":1}}"
+            let file = try write(root, "session.jsonl", first + "\n")
+            let reader = QwenUsageLogReader()
+            let checkpoint = try XCTUnwrap(reader.parseEntries(from: file, saveCheckpoint: true).checkpoint)
+            let updated = first.replacingOccurrences(of: "Count\":10", with: "Count\":20")
+            try (updated + "\n{unfinished").write(to: file, atomically: false, encoding: .utf8)
+            let parsed = reader.parseEntries(from: file, checkpoint: checkpoint, saveCheckpoint: true)
+            XCTAssertFalse(parsed.resumed)
+            XCTAssertNil(parsed.checkpoint)
+            XCTAssertNotNil(parsed.issue)
+            XCTAssertEqual(parsed.entries.first?.totals.totalTokens, 21)
+        }
+    }
+
     private func withDirectory(_ body: (URL) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

@@ -761,6 +761,28 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertTrue(updated.accessibilityDetails(for: .hourly, selectedTime: base).contains("Total · 128 tokens"))
     }
 
+    func testTokenCoverageUsesTheStartOfTheScanAndDoesNotSwitchTheSelectedModel() {
+        let calendar = Calendar.current
+        let current = calendar.dateInterval(of: .hour, for: base)!.start
+        let previous = current.addingTimeInterval(-hour)
+        var snapshot = UsageAnalyticsSnapshot.empty
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
+        snapshot.timeZoneIdentifier = calendar.timeZone.identifier
+        snapshot.scannedThrough = previous.addingTimeInterval(50 * 60)
+        snapshot.refreshedAt = current.addingTimeInterval(5 * 60)
+        let usage = UsageTotals(inputTokens: 100, cachedInputTokens: 20, cacheWriteInputTokens: 0,
+                                outputTokens: 10, reasoningOutputTokens: 0, estimatedCostUSD: 0)
+        snapshot.codex.hourlyModels = [HourlyModelUsage(hour: previous, model: "Actual", tokens: usage)]
+        let history = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: current, calendar: calendar)
+        XCTAssertEqual(history.hours.suffix(2).first?.tokens?.totalTokens, 110)
+        XCTAssertTrue(history.hours.suffix(2).first?.partial == true)
+        XCTAssertNil(history.hours.last?.tokens)
+        let filtered = LocalTokenHistory(snapshot: snapshot, provider: .codex, model: "Selected",
+                                         now: current, calendar: calendar)
+        XCTAssertTrue(filtered.models.contains("Selected"))
+        XCTAssertEqual(filtered.hours.suffix(2).first?.tokens?.totalTokens, 0)
+    }
+
     func testLocalModelsUseEventHoursIncludingRepeatedLocalHour() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Warsaw"))

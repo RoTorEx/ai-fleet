@@ -78,19 +78,38 @@ Independent basenames are preserved. Canonical/physical aliases count once.
 Validated duplicate Codex session IDs collapse only for identical contents or a
 proven byte-prefix continuation; divergent copies are flagged and excluded.
 For equal copies the active location wins over archive, then lexical path order.
+Metadata discovery checks file identity and change time. It reuses the
+unchanged Codex header and reads a bounded first line otherwise. The other
+providers deduplicate by file identity. Duplicate Codex prefixes are compared
+in chunks.
 
 Per-provider parser revision, catalog revision and timezone are checked
 independently of mtime/size. Snapshot revision 6 triggers a background rebuild
 to populate hourly model buckets. The per-file hourly field is optional for
 decoding older caches. Its first absence triggers a reparse. Later refreshes
 reuse matching per-file buckets and expire hours outside the rolling selection.
+Normal scans reuse unchanged aggregate records, including known partial-file
+diagnostics. New and rewritten files are streamed. Growing journals with a
+checkpoint verify the saved byte prefix in bounded chunks and decode only the
+suffix. Provider model and deduplication state are part of the checkpoint;
+an unfinished final line prevents checkpointing until it is complete.
+The scanner checks all file metadata so delayed writes or old sessions resumed
+today can still contribute. Checkpoints are kept for files modified since the
+same local time one calendar day earlier minus ten minutes, up to 50,000
+accounting records across the most recent files. This extra window keeps common
+daily append state available while bounding the disk cache. Rebuild bypasses
+headers and checkpoints and reads all available files from the beginning.
 Legacy aggregates are retained separately with unverified prices and are not
 silently advertised as corrected. Unavailable source file cache records remain
 retained but are excluded from active totals. Partial/unreadable/ambiguous sources
 are diagnostic states, not proof of zero account usage.
 
-A cancelled scan cannot publish late progress or totals over a newer scan.
-Local refresh merges current report/quota data rather than restoring old copies.
+Only one scan runs at a time. Ordinary requests join the active scan and a
+requested rebuild runs after an active ordinary scan. The daily schedule catches
+up on launch when enabled and the last scheduled scan was missed. A time-zone
+change reschedules the local timer and refreshes day boundaries. The beginning
+of a scan is its conservative coverage cutoff; the completion time is recorded
+separately. Local refresh merges current report/quota data when publishing.
 Atomic snapshot/cache writes retain protected permissions. Save failures are
 reported as in-memory-only/cache errors, not claimed persisted success. Tests use
 injected discovery and temporary cache directories, never real account requests.

@@ -11,32 +11,29 @@ struct ClaudeUsageLogReader {
     }
 
     func logFileMetadata(root: URL = Self.projectsURL) -> [CodexLogFile] {
-        // Includes nested subagent transcripts. Discovery deduplicates moved files by name.
-        CodexUsageLogReader().codexLogFileMetadata(roots: [root])
+        canonicalUsageFiles(discoverUsageLogs(in: [root]), codexCopies: false)
     }
 
-    func usageRecord(for file: CodexLogFile) -> CodexFileUsageRecord {
-        CodexUsageLogReader().usageRecord(for: file, provider: .claude, parsed: parseEntries(from: file.url))
+    func usageRecord(for file: CodexLogFile, checkpoint: UsageJournalCheckpoint? = nil,
+                     saveCheckpoint: Bool = false) -> CodexFileUsageRecord {
+        CodexUsageLogReader().usageRecord(for: file, provider: .claude, parsed: parseEntries(from: file.url,
+            checkpoint: checkpoint, saveCheckpoint: saveCheckpoint))
     }
 
     func readEntries(from file: URL) -> [CodexUsageLogEntry] { parseEntries(from: file).entries }
-    func parseEntries(from file: URL) -> (entries: [CodexUsageLogEntry], issue: String?, unreadable: Bool) {
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return ([], "Unreadable source: " + file.path, true) }
-        var malformed = false
+    func parseEntries(from file: URL, checkpoint: UsageJournalCheckpoint? = nil,
+                      saveCheckpoint: Bool = false) -> ParsedUsageJournal {
         let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        var entries: [String: CodexUsageLogEntry] = [:]
-        for line in content.split(separator: "\n") {
-            guard let event = try? decoder.decode(Event.self, from: Data(line.utf8)) else {
-                malformed = malformed || malformedAccountingLine(String(line), kinds: ["assistant"]); continue
+        let timestamps = UsageJournalTimestamps()
+        return readUsageJournal(file, checkpoint: checkpoint, saveCheckpoint: saveCheckpoint) { state, line, _ in
+            guard let event = try? decoder.decode(Event.self, from: line) else {
+                state.partial = state.partial || malformedAccountingLine(line, kinds: ["assistant"]); return
             }
             guard event.type == "assistant", let message = event.message,
                   let usage = message.usage, let model = message.model, model != "<synthetic>",
                   let id = message.id ?? event.uuid,
-                  let timestamp = event.timestamp.flatMap({ fractional.date(from: $0) ?? formatter.date(from: $0) })
-            else { continue }
+                  let timestamp = event.timestamp.flatMap(timestamps.date(from:))
+            else { return }
 
             let cached = max(0, usage.cache_read_input_tokens ?? 0)
             let writes = max(0, usage.cache_creation_input_tokens ?? 0)
@@ -63,10 +60,9 @@ struct ClaudeUsageLogReader {
             // Claude writes one message for each content block with repeated usage.
             // Keep the most complete usage sample for the API message, once.
             let key = "\(event.requestId ?? "")|\(id)"
-            if let previous = entries[key], previous.totals.totalTokens > totals.totalTokens { continue }
-            entries[key] = CodexUsageLogEntry(timestamp: timestamp, model: model, totals: totals)
+            if let previous = state.keyedEntries[key], previous.totals.totalTokens > totals.totalTokens { return }
+            state.keyedEntries[key] = CodexUsageLogEntry(timestamp: timestamp, model: model, totals: totals)
         }
-        return (entries.values.sorted { $0.timestamp < $1.timestamp }, malformed ? "Partial accounting source: " + file.path : nil, false)
     }
 
     private struct Event: Decodable {
