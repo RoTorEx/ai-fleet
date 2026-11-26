@@ -231,15 +231,17 @@ subscription charges.
 - Cached input, cache writes, output, and reasoning remain separate accounting
   concepts. Reasoning is a subset reported with output usage.
 - All windows follow the current macOS light or dark appearance.
-- The menu header is one line: a status dot with Active/Paused and ⓘ, then
-  Refresh (⌘R) and Options. Below it the tabs Providers, Agents and Processes;
-  the Providers tab carries `measured/saved` (for example `1/6`: saved accounts
+- The menu header starts with Active/Paused and ⓘ, followed by Refresh (⌘R),
+  Statistics (⌘S), Integrations and Options. The Providers tab below carries
+  `measured/saved` (for example `1/6`: saved accounts
   with a current limit out of all saved accounts of enabled providers) and the
-  Agents tab its session count.
+  Agents and Processes tabs show their counts.
   Sign-in progress and errors add one detail line below it; a manual refresh spins the
-  Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status. Options is a native menu:
-  Statistics, Settings…, Logs, Quit. Logs owns statistics source diagnostics and
-  current app issues. Statistics displays usage and quota data.
+  Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status.
+  Integrations opens the installed Lens in a new Terminal window or Grist in the
+  default browser. Grist starts on demand at its local port if needed. The native
+  Options menu contains Settings…, Logs and Quit. Logs owns statistics source
+  diagnostics and current app issues. Statistics displays usage and quota data.
   The menu grows to 80% of the screen's visible
   height, after which only the active tab scrolls (header, tabs and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not

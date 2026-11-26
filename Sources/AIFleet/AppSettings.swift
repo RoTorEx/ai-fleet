@@ -74,6 +74,9 @@ final class AppSettings: ObservableObject {
     @Published var agentNotificationsShowText: Bool {
         didSet { defaults.set(agentNotificationsShowText, forKey: "notify.agentSessions.showText") }
     }
+    @Published private(set) var notificationSoundIDs: [String: String] {
+        didSet { defaults.set(notificationSoundIDs, forKey: "notify.soundSelections") }
+    }
     @Published var menuClosesOnOutsideClick: Bool {
         didSet { defaults.set(menuClosesOnOutsideClick, forKey: "menu.closesOnOutsideClick") }
     }
@@ -105,6 +108,7 @@ final class AppSettings: ObservableObject {
         notifyStepPercent = storedStep > 0 ? storedStep : 10
         agentNotificationsEnabled = defaults.bool(forKey: "notify.agentSessions.enabled")
         agentNotificationsShowText = defaults.object(forKey: "notify.agentSessions.showText") as? Bool ?? true
+        notificationSoundIDs = defaults.dictionary(forKey: "notify.soundSelections") as? [String: String] ?? [:]
         menuClosesOnOutsideClick = defaults.object(forKey: "menu.closesOnOutsideClick") as? Bool ?? true
         analyticsAutoRefreshEnabled = defaults.object(forKey: "analytics.autoRefresh.enabled") as? Bool ?? true
         if defaults.object(forKey: "analytics.autoRefresh.minutes") != nil {
@@ -176,6 +180,10 @@ final class AppSettings: ObservableObject {
 
     func addNotificationThreshold(_ threshold: Int) {
         setNotificationThresholds(notificationThresholds + [threshold])
+    }
+
+    func setNotificationSound(_ id: String, for event: NotificationSoundEvent) {
+        notificationSoundIDs[event.rawValue] = id
     }
 
     func removeNotificationThreshold(_ threshold: Int) {

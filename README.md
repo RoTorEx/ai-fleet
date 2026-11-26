@@ -167,9 +167,10 @@ logins have no arrow. Switch is hidden for the current signed-in account in
 both the menu and Settings. Important account notes
 appear in the Status section of the ⓘ card.
 The header shows whether AI Fleet monitoring is Active or Paused, with Refresh
-(⌘R) and Options (⋯) on the right. Tabs Providers (with a `measured/saved`
-count such as `1/6`), Agents and Processes (with its count) switch by click or ← / →.
-Options opens Statistics (⌘S), Settings (⌘,), and Logs (⌘L). The footer shows the
+(⌘R), Statistics (⌘S), Integrations and Options (⋯) on the right. Click the
+Providers, Agents and Processes tabs or use ← / → to switch. Providers displays a
+`measured/saved` count such as `1/6`.
+Options contains Settings (⌘,), Logs (⌘L) and Quit. The footer shows the
 last refresh and the version. Hover ⓘ next to the status for the legend, which groups
 Monitoring, Quota (normal/low/critical), Access (ready/sign in/unavailable),
 Marks and Keys. **Statistics → Provider reports** compares Codex tokens and
@@ -218,14 +219,23 @@ iTerm2 pane. An alert disappears by itself once you open its session or the
 agent starts new work. **Show message text in alerts** is on by default; turn
 it off to keep session text out of macOS notifications.
 
+In **Settings → General → Notifications**, choose or preview a shared sound
+for Reply ready, Needs you and Quota warning. Silent keeps that event's banner
+quiet. The picker includes local agent sounds and macOS sounds.
+
 The menu shows the remaining quota and reset time for each limit window.
 For Codex it intentionally shows only the main account limits; separate
 model-specific limits such as Spark are omitted.
-Detailed usage data remains available in **Statistics…**.
+Detailed usage data remains available in **Statistics**.
 
 ## Menu View
 
 Click the menu-bar icon or press `⌘⇧I` to toggle the status view.
+
+The top row has Refresh, Statistics, Integrations and Options. **Integrations**
+opens Lens in a new Terminal window and Grist in the default browser. Fleet can
+start an installed Grist on its default loopback port when it is closed. The
+**Options** menu contains Settings, Logs and Quit.
 
 **Statistics** (⌘S) has Token Spend and Quota History tabs below the shared
 provider filters and `7d`, `30d`, `90d`, and all-time ranges. Option-click a chip

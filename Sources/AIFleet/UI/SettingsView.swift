@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var newThreshold = 10
     @State private var newThresholdText = "10"
     @State private var isAddingThreshold = false
+    @State private var sounds: [NotificationSoundChoice] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -48,6 +49,7 @@ struct SettingsView: View {
         }
         .frame(width: 520, height: 620)
         .onAppear {
+            sounds = NotificationSounds.choices()
             service.refreshNotificationSettings()
             service.refresh()
         }
@@ -90,26 +92,10 @@ struct SettingsView: View {
                     Text("Adds your request and the agent's reply to each alert. macOS stores notification text and can show it on the lock screen and while sharing your screen.")
                 }
                 .disabled(!settings.agentNotificationsEnabled)
-                LabeledContent("Quota alert at") {
-                    HStack(spacing: 6) {
-                        ForEach(settings.notificationThresholds, id: \.self) { threshold in
-                            HStack(spacing: 3) {
-                                Text("\(threshold)%").monospacedDigit()
-                                if settings.notificationThresholds.count > 1 {
-                                    Button {
-                                        settings.removeNotificationThreshold(threshold)
-                                        service.resetNotificationThresholdState()
-                                    } label: { Image(systemName: "xmark").font(.system(size: 8, weight: .bold)) }
-                                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove \(threshold)%")
-                                }
-                            }
-                            .font(.system(size: 11.5, weight: .medium))
-                            .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Color.primary.opacity(0.08), in: Capsule())
-                        }
-                        addThresholdControl
-                    }
+                ForEach(NotificationSoundEvent.allCases) { event in
+                    notificationSound(event)
                 }
+                quotaThresholds
                 LabeledContent("Permission") {
                     HStack(spacing: 8) {
                         Text(service.notificationStatusText)
@@ -123,7 +109,7 @@ struct SettingsView: View {
                     .controlSize(.small)
                 }
             } header: { Text("Notifications") } footer: {
-                Text("An alert fires when an account's remaining quota crosses a threshold.")
+                Text("Sound choices apply to every provider. Fleet detects session alerts in Codex, Claude, Kimi and Antigravity in iTerm2. Session sounds are unavailable for Qwen, Gemini, Grok and GLM. Quota warnings use reported account limits.")
             }
 
             Section {
@@ -135,6 +121,61 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func notificationSound(_ event: NotificationSoundEvent) -> some View {
+        let choice = NotificationSounds.choice(for: event, selectedID: settings.notificationSoundIDs[event.rawValue], in: sounds)
+        return LabeledContent(event.title) {
+            Picker(event.title, selection: Binding(
+                get: { choice.id },
+                set: { settings.setNotificationSound($0, for: event) }
+            )) {
+                ForEach(sounds) { sound in Text(sound.title).tag(sound.id) }
+            }
+            .labelsHidden()
+            .frame(width: 184)
+            Button {
+                NotificationSounds.playPreview(choice)
+            } label: {
+                Image(systemName: "speaker.wave.2")
+            }
+            .help("Preview \(event.title.lowercased()) sound")
+            .accessibilityLabel("Preview \(event.title.lowercased()) sound")
+            .disabled(choice.id == NotificationSoundChoice.silent.id)
+        }
+    }
+
+    private var quotaThresholds: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent("Quota alert at") { addThresholdControl }
+            QuotaThresholdLayout { thresholdChips }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var thresholdChips: some View {
+        ForEach(settings.notificationThresholds, id: \.self) { threshold in
+            HStack(spacing: 3) {
+                Text("\(threshold)%").monospacedDigit()
+                if settings.notificationThresholds.count > 1 {
+                    Button {
+                        settings.removeNotificationThreshold(threshold)
+                        service.resetNotificationThresholdState()
+                    } label: {
+                        Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Remove \(threshold)%")
+                }
+            }
+            .font(.system(size: 11.5, weight: .medium))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .frame(minHeight: 19)
+            .background(Color.primary.opacity(0.08), in: Capsule())
+            .fixedSize()
+        }
     }
 
     private var analyticsRefreshTimeBinding: Binding<Date> {
@@ -188,6 +229,42 @@ struct SettingsView: View {
         service.resetNotificationThresholdState()
         newThresholdText = "\(threshold)"
         isAddingThreshold = false
+    }
+}
+
+private struct QuotaThresholdLayout: Layout {
+    private let spacing: CGFloat = 4
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(subviews, width: proposal.width ?? .infinity).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = arrange(subviews, width: bounds.width).frames
+        for (subview, frame) in zip(subviews, frames) {
+            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                          anchor: .topLeading, proposal: ProposedViewSize(frame.size))
+        }
+    }
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> (size: CGSize, frames: [CGRect]) {
+        var frames: [CGRect] = []
+        var origin = CGPoint.zero
+        var rowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if origin.x > 0, origin.x + size.width > width {
+                origin = CGPoint(x: 0, y: origin.y + rowHeight + spacing)
+                rowHeight = 0
+            }
+            let frame = CGRect(origin: origin, size: size)
+            frames.append(frame)
+            origin.x = frame.maxX + spacing
+            usedWidth = max(usedWidth, frame.maxX)
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (CGSize(width: usedWidth.rounded(.up), height: origin.y + rowHeight), frames)
     }
 }
 

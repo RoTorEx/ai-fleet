@@ -11,6 +11,8 @@ struct AIFleetMenuView: View {
     @EnvironmentObject var service: StatusService
     @EnvironmentObject var settings: AppSettings
     @State private var isLegendShown = false
+    @State private var openingIntegration = false
+    @State private var integrationError: String?
     // Owned here so the Processes tab shows its count; scans only while the menu is open.
     @StateObject private var processes = CodexProcessesService()
     @StateObject private var quotaPopover = MenuQuotaHistory()
@@ -151,7 +153,6 @@ struct AIFleetMenuView: View {
                          codexProfiles: codexProfiles, providerLaunch: providerLaunch)
     }
 
-    /// One compact line: monitoring state and measured/saved count, then Refresh and Options.
     private var header: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 7) {
@@ -171,6 +172,12 @@ struct AIFleetMenuView: View {
                 HeaderIconButton(systemName: "arrow.clockwise", help: "Refresh (⌘R)", spinning: isRefreshing) {
                     refresh()
                 }
+                HeaderIconButton(systemName: "chart.bar", help: "Statistics (⌘S)", action: openStatistics)
+                headerMenu("Integrations", symbol: "puzzlepiece.extension") {
+                    Button("Lens") { openIntegration(.lens) }
+                    Button("Grist") { openIntegration(.grist) }
+                }
+                .disabled(openingIntegration)
                 optionsMenu
             }
             if let detail = operationStatus.detail {
@@ -189,29 +196,50 @@ struct AIFleetMenuView: View {
                 }
                 .padding(.leading, 14)
             }
+            if let integrationError {
+                Text(integrationError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(FleetPalette.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 14)
+            }
         }
         .padding(.horizontal, 16)
     }
 
     private var optionsMenu: some View {
-        Menu {
-            Button("Statistics") { openStatistics() }.keyboardShortcut("s")
+        headerMenu("Options", symbol: "ellipsis.circle") {
             Button("Settings…") { openSettings() }.keyboardShortcut(",")
             Button("Logs") { openLogs() }.keyboardShortcut("l")
-            Divider()
             Button("Quit") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
-        } label: {
-            Image(systemName: "ellipsis.circle")
-                .font(.system(size: 14, weight: .regular))
-                .foregroundColor(FleetPalette.muted)
+        }
+    }
+
+    private func headerMenu<Content: View>(_ title: String, symbol: String,
+                                           @ViewBuilder items: () -> Content) -> some View {
+        Menu(content: items) {
+            headerSymbol(symbol)
                 .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Options")
-        .accessibilityLabel("Options")
+        .help(title)
+        .accessibilityLabel(title)
+    }
+
+    private func openIntegration(_ integration: FleetIntegrations.Integration) {
+        openingIntegration = true
+        integrationError = nil
+        Task {
+            defer { openingIntegration = false }
+            do {
+                try await FleetIntegrations.shared.open(integration)
+            } catch {
+                integrationError = error.localizedDescription
+            }
+        }
     }
 
     private var footer: some View {
@@ -1117,9 +1145,7 @@ struct HeaderIconButton: View {
     }
 
     @ViewBuilder private var icon: some View {
-        let image = Image(systemName: systemName)
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundColor(FleetPalette.muted)
+        let image = headerSymbol(systemName)
         if #available(macOS 15.0, *) {
             image.symbolEffect(.rotate.byLayer, options: .repeat(.continuous), isActive: spinning)
         } else if spinning {
@@ -1128,6 +1154,12 @@ struct HeaderIconButton: View {
             image
         }
     }
+}
+
+private func headerSymbol(_ name: String) -> some View {
+    Image(systemName: name)
+        .font(.system(size: 12.5, weight: .medium))
+        .foregroundStyle(FleetPalette.muted)
 }
 
 struct FleetDivider: View {

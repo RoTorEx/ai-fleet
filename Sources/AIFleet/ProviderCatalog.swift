@@ -132,7 +132,7 @@ enum ProviderCatalog {
     }
 }
 
-private enum ProviderInstallDetector {
+enum ProviderInstallDetector {
     static func executableURL(named executableNames: [String]) -> URL? {
         let fileManager = FileManager.default
 

@@ -119,6 +119,15 @@ alert. Codex and Claude use the existing heuristic activity reader. Kimi
 notifies for recognized approvals, for a finished turn and for a turn that
 stopped on a provider error. Short events between samples may be missed.
 
+General → Notifications assigns one sound per event across providers. Reply
+ready and Needs you use the installed agent sound set's Felt Fifth and Chirp Pair
+when present, with Glass and Funk as fallbacks. Quota warnings use the system
+default unless changed. The picker includes previews, Silent, the installed
+agent set, and sounds from the user's and system sound directories. Fleet hands
+the chosen sound to macOS with its notification. Qwen, Gemini, Grok and GLM lack
+Fleet session alerts. Separately installed client audio hooks retain their own
+lifecycle signals until sound ownership is coordinated with those hooks.
+
 For Codex the reader also takes the status Codex writes into its terminal title,
 read with the screen: a spinner means the turn is still running, `Action
 Required` means it waits for the user. Screen markers alone raised a false Done

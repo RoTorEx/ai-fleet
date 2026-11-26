@@ -4,6 +4,10 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Add direct Statistics and Integrations buttons in the menu header. Open Lens in Terminal or Grist in the default browser from Integrations.
+- Pick, preview or mute global sounds for ready replies, requests for attention and quota warnings in General settings, including the local agent sound set.
+- Keep each quota threshold and its percent sign together in Settings, with an aligned add control.
+
 ## [1.7.5] - 2026-11-26
 
 - Update local token history with metadata checks, streaming parsers, and verified append checkpoints. Offer a separate rebuild in the Statistics refresh menu.

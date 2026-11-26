@@ -535,7 +535,8 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 windowLabel: windowLabel,
                 resetAt: resetAt
             ),
-            kind: .quota
+            kind: .quota,
+            soundEvent: .quota
         ) {
             UserDefaults.standard.set(acceptedThresholds, forKey: notifiedThresholdsKey)
         }
@@ -547,7 +548,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
             identifier: Self.agentIdentifier(alert.session.id),
             text: alert.text(showText: AppSettings.shared.agentNotificationsShowText),
             kind: .agent,
-            sound: alert.reason.needsYou ? "Funk.aiff" : "Glass.aiff",
+            soundEvent: NotificationSoundEvent(reason: alert.reason),
             thread: alert.session.project,
             userInfo: [Self.agentSessionKey: alert.session.id]
         )
@@ -569,7 +570,7 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
 
     private func sendNotification(
         identifier: String, text: FleetNotificationText, kind: NotificationKind,
-        sound: String? = nil, thread: String? = nil, userInfo: [String: String] = [:],
+        soundEvent: NotificationSoundEvent? = nil, thread: String? = nil, userInfo: [String: String] = [:],
         onAccepted: (() -> Void)? = nil
     ) {
         let isAgentAlert = kind == .agent
@@ -592,8 +593,13 @@ final class StatusService: NSObject, ObservableObject, UNUserNotificationCenterD
                 content.title = text.title
                 content.subtitle = text.subtitle
                 content.body = text.body
-                // System sounds by file name; an unknown name falls back to the default sound.
-                content.sound = sound.map { UNNotificationSound(named: UNNotificationSoundName($0)) } ?? .default
+                if let soundEvent {
+                    let choice = NotificationSounds.choice(for: soundEvent,
+                        selectedID: AppSettings.shared.notificationSoundIDs[soundEvent.rawValue], in: NotificationSounds.choices())
+                    content.sound = NotificationSounds.notificationSound(for: choice)
+                } else {
+                    content.sound = .default
+                }
                 if let thread { content.threadIdentifier = thread }
                 content.userInfo = userInfo.merging([Self.kindKey: kind.rawValue]) { current, _ in current }
                 let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
