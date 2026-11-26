@@ -174,8 +174,10 @@ struct AIFleetMenuView: View {
                 }
                 HeaderIconButton(systemName: "chart.bar", help: "Statistics (⌘S)", action: openStatistics)
                 headerMenu("Integrations", symbol: "puzzlepiece.extension") {
-                    Button("Lens") { openIntegration(.lens) }
-                    Button("Grist") { openIntegration(.grist) }
+                    ForEach(FleetIntegrations.Integration.allCases, id: \.self) { integration in
+                        Button(integration.rawValue) { openIntegration(integration) }
+                            .disabled(integration.executable == nil)
+                    }
                 }
                 .disabled(openingIntegration)
                 optionsMenu

@@ -9,6 +9,7 @@ Tracks real product and release progress.
 - Keep each quota threshold and its percent sign together in Settings, with an aligned add control.
 - Match the muted icon color across the four menu header controls.
 - Show the Lens terminal interface in color when launched through Integrations.
+- Keep Lens and Grist visible but disabled when their executables are unavailable.
 
 ## [1.7.5] - 2026-11-26
 

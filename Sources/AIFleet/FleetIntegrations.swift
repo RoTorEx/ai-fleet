@@ -3,16 +3,20 @@ import Foundation
 
 @MainActor
 final class FleetIntegrations {
-    enum Integration: String {
+    enum Integration: String, CaseIterable {
         case lens = "Lens"
         case grist = "Grist"
 
         var executable: URL? {
+            executable(in: FileManager.default.homeDirectoryForCurrentUser,
+                       search: ProviderInstallDetector.executableURL(named:))
+        }
+
+        func executable(in home: URL, search: ([String]) -> URL?) -> URL? {
             let name = rawValue.lowercased()
-            let installed = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".toolbelt/\(name)/bin/\(name)")
+            let installed = home.appendingPathComponent(".toolbelt/\(name)/bin/\(name)")
             if FileManager.default.isExecutableFile(atPath: installed.path) { return installed }
-            return ProviderInstallDetector.executableURL(named: [name])
+            return search([name])
         }
     }
 

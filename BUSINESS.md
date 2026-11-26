@@ -241,8 +241,9 @@ subscription charges.
   Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status.
   Integrations opens the installed Lens in color in a new Terminal window or
   Grist in the default browser. Grist starts on demand at its local port if
-  needed. The native Options menu contains Settings…, Logs and Quit. Logs owns statistics source
-  diagnostics and current app issues. Statistics displays usage and quota data.
+  needed. Each integration stays disabled when its executable is unavailable.
+  The native Options menu contains Settings…, Logs and Quit. Logs owns
+  statistics source diagnostics and current app issues. Statistics displays usage and quota data.
   The menu grows to 80% of the screen's visible
   height, after which only the active tab scrolls (header, tabs and footer never scroll). The menu has no Update command. The footer shows
   `Last refresh` on the left and the version on the right. The legend is not
