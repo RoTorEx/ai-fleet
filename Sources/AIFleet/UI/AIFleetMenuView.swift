@@ -851,7 +851,6 @@ struct QuotaResetLabel: View {
     var calendar: Calendar = .autoupdatingCurrent
     var blocked = false
     var fixedWidth: CGFloat? = nil
-    var reservesCountdownWidth = false
     @State private var hovered = false
 
     var body: some View {
@@ -862,14 +861,8 @@ struct QuotaResetLabel: View {
             return false
         }()
         let showsCountdown = hovered && canCountDown
-        ZStack(alignment: .leading) {
-            Text(date).opacity(showsCountdown ? 0 : 1)
-            if reservesCountdownWidth && canCountDown {
-                // Keep the full timer width while the date is visible.
-                Text("⏱ 88d 88h 88m 88s").hidden()
-            }
-        }
-        .fixedSize(horizontal: reservesCountdownWidth, vertical: false)
+        Text(date)
+        .opacity(showsCountdown ? 0 : 1)
         .frame(width: fixedWidth, alignment: .leading)
         .overlay(alignment: .leading) {
             if showsCountdown {

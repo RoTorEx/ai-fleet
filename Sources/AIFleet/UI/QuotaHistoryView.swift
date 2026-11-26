@@ -65,6 +65,7 @@ struct QuotaHistoryView: View {
     @Binding var selection: QuotaHistoryRequest?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
+    @State private var cursor: QuotaChartCursor?
     @AppStorage("quotaHistory.hourlyDays") private var range: QuotaHistoryRange = .sevenDays
     private var isStatistics: Bool { openInStatistics == nil }
     private var controlLabelWidth: CGFloat { isStatistics ? 142 : 110 }
@@ -100,16 +101,16 @@ struct QuotaHistoryView: View {
                     .controlSize(.small)
                     if let quota, let quotaData {
                         cycleControls(quotaData, request: request, calendar: calendar)
-                        QuotaHistoryFigure(drawing: quota, panel: .overview)
+                        QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $cursor)
                     }
                     hourlyControls(models: tokens.models, request: request)
                     VStack(spacing: 0) {
                         if let quota {
-                            QuotaHistoryFigure(drawing: quota, panel: .hourly)
+                            QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $cursor)
                         }
                         let data = QuotaHistoryFigureData.tokens(tokens, series: request.tokenSeries)
-                        QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: data, calendar: calendar), panel: .hourly)
-                            .id(request.tokenSeries)
+                        QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: data, calendar: calendar),
+                                           panel: .hourly, cursor: $cursor)
                     }
                     if let openInStatistics {
                         Button("Open in Statistics") {
@@ -121,6 +122,9 @@ struct QuotaHistoryView: View {
             }
         }
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
+        .onChange(of: selection?.targetID) { _ in cursor = nil }
+        .onChange(of: selection?.cycleReset) { _ in cursor = nil }
+        .onChange(of: range) { _ in cursor = nil }
     }
 
     private func cycleControls(_ data: QuotaHistoryFigureData, request: QuotaHistoryRequest,
@@ -129,7 +133,7 @@ struct QuotaHistoryView: View {
             .frame(height: 20)
             .overlay {
                 if case .quota(let chart) = data, let label = chart.cycleLabel(calendar: calendar) {
-                    ZStack(alignment: .leading) {
+                    ZStack(alignment: .trailing) {
                         Text(label)
                             .font(.system(size: 11, weight: .medium))
                             .monospacedDigit()
@@ -172,13 +176,13 @@ struct QuotaHistoryView: View {
                 rangePicker
                 tokenControls(models: models, request: request)
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .trailing, spacing: 6) {
                 rangePicker
                 tokenControls(models: models, request: request)
             }
         }
         .controlSize(.small)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     @ViewBuilder private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {
@@ -259,7 +263,7 @@ struct QuotaHistoryView: View {
                     Text(series.rawValue).tag(Optional(series))
                 }
             }
-            .labelsHidden().frame(width: 116)
+            .labelsHidden().frame(width: 104)
             .disabled(models.isEmpty)
             .help("Show all tokens together or inspect one category")
         }
@@ -274,7 +278,7 @@ struct QuotaHistoryView: View {
             Text("All models").tag(String?.none)
             ForEach(models, id: \.self) { Text($0).tag(Optional($0)) }
         }
-        .labelsHidden().frame(width: 132)
+        .labelsHidden().frame(width: 116)
         .disabled(models.isEmpty)
         .help("Filter the local token chart by model")
     }

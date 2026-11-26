@@ -87,20 +87,24 @@ and category selection and includes the provider in the visible filter. The plot
 window width keeps all three charts in view at the default Statistics size.
 Label sizes stay constant. Both hourly plots share a 3-, 5-, or 7-day range.
 The initial range is 7 days. The range, model, and token category controls
-sit on the left above the hourly charts. The model and category filter local tokens.
+sit on the right above the hourly charts. The model and category filter local tokens.
 The plot dimensions stay fixed as the one-hour bins become denser. The six-hour grid follows local midnight,
 with dates on a separate row and abbreviated labels when space is limited.
 The charts use the current macOS light or dark appearance. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
 bin exceeds it. An off-scale sustainable rate appears in the legend. Charts
 keep the zero baseline and omit its label. Hover over the info icon at the
-right edge of a chart header to see its legend inside the plot. The current
-quota header uses the same reset date and hover countdown as the menu, with
-space reserved for the timer. The menu popover points at the clicked chart button, resizes
+right edge of a chart header to see its legend inside the chart. Legends use
+one mark and label per row, with hourly statistics below a separator. Quota
+headings show the window name. The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
-Hover and reset readouts show the date and local time. The local token chart stacks
+Hover readouts start with the date and local time, followed by the measurement.
+Hovering any time axis shares its absolute timestamp with the other charts that
+cover it. The weekly chart uses its selected cycle and each hourly chart reads
+the bucket containing that timestamp. A covered time with missing evidence is
+labelled as such. The local token chart stacks
 uncached input, cache reads and writes, and output in distinct colors. Hover shows
 the total on a separate line and each displayed category's count and share
 of the total. Select one category to inspect it on a scale fitted to its own values.
@@ -125,7 +129,7 @@ quota cannot stand in for an account's weekly one.
   observations across resets without an age limit in
   `~/Library/Application Support/AI Fleet/weekly-quota-history.json`.
   The overview opens on the latest recorded cycle for the selected provider,
-  account, and quota window. Its control row groups the arrows at the left and
+  account, and quota window. Its control row groups the arrows at the right and
   centers the scheduled cycle dates separately. Overlapping schedules include
   clock times. Previous cycles display measured usage and the pacing plan. The two
   hourly charts remain on the selected recent range. Provider replies supply
@@ -137,12 +141,11 @@ quota cannot stand in for an account's weekly one.
   and a lower usage reading can establish an early reset. The next window start,
   derived from its reset time, must precede the old scheduled reset and agree
   with the surrounding observations within the clock tolerance. The archived
-  chart marks that start with an Early reset line and shades the unused part of
-  the old scheduled cycle. Hover shows both reset times.
-- The pacing plan has eight checkpoints for seven 24-hour days. Each checkpoint
-  raises the target by 12.5 percentage points. Day one starts at 12.5% and the
-  last checkpoint reaches 100% at reset. The plan is a visual pacing guide.
-  Headroom is the current checkpoint target minus observed usage, in percentage
+  chart marks that start with an Early reset line, shades the unused part of
+  the old scheduled cycle and dashes the plan through that part. Hover shows both reset times.
+- The pacing plan has seven steps, one per 24-hour day. Day one allows one
+  seventh of the quota, about 14.3%. The allowance reaches 100% at the start of
+  day seven and holds through reset. Headroom is the current day's plan minus observed usage, in percentage
   points. Blue steps show reported cumulative use. Gray steps show the plan,
   with green fill below the plan and red fill above it.
 - A current sample is at most 15 minutes old. That covers three normal Claude
@@ -168,7 +171,8 @@ quota cannot stand in for an account's weekly one.
   portion. The mint bars show measured hourly changes. Show when observations
   started if the log covers only part of the selected range. The vertical axis
   labels the percentage of weekly quota. Mean and median describe completely
-  observed hours in the selected range, including measured zeroes. The dashed
+  observed hours in the selected range, including measured zeroes. Both appear
+  as horizontal guides, with their values in the legend and the hover readout. The dashed
   amber sustainable rate is remaining quota divided by hours to reset. Old data can still be
   viewed, and the pace and forecast guides require a fresh measurement.
 
@@ -181,8 +185,8 @@ Choose a provider and recorded model, with an input, cache and output breakdown.
 No provider quota or account attribution is inferred from the local totals.
 The cache aggregates up to seven days of hourly token events from local session
 logs. The next scan rebuilds older three-day cache entries that can contribute
-to that range. The mean follows the selected model and token series. It uses
-complete scanned hours, including hours with zero recorded tokens.
+to that range. The mean and median follow the selected model and token series.
+Both guides use complete scanned hours, including hours with zero recorded tokens.
 
 `QuotaHistoryTests` covers native cap and hourly mark geometry, separate
 accounts and model windows, deduplication, freshness, projections, spikes,

@@ -175,7 +175,6 @@ struct WeeklyQuotaChart {
     let range: QuotaHistoryRange
     let cycleResets: [Date]
     let cycleIndex: Int
-    let reportedReset: Date?
     let earlyResetAt: Date?
     let now: Date
     let latest: WeeklyQuotaObservation?
@@ -235,7 +234,6 @@ struct WeeklyQuotaChart {
          displayedReset: Date? = nil) {
         self.range = range
         self.now = now
-        reportedReset = window.resetAt
         pace = WeeklyQuotaPace.make(report: report, window: window, now: now)
         var samples = history.records[WeeklyQuotaHistoryKey(report: report, window: window)] ?? []
         if let sample = WeeklyQuotaObservation(report: report, window: window, now: now),

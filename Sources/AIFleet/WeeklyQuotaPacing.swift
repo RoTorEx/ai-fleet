@@ -23,7 +23,7 @@ struct WeeklyQuotaPace: Equatable {
     static let dayCount = 7
     /// Provider windows whose reported duration is exactly one week.
     static let weekSeconds = Double(dayCount) * daySeconds
-    static let budgetStepPercent = 100 / Double(dayCount + 1)
+    static let budgetStepPercent = 100 / Double(dayCount)
     /// Reset timestamps may round against the observation clock by this much.
     static let clockTolerance: TimeInterval = 60
 
@@ -67,7 +67,7 @@ struct WeeklyQuotaPace: Equatable {
 
     static func budget(at date: Date, cycleStart: Date) -> Double {
         let elapsedDays = floor(max(0, date.timeIntervalSince(cycleStart)) / daySeconds)
-        return (min(Double(dayCount), elapsedDays) + 1) * budgetStepPercent
+        return min(Double(dayCount), elapsedDays + 1) * 100 / Double(dayCount)
     }
 }
 
