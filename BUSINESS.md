@@ -237,6 +237,8 @@ subscription charges.
   `measured/saved` (for example `1/6`: saved accounts
   with a current limit out of all saved accounts of enabled providers) and the
   Agents and Processes tabs show their counts.
+  General settings can hide rows that require sign-in in the Providers tab.
+  The switch is off by default. Accounts with an unknown login stay visible.
   Sign-in progress and errors add one detail line below it; a manual refresh spins the
   Refresh icon (the 60-second quota poll stays quiet) instead of replacing the status.
   Integrations opens the installed Lens in color in a new Terminal window or

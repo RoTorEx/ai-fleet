@@ -62,6 +62,8 @@ final class QuotaPopoverPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    var placement: QuotaPopoverPlacement? { surface.placement }
+
     func layout(_ placement: QuotaPopoverPlacement) {
         guard surface.placement != placement else { return }
         if frame != placement.frame { setFrame(placement.frame, display: false) }

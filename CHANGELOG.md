@@ -4,6 +4,11 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Open quota charts from Statistics or the Providers popover in a movable, resizable window with its own account selection.
+- Browse quota accounts with arrows. The Providers popover follows the selected account's chart button.
+- Add an opt-in setting to hide signed-out accounts from the Providers tab.
+- Label past quota cycles between the navigation arrows and hatch the inactive part after an early reset.
+
 ## [1.7.6] - 2026-11-26
 
 - Add direct Statistics and Integrations buttons in the menu header. Open Lens in Terminal or Grist in the default browser from Integrations.

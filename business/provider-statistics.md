@@ -153,13 +153,18 @@ explicitly identifies a model-specific weekly cap. Model caps retain independent
 observations and appear among the current readings. A shorter or undated model
 quota cannot stand in for an account's weekly one.
 
+- Account navigation keeps the quota scoped to the selected account. The
+  Providers popover follows that account's chart button and reveals the row
+  when needed. Statistics and the popover can each open the current charts in
+  a standalone window with its own account selection and a remembered frame.
 - Reuse existing quota measurements with their original timestamps. Record
   provider, stable account, window, a digest of the verified identity, reset
   time and used percent. Deduplicate repeated timestamps. Keep saved
   observations across resets without an age limit in
   `~/Library/Application Support/AI Fleet/weekly-quota-history.json`.
   The overview opens on the latest recorded cycle for the selected provider,
-  account, and quota window. Its header groups the arrows at the right. The
+  account, and quota window. Its header shows Cycle or Past cycle between the
+  arrows at the right, with the cycle dates on hover. The
   user can return to the previous verified account and see its recorded cycles.
   Opening a different account never substitutes another account's readings. The
   info legend shows the scheduled cycle dates. Overlapping schedules include
@@ -173,8 +178,9 @@ quota cannot stand in for an account's weekly one.
   and a lower usage reading can establish an early reset. The next window start,
   derived from its reset time, must precede the old scheduled reset and agree
   with the surrounding observations within the clock tolerance. The archived
-  chart marks that start with an Early reset line, shades the unused part of
-  the old scheduled cycle and dashes the plan through that part. Hover shows both reset times.
+  chart marks that start with an Early reset line, hatches the unused part of
+  the old scheduled cycle across the height of the plot and dashes the plan
+  through that part. Hover shows both reset times.
 - The pacing plan has seven steps, one per 24-hour day. Day one allows one
   seventh of the quota, about 14.3%. The allowance reaches 100% at the start of
   day seven and holds through reset. Headroom is the current day's plan minus observed usage, in percentage

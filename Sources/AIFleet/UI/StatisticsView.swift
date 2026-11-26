@@ -236,12 +236,14 @@ struct StatisticsView: View {
             global: service.status(for:), statusForConnection: service.status(for:), codex: codexMonitoring)
         let targets = rows.compactMap { QuotaHistoryTarget(row: $0, codex: codexMonitoring) }
         if !targets.isEmpty {
-            QuotaHistoryView(targets: targets, selection: $historySelection)
-                .frame(maxWidth: 740)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .fleetCard(hovering: false)
+            QuotaHistoryView(targets: targets, selection: $historySelection, openInWindow: { request in
+                QuotaHistoryWindowController.shared.show(request)
+            })
+            .frame(maxWidth: 740)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .fleetCard(hovering: false)
         }
     }
 

@@ -585,14 +585,14 @@ struct QuotaHistoryDrawing {
         let axis = PlotAxes(frame: plot, time: time, maximum: 100)
         let days = (0...WeeklyQuotaPace.dayCount).map { start.addingTimeInterval(Double($0) * WeeklyQuotaPace.daySeconds) }
         let levels = stride(from: 0.0, through: 100, by: 20).map { (value: $0, label: String(Int($0))) }
+        let ended = quota.earlyResetAt.map { reset in
+            let x = axis.x(reset)
+            return CGRect(x: x, y: plot.minY, width: plot.maxX - x, height: plot.height)
+        }
 
         context.saveGState()
         context.clip(to: plot)
-        if let reset = quota.earlyResetAt {
-            let x = axis.x(reset)
-            let ended = CGRect(x: x, y: plot.minY, width: plot.maxX - x, height: plot.height)
-            fill(ended, Palette.frame.copy(alpha: 0.12) ?? Palette.canvas, in: context)
-        }
+        if let ended { fill(ended, Palette.endedCycle, in: context) }
         let headroom = CGMutablePath()
         let overspend = CGMutablePath()
         for segment in quota.segments {
@@ -614,6 +614,7 @@ struct QuotaHistoryDrawing {
         context.setFillColor(Palette.overspend)
         context.fillPath()
         grid(axis, dates: days, levels: levels.map(\.value), in: context)
+        if let ended { drawHatching(ended, color: Palette.endedCycleHatch, spacing: 6, in: context) }
         context.restoreGState()
         axes(axis, levels: levels, layout: layout, in: context)
         func planPoint(_ date: Date) -> CGPoint {
@@ -693,7 +694,7 @@ struct QuotaHistoryDrawing {
             marks = tokenSeries.map { LegendKey($0.rawValue, $0.color.copy(alpha: 0.56) ?? $0.color, .block) }
         }
         if hasPartialHours {
-            marks.append(LegendKey("Partial hour (recorded portion)", measuredColor, .hatched))
+            marks.append(LegendKey("Partial hour (recorded portion)", measuredColor, .hatched(Palette.partialHourHatch)))
         }
         var statistics = hourlyGuides.map(\.key)
         if sustainableRate != nil {
@@ -717,7 +718,8 @@ struct QuotaHistoryDrawing {
             lines.insert(LegendKey("Daily plan crossed", Palette.limit, .cross), at: 1)
         }
         if quota.earlyResetAt != nil {
-            bands.append(LegendKey("After early reset", Palette.frame.copy(alpha: 0.12) ?? Palette.canvas, .block))
+            bands.append(LegendKey("Inactive after early reset", Palette.endedCycle,
+                                   .hatched(Palette.endedCycleHatch, spacing: 6)))
             lines.append(LegendKey("Early reset", Palette.coral, .line(1.2, [3, 2])))
             lines.append(LegendKey("Plan after early reset", Palette.budget, .line(1, [3, 3])))
         }
@@ -800,7 +802,8 @@ struct QuotaHistoryDrawing {
             }
             if hour.partial, low > 0 {
                 let top = axis.y(low)
-                hatchUsageBar(CGRect(x: center - halfBar, y: top, width: 2 * halfBar, height: plot.maxY - top), in: context)
+                let bar = CGRect(x: center - halfBar, y: top, width: 2 * halfBar, height: plot.maxY - top)
+                drawHatching(bar, color: Palette.partialHourHatch, in: context)
             }
         }
         grid(axis, dates: dates, minorDates: minorDates, levels: ticks, in: context)
@@ -1124,14 +1127,15 @@ private func fill(_ rect: CGRect, _ color: CGColor, in context: CGContext) {
     context.fill(rect)
 }
 
-private func hatchUsageBar(_ rect: CGRect, in context: CGContext) {
+private func drawHatching(_ rect: CGRect, color: CGColor, spacing: CGFloat = 4, in context: CGContext) {
+    guard !rect.isEmpty else { return }
     context.saveGState()
     context.clip(to: rect)
-    context.setStrokeColor(Palette.plot.copy(alpha: 0.78) ?? Palette.plot)
+    context.setStrokeColor(color)
     context.setLineWidth(0.75)
     context.setLineDash(phase: 0, lengths: [])
     context.beginPath()
-    for bottom in stride(from: rect.minY, to: rect.maxY + rect.width, by: 4) {
+    for bottom in stride(from: rect.minY, to: rect.maxY + rect.width, by: spacing) {
         context.move(to: CGPoint(x: rect.minX, y: bottom))
         context.addLine(to: CGPoint(x: rect.maxX, y: bottom - rect.width))
     }
@@ -1215,7 +1219,7 @@ private struct LegendKey {
     enum Mark {
         case line(CGFloat, [CGFloat] = [])
         case block
-        case hatched
+        case hatched(CGColor, spacing: CGFloat = 4)
         case point
         case cross
         case none
@@ -1278,7 +1282,9 @@ private struct Legend {
             case .block, .hatched:
                 let swatch = CGRect(x: left, y: center - 3, width: Self.swatchWidth, height: 6)
                 fill(swatch, row.key.color, in: context)
-                if case .hatched = row.key.mark { hatchUsageBar(swatch, in: context) }
+                if case .hatched(let color, let spacing) = row.key.mark {
+                    drawHatching(swatch, color: color, spacing: spacing, in: context)
+                }
             case .point:
                 context.setFillColor(row.key.color)
                 context.fillEllipse(in: CGRect(x: left + Self.swatchWidth / 2 - 2.5, y: center - 2.5, width: 5, height: 5))
@@ -1351,6 +1357,9 @@ private enum Palette {
     static var readoutBorder: CGColor { color(0x505a68, 0xa6b0bf) }
     static var readoutTitle: CGColor { color(0xf0f2f6, 0x222e40) }
     static var labels: CGColor { color(0xc7c9d0, 0x465268) }
+    static var endedCycle: CGColor { frame.copy(alpha: 0.12) ?? canvas }
+    static var endedCycleHatch: CGColor { labels.copy(alpha: 0.20) ?? labels }
+    static var partialHourHatch: CGColor { plot.copy(alpha: 0.78) ?? plot }
     static var actual: CGColor { color(0x7da2fa, 0x245db8) }
     static var fiveHour: CGColor { color(0x54c9be, 0x197e76) }
     static var budget: CGColor { color(0x9499a3, 0x657286) }

@@ -66,6 +66,8 @@ struct SettingsView: View {
             } header: { Text("Menu") }
 
             Section {
+                Toggle("Hide signed-out accounts", isOn: $settings.hideSignedOutAccounts)
+                    .help("Hide rows that need sign-in in the Providers tab")
                 ForEach(ProviderCatalog.all.sorted { $0.name < $1.name }) { provider in
                     Toggle(provider.name, isOn: Binding(
                         get: { settings.isEnabled(provider.id) },

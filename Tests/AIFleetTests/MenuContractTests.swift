@@ -98,6 +98,25 @@ final class MenuContractTests: XCTestCase {
         XCTAssertEqual(menuRowsAvailableFirst(rows).map(\.connection.providerID), ["codex", "kimi", "claude", "gemini"])
     }
 
+    func testHidingSignedOutAccountsKeepsOtherStatusesAndAccounts() {
+        func row(_ id: String, authentication: ProviderStatus.Authentication) -> MenuAccountConnection {
+            let connection = ProviderConnection(id: id, providerID: "claude", globalAssociation: true)
+            let account = FleetAccount(id: id, badgeIndex: 0, name: "", email: "", connections: [connection])
+            let status = ProviderStatus(id: id, name: "Claude", state: .offline, detail: "", lastUpdated: nil,
+                                        remainingPercent: authentication == .signedIn ? 50 : nil,
+                                        authentication: authentication)
+            return MenuAccountConnection(account: account, connection: connection, status: status, isSelected: false)
+        }
+        let rows = [
+            row("signed-out", authentication: .signInRequired),
+            row("active", authentication: .signedIn),
+            row("unknown", authentication: .unknown),
+            row("denied", authentication: .accessDenied),
+        ]
+        XCTAssertEqual(menuRowsAvailableFirst(rows).map(\.connection.id), ["active", "signed-out", "unknown", "denied"])
+        XCTAssertEqual(menuRowsAvailableFirst(rows, hideSignedOut: true).map(\.connection.id), ["active", "unknown", "denied"])
+    }
+
     func testRelaunchBelongsToABannerClickJustBeforeOrAfterItAndToNothingElse() {
         let relaunch = Date(timeIntervalSince1970: 1_000)
         var gate = RelaunchGate()

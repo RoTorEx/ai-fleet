@@ -80,6 +80,9 @@ final class AppSettings: ObservableObject {
     @Published var menuClosesOnOutsideClick: Bool {
         didSet { defaults.set(menuClosesOnOutsideClick, forKey: "menu.closesOnOutsideClick") }
     }
+    @Published var hideSignedOutAccounts: Bool {
+        didSet { defaults.set(hideSignedOutAccounts, forKey: "menu.hideSignedOutAccounts") }
+    }
     @Published var analyticsAutoRefreshEnabled: Bool {
         didSet { defaults.set(analyticsAutoRefreshEnabled, forKey: "analytics.autoRefresh.enabled") }
     }
@@ -110,6 +113,7 @@ final class AppSettings: ObservableObject {
         agentNotificationsShowText = defaults.object(forKey: "notify.agentSessions.showText") as? Bool ?? true
         notificationSoundIDs = defaults.dictionary(forKey: "notify.soundSelections") as? [String: String] ?? [:]
         menuClosesOnOutsideClick = defaults.object(forKey: "menu.closesOnOutsideClick") as? Bool ?? true
+        hideSignedOutAccounts = defaults.bool(forKey: "menu.hideSignedOutAccounts")
         analyticsAutoRefreshEnabled = defaults.object(forKey: "analytics.autoRefresh.enabled") as? Bool ?? true
         if defaults.object(forKey: "analytics.autoRefresh.minutes") != nil {
             analyticsRefreshMinutes = Self.normalizedRefreshMinutes(

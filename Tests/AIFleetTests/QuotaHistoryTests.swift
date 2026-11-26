@@ -207,6 +207,41 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertNil(prior.earlyResetAt)
     }
 
+    func testEarlyResetHatchesTheFullExpiredPlotInBothAppearances() throws {
+        let oldReset = base.addingTimeInterval(48 * hour)
+        let oldTime = base.addingTimeInterval(-hour)
+        let current = report("a", at: base, reset: base.addingTimeInterval(WeeklyQuotaPace.weekSeconds), used: 2)
+        var history = WeeklyQuotaHistory()
+        history.observe([report("a", at: oldTime, reset: oldReset, used: 89)], now: oldTime)
+        let chart = WeeklyQuotaChart(report: current, window: current.limits[0], history: history,
+                                     now: base, displayedReset: oldReset)
+        XCTAssertEqual(chart.earlyResetAt, base)
+
+        let size = CGSize(width: 480, height: QuotaHistoryPanel.overview.height)
+        let width = Int(size.width * 2)
+        let height = Int(size.height * 2)
+        for theme in [ColorScheme.light, .dark] {
+            let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                                  bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.scaleBy(x: 2, y: -2)
+            QuotaHistoryDrawing(data: .quota(chart)).draw(.overview, in: context, size: size, colorScheme: theme)
+            let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+            func redValues(at y: Int, across x: Range<Int>) -> [Int] {
+                x.map { Int(pixels[(y * 2 * width + $0) * 4]) }
+            }
+            // Both columns sit between day grid lines. The samples avoid the plan and reset label.
+            for y in [78, 103, 141] {
+                let active = redValues(at: y, across: 380..<420)
+                let ended = redValues(at: y, across: 732..<778)
+                XCTAssertEqual(Set(active).count, 1)
+                XCTAssertGreaterThan(try XCTUnwrap(ended.max()) - XCTUnwrap(ended.min()), 8)
+                XCTAssertNotEqual(ended, redValues(at: y + 1, across: 732..<778))
+            }
+        }
+    }
+
     func testPlanIsVisibleOnTheFirstAndSeventhDays() throws {
         let reset = base.addingTimeInterval(WeeklyQuotaPace.weekSeconds)
         let now = base.addingTimeInterval(18 * 60)
@@ -474,16 +509,17 @@ final class QuotaHistoryTests: XCTestCase {
         let second = try target(.codex, id: "popover-codex", windows: [weekly], now: now)
         let third = try target(.kimi, id: "popover-kimi", windows: [monthly], now: now)
         let presentation = MenuQuotaHistory()
-        for anchor in [firstAnchor, secondAnchor, thirdAnchor] {
+        presentation.updateTargets([first, second, third])
+        for (target, anchor) in [(first, firstAnchor), (second, secondAnchor), (third, thirdAnchor)] {
             owner.contentView?.addSubview(anchor)
-            presentation.register(anchor)
+            presentation.register(anchor, id: target.id)
         }
         owner.alphaValue = 0
         owner.orderFrontRegardless()
         defer { presentation.dismiss(); owner.orderOut(nil) }
 
         presentation.toggle(first, anchoredTo: firstAnchor, openStatistics: {})
-        let panel = try XCTUnwrap(owner.childWindows?.first)
+        let panel = try XCTUnwrap(owner.childWindows?.first as? QuotaPopoverPanel)
         XCTAssertEqual(panel.alphaValue, 0)
         for _ in 0..<50 where panel.alphaValue == 0 {
             try await Task.sleep(nanoseconds: 10_000_000)
@@ -494,7 +530,8 @@ final class QuotaHistoryTests: XCTestCase {
         let view = try XCTUnwrap(panel.contentView)
         let hosted = try XCTUnwrap(view.subviews.first)
         let fullContent = NSHostingView(rootView: QuotaHistoryView(
-            targets: [first], selection: .constant(nil), openInStatistics: { _ in })
+            targets: [first, second, third], selection: .constant(first.request), presentation: .popover,
+            openInStatistics: { _ in }, openInWindow: { _ in })
             .padding(10).frame(width: hosted.bounds.width))
         let fullHeight = ceil(fullContent.fittingSize.height)
         if visible.height >= fullHeight + 16 {
@@ -520,8 +557,54 @@ final class QuotaHistoryTests: XCTestCase {
             XCTAssertEqual(panel.alphaValue, 1)
             XCTAssertEqual(panel.frame, measured)
         }
+        for (target, anchor) in [(second, secondAnchor), (third, thirdAnchor), (first, firstAnchor)] {
+            presentation.select(target.request)
+            let placement = try XCTUnwrap(panel.placement)
+            let source = owner.convertToScreen(anchor.convert(anchor.bounds, to: nil))
+            XCTAssertTrue(owner.childWindows?.first === panel)
+            XCTAssertEqual(presentation.presented, target.id)
+            XCTAssertEqual(placement.frame.minY + placement.tip.y, source.midY, accuracy: 0.5)
+        }
         presentation.toggle(first, anchoredTo: firstAnchor, openStatistics: {})
         XCTAssertNil(presentation.presented)
+    }
+
+    @MainActor
+    func testMenuQuotaAccountNavigationRevealsAnOffscreenAnchor() throws {
+        let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+        let size = NSSize(width: 210, height: 180)
+        let frame = NSRect(origin: NSPoint(x: visible.midX, y: visible.midY), size: size)
+        let owner = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        let scroll = NSScrollView(frame: NSRect(origin: .zero, size: size))
+        let document = NSView(frame: NSRect(x: 0, y: 0, width: size.width, height: 600))
+        let firstAnchor = NSView(frame: NSRect(x: 175, y: 120, width: 23, height: 20))
+        let secondAnchor = NSView(frame: NSRect(x: 175, y: 420, width: 23, height: 20))
+        document.addSubview(firstAnchor)
+        document.addSubview(secondAnchor)
+        scroll.documentView = document
+        owner.contentView = scroll
+        owner.alphaValue = 0
+        owner.orderFrontRegardless()
+        scroll.contentView.scroll(to: .zero)
+        scroll.reflectScrolledClipView(scroll.contentView)
+        let first = try target(.claude, id: "scroll-claude", windows: [], now: base)
+        let second = try target(.codex, id: "scroll-codex", windows: [], now: base)
+        let presentation = MenuQuotaHistory()
+        defer { presentation.dismiss(); owner.orderOut(nil) }
+        presentation.updateTargets([first, second])
+        presentation.register(firstAnchor, id: first.id)
+        presentation.register(secondAnchor, id: second.id)
+
+        let secondCenter = secondAnchor.convert(NSPoint(x: 11.5, y: 10), to: document)
+        XCTAssertFalse(scroll.documentVisibleRect.contains(secondCenter))
+        presentation.toggle(first, anchoredTo: firstAnchor, openStatistics: {})
+        let panel = try XCTUnwrap(owner.childWindows?.first as? QuotaPopoverPanel)
+        presentation.select(second.request)
+        let source = owner.convertToScreen(secondAnchor.convert(secondAnchor.bounds, to: nil))
+        let placement = try XCTUnwrap(panel.placement)
+        XCTAssertEqual(presentation.presented, second.id)
+        XCTAssertTrue(scroll.documentVisibleRect.contains(secondCenter))
+        XCTAssertEqual(placement.frame.minY + placement.tip.y, source.midY, accuracy: 0.5)
     }
 
     func testTheFirstPartialHourShowsOnlyItsObservedIncrease() throws {

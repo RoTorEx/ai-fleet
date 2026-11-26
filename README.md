@@ -237,7 +237,7 @@ opens Lens in a new Terminal window and Grist in the default browser. Fleet can
 start an installed Grist on its default loopback port when it is closed. The
 **Options** menu contains Settings, Logs and Quit.
 
-**Statistics** (⌘S) has Token Spend and Quota History tabs below the shared
+**Statistics** (⌘S) has Token Spend and Quota & Usage tabs below the shared
 provider filters and `7d`, `30d`, `90d`, and all-time ranges. Option-click a chip
 to see one provider. Token Spend includes summary cards, By provider with each
 provider's share of selected tokens, Models, Days and Activity. Kimi reads `wire.jsonl`
@@ -252,7 +252,12 @@ See [provider statistics](business/provider-statistics.md) for format support.
 Click the chart icon on a supported Providers row to open **Quota history**.
 Click it again to close the popover. The **Quota & Usage** tab in Statistics
 starts with the same compact stack of quota overview, hourly quota and local
-hourly tokens. Claude, Codex and Kimi list their current limits together and
+hourly tokens. The arrows next to the account name switch accounts. The
+popover arrow follows the selected account's chart button. Use **Open in
+separate window** from either view to keep the charts in a movable, resizable
+window with its own account selection.
+
+Claude, Codex and Kimi list their current limits together and
 plot the primary account quota. A reported five-hour account limit appears on
 the right of the summary row, with its reset time on hover. A current reading
 appears when the primary window has no hourly history. Weekly history follows the verified account and

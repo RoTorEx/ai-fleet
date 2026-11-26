@@ -32,6 +32,10 @@ struct QuotaHistoryTarget: Identifiable, Equatable {
             }
     }
 
+    var request: QuotaHistoryRequest {
+        QuotaHistoryRequest(targetID: id, provider: provider, identity: report?.identity)
+    }
+
     func quotaFigure(history: WeeklyQuotaHistory, now: Date, calendar: Calendar = .current,
                      range: QuotaHistoryRange = .threeDays, displayedReset: Date? = nil) -> QuotaHistoryFigureData {
         guard provider != .qwen else { return .unsupportedQuota }
@@ -61,21 +65,31 @@ final class QuotaHistoryNavigation: ObservableObject {
 }
 
 struct QuotaHistoryView: View {
+    enum Presentation { case statistics, popover, window }
+
     let targets: [QuotaHistoryTarget]
+    let presentation: Presentation
     let openInStatistics: ((QuotaHistoryRequest) -> Void)?
+    let openInWindow: ((QuotaHistoryRequest) -> Void)?
+    let selectTarget: ((QuotaHistoryRequest) -> Void)?
     @Binding var selection: QuotaHistoryRequest?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
     @State private var refreshingLocalTokens = UsageAnalyticsService.shared.isRefreshing
     @AppStorage("quotaHistory.hourlyDays") private var range: QuotaHistoryRange = .sevenDays
-    private var isStatistics: Bool { openInStatistics == nil }
-    private var stackSpacing: CGFloat { isStatistics ? 4 : 6 }
+    private var stackSpacing: CGFloat { presentation == .statistics ? 4 : 6 }
 
     init(targets: [QuotaHistoryTarget], selection: Binding<QuotaHistoryRequest?>,
-         openInStatistics: ((QuotaHistoryRequest) -> Void)? = nil) {
+         presentation: Presentation = .statistics,
+         openInStatistics: ((QuotaHistoryRequest) -> Void)? = nil,
+         openInWindow: ((QuotaHistoryRequest) -> Void)? = nil,
+         selectTarget: ((QuotaHistoryRequest) -> Void)? = nil) {
         self.targets = targets
         _selection = selection
+        self.presentation = presentation
         self.openInStatistics = openInStatistics
+        self.openInWindow = openInWindow
+        self.selectTarget = selectTarget
     }
 
     var body: some View {
@@ -91,7 +105,7 @@ struct QuotaHistoryView: View {
                     cycleReset: selection?.targetID == target.id && selection?.identity == target.report?.identity
                         ? selection?.cycleReset : nil,
                     identity: target.report?.identity)
-                let quotaData = isStatistics || target.provider != .qwen
+                let quotaData = presentation == .statistics || target.provider != .qwen
                     ? target.quotaFigure(history: quotaHistory.history, now: now, calendar: calendar,
                                          range: range, displayedReset: request.cycleReset)
                     : nil
@@ -110,6 +124,15 @@ struct QuotaHistoryView: View {
                         if quota != nil {
                             cycleControls(weekly, request: request)
                         }
+                        if let openInWindow {
+                            Button {
+                                openInWindow(request)
+                            } label: {
+                                Image(systemName: "arrow.up.right.square")
+                            }
+                            .accessibilityLabel("Open in separate window")
+                            .help("Open in separate window")
+                        }
                     }
                     .controlSize(.small)
                     let tokenDrawing = QuotaHistoryDrawing(data: .tokens(tokens, series: request.tokenSeries), calendar: calendar)
@@ -117,10 +140,10 @@ struct QuotaHistoryView: View {
                                        spacing: stackSpacing,
                                        hourlyControls: hourlyControls(models: tokens.models, request: request))
                         .id(ChartAccount(id: target.id, identity: target.report?.identity))
-                    if let openInStatistics {
+                    if openInStatistics != nil || presentation == .window {
                         HStack(spacing: 8) {
-                            Button("Open in Statistics") {
-                                openInStatistics(request)
+                            if let openInStatistics {
+                                Button("Open in Statistics") { openInStatistics(request) }
                             }
                             Button(refreshingLocalTokens ? "Refreshing local tokens…" : "Refresh local tokens") {
                                 UsageAnalyticsService.shared.refreshLocalHistory()
@@ -138,8 +161,14 @@ struct QuotaHistoryView: View {
     }
 
     private func cycleControls(_ chart: WeeklyQuotaChart?, request: QuotaHistoryRequest) -> some View {
-        HStack(spacing: 3) {
+        let label = chart?.isHistorical == true ? "Past cycle" : "Cycle"
+        return HStack(spacing: 3) {
             cycleButton("Previous quota cycle", symbol: "chevron.left", offset: 1, chart: chart, request: request)
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 54)
+                .help(chart?.cycleLabel(calendar: .current) ?? label)
             cycleButton("Next quota cycle", symbol: "chevron.right", offset: -1, chart: chart, request: request)
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -178,24 +207,61 @@ struct QuotaHistoryView: View {
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
-    @ViewBuilder private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {
-        if isStatistics {
-            Picker("Quota account", selection: Binding(
-                get: { target.id },
-                set: { value in
-                    guard let next = targets.first(where: { $0.id == value }) else { return }
-                    selection = QuotaHistoryRequest(targetID: next.id, provider: next.provider,
-                        model: next.provider == target.provider ? request.model : nil, tokenSeries: request.tokenSeries)
-                }
-            )) {
-                ForEach(targets) { Text($0.label).tag($0.id) }
+    private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {
+        HStack(spacing: 4) {
+            if targets.count > 1 {
+                providerStep("Previous quota account", offset: -1, request: request)
             }
-            .labelsHidden().frame(width: 142, alignment: .leading)
-            .disabled(targets.count < 2)
+            if presentation == .popover {
+                Text(target.label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .accessibilityIdentifier("quota-history-account")
+            } else {
+                Picker("Quota account", selection: Binding(
+                    get: { target.id },
+                    set: { value in
+                        guard let next = targets.first(where: { $0.id == value }) else { return }
+                        changeTarget(to: next, from: request)
+                    }
+                )) {
+                    ForEach(targets) { Text($0.label).tag($0.id) }
+                }
+                .labelsHidden().frame(width: 126, alignment: .leading)
+                .disabled(targets.count < 2)
+                .accessibilityIdentifier("quota-history-account")
+            }
+            if targets.count > 1 {
+                providerStep("Next quota account", offset: 1, request: request)
+            }
+        }
+    }
+
+    private func providerStep(_ label: String, offset: Int, request: QuotaHistoryRequest) -> some View {
+        let next: QuotaHistoryTarget? = targets.firstIndex { $0.id == request.targetID }.flatMap { index in
+            let neighbor = index + offset
+            return targets.indices.contains(neighbor) ? targets[neighbor] : nil
+        }
+        return Button {
+            if let next { changeTarget(to: next, from: request) }
+        } label: {
+            Image(systemName: offset < 0 ? "chevron.left" : "chevron.right")
+                .font(.system(size: 9, weight: .semibold))
+                .frame(width: 14)
+        }
+        .disabled(next == nil)
+        .accessibilityLabel(label)
+        .help(label)
+    }
+
+    private func changeTarget(to target: QuotaHistoryTarget, from request: QuotaHistoryRequest) {
+        var next = target.request
+        next.model = target.provider == request.provider ? request.model : nil
+        next.tokenSeries = request.tokenSeries
+        if let selectTarget {
+            selectTarget(next)
         } else {
-            Text(target.label)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
+            selection = next
         }
     }
 

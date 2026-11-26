@@ -105,14 +105,26 @@ struct AIFleetMenuView: View {
     }
 
     private var providerRows: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(menuRowsAvailableFirst(connections)) { entry in
-                let history = QuotaHistoryTarget(row: entry, codex: codexProfiles).map {
+        let connections = self.connections
+        let rows = menuRowsAvailableFirst(connections, hideSignedOut: settings.hideSignedOutAccounts)
+        let targets = rows.compactMap { QuotaHistoryTarget(row: $0, codex: codexProfiles) }
+        return VStack(alignment: .leading, spacing: 10) {
+            if rows.isEmpty && !connections.isEmpty {
+                Text("Signed-out accounts are hidden.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(FleetPalette.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+            }
+            ForEach(rows) { entry in
+                let history = targets.first(where: { $0.id == entry.id }).map {
                     MenuQuotaHistoryButton(target: $0, presentation: quotaPopover, openStatistics: openStatistics)
                 }
                 ProviderLimitRow(entry: entry, mark: mark(for: entry), openSettings: openSettings, historyButton: history)
             }
         }
+        .onAppear { quotaPopover.updateTargets(targets) }
+        .onChange(of: targets) { quotaPopover.updateTargets($0) }
     }
 
     /// Both arrows identify a signed-in account selected for the next provider command.

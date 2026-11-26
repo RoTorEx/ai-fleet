@@ -9,8 +9,9 @@ final class MenuQuotaHistory: ObservableObject {
     private var panel: QuotaPopoverPanel?
     private var content: QuotaPopoverTarget?
     private var contentHeight: CGFloat?
+    private var targets: [QuotaHistoryTarget] = []
     private weak var anchor: NSView?
-    private let chartAnchors = NSHashTable<NSView>.weakObjects()
+    private let chartAnchors = NSMapTable<NSString, NSView>.strongToWeakObjects()
     private var windowObservers: [NSObjectProtocol] = []
     private var outsideClickMonitor: Any?
 
@@ -23,17 +24,17 @@ final class MenuQuotaHistory: ObservableObject {
               let source = sourceRect(for: anchor),
               let placement = QuotaPopoverPlacement(anchor: source, screen: visible, contentHeight: visible.height,
                                                     preferredTop: owner.frame.maxY) else { return }
+        if !targets.contains(where: { $0.id == target.id }) {
+            targets.append(target)
+        }
         if let panel, panel.parent === owner, let content {
-            self.anchor = anchor
-            content.selection = nil
-            content.target = target
-            presented = target.id
-            reposition()
+            content.targets = targets
+            select(target.request, anchoredTo: anchor)
             return
         }
         dismiss()
 
-        let content = QuotaPopoverTarget(target, viewport: placement.viewport)
+        let content = QuotaPopoverTarget(targets: targets, selection: target.request, viewport: placement.viewport)
         let host = NSHostingView(rootView: QuotaPopoverContent(
             content: content,
             openInStatistics: { [weak self] request in
@@ -41,6 +42,11 @@ final class MenuQuotaHistory: ObservableObject {
                 QuotaHistoryNavigation.shared.request = request
                 openStatistics()
             },
+            openInWindow: { [weak self] request in
+                self?.dismiss()
+                QuotaHistoryWindowController.shared.show(request)
+            },
+            selectTarget: { [weak self] request in self?.select(request) },
             onContentHeightChange: { [weak self, weak content] height in
                 Task { @MainActor in
                     guard let self, let content, self.content === content, height > 1 else { return }
@@ -68,13 +74,40 @@ final class MenuQuotaHistory: ObservableObject {
         panel.orderFront(nil)
     }
 
-    func register(_ chartAnchor: NSView) { chartAnchors.add(chartAnchor) }
+    func register(_ chartAnchor: NSView, id: String) {
+        chartAnchors.setObject(chartAnchor, forKey: id as NSString)
+    }
 
-    func unregister(_ chartAnchor: NSView) { chartAnchors.remove(chartAnchor) }
+    func unregister(_ chartAnchor: NSView, id: String) {
+        let key = id as NSString
+        if chartAnchors.object(forKey: key) === chartAnchor { chartAnchors.removeObject(forKey: key) }
+    }
 
-    func update(_ target: QuotaHistoryTarget) {
-        guard presented == target.id else { return }
-        content?.target = target
+    func updateTargets(_ targets: [QuotaHistoryTarget]) {
+        self.targets = targets
+        if let presented, !targets.contains(where: { $0.id == presented }) {
+            dismiss()
+        } else {
+            content?.targets = targets
+        }
+    }
+
+    func select(_ request: QuotaHistoryRequest) {
+        guard let chartAnchor = chartAnchors.object(forKey: request.targetID as NSString) else { return }
+        select(request, anchoredTo: chartAnchor)
+    }
+
+    private func select(_ request: QuotaHistoryRequest, anchoredTo chartAnchor: NSView) {
+        guard let content, let owner = panel?.parent, chartAnchor.window === owner,
+              content.targets.contains(where: { $0.id == request.targetID }) else { return }
+        if sourceRect(for: chartAnchor) == nil {
+            chartAnchor.scrollToVisible(chartAnchor.bounds.insetBy(dx: 0, dy: -12))
+        }
+        guard sourceRect(for: chartAnchor) != nil else { return }
+        anchor = chartAnchor
+        content.selection = request
+        presented = request.targetID
+        reposition()
     }
 
     func reposition(id: String? = nil) {
@@ -113,9 +146,16 @@ final class MenuQuotaHistory: ObservableObject {
     }
 
     private func sourceRect(for anchor: NSView) -> NSRect? {
+        let center = NSPoint(x: anchor.bounds.midX, y: anchor.bounds.midY)
         guard let owner = anchor.window, owner.isVisible || panel == nil,
-              anchor.visibleRect.contains(NSPoint(x: anchor.bounds.midX, y: anchor.bounds.midY)) else { return nil }
+              containsVisiblePoint(center, in: anchor) else { return nil }
         return owner.convertToScreen(anchor.convert(anchor.bounds, to: nil))
+    }
+
+    private func containsVisiblePoint(_ point: NSPoint, in anchor: NSView) -> Bool {
+        guard anchor.visibleRect.contains(point) else { return false }
+        guard let scroll = anchor.enclosingScrollView, let document = scroll.documentView else { return true }
+        return scroll.documentVisibleRect.contains(anchor.convert(point, to: document))
     }
 
     private func monitorWindow(_ owner: NSWindow) {
@@ -131,9 +171,11 @@ final class MenuQuotaHistory: ObservableObject {
         outsideClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
             [weak self, weak window] event in
             if let self, let window, event.window === window {
-                let switchesChart = self.chartAnchors.allObjects.contains { anchor in
-                    anchor.window === window && anchor.visibleRect.contains(anchor.convert(event.locationInWindow, from: nil))
-                }
+                let switchesChart = self.chartAnchors.objectEnumerator()?.allObjects.contains { object in
+                    guard let anchor = object as? NSView else { return false }
+                    return anchor.window === window
+                        && self.containsVisiblePoint(anchor.convert(event.locationInWindow, from: nil), in: anchor)
+                } ?? false
                 if !switchesChart { self.dismiss() }
             }
             return event
@@ -167,10 +209,9 @@ struct MenuQuotaHistoryButton: View {
             }
             .allowsHitTesting(false)
         }
-        .onChange(of: target) { presentation.update($0) }
-        .onAppear { presentation.register(anchor) }
+        .onAppear { presentation.register(anchor, id: target.id) }
         .onDisappear {
-            presentation.unregister(anchor)
+            presentation.unregister(anchor, id: target.id)
             presentation.dismiss(id: target.id)
         }
     }
@@ -178,12 +219,13 @@ struct MenuQuotaHistoryButton: View {
 
 @MainActor
 private final class QuotaPopoverTarget: ObservableObject {
-    @Published var target: QuotaHistoryTarget
+    @Published var targets: [QuotaHistoryTarget]
     @Published var viewport: CGSize
     @Published var selection: QuotaHistoryRequest?
 
-    init(_ target: QuotaHistoryTarget, viewport: CGSize) {
-        self.target = target
+    init(targets: [QuotaHistoryTarget], selection: QuotaHistoryRequest, viewport: CGSize) {
+        self.targets = targets
+        self.selection = selection
         self.viewport = viewport
     }
 }
@@ -191,11 +233,14 @@ private final class QuotaPopoverTarget: ObservableObject {
 private struct QuotaPopoverContent: View {
     @ObservedObject var content: QuotaPopoverTarget
     let openInStatistics: (QuotaHistoryRequest) -> Void
+    let openInWindow: (QuotaHistoryRequest) -> Void
+    let selectTarget: (QuotaHistoryRequest) -> Void
     let onContentHeightChange: (CGFloat) -> Void
 
     var body: some View {
         MenuRowsViewport(maxHeight: content.viewport.height, onContentHeightChange: onContentHeightChange) {
-            QuotaHistoryView(targets: [content.target], selection: $content.selection, openInStatistics: openInStatistics)
+            QuotaHistoryView(targets: content.targets, selection: $content.selection, presentation: .popover,
+                             openInStatistics: openInStatistics, openInWindow: openInWindow, selectTarget: selectTarget)
                 .padding(10)
                 .frame(width: content.viewport.width)
         }

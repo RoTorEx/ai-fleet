@@ -18,8 +18,9 @@ struct MenuAccountConnection: Identifiable {
     var canSwitch: Bool { !isSetup && !isCurrentAccount }
 }
 
-/// Working connections first; each half keeps its existing order.
-func menuRowsAvailableFirst(_ rows: [MenuAccountConnection]) -> [MenuAccountConnection] {
+/// Working connections first. Each half keeps its existing order.
+func menuRowsAvailableFirst(_ connections: [MenuAccountConnection], hideSignedOut: Bool = false) -> [MenuAccountConnection] {
+    let rows = hideSignedOut ? connections.filter { $0.status.authentication != .signInRequired } : connections
     let available = rows.filter { MenuConnectionState(status: $0.status).available }
     return available + rows.filter { !MenuConnectionState(status: $0.status).available }
 }
