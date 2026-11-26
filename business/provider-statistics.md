@@ -86,8 +86,9 @@ Qwen shows unavailable quota states in those slots and opens only its local
 token chart in the compact popover.
 The stack labels the account as the quota account and keeps cycle arrows at
 the right. The overview shows the displayed window and used percentage beneath
-its title. A current five-hour account limit beside the weekly summary has
-its own 0–100% meter and shows its reset on hover. The meter uses the same
+its title. Each chart has one summary row. A current five-hour account limit
+has its own vertical 0–100% meter attached to the right edge of the weekly
+plot, with its percentage in the summary row and reset on hover. The meter uses the same
 provider response and labels an expired or stale reading as the last one.
 It shows a single reading, while the weekly plot retains its own history.
 Additional model limits are labelled separately and use live readings.

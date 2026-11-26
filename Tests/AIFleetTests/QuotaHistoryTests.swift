@@ -140,6 +140,21 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(active.reset, "Reset \(chartTimestamp(shortReset, calendar: .current))")
         XCTAssertTrue(try XCTUnwrap(drawing(at: shortReset).fiveHourMeter).isStale)
         XCTAssertNil(drawing(at: base, displayedReset: oldReset).fiveHourMeter)
+
+        let panel = QuotaHistoryPanel.overview
+        let size = CGSize(width: 480, height: panel.height)
+        let width = Int(size.width * 2)
+        let height = Int(size.height * 2)
+        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 2, y: -2)
+        drawing(at: base).draw(panel, in: context, size: size)
+        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+        let bottom = Int(panel.headerHeight + panel.plotHeight)
+        func green(at y: Int) -> Int { Int(pixels[(y * 2 * width + 466 * 2) * 4 + 1]) }
+        XCTAssertGreaterThan(green(at: bottom - 3), green(at: bottom - 9) + 100)
     }
 
     func testWeeklyResetShowsTheNewCycleAndKeepsThePreviousMeasurements() throws {
@@ -333,8 +348,8 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(atReset.map { $0.used }, chart.forecasts.map(\.atReset))
         let drawing = QuotaHistoryDrawing(data: .quota(chart))
         let readout = drawing.accessibilityDetails(for: .overview, selectedTime: base.addingTimeInterval(20 * hour))
-        XCTAssertTrue(readout.contains("Window average · 52.3% projected"))
-        XCTAssertTrue(readout.contains("Trailing 24h · 53.8% projected"))
+        XCTAssertTrue(readout.contains("Window average 52.3% projected"))
+        XCTAssertTrue(readout.contains("Trailing 24h 53.8% projected"))
         XCTAssertEqual(try XCTUnwrap(chart.sustainablePerHour), 57.0 / 76, accuracy: 1e-8)
         let stale = WeeklyQuotaChart(report: current, window: current.limits[0], history: history, now: base.addingTimeInterval(hour))
         XCTAssertEqual(stale.pace.state, .stale)
@@ -455,7 +470,7 @@ final class QuotaHistoryTests: XCTestCase {
         let now = Date()
         let weekly = ProviderLimitWindow(id: "weekly", label: "7d", remainingPercent: 57, resetAt: now.addingTimeInterval(76 * hour))
         let monthly = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 71, resetAt: now.addingTimeInterval(48 * hour))
-        let short = ProviderLimitWindow(id: "five_hour", label: "5h", remainingPercent: 95, resetAt: now.addingTimeInterval(3 * hour))
+        let short = ProviderLimitWindow(id: "five_hour", label: "5h", remainingPercent: 39, resetAt: now.addingTimeInterval(3 * hour))
         let fable = ProviderLimitWindow(id: "seven_day_fable", label: "7d (Fable)", remainingPercent: 0,
                                         resetAt: weekly.resetAt, weeklyModel: "Fable")
         let first = try target(.claude, id: "popover-claude", windows: [weekly, short, fable], now: now)
@@ -554,7 +569,7 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertTrue(readout.hasSuffix(". 3.0% of weekly quota"))
         XCTAssertTrue(drawing.headerMetrics(for: .hourly).map(\.label).starts(with: ["Average 4.0%", "Median 3.0%"]))
         let partial = drawing.accessibilityDetails(for: .hourly, selectedTime: now)
-        XCTAssertTrue(partial.contains("14.0% of weekly quota · partial hour"))
+        XCTAssertTrue(partial.contains("14.0% of weekly quota (partial hour)"))
     }
 
     func testCompactChartsKeepTheCapAndDrawTheMeasuredHour() throws {
@@ -620,7 +635,7 @@ final class QuotaHistoryTests: XCTestCase {
             reasoningOutputTokens: 0, estimatedCostUSD: 0))]
         let tokens = QuotaHistoryDrawing(data: .tokens(LocalTokenHistory(snapshot: snapshot, provider: .claude, now: base)))
         XCTAssertTrue(tokens.accessibilityDetails(for: .hourly, selectedTime: sharedTime)
-            .hasPrefix(timestamp + ". Total · 128 tokens"))
+            .hasPrefix(timestamp + ". Total 128 tokens"))
         XCTAssertNil(figure.selection(at: CGPoint(x: 428, y: 12), in: hourly, panel: .hourly))
         XCTAssertNil(figure.selection(at: CGPoint(x: 428, y: 108 + headerOffset), in: hourly, panel: .hourly))
         let actualX = 44 + 416 * (1 - 123.0 / 168)
@@ -814,7 +829,7 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertNil(resetHour.percentagePoints)
         XCTAssertEqual(resetHour.partialPercentagePoints, 8)
         let readout = QuotaHistoryDrawing(data: .quota(chart)).accessibilityDetails(for: .hourly, selectedTime: base)
-        XCTAssertTrue(readout.contains("8.0% of weekly quota · partial hour"))
+        XCTAssertTrue(readout.contains("8.0% of weekly quota (partial hour)"))
     }
 
     func testAStaleTokenSnapshotExplainsAnUnscannedHour() {
@@ -837,7 +852,7 @@ final class QuotaHistoryTests: XCTestCase {
         snapshot.codex.hourlyModels.append(HourlyModelUsage(hour: base, model: "Fixture", tokens: tokens))
         let refreshed = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: now, calendar: calendar)
         let updated = QuotaHistoryDrawing(data: .tokens(refreshed), calendar: calendar)
-        XCTAssertTrue(updated.accessibilityDetails(for: .hourly, selectedTime: base).contains("Total · 128 tokens"))
+        XCTAssertTrue(updated.accessibilityDetails(for: .hourly, selectedTime: base).contains("Total 128 tokens"))
     }
 
     func testTokenCoverageUsesTheStartOfTheScanAndDoesNotSwitchTheSelectedModel() {
@@ -939,13 +954,13 @@ final class QuotaHistoryTests: XCTestCase {
         let history = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: now, calendar: calendar)
         let stack = QuotaHistoryDrawing(data: .tokens(history), calendar: calendar)
         let description = stack.accessibilityDetails(for: .hourly, selectedTime: last)
-        XCTAssertTrue(description.contains(". Total · 1 213 tokens · partial hour. Uncached input · 200 tokens (16.5%)"))
-        XCTAssertTrue(description.contains("Cache · 1 000 tokens (82.4%)"))
-        XCTAssertTrue(description.contains("Output · 13 tokens (1.1%)"))
+        XCTAssertTrue(description.contains(". Total 1 213 tokens (partial hour). Uncached input 200 tokens (16.5%)"))
+        XCTAssertTrue(description.contains("Cache 1 000 tokens (82.4%)"))
+        XCTAssertTrue(description.contains("Output 13 tokens (1.1%)"))
 
         let output = QuotaHistoryDrawing(data: .tokens(history, series: .output), calendar: calendar)
         let filtered = output.accessibilityDetails(for: .hourly, selectedTime: last)
-        XCTAssertTrue(filtered.contains("Total · 1 213 tokens · partial hour. Output · 13 tokens (1.1%)"))
+        XCTAssertTrue(filtered.contains("Total 1 213 tokens (partial hour). Output 13 tokens (1.1%)"))
         XCTAssertFalse(filtered.contains("Cache"))
     }
 
