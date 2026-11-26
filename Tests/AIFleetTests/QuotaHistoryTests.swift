@@ -58,6 +58,36 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains(first.identity.email))
     }
 
+    @MainActor
+    func testReturningToThePreviousEmailRestoresItsSavedQuotaCycles() throws {
+        let oldTime = base.addingTimeInterval(-48 * hour)
+        let oldReset = base.addingTimeInterval(-24 * hour)
+        let currentReset = base.addingTimeInterval(72 * hour)
+        func weekly(_ remaining: Int, reset: Date) -> [ProviderLimitWindow] {
+            [ProviderLimitWindow(id: "weekly", label: "7d", remainingPercent: remaining, resetAt: reset)]
+        }
+        let previous = try target(.codex, id: "a", windows: weekly(19, reset: oldReset), now: oldTime,
+                                  email: "a@example.test")
+        let a = try target(.codex, id: "a", windows: weekly(69, reset: currentReset), now: base, email: "a@example.test")
+        let b = try target(.codex, id: "b", windows: weekly(34, reset: currentReset), now: base, email: "b@example.test")
+        var saved = WeeklyQuotaHistory()
+        saved.observe([try XCTUnwrap(previous.report)], now: oldTime)
+        saved.observe([try XCTUnwrap(a.report), try XCTUnwrap(b.report)], now: base)
+        let restored = try JSONDecoder().decode(WeeklyQuotaHistory.self, from: JSONEncoder().encode(saved))
+        func chart(for target: QuotaHistoryTarget, reset: Date? = nil) throws -> WeeklyQuotaChart {
+            guard case .quota(let chart) = target.quotaFigure(history: restored, now: base, displayedReset: reset) else {
+                throw CocoaError(.coderInvalidValue)
+            }
+            return chart
+        }
+
+        XCTAssertEqual(try chart(for: a).latest?.used, 31)
+        XCTAssertEqual(try chart(for: b).latest?.used, 66)
+        XCTAssertEqual(try chart(for: b).cycleResets, [currentReset])
+        XCTAssertEqual(try chart(for: a).cycleResets, [currentReset, oldReset])
+        XCTAssertEqual(try chart(for: a, reset: oldReset).latest?.used, 81)
+    }
+
     func testRetainsObservationsAcrossWeeklyResetsWithoutAnAgeLimit() throws {
         let day = 24 * hour
         let daysAgo = [91, 90, 30, 8, 0]
@@ -159,9 +189,10 @@ final class QuotaHistoryTests: XCTestCase {
         QuotaHistoryDrawing(data: .quota(chart)).draw(.overview, in: context, size: size)
         let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
         // The first and seventh plateaus both have visible plan strokes.
-        XCTAssertGreaterThan(Int(pixels[(257 * width + 150) * 4]), 100)
-        XCTAssertGreaterThan(Int(pixels[(51 * width + 860) * 4]), 100)
-        let offset = (287 * width + 93) * 4
+        let shift = Int((QuotaHistoryPanel.overview.headerHeight - 24) * 2)
+        XCTAssertGreaterThan(Int(pixels[((257 + shift) * width + 150) * 4]), 100)
+        XCTAssertGreaterThan(Int(pixels[((51 + shift) * width + 860) * 4]), 100)
+        let offset = ((287 + shift) * width + 93) * 4
         XCTAssertLessThan(Int(pixels[offset + 2]) - Int(pixels[offset]), 75)
     }
 
@@ -316,7 +347,8 @@ final class QuotaHistoryTests: XCTestCase {
         var gold = 0
         var coral = 0
         // Sample the projected path beyond the last reading, below the limit rail.
-        for y in 54..<152 {
+        let shift = Int((QuotaHistoryPanel.overview.headerHeight - 24) * 2)
+        for y in (54 + shift)..<(152 + shift) {
             for x in 600..<830 {
                 let offset = (y * width + x) * 4
                 let red = Int(pixels[offset])
@@ -515,21 +547,23 @@ final class QuotaHistoryTests: XCTestCase {
             return [Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2])]
         }
 
-        let rail = color(380, 24)
+        let weeklyHeader = Int(QuotaHistoryPanel.overview.headerHeight)
+        let weeklyShift = weeklyHeader - 24
+        let rail = color(380, weeklyHeader)
         XCTAssertGreaterThan(rail[0] - rail[1], 100)
         let hourlyTop = Int(overview.height)
         let headerOffset = Int(QuotaHistoryPanel.hourly.headerHeight - 24)
-        for y in [62, hourlyTop + 60 + headerOffset] {
+        for y in [62 + weeklyShift, hourlyTop + 60 + headerOffset] {
             XCTAssertGreaterThan(color(44, y)[0], color(42, y)[0] + 12)
             XCTAssertGreaterThan(color(460, y)[0], color(462, y)[0] + 12)
         }
-        XCTAssertEqual(color(42, 146), color(42, 140))
+        XCTAssertEqual(color(42, 146 + weeklyShift), color(42, 140 + weeklyShift))
         XCTAssertEqual(color(42, hourlyTop + 89 + headerOffset), color(42, hourlyTop + 80 + headerOffset))
 
         let bar = color(446, hourlyTop + 46 + headerOffset)
         XCTAssertGreaterThan(bar[1] - bar[0], 45)
         XCTAssertLessThan(color(285, hourlyTop + 46 + headerOffset)[1], 80)
-        let sharedTime = try XCTUnwrap(figure.selection(at: CGPoint(x: 446, y: 46), in: hourly, panel: .hourly))
+        let sharedTime = try XCTUnwrap(figure.selection(at: CGPoint(x: 446, y: 46 + headerOffset), in: hourly, panel: .hourly))
         XCTAssertEqual(sharedTime, base.addingTimeInterval(-2 * hour))
         let timestamp = chartHour(sharedTime, calendar: .current)
         XCTAssertTrue(figure.accessibilityDetails(for: .hourly, selectedTime: sharedTime)
@@ -547,9 +581,10 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertTrue(tokens.accessibilityDetails(for: .hourly, selectedTime: sharedTime)
             .hasPrefix(timestamp + ". Total · 128 tokens"))
         XCTAssertNil(figure.selection(at: CGPoint(x: 428, y: 12), in: hourly, panel: .hourly))
-        XCTAssertNil(figure.selection(at: CGPoint(x: 428, y: 108), in: hourly, panel: .hourly))
+        XCTAssertNil(figure.selection(at: CGPoint(x: 428, y: 108 + headerOffset), in: hourly, panel: .hourly))
         let actualX = 44 + 416 * (1 - 123.0 / 168)
-        let selected = try XCTUnwrap(figure.selection(at: CGPoint(x: actualX, y: 46), in: overview, panel: .overview))
+        let selected = try XCTUnwrap(figure.selection(at: CGPoint(x: actualX, y: CGFloat(46 + weeklyShift)),
+                                                       in: overview, panel: .overview))
         XCTAssertTrue(figure.accessibilityDetails(for: .overview, selectedTime: selected).contains("56.0% used"))
         XCTAssertNil(chart.measuredUse(at: base.addingTimeInterval(hour)))
         XCTAssertEqual(chart.projections(at: base.addingTimeInterval(hour)).map { $0.period }, [.window])
@@ -557,7 +592,8 @@ final class QuotaHistoryTests: XCTestCase {
         func rows(_ range: Range<Int>) -> Data {
             Data(bytes: pixels.advanced(by: range.lowerBound * bytesPerRow), count: range.count * bytesPerRow)
         }
-        let overviewRows = 48..<292
+        let overviewAxisTop = Int((overview.height - 22) * 2)
+        let overviewRows = (weeklyHeader * 2)..<overviewAxisTop
         let hourlyRows = (hourlyTop * 2)..<pixelHeight
         let hourlyAxisRows = ((hourlyTop + Int(hourly.height) - 32) * 2)..<pixelHeight
         func plotLeftOfSelection() -> Data {
@@ -572,12 +608,12 @@ final class QuotaHistoryTests: XCTestCase {
         let hourlyWithoutLegend = rows(hourlyRows)
         let plotWithoutSelection = plotLeftOfSelection()
         let hourlyAxis = rows(hourlyAxisRows)
-        let overviewAxis = rows(292..<(hourlyTop * 2))
+        let overviewAxis = rows(overviewAxisTop..<(hourlyTop * 2))
         context.translateBy(x: 0, y: -overview.height)
         figure.draw(.overview, in: context, size: overview, showsLegend: true)
         XCTAssertNotEqual(rows(overviewRows), overviewWithoutLegend)
         XCTAssertEqual(rows(hourlyRows), hourlyWithoutLegend)
-        XCTAssertEqual(rows(292..<(hourlyTop * 2)), overviewAxis)
+        XCTAssertEqual(rows(overviewAxisTop..<(hourlyTop * 2)), overviewAxis)
         context.translateBy(x: 0, y: overview.height)
         figure.draw(.hourly, in: context, size: hourly, selectedTime: sharedTime)
         let highlightedBar = color(446, hourlyTop + 46 + headerOffset)
@@ -656,7 +692,7 @@ final class QuotaHistoryTests: XCTestCase {
         context.scaleBy(x: 2, y: -2)
         figure.draw(.overview, in: context, size: size)
         let x = Int((44 + 416 * crossing.timeIntervalSince(start) / WeeklyQuotaPace.weekSeconds) * 2)
-        let y = Int((146 - 122 / 7.0) * 2)
+        let y = Int((size.height - 22 - 122 / 7.0) * 2)
         let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
         let hasRedMarker = (x - 5...x + 5).contains { column in
             (y - 5...y + 5).contains { row in
@@ -908,9 +944,9 @@ final class QuotaHistoryTests: XCTestCase {
 
     @MainActor
     private func target(_ provider: StatisticsProvider, id: String, windows: [ProviderLimitWindow],
-                        now: Date) throws -> QuotaHistoryTarget {
+                        now: Date, email: String = "fixture@example.test") throws -> QuotaHistoryTarget {
         let connection = ProviderConnection(id: id, providerID: provider.rawValue, globalAssociation: true)
-        let account = FleetAccount(id: id, badgeIndex: windows.isEmpty ? 1 : 0, name: "Fixture", email: "fixture@example.test",
+        let account = FleetAccount(id: id, badgeIndex: windows.isEmpty ? 1 : 0, name: "Fixture", email: email,
                                    connections: [connection])
         let status = ProviderStatus(id: provider.rawValue, name: provider.title,
                                     state: windows.isEmpty ? .noKey : .ok, detail: "Fixture", lastUpdated: now,

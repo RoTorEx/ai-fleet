@@ -9,7 +9,7 @@ Tracks real product and release progress.
 - Keep the provider chart popover in one window while switching accounts and place it after measuring the chart stack.
 - Offer 3-, 5-, and 7-day ranges in both hourly charts with a 7-day default, and match the active light or dark appearance.
 - Group hourly filters above both hourly plots, and place dated cycle navigation above the weekly chart. Keep all saved quota observations across resets.
-- Place compact current readings and cycle arrows in the account header. Move the selected cycle and hourly range into the legends.
+- Keep cycle arrows with the quota account selector and show the current or archived quota under the overview title.
 - Show seven daily pace ceilings, reaching 100% on day seven. Mark observed early resets on archived cycles and dash the plan after the reset.
 - Draw complete-hour average and median guides on both hourly charts. Show definitions in the legend and numeric summaries below the titles.
 - Link the selected hour across the two hourly charts and brighten its bars. Keep weekly readings independent, and label partial-hour observations and local token scope.
@@ -17,7 +17,7 @@ Tracks real product and release progress.
 - Lead chart legends with their data source or cycle dates. Separate the hourly charts with a light rule and show token shares in parentheses.
 - Mark observed daily-plan crossings with a red cross and snap the weekly cursor within 60 minutes on either side of a crossing.
 - Keep the hourly range and local token filters together above the hourly charts. Label the Statistics tab Quota & Usage and use softer light-mode chart surfaces.
-- Show the hourly interval and readings in a strip outside the plots and pin it to the bottom of Statistics. Label local token history as on this Mac.
+- Show hover readings beneath each chart title, align the info icons with the titles, and distinguish quota account scope from local provider totals.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 

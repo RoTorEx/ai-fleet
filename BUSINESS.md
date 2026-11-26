@@ -178,12 +178,12 @@ subscription charges.
   Quota & Usage opens with the quota overview, hourly quota and local hourly
   tokens in one compact group above Provider reports. The right-edge chart
   button on supported provider rows opens and closes the same group.
-  Claude, Codex and Kimi share the same quota readouts and plot layout. All
-  reported windows show percentage used together. The trend uses the account's
-  primary quota window. Weekly history follows the verified account. The current reading is shown
-  when history is unavailable for a reported limit. Local hourly tokens show
-  the selected provider and recorded model on this Mac. Quota and token
-  measurements appear in a fixed strip beneath the plots when inspected.
+  Claude, Codex and Kimi share the same quota readouts and plot layout. The
+  overview header shows the plotted window's used percentage and labels any
+  separate current limits. Weekly and hourly quota follow the verified account.
+  A current reading is shown when history is unavailable. The local chart
+  shows the selected provider's recorded tokens on this Mac across accounts.
+  Cursor readings appear beneath each chart title in a fixed-height header.
   Provider reports (Codex accounts and Kimi quota windows) remain
   identity-bound. [Provider statistics](business/provider-statistics.md) owns
   history, forecasts and the two chart sources.

@@ -1,6 +1,6 @@
 import Foundation
 
-struct ConnectionIdentity: Codable, Equatable {
+struct ConnectionIdentity: Codable, Hashable {
     let email: String
     let organizationID: String?
 

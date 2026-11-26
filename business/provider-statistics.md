@@ -84,10 +84,12 @@ and Kimi share the layout. The Statistics account picker keeps the quota
 readings and all three chart positions stable when quota data is missing.
 Qwen shows unavailable quota states in those slots and opens only its local
 token chart in the compact popover.
-The header places compact current quota readings and cycle arrows to the right
-of the account label. Archive navigation shows the archive state in the space
-used for current readings. The charts use the account-wide weekly limit when
-present, followed by the longest account window. Open in Statistics carries the provider, account and local model
+The stack labels the account as the quota account and keeps cycle arrows at
+the right. The overview shows the displayed window and used percentage beneath
+its title. Additional limits are labelled separately and use live readings.
+An archived cycle shows its own range and last measured usage. The charts use
+the account-wide weekly limit when present, followed by the longest account
+window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
 Label sizes stay constant. Both hourly plots share a 3-, 5-, or 7-day range
@@ -109,17 +111,18 @@ The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
-A fixed-height strip beneath the plots shows the latest hour at rest and
-details for the selected time on hover. The plots' data marks and axes stay
-visible. In Statistics the strip stays at the bottom of the window while its
-content scrolls. It starts with the date and local time, followed by the
-measurement. The weekly chart has its own cursor.
+Reserve two lines under each chart title for its summary and cursor readout.
+Keep the info icon on the title line and leave a gap before the plot. The
+cursor replaces the summary with the date, local time and readings while
+preserving plot size and revealing all marks and axes. Exact token counts
+and category shares fit when space permits, with compact units at narrow widths.
+The weekly chart has its own cursor.
 Observed daily-plan crossings display a red cross in the weekly plot. Plan and
 limit crossings snap within 60 minutes on either side of the point. The two
 hourly charts share the selected hour. Their bars use equal opacity at rest.
 A diagonal hatch marks a partial hour on either plot. Both brighten only the
-selected hour's bars. The strip compares the
-account quota change and local tokens for that hour. A time with missing
+selected hour's bars. Each chart header shows its own reading for that hour.
+A time with missing
 evidence is labelled as such. Token hours beyond the last scan identify that
 scan in the readout. Refresh local tokens in the popover reuses the background
 log scan without starting a provider quota refresh. Statistics uses its existing
@@ -151,6 +154,8 @@ quota cannot stand in for an account's weekly one.
   `~/Library/Application Support/AI Fleet/weekly-quota-history.json`.
   The overview opens on the latest recorded cycle for the selected provider,
   account, and quota window. Its header groups the arrows at the right. The
+  user can return to the previous verified account and see its recorded cycles.
+  Opening a different account never substitutes another account's readings. The
   info legend shows the scheduled cycle dates. Overlapping schedules include
   clock times. Previous cycles display measured usage and the pacing plan. The two
   hourly charts remain on the selected recent range. Provider replies supply

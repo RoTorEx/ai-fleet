@@ -56,7 +56,7 @@ enum QuotaHistoryPanel: Equatable {
     case overview
     case hourly
 
-    var headerHeight: CGFloat { self == .overview ? 24 : 34 }
+    var headerHeight: CGFloat { 51 }
     var height: CGFloat { headerHeight + (self == .overview ? 144 : 98) }
 }
 
@@ -104,7 +104,10 @@ struct QuotaHistoryFigure: View {
         let tracksHours = panel == .hourly && drawing.hasHourlySamples
         let selectedTime = legendHovered ? nil : cursor?.time
         let details = drawing.accessibilityDetails(for: panel, selectedTime: selectedTime)
-        let description = selectedTime == nil ? details + ". " + drawing.legendDescription(for: panel) : details
+        let header = drawing.headerReadout(for: panel, selectedTime: selectedTime, colorScheme: colorScheme)
+        let description = selectedTime == nil
+            ? ([details] + header.flatMap { $0 }.map(\.text) + [drawing.legendDescription(for: panel)]).joined(separator: ". ")
+            : details
         let chart = Canvas { graphics, size in
             graphics.withCGContext {
                 drawing.draw(panel, in: $0, size: size, selectedTime: selectedTime, showsLegend: legendHovered,
@@ -143,8 +146,8 @@ struct QuotaHistoryFigure: View {
                             }
                         }
                         .accessibilityHidden(true)
-                    heading(drawing.heading(for: panel), metrics: drawing.headerMetrics(for: panel, colorScheme: colorScheme))
-                        .frame(width: max(0, layout.plot.width), height: layout.plot.minY)
+                    heading(drawing.heading(for: panel), rows: header, inspecting: selectedTime != nil)
+                        .frame(width: max(0, layout.plot.width), height: layout.plot.minY, alignment: .topLeading)
                         .offset(x: layout.plot.minX)
                 }
             }
@@ -161,142 +164,54 @@ struct QuotaHistoryFigure: View {
         }
     }
 
-    private func heading(_ title: String, metrics: [QuotaHistoryHeaderMetric]) -> some View {
-        let label = Text(title)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
-            .accessibilityHidden(true)
-        return ZStack(alignment: .trailing) {
-            VStack(spacing: 1) {
-                label.padding(.horizontal, 22).frame(maxWidth: .infinity)
-                if panel == .hourly {
-                    HStack(spacing: 12) {
-                        ForEach(metrics, id: \.label) { metric in
-                            Text(metric.label)
-                                .foregroundStyle(Color(cgColor: metric.color))
-                                .lineLimit(1)
+    private func heading(_ title: String, rows: [[ReadoutLine]], inspecting: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .padding(.horizontal, 22)
+                .frame(maxWidth: .infinity)
+                .frame(height: 17)
+                .overlay(alignment: .trailing) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(legendHovered ? Color.primary : Color.secondary)
+                        .frame(width: 20, height: 17)
+                        .contentShape(Rectangle())
+                        .onHover {
+                            legendHovered = $0
+                            if $0 { moveCursor(to: nil) }
                         }
+                }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(rows.indices, id: \.self) { index in
+                    ViewThatFits(in: .horizontal) {
+                        detailRow(rows[index], inspecting: inspecting, timestamp: index == 0, narrow: false)
+                            .fixedSize(horizontal: true, vertical: false)
+                        detailRow(rows[index], inspecting: inspecting, timestamp: index == 0, narrow: true)
                     }
-                    .font(.system(size: 10))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.85)
-                    .padding(.trailing, 22)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 12)
                 }
             }
-            .frame(maxWidth: .infinity)
-            Image(systemName: "info.circle")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(legendHovered ? Color.primary : Color.secondary)
-                .frame(width: 20, height: 22)
-                .contentShape(Rectangle())
-                .onHover {
-                    legendHovered = $0
-                    if $0 { moveCursor(to: nil) }
-                }
-                .accessibilityHidden(true)
-                .offset(y: panel == .hourly ? 5 : 0)
+            .font(.system(size: 10.5))
+            .monospacedDigit()
         }
-    }
-}
-
-struct QuotaChartReadout: View {
-    struct Values: Equatable {
-        let timestamp: String
-        let latest: Bool
-        fileprivate let measurements: [ReadoutLine]
-        fileprivate let details: [ReadoutLine]
-
-        init?(quota: QuotaHistoryDrawing?, tokens: QuotaHistoryDrawing, overviewTime: Date?, hourlyTime: Date?,
-              colorScheme: ColorScheme) {
-            if let overviewTime,
-               let lines = quota?.readout(for: .overview, at: overviewTime, colorScheme: colorScheme),
-               let first = lines.first {
-                timestamp = first.text
-                latest = false
-                measurements = Array(lines.dropFirst().prefix(2))
-                details = Array(lines.dropFirst(3))
-            } else {
-                guard let hour = hourlyTime ?? tokens.latestHour else { return nil }
-                let local = tokens.readout(for: .hourly, at: hour, colorScheme: colorScheme)
-                guard let first = local.first, let reading = local.dropFirst().first else { return nil }
-                timestamp = first.text
-                latest = hourlyTime == nil
-                if let quota {
-                    let measured = quota.readout(for: .hourly, at: hour, colorScheme: colorScheme).dropFirst().first
-                    measurements = [ReadoutLine("Account quota · \(measured?.displayText ?? "Unavailable")"), reading]
-                } else {
-                    measurements = [reading]
-                }
-                details = Array(local.dropFirst(2))
-            }
-        }
-    }
-
-    let values: Values?
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if let values {
-                timestampRow(values.timestamp, latest: values.latest)
-                row(values.measurements)
-                row(values.details)
-            }
-        }
-        .font(.system(size: 11))
-        .monospacedDigit()
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(height: 47, alignment: .center)
-        .background(Color(cgColor: Palette.rgb(colorScheme == .dark ? Palette.darkCanvas : Palette.lightCanvas)),
-                    in: RoundedRectangle(cornerRadius: 4))
+        .padding(.top, 3)
         .accessibilityHidden(true)
     }
 
-    private func timestampRow(_ timestamp: String, latest: Bool) -> some View {
-        HStack(spacing: 8) {
-            Text(timestamp).fontWeight(.semibold)
-            if latest { Text("Latest hour").foregroundStyle(.secondary) }
-        }
-        .lineLimit(1)
-    }
-
-    private func row(_ lines: [ReadoutLine]) -> some View {
-        HStack(spacing: 12) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, item in
-                line(item)
+    private func detailRow(_ lines: [ReadoutLine], inspecting: Bool, timestamp: Bool, narrow: Bool) -> some View {
+        HStack(spacing: narrow ? 7 : 10) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { column, line in
+                Text(narrow ? line.narrowText ?? line.displayText : line.displayText)
+                    .fontWeight(inspecting && timestamp && column == 0 ? .semibold : .regular)
+                    .foregroundStyle(line.color.map { Color(cgColor: $0) } ?? (inspecting ? .primary : .secondary))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .help(line.help ?? "")
             }
         }
-        .frame(height: 13, alignment: .leading)
-    }
-
-    private func line(_ item: ReadoutLine) -> some View {
-        Text(item.displayText)
-            .foregroundStyle(item.color.map { Color(cgColor: $0) } ?? .primary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.88)
-    }
-}
-
-final class QuotaChartReadoutState: ObservableObject {
-    @Published var values: QuotaChartReadout.Values?
-}
-
-struct StatisticsQuotaReadout: View {
-    @ObservedObject var readout: QuotaChartReadoutState
-
-    var body: some View {
-        QuotaChartReadout(values: readout.values)
-            .frame(maxWidth: 740)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 6)
-            .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -340,6 +255,7 @@ struct QuotaHistoryDrawing {
     private let hours: [Hour]
     fileprivate let drawsQuota: Bool
     private let calendar: Calendar
+    private let otherLimits: [ProviderLimitWindow]
     private let tokenSeries: [LocalTokenSeries]
     private let hourlyStatistics: HourlyStatistics?
     private let hourlyScale: HourlyChartScale
@@ -349,9 +265,11 @@ struct QuotaHistoryDrawing {
     private let hasPartialHours: Bool
     let hasHourlySamples: Bool
 
-    init(data: QuotaHistoryFigureData, calendar: Calendar = .current, range: QuotaHistoryRange = .threeDays) {
+    init(data: QuotaHistoryFigureData, calendar: Calendar = .current,
+         range: QuotaHistoryRange = .threeDays, otherLimits: [ProviderLimitWindow] = []) {
         self.data = data
         self.calendar = calendar
+        self.otherLimits = otherLimits
         let coveredThrough: Date?
         switch data {
         case .quota(let quota):
@@ -405,8 +323,6 @@ struct QuotaHistoryDrawing {
         clockTicks = QuotaHourTick.inDomain(domain, calendar: calendar)
     }
 
-    var latestHour: Date? { hours.last?.start }
-
     private func formatHourlyStatistic(_ value: Double) -> String {
         if drawsQuota { return quotaPercent(value) }
         let count = Int(exactly: value.rounded()) ?? Int.max
@@ -452,6 +368,60 @@ struct QuotaHistoryDrawing {
             collect()
         }
         return metrics
+    }
+
+    fileprivate func headerReadout(for panel: QuotaHistoryPanel, selectedTime: Date?,
+                                  colorScheme: ColorScheme) -> [[ReadoutLine]] {
+        if let selectedTime {
+            let lines = readout(for: panel, at: selectedTime, colorScheme: colorScheme)
+            if !lines.isEmpty {
+                let split = panel == .overview ? 3 : 2
+                return [Array(lines.prefix(split)), Array(lines.dropFirst(split))]
+            }
+        }
+        if panel == .overview { return overviewReadout }
+        let metrics = headerMetrics(for: panel, colorScheme: colorScheme).map { ReadoutLine($0.label, color: $0.color) }
+        if case .tokens(let tokens, _) = data {
+            return [metrics, [ReadoutLine("Local \(tokens.provider.title) logs across accounts")]]
+        }
+        return [metrics, []]
+    }
+
+    private var overviewReadout: [[ReadoutLine]] {
+        switch data {
+        case .quota(let quota):
+            let used = quota.isHistorical ? quota.latest?.used : (quota.pace.usedPercent ?? quota.latest?.used)
+            let stale = [.stale, .unavailable].contains(quota.pace.state)
+            let previousReading = !quota.isHistorical && (stale || quota.pace.state == .resetPending)
+            let main = used.map { limitText("7d", used: $0, stale: previousReading) }
+            if quota.isHistorical {
+                let archived = quota.cycleLabel(calendar: calendar) ?? "Archived cycle"
+                return [[main ?? ReadoutLine("7d · No readings")], [ReadoutLine(archived)]]
+            }
+            return [[main ?? ReadoutLine("7d · No readings")], otherLimitReadout(at: quota.now, stale: stale)]
+        case .currentQuota(let reading):
+            guard let window = reading.window, let used = reading.usedPercent else { return [[], []] }
+            let stale = reading.isStale || window.resetAt.map { $0 <= reading.now } == true
+            return [[limitText(window.quotaDisplayLabel, used: used, stale: stale)],
+                    otherLimitReadout(at: reading.now, stale: reading.isStale)]
+        case .unsupportedQuota, .tokens:
+            return [[], []]
+        }
+    }
+
+    private func otherLimitReadout(at now: Date, stale: Bool) -> [ReadoutLine] {
+        guard !otherLimits.isEmpty else { return [] }
+        return [ReadoutLine("Other limits")] + otherLimits.map { limit in
+            let old = stale || limit.resetAt.map { $0 <= now } == true
+            let reset = limit.resetAt.map { "Resets \(chartTimestamp($0, calendar: calendar))" }
+            return limitText(limit.quotaDisplayLabel, used: 100 - limit.remainingPercent, stale: old, help: reset)
+        }
+    }
+
+    private func limitText(_ label: String, used: Int, stale: Bool, help: String? = nil) -> ReadoutLine {
+        let amount = quotaPercent(Double(used))
+        let detail = stale ? "Last reading \(amount) used" : "\(amount) used"
+        return ReadoutLine("\(label) · \(detail)", help: help)
     }
 
     func accessibilityTitle(for panel: QuotaHistoryPanel) -> String {
@@ -696,7 +666,7 @@ struct QuotaHistoryDrawing {
         case (_, .unsupportedQuota):
             return [[LegendKey(unsupportedQuotaText, Palette.labels, .none)]]
         case (_, .tokens):
-            source = "Cached local journals on this Mac · account unknown"
+            source = "Available local logs on this Mac · across accounts"
             marks = tokenSeries.map { LegendKey($0.rawValue, $0.color.copy(alpha: 0.56) ?? $0.color, .block) }
         }
         if hasPartialHours {
@@ -881,10 +851,14 @@ struct QuotaHistoryDrawing {
                     let share = total > 0 ? Double(count) * 100 / Double(total) : 0
                     let percent = share > 0 && share < 0.1 ? "<" + quotaPercent(0.1) : quotaPercent(share)
                     let shortName = series == .uncachedInput ? "Uncached" : series.rawValue
+                    let narrowName = series == .output ? "Out" : shortName
                     let number = groupedInteger(count)
+                    let compact = count.formatted(.number.notation(.compactName).precision(.significantDigits(1...3))
+                        .locale(Locale(identifier: "en_US_POSIX")))
                     return ReadoutLine("\(series.rawValue) · \(number) tokens (\(percent))",
                                        color: series == .cache ? Palette.cacheLabel : series.color,
-                                       compactText: "\(shortName) \(number) (\(percent))")
+                                       compactText: "\(shortName) \(number) (\(percent))",
+                                       narrowText: "\(narrowName) \(compact) (\(percent))")
                 }
             }
             let coverage = hour.partial ? " · partial hour" : ""
@@ -1046,16 +1020,21 @@ private func drawCross(at point: CGPoint, radius: CGFloat, color: CGColor, in co
            color, width: 1.4, in: context)
 }
 
-fileprivate struct ReadoutLine: Equatable {
+fileprivate struct ReadoutLine {
     let text: String
     let color: CGColor?
     let compactText: String?
+    let narrowText: String?
+    let help: String?
     var displayText: String { compactText ?? text }
 
-    init(_ text: String, color: CGColor? = nil, compactText: String? = nil) {
+    init(_ text: String, color: CGColor? = nil, compactText: String? = nil,
+         narrowText: String? = nil, help: String? = nil) {
         self.text = text
         self.color = color
         self.compactText = compactText
+        self.narrowText = narrowText
+        self.help = help
     }
 }
 

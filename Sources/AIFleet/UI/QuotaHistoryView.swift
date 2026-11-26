@@ -51,6 +51,7 @@ struct QuotaHistoryRequest: Equatable {
     var model: String?
     var tokenSeries: LocalTokenSeries? = nil
     var cycleReset: Date? = nil
+    var identity: ConnectionIdentity? = nil
 }
 
 @MainActor
@@ -62,21 +63,18 @@ final class QuotaHistoryNavigation: ObservableObject {
 struct QuotaHistoryView: View {
     let targets: [QuotaHistoryTarget]
     let openInStatistics: ((QuotaHistoryRequest) -> Void)?
-    let statisticsReadout: QuotaChartReadoutState?
     @Binding var selection: QuotaHistoryRequest?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
     @State private var refreshingLocalTokens = UsageAnalyticsService.shared.isRefreshing
     @AppStorage("quotaHistory.hourlyDays") private var range: QuotaHistoryRange = .sevenDays
     private var isStatistics: Bool { openInStatistics == nil }
-    private var controlLabelWidth: CGFloat { isStatistics ? 142 : 110 }
+    private var stackSpacing: CGFloat { isStatistics ? 4 : 6 }
 
     init(targets: [QuotaHistoryTarget], selection: Binding<QuotaHistoryRequest?>,
-         statisticsReadout: QuotaChartReadoutState? = nil,
          openInStatistics: ((QuotaHistoryRequest) -> Void)? = nil) {
         self.targets = targets
         _selection = selection
-        self.statisticsReadout = statisticsReadout
         self.openInStatistics = openInStatistics
     }
 
@@ -90,24 +88,25 @@ struct QuotaHistoryView: View {
                                                now: now, calendar: calendar, range: range)
                 let request = QuotaHistoryRequest(targetID: target.id, provider: target.provider,
                     model: model, tokenSeries: selection?.tokenSeries,
-                    cycleReset: selection?.targetID == target.id ? selection?.cycleReset : nil)
+                    cycleReset: selection?.targetID == target.id && selection?.identity == target.report?.identity
+                        ? selection?.cycleReset : nil,
+                    identity: target.report?.identity)
                 let quotaData = isStatistics || target.provider != .qwen
                     ? target.quotaFigure(history: quotaHistory.history, now: now, calendar: calendar,
                                          range: range, displayedReset: request.cycleReset)
                     : nil
-                let quota = quotaData.map { QuotaHistoryDrawing(data: $0, calendar: calendar, range: range) }
+                let otherLimits = target.quotaWindows.filter { $0.id != target.primaryQuotaWindow?.id }
+                let quota = quotaData.map {
+                    QuotaHistoryDrawing(data: $0, calendar: calendar, range: range, otherLimits: otherLimits)
+                }
                 let weekly: WeeklyQuotaChart? = if case .quota(let chart)? = quotaData { chart } else { nil }
-                VStack(alignment: .leading, spacing: statisticsReadout == nil ? 8 : 4) {
+                VStack(alignment: .leading, spacing: stackSpacing) {
                     HStack(spacing: 8) {
+                        Text(target.provider == .qwen ? "Provider" : "Quota account")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                         providerControl(target: target, request: request)
-                        if weekly?.isHistorical == true {
-                            Text("Archived cycle")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        } else {
-                            quotaReadings(target, calendar: calendar)
-                        }
+                        Spacer(minLength: 4)
                         if quota != nil {
                             cycleControls(weekly, request: request)
                         }
@@ -115,9 +114,9 @@ struct QuotaHistoryView: View {
                     .controlSize(.small)
                     let tokenDrawing = QuotaHistoryDrawing(data: .tokens(tokens, series: request.tokenSeries), calendar: calendar)
                     QuotaHistoryCharts(quota: quota, tokens: tokenDrawing, cycle: request.cycleReset, range: range,
-                                       statisticsReadout: statisticsReadout,
+                                       spacing: stackSpacing,
                                        hourlyControls: hourlyControls(models: tokens.models, request: request))
-                        .id(target.id)
+                        .id(ChartAccount(id: target.id, identity: target.report?.identity))
                     if let openInStatistics {
                         HStack(spacing: 8) {
                             Button("Open in Statistics") {
@@ -181,7 +180,7 @@ struct QuotaHistoryView: View {
 
     @ViewBuilder private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {
         if isStatistics {
-            Picker("Provider and account", selection: Binding(
+            Picker("Quota account", selection: Binding(
                 get: { target.id },
                 set: { value in
                     guard let next = targets.first(where: { $0.id == value }) else { return }
@@ -191,13 +190,12 @@ struct QuotaHistoryView: View {
             )) {
                 ForEach(targets) { Text($0.label).tag($0.id) }
             }
-            .labelsHidden().frame(width: controlLabelWidth, alignment: .leading)
+            .labelsHidden().frame(width: 142, alignment: .leading)
             .disabled(targets.count < 2)
         } else {
             Text(target.label)
                 .font(.system(size: 12, weight: .semibold))
                 .lineLimit(1)
-                .frame(width: controlLabelWidth, alignment: .leading)
         }
     }
 
@@ -211,39 +209,6 @@ struct QuotaHistoryView: View {
         .pickerStyle(.segmented)
         .fixedSize()
         .help("Time range for both hourly charts")
-    }
-
-    private func quotaReadings(_ target: QuotaHistoryTarget, calendar: Calendar) -> some View {
-        let windows = target.quotaWindows
-        let readings = HStack(spacing: 10) {
-            if windows.isEmpty {
-                Text(target.provider == .qwen ? "Local tokens only" : "No quota reading")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(windows) { quotaReading($0, calendar: calendar) }
-                Text(target.status.quotaState == .stale ? "last used" : "used").foregroundStyle(.secondary)
-            }
-        }
-        .font(.system(size: 11))
-        .fixedSize(horizontal: true, vertical: false)
-        return ViewThatFits(in: .horizontal) {
-            readings
-            ScrollView(.horizontal, showsIndicators: false) { readings }
-        }
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .frame(height: 16)
-    }
-
-    private func quotaReading(_ window: ProviderLimitWindow, calendar: Calendar) -> some View {
-        let value = quotaPercent(Double(100 - window.remainingPercent))
-        return HStack(spacing: 5) {
-            Text(window.quotaDisplayLabel).foregroundStyle(.secondary)
-            Text(value).monospacedDigit().fontWeight(.medium)
-        }
-        .fixedSize(horizontal: true, vertical: false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(window.quotaDisplayLabel) quota, \(value) used")
-        .help(window.resetAt.map { "Resets \(chartTimestamp($0, calendar: calendar))" } ?? "Reset time unavailable")
     }
 
     private func tokenControls(models: [String], request: QuotaHistoryRequest) -> some View {
@@ -280,12 +245,17 @@ struct QuotaHistoryView: View {
     }
 }
 
+private struct ChartAccount: Hashable {
+    let id: String
+    let identity: ConnectionIdentity?
+}
+
 private struct QuotaHistoryCharts<HourlyControls: View>: View {
     let quota: QuotaHistoryDrawing?
     let tokens: QuotaHistoryDrawing
     let cycle: Date?
     let range: QuotaHistoryRange
-    let statisticsReadout: QuotaChartReadoutState?
+    let spacing: CGFloat
     let hourlyControls: HourlyControls
 
     @State private var overviewCursor: QuotaChartCursor?
@@ -293,9 +263,7 @@ private struct QuotaHistoryCharts<HourlyControls: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let values = QuotaChartReadout.Values(quota: quota, tokens: tokens, overviewTime: overviewCursor?.time,
-                                             hourlyTime: hourlyCursor?.time, colorScheme: colorScheme)
-        return VStack(spacing: statisticsReadout == nil ? 8 : 4) {
+        VStack(spacing: spacing) {
             if let quota {
                 QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $overviewCursor)
             }
@@ -310,10 +278,7 @@ private struct QuotaHistoryCharts<HourlyControls: View>: View {
                 }
                 QuotaHistoryFigure(drawing: tokens, panel: .hourly, cursor: $hourlyCursor)
             }
-            if statisticsReadout == nil { QuotaChartReadout(values: values) }
         }
-        .onAppear { statisticsReadout?.values = values }
-        .onChange(of: values) { statisticsReadout?.values = $0 }
         .onChange(of: cycle) { _ in overviewCursor = nil }
         .onChange(of: range) { _ in hourlyCursor = nil }
     }
