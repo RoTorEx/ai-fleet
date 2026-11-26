@@ -67,6 +67,11 @@ struct QuotaChartCursor: Equatable {
     let time: Date
 }
 
+struct QuotaHistoryHeaderMetric {
+    let label: String
+    let color: CGColor
+}
+
 struct HourlyChartScale {
     let maximum: Double
     let levels: [Double]
@@ -83,12 +88,21 @@ struct HourlyChartScale {
     }
 }
 
-struct QuotaHistoryFigure: View {
+struct QuotaHistoryFigure<HeaderControls: View>: View {
     let drawing: QuotaHistoryDrawing
     let panel: QuotaHistoryPanel
+    let headerControls: HeaderControls?
     @Binding var cursor: QuotaChartCursor?
     @State private var legendHovered = false
     @Environment(\.colorScheme) private var colorScheme
+
+    init(drawing: QuotaHistoryDrawing, panel: QuotaHistoryPanel, cursor: Binding<QuotaChartCursor?>,
+         headerControls: HeaderControls?) {
+        self.drawing = drawing
+        self.panel = panel
+        self.headerControls = headerControls
+        _cursor = cursor
+    }
 
     private var source: QuotaChartCursor.Source {
         if panel == .overview { return .overview }
@@ -138,7 +152,7 @@ struct QuotaHistoryFigure: View {
                             }
                         }
                         .accessibilityHidden(true)
-                    heading(drawing.heading(for: panel), metrics: drawing.headerMetrics(for: panel))
+                    heading(drawing.heading(for: panel), metrics: drawing.headerMetrics(for: panel, colorScheme: colorScheme))
                         .frame(width: max(0, layout.plot.width), height: layout.plot.minY)
                         .offset(x: layout.plot.minX)
                 }
@@ -156,27 +170,41 @@ struct QuotaHistoryFigure: View {
         }
     }
 
-    private func heading(_ title: String, metrics: [String]) -> some View {
-        ZStack(alignment: .trailing) {
+    private func heading(_ title: String, metrics: [QuotaHistoryHeaderMetric]) -> some View {
+        let label = Text(title)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .accessibilityHidden(true)
+        return ZStack(alignment: .trailing) {
             VStack(spacing: 1) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .accessibilityHidden(true)
+                if let headerControls {
+                    HStack(spacing: 8) {
+                        label
+                        Spacer(minLength: 4)
+                        headerControls
+                    }
+                    .padding(.trailing, 24)
+                } else {
+                    label.padding(.horizontal, 22).frame(maxWidth: .infinity)
+                }
                 if panel == .hourly {
                     HStack(spacing: 12) {
-                        ForEach(metrics, id: \.self) { Text($0).lineLimit(1) }
+                        ForEach(metrics, id: \.label) { metric in
+                            Text(metric.label)
+                                .foregroundStyle(Color(cgColor: metric.color))
+                                .lineLimit(1)
+                        }
                     }
                     .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
                     .monospacedDigit()
                     .minimumScaleFactor(0.85)
+                    .padding(.trailing, 22)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 12)
                 }
             }
-            .padding(.horizontal, 22)
             .frame(maxWidth: .infinity)
             Image(systemName: "info.circle")
                 .font(.system(size: 12, weight: .medium))
@@ -190,6 +218,12 @@ struct QuotaHistoryFigure: View {
                 .accessibilityHidden(true)
                 .offset(y: panel == .hourly ? 5 : 0)
         }
+    }
+}
+
+extension QuotaHistoryFigure where HeaderControls == EmptyView {
+    init(drawing: QuotaHistoryDrawing, panel: QuotaHistoryPanel, cursor: Binding<QuotaChartCursor?>) {
+        self.init(drawing: drawing, panel: panel, cursor: cursor, headerControls: nil)
     }
 }
 
@@ -317,12 +351,21 @@ struct QuotaHistoryDrawing {
         return quota.sustainablePerHour
     }
 
-    func headerMetrics(for panel: QuotaHistoryPanel) -> [String] {
+    func headerMetrics(for panel: QuotaHistoryPanel, colorScheme: ColorScheme = .light) -> [QuotaHistoryHeaderMetric] {
         guard panel == .hourly else { return [] }
-        var metrics = hourlyGuides.map(\.label)
-        if let sustainableRate {
-            let note = sustainableRate > hourlyScale.maximum ? " · above scale" : ""
-            metrics.append("Sustainable \(quotaPercent(sustainableRate))/h\(note)")
+        var metrics: [QuotaHistoryHeaderMetric] = []
+        let collect = {
+            metrics = hourlyGuides.map { QuotaHistoryHeaderMetric(label: $0.label, color: $0.color) }
+            if let sustainableRate {
+                let note = sustainableRate > hourlyScale.maximum ? " · above scale" : ""
+                metrics.append(QuotaHistoryHeaderMetric(label: "Sustainable \(quotaPercent(sustainableRate))/h\(note)",
+                                                        color: Palette.amber))
+            }
+        }
+        if let appearance = colorScheme == .dark ? Palette.darkAppearance : Palette.lightAppearance {
+            appearance.performAsCurrentDrawingAppearance(collect)
+        } else {
+            collect()
         }
         return metrics
     }
@@ -340,7 +383,7 @@ struct QuotaHistoryDrawing {
             return reading.window.map { "\($0.quotaDisplayLabel) quota" } ?? "Provider quota"
         case (.overview, .unsupportedQuota): return "Provider quota"
         case (_, .tokens(_, let series)):
-            return "\(series?.rawValue ?? "Local tokens") per hour"
+            return series?.rawValue ?? "Local tokens"
         case (.hourly, _):
             return "Account quota used per hour"
         }
@@ -541,6 +584,9 @@ struct QuotaHistoryDrawing {
             stroke([axis.point(latest.time, Double(latest.used)), axis.point(endpoint.time, endpoint.used)],
                    style.color, width: 1.2, dash: style.dash, phase: style.phase, in: context)
         }
+        for crossing in quota.planCrossings {
+            drawCross(at: planPoint(crossing), radius: 3, color: Palette.limit, in: context)
+        }
         context.restoreGState()
 
         drawDateAxis(axis, dates: days, layout: layout, calendar: calendar, in: context)
@@ -601,6 +647,9 @@ struct QuotaHistoryDrawing {
             LegendKey("Daily plan · \(step) percentage points per day", Palette.budget, .line(1)),
             limit
         ]
+        if !quota.planCrossings.isEmpty {
+            lines.insert(LegendKey("Daily plan crossed", Palette.limit, .cross), at: 1)
+        }
         if quota.earlyResetAt != nil {
             bands.append(LegendKey("After early reset", Palette.frame.copy(alpha: 0.12) ?? Palette.canvas, .block))
             lines.append(LegendKey("Early reset", Palette.coral, .line(1.2, [3, 2])))
@@ -903,6 +952,13 @@ private func drawCursor(at x: CGFloat, in plot: CGRect, context: CGContext) {
     stroke([CGPoint(x: x, y: plot.minY), CGPoint(x: x, y: plot.maxY)], Palette.budget, width: 0.8, in: context)
 }
 
+private func drawCross(at point: CGPoint, radius: CGFloat, color: CGColor, in context: CGContext) {
+    stroke([CGPoint(x: point.x - radius, y: point.y - radius), CGPoint(x: point.x + radius, y: point.y + radius)],
+           color, width: 1.4, in: context)
+    stroke([CGPoint(x: point.x - radius, y: point.y + radius), CGPoint(x: point.x + radius, y: point.y - radius)],
+           color, width: 1.4, in: context)
+}
+
 private struct ReadoutLine {
     let text: String
     let color: CGColor
@@ -1014,11 +1070,25 @@ func chartHour(_ date: Date, calendar: Calendar, locale: Locale = .autoupdatingC
     day.calendar = calendar
     day.timeZone = calendar.timeZone
     day.locale = locale
-    var clock = Date.FormatStyle.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
-    clock.calendar = calendar
-    clock.timeZone = calendar.timeZone
-    clock.locale = locale
-    return "\(day.format(date)) · \(clock.format(date))"
+    func clock(_ instant: Date) -> String {
+        let hour = calendar.component(.hour, from: instant)
+        let minute = calendar.component(.minute, from: instant)
+        return minute == 0 ? String(format: "%02d", hour) : String(format: "%02d:%02d", hour, minute)
+    }
+
+    let end = date.addingTimeInterval(UsageHours.hour)
+    let label = day.format(date)
+    let first = clock(date)
+    let last = clock(end)
+    if !calendar.isDate(date, inSameDayAs: end) {
+        return "\(label) \(first)–\(day.format(end)) \(last)"
+    }
+    if first == last {
+        let firstZone = calendar.timeZone.abbreviation(for: date) ?? "first"
+        let lastZone = calendar.timeZone.abbreviation(for: end) ?? "second"
+        return "\(label) \(first) \(firstZone)–\(last) \(lastZone)"
+    }
+    return "\(label) \(first)–\(last)"
 }
 
 private struct LegendKey {
@@ -1026,6 +1096,7 @@ private struct LegendKey {
         case line(CGFloat, [CGFloat] = [])
         case block
         case point
+        case cross
         case none
     }
 
@@ -1088,6 +1159,9 @@ private struct Legend {
             case .point:
                 context.setFillColor(row.key.color)
                 context.fillEllipse(in: CGRect(x: left + Self.swatchWidth / 2 - 2.5, y: center - 2.5, width: 5, height: 5))
+            case .cross:
+                drawCross(at: CGPoint(x: left + Self.swatchWidth / 2, y: center), radius: 3,
+                          color: row.key.color, in: context)
             case .none: break
             }
             row.label.draw(at: CGPoint(x: left + Self.labelOffset, y: center + fontSize * 0.33), in: context)
@@ -1138,8 +1212,10 @@ private enum Palette {
     static let darkAppearance = NSAppearance(named: .darkAqua)
     static let lightAppearance = NSAppearance(named: .aqua)
 
-    static var canvas: CGColor { color(0x15171a, 0xf6f7f9) }
-    static var plot: CGColor { color(0x1b1f25, 0xffffff) }
+    static let darkCanvas: UInt32 = 0x15171a
+    static let lightCanvas: UInt32 = 0xedeff2
+    static var canvas: CGColor { color(darkCanvas, lightCanvas) }
+    static var plot: CGColor { color(0x1b1f25, 0xf3f4f6) }
     static var grid: CGColor { color(0x2c3036, 0xdde2ea) }
     static var frame: CGColor { color(0x3d4147, 0xaab3c0) }
     static var legendBorder: CGColor { color(0x30353b, 0xbbc3ce) }
@@ -1160,8 +1236,15 @@ private enum Palette {
 
     private static func color(_ dark: UInt32, _ light: UInt32) -> CGColor {
         let appearance = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua])
-        let value = appearance == .darkAqua ? dark : light
+        return rgb(appearance == .darkAqua ? dark : light)
+    }
+
+    static func rgb(_ value: UInt32) -> CGColor {
         return CGColor(srgbRed: Double((value >> 16) & 255) / 255,
                        green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255, alpha: 1)
     }
+}
+
+func quotaChartBackground(for scheme: ColorScheme) -> Color {
+    Color(cgColor: Palette.rgb(scheme == .dark ? Palette.darkCanvas : Palette.lightCanvas))
 }

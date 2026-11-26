@@ -108,16 +108,15 @@ struct QuotaHistoryView: View {
                         } else {
                             quotaReadings(target, calendar: calendar)
                         }
-                        if quotaData != nil {
-                            cycleControls(weekly, request: request)
-                        }
                     }
                     .controlSize(.small)
                     if let quota {
-                        QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $overviewCursor)
+                        QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $overviewCursor,
+                                           headerControls: cycleControls(weekly, request: request).controlSize(.small))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    hourlyControls(models: tokens.models, request: request)
                     VStack(spacing: 0) {
+                        hourlyControlBar
                         if let quota {
                             QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $hourlyCursor)
                             Rectangle()
@@ -127,8 +126,10 @@ struct QuotaHistoryView: View {
                         }
                         let data = QuotaHistoryFigureData.tokens(tokens, series: request.tokenSeries)
                         QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: data, calendar: calendar),
-                                           panel: .hourly, cursor: $hourlyCursor)
+                                           panel: .hourly, cursor: $hourlyCursor,
+                                           headerControls: tokenControls(models: tokens.models, request: request).controlSize(.small))
                     }
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                     if let openInStatistics {
                         HStack(spacing: 8) {
                             Button("Open in Statistics") {
@@ -181,19 +182,18 @@ struct QuotaHistoryView: View {
         .help(label)
     }
 
-    private func hourlyControls(models: [String], request: QuotaHistoryRequest) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                rangePicker
-                tokenControls(models: models, request: request)
-            }
-            VStack(alignment: .trailing, spacing: 6) {
-                rangePicker
-                tokenControls(models: models, request: request)
-            }
+    private var hourlyControlBar: some View {
+        HStack(spacing: 8) {
+            Text("Hourly usage")
+                .font(.system(size: 12, weight: .semibold))
+                .accessibilityAddTraits(.isHeader)
+            Spacer()
+            rangePicker
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .controlSize(.small)
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .background(quotaChartBackground(for: colorScheme))
     }
 
     @ViewBuilder private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {

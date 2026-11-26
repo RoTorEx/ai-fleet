@@ -13,7 +13,8 @@ Tracks real product and release progress.
 - Link the selected hour across the two hourly charts and brighten its bars. Keep weekly readings independent, and label partial-hour observations and local token scope.
 - Keep observed quota use for a partial hour that contains a reset. Explain unscanned token hours and offer a local log refresh in the chart popover.
 - Lead chart legends with their data source or cycle dates. Separate the hourly charts with a light rule, keep their readouts fixed inside the plots, and show token shares in parentheses.
-- Snap the weekly cursor symmetrically to a measured or projected crossing within a one-hour window.
+- Mark observed daily-plan crossings with a red cross and snap the weekly cursor within 60 minutes on either side of a crossing.
+- Group the hourly range and local token filters with the plots they control. Label the Statistics tab Quota & Usage, show hourly intervals in hover readouts, and use softer light-mode chart surfaces.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 

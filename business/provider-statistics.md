@@ -75,23 +75,25 @@ menu updates the open popover and moves its pointer to the selected button.
 The popover appears after measuring its content and stays aligned to the menu
 where the pointer fits. The quota overview, hourly quota and local
 hourly tokens form one compact stack in the popover and at the top of Quota
-History in Statistics. Provider reports follow the chart group. Claude, Codex
+& Usage in Statistics. Provider reports follow the chart group. Claude, Codex
 and Kimi share the layout. The Statistics account picker keeps the quota
 readings and all three chart positions stable when quota data is missing.
 Qwen shows unavailable quota states in those slots and opens only its local
 token chart in the compact popover.
 The header places compact current quota readings to the right of the account
-label, followed by the cycle arrows. Archive navigation shows the archive
+label. Cycle arrows sit in the weekly chart header. Archive navigation shows the archive
 state in the same space. The charts use the account-wide weekly limit when
 present, followed by the longest account window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
 Label sizes stay constant. Both hourly plots share a 3-, 5-, or 7-day range.
-The initial range is 7 days. The range, model, and token category controls
-sit on the right above the hourly charts. The model and category filter local tokens.
+The initial range is 7 days. The range control sits in the Hourly usage group
+header and applies to both hourly plots. The model and category controls sit
+in the local token chart header.
 The plot dimensions stay fixed as the one-hour bins become denser. The six-hour grid follows local midnight,
 with dates on a separate row and abbreviated labels when space is limited.
-The charts use the current macOS light or dark appearance. The highest
+The charts use the current macOS light or dark appearance, with a soft-gray
+plot surface in light mode. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
 bin exceeds it. An off-scale sustainable rate is labelled below the chart title. Charts
 keep the zero baseline and omit its label. Hover over the info icon at the
@@ -106,9 +108,10 @@ to the content and scrolls when the charts exceed the display's available height
 Use the device calendar and current time zone for hourly bins and date labels.
 Hover readouts use a fixed size within each plot. They start with the date and
 local time, followed by the measurement. The weekly chart has its own cursor.
-Observed plan crossings, limit crossings, resets and individual readings snap
-within a one-hour band centered on the point. The two hourly charts share the
-start of the selected hour and show the measurement for that bucket. Their bars use
+Observed daily-plan crossings display a red cross in the weekly plot. Plan and
+limit crossings snap within 60 minutes on either side of the point. The two
+hourly charts share the selected hour and show the local hour interval and
+the measurement for that bucket. Their bars use
 muted colors at rest. Both highlight the selected hour and brighten its bars,
 with the readout placed beside the selected column. A covered time with missing
 evidence is labelled as such. Token hours beyond the last scan identify that
@@ -185,7 +188,7 @@ quota cannot stand in for an account's weekly one.
   for the selected account. The vertical axis labels the percentage of weekly
   quota. Average and median describe completely observed hours in the selected
   range, including measured zeroes. Both appear as horizontal guides, with
-  values in one row below the title alongside the sustainable rate. The dashed amber
+  color-matched values left-aligned below the title alongside the sustainable rate. The dashed amber
   sustainable rate is remaining quota divided by hours to reset. Old data can still be
   viewed, and the pace and forecast guides require a fresh measurement.
 

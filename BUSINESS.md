@@ -117,7 +117,7 @@ subscription charges.
 - Statistics date-range changes operate on cached daily/model aggregates and do
   not reread session logs.
 - Statistics uses provider chips (All, Codex, Claude, Kimi, Qwen) above the
-  Token Spend and Quota History tabs. Option-click a chip to select one provider.
+  Token Spend and Quota & Usage tabs. Option-click a chip to select one provider.
   Token Spend places By provider, Models and Days on one row above Activity.
   Each provider's share uses the total recorded tokens in the selected providers
   and period. Provider selection persists independently of menu visibility.
@@ -174,7 +174,7 @@ subscription charges.
   the grid extends with empty future days through the end of the first year
   measured from the first recorded vibecoding day; after it, through the end of
   the current month, opening with that month at the right.
-  Quota History opens with the quota overview, hourly quota and local hourly
+  Quota & Usage opens with the quota overview, hourly quota and local hourly
   tokens in one compact group above Provider reports. The right-edge chart
   button on supported provider rows opens and closes the same group.
   Claude, Codex and Kimi share the same quota readouts and plot layout. All

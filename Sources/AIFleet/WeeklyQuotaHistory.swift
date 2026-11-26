@@ -216,24 +216,32 @@ struct WeeklyQuotaChart {
         return segment?.last { $0.time <= date }?.used
     }
 
-    func hoverTime(near date: Date) -> Date {
-        var anchors = [earlyResetAt, latest?.time].compactMap { $0 }
-        anchors += forecasts.compactMap(\.exhaustion)
-        if let cycleStart {
-            for segment in segments {
-                if segment.count == 1, let reading = segment.first {
-                    anchors.append(reading.time)
-                }
-                for (previous, reading) in zip(segment, segment.dropFirst()) {
-                    let plan = WeeklyQuotaPace.budget(at: reading.time, cycleStart: cycleStart)
-                    let crossedPlan = Double(previous.used) <= plan && Double(reading.used) > plan
-                    let reachedLimit = previous.used < 100 && reading.used == 100
-                    if crossedPlan || reachedLimit { anchors.append(reading.time) }
-                }
+    var planCrossings: [Date] {
+        guard let cycleStart else { return [] }
+        return segments.flatMap { segment in
+            zip(segment, segment.dropFirst()).compactMap { previous, reading in
+                let plan = WeeklyQuotaPace.budget(at: reading.time, cycleStart: cycleStart)
+                return Double(previous.used) <= plan && Double(reading.used) > plan ? reading.time : nil
             }
         }
+    }
+
+    func hoverTime(near date: Date) -> Date {
+        let limits = segments.compactMap { segment -> Date? in
+            guard let first = segment.first, first.used < 100 else { return nil }
+            return segment.first { $0.used == 100 }?.time
+        }
+        var crossings = (planCrossings + limits + forecasts.compactMap(\.exhaustion))
+            .filter { abs($0.timeIntervalSince(date)) <= UsageHours.hour }
+        if let earlyResetAt, abs(earlyResetAt.timeIntervalSince(date)) <= UsageHours.hour / 2 {
+            crossings.append(earlyResetAt)
+        }
+        if let nearest = crossings.min(by: { abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date)) }) {
+            return nearest
+        }
+
+        let anchors = segments.compactMap { $0.count == 1 ? $0.first?.time : nil } + [latest?.time].compactMap { $0 }
         let nearest = anchors.min { abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date)) }
-        // Use a one-hour-wide window centered on the reading or crossing.
         guard let nearest, abs(nearest.timeIntervalSince(date)) <= UsageHours.hour / 2 else { return date }
         return nearest
     }

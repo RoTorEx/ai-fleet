@@ -279,7 +279,7 @@ extension StatisticsProvider {
 
 private enum StatisticsTab: String, CaseIterable, Identifiable {
     case tokenSpend = "Token Spend"
-    case quotaHistory = "Quota History"
+    case quotaHistory = "Quota & Usage"
 
     var id: Self { self }
 }

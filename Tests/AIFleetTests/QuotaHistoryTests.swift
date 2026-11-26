@@ -479,7 +479,7 @@ final class QuotaHistoryTests: XCTestCase {
         let cursor = base.addingTimeInterval(175 * 60)
         let readout = drawing.accessibilityDetails(for: .hourly, selectedTime: cursor)
         XCTAssertTrue(readout.hasSuffix(". 3.0% of weekly quota"))
-        XCTAssertTrue(drawing.headerMetrics(for: .hourly).starts(with: ["Average 4.0%", "Median 3.0%"]))
+        XCTAssertTrue(drawing.headerMetrics(for: .hourly).map(\.label).starts(with: ["Average 4.0%", "Median 3.0%"]))
         let partial = drawing.accessibilityDetails(for: .hourly, selectedTime: now)
         XCTAssertTrue(partial.contains("14.0% of weekly quota · partial hour"))
     }
@@ -628,12 +628,36 @@ final class QuotaHistoryTests: XCTestCase {
         let start = try XCTUnwrap(chart.cycleStart)
         let figure = QuotaHistoryDrawing(data: .quota(chart))
         let size = CGSize(width: 480, height: QuotaHistoryPanel.overview.height)
-        for offset in [-31, -29, 29, 31] {
+        XCTAssertEqual(chart.planCrossings, [crossing])
+        for offset in [-61, -59, 59, 61] {
             let time = crossing.addingTimeInterval(Double(offset * 60))
             let x = 44 + 416 * time.timeIntervalSince(start) / WeeklyQuotaPace.weekSeconds
             let selected = try XCTUnwrap(figure.selection(at: CGPoint(x: x, y: 70), in: size, panel: .overview))
-            let expected = abs(offset) < 30 ? crossing : time
+            let expected = abs(offset) < 60 ? crossing : time
             XCTAssertEqual(selected.timeIntervalSince(expected), 0, accuracy: 0.01)
+        }
+
+        let width = Int(size.width * 2)
+        let height = Int(size.height * 2)
+        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 2, y: -2)
+        figure.draw(.overview, in: context, size: size)
+        let x = Int((44 + 416 * crossing.timeIntervalSince(start) / WeeklyQuotaPace.weekSeconds) * 2)
+        let y = Int((146 - 122 / 7.0) * 2)
+        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+        let hasRedMarker = (x - 5...x + 5).contains { column in
+            (y - 5...y + 5).contains { row in
+                let index = (row * width + column) * 4
+                return Int(pixels[index]) - Int(pixels[index + 1]) > 110
+            }
+        }
+        XCTAssertTrue(hasRedMarker)
+        if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"], let image = context.makeImage() {
+            try NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to:
+                URL(fileURLWithPath: directory).appendingPathComponent("quota-pacing-crossing.png"))
         }
     }
 
@@ -774,6 +798,22 @@ final class QuotaHistoryTests: XCTestCase {
         }
     }
 
+    func testChartHourLabelsTheLocalInterval() throws {
+        let formatter = ISO8601DateFormatter()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Warsaw"))
+        let locale = Locale(identifier: "en_US")
+        let evening = try XCTUnwrap(formatter.date(from: "2026-11-25T17:00:00Z"))
+        let late = try XCTUnwrap(formatter.date(from: "2026-11-25T22:00:00Z"))
+        XCTAssertEqual(chartHour(evening, calendar: calendar, locale: locale), "Nov 25 18–19")
+        XCTAssertEqual(chartHour(late, calendar: calendar, locale: locale), "Nov 25 23–Nov 26 00")
+
+        let first = try XCTUnwrap(formatter.date(from: "2026-10-25T00:00:00Z"))
+        let second = first.addingTimeInterval(hour)
+        XCTAssertNotEqual(chartHour(first, calendar: calendar, locale: locale),
+                          chartHour(second, calendar: calendar, locale: locale))
+    }
+
     func testTokenHoverSeparatesUncachedInputCacheAndOutput() {
         let calendar = Calendar.current
         let now = base.addingTimeInterval(600)
@@ -818,8 +858,8 @@ final class QuotaHistoryTests: XCTestCase {
                                         range: .sevenDays)
         let all = QuotaHistoryDrawing(data: .tokens(history), calendar: calendar)
         let output = QuotaHistoryDrawing(data: .tokens(history, series: .output), calendar: calendar)
-        XCTAssertEqual(all.headerMetrics(for: .hourly), ["Average 100/h", "Median 0/h"])
-        XCTAssertEqual(output.headerMetrics(for: .hourly), ["Average 20/h", "Median 0/h"])
+        XCTAssertEqual(all.headerMetrics(for: .hourly).map(\.label), ["Average 100/h", "Median 0/h"])
+        XCTAssertEqual(output.headerMetrics(for: .hourly).map(\.label), ["Average 20/h", "Median 0/h"])
     }
 
     private func report(_ id: String, at date: Date, reset: Date, used: Int, modelUsed: Int? = nil,
