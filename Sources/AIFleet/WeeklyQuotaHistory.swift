@@ -216,6 +216,28 @@ struct WeeklyQuotaChart {
         return segment?.last { $0.time <= date }?.used
     }
 
+    func hoverTime(near date: Date) -> Date {
+        var anchors = [earlyResetAt, latest?.time].compactMap { $0 }
+        anchors += forecasts.compactMap(\.exhaustion)
+        if let cycleStart {
+            for segment in segments {
+                if segment.count == 1, let reading = segment.first {
+                    anchors.append(reading.time)
+                }
+                for (previous, reading) in zip(segment, segment.dropFirst()) {
+                    let plan = WeeklyQuotaPace.budget(at: reading.time, cycleStart: cycleStart)
+                    let crossedPlan = Double(previous.used) <= plan && Double(reading.used) > plan
+                    let reachedLimit = previous.used < 100 && reading.used == 100
+                    if crossedPlan || reachedLimit { anchors.append(reading.time) }
+                }
+            }
+        }
+        let nearest = anchors.min { abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date)) }
+        // Use a one-hour-wide window centered on the reading or crossing.
+        guard let nearest, abs(nearest.timeIntervalSince(date)) <= UsageHours.hour / 2 else { return date }
+        return nearest
+    }
+
     func projections(at date: Date) -> [(period: Forecast.Period, used: Double)] {
         guard let latest, date > latest.time else { return [] }
         let used = Double(latest.used)

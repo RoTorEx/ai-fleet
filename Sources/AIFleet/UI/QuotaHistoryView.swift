@@ -68,6 +68,7 @@ struct QuotaHistoryView: View {
     @State private var refreshingLocalTokens = UsageAnalyticsService.shared.isRefreshing
     @State private var overviewCursor: QuotaChartCursor?
     @State private var hourlyCursor: QuotaChartCursor?
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("quotaHistory.hourlyDays") private var range: QuotaHistoryRange = .sevenDays
     private var isStatistics: Bool { openInStatistics == nil }
     private var controlLabelWidth: CGFloat { isStatistics ? 142 : 110 }
@@ -119,6 +120,10 @@ struct QuotaHistoryView: View {
                     VStack(spacing: 0) {
                         if let quota {
                             QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $hourlyCursor)
+                            Rectangle()
+                                .fill(Color.white.opacity(colorScheme == .dark ? 0.24 : 1))
+                                .frame(height: 1)
+                                .accessibilityHidden(true)
                         }
                         let data = QuotaHistoryFigureData.tokens(tokens, series: request.tokenSeries)
                         QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: data, calendar: calendar),

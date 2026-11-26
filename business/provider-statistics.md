@@ -93,19 +93,22 @@ The plot dimensions stay fixed as the one-hour bins become denser. The six-hour 
 with dates on a separate row and abbreviated labels when space is limited.
 The charts use the current macOS light or dark appearance. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
-bin exceeds it. An off-scale sustainable rate is labelled in the hover readout. Charts
+bin exceeds it. An off-scale sustainable rate is labelled below the chart title. Charts
 keep the zero baseline and omit its label. Hover over the info icon at the
 right edge of a chart header to see its legend inside the chart. Legends use
 one mark and label per row. The weekly legend groups fill bands ahead of lines
-and leads with the cycle dates. Hourly legends lead with their source.
-Paragraph spacing groups marks and reference definitions. Quota headings
-show the window name. The menu popover points at the clicked chart button, resizes
+and leads with the cycle dates. Hourly legends use a short gap after the source,
+followed by a continuous list of marks and reference definitions. A light rule
+separates the two hourly charts. Quota headings show the window name.
+The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
-Hover readouts start with the date and local time, followed by the measurement.
-The weekly chart has its own cursor. The two hourly charts share the start of
-the selected hour and show the measurement for that bucket. Their bars use
+Hover readouts use a fixed size within each plot. They start with the date and
+local time, followed by the measurement. The weekly chart has its own cursor.
+Observed plan crossings, limit crossings, resets and individual readings snap
+within a one-hour band centered on the point. The two hourly charts share the
+start of the selected hour and show the measurement for that bucket. Their bars use
 muted colors at rest. Both highlight the selected hour and brighten its bars,
 with the readout placed beside the selected column. A covered time with missing
 evidence is labelled as such. Token hours beyond the last scan identify that
@@ -113,14 +116,16 @@ scan in the readout. Refresh local tokens in the popover reuses the background
 log scan without starting a provider quota refresh. Statistics uses its existing
 Refresh control. The local token chart stacks
 uncached input, cache reads and writes, and output in distinct colors. Hover shows
-the total on a separate line and each displayed category's count and share
-of the total. Select one category to inspect it on a scale fitted to its own values.
+the total on a separate line and each displayed category's count with its
+share in parentheses. Select one category to inspect it on a scale fitted to its own values.
 
 The main menu reports remaining quota. The chart labels the used percentage,
 calculated as 100 minus remaining. A current-only limit uses the reading from
 the selected Providers row, marks stale readings and labels unavailable hourly
 history. Kimi's 5h and monthly windows use this state. Weekly history and
 forecasts require a verified weekly window with the corresponding inputs.
+Reported quota is account-wide and reflects activity from devices sharing the
+account. Its percentage and reset time carry no device attribution.
 
 ### Provider quota
 
@@ -179,8 +184,8 @@ quota cannot stand in for an account's weekly one.
   for the elapsed observed portion. The mint bars show measured hourly changes
   for the selected account. The vertical axis labels the percentage of weekly
   quota. Average and median describe completely observed hours in the selected
-  range, including measured zeroes. Both appear as horizontal guides and their
-  values follow the measurement in the hover readout. The dashed amber
+  range, including measured zeroes. Both appear as horizontal guides, with
+  values in one row below the title alongside the sustainable rate. The dashed amber
   sustainable rate is remaining quota divided by hours to reset. Old data can still be
   viewed, and the pace and forecast guides require a fresh measurement.
 
