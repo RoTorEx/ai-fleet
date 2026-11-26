@@ -24,10 +24,10 @@ struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var service = StatusService.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
-    @State private var newThreshold = 10
-    @State private var newThresholdText = "10"
+    @State private var newThresholdText = ""
     @State private var isAddingThreshold = false
-    @State private var sounds: [NotificationSoundChoice] = []
+    @FocusState private var thresholdInputFocused: Bool
+    @State private var sounds: [NotificationSoundChoice] = [.silent, .systemDefault]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -126,31 +126,34 @@ struct SettingsView: View {
     private func notificationSound(_ event: NotificationSoundEvent) -> some View {
         let choice = NotificationSounds.choice(for: event, selectedID: settings.notificationSoundIDs[event.rawValue], in: sounds)
         return LabeledContent(event.title) {
-            Picker(event.title, selection: Binding(
-                get: { choice.id },
-                set: { settings.setNotificationSound($0, for: event) }
-            )) {
-                ForEach(sounds) { sound in Text(sound.title).tag(sound.id) }
+            HStack(spacing: 8) {
+                NotificationSoundPicker(choices: sounds, selectedID: choice.id, label: "\(event.title) sound") {
+                    settings.setNotificationSound($0, for: event)
+                }
+                .frame(width: 184, height: 22)
+                Button {
+                    NotificationSounds.playPreview(choice)
+                } label: {
+                    Image(systemName: "speaker.wave.2")
+                }
+                .help("Preview \(event.title.lowercased()) sound")
+                .accessibilityLabel("Preview \(event.title.lowercased()) sound")
+                .disabled(choice.id == NotificationSoundChoice.silent.id)
             }
-            .labelsHidden()
-            .frame(width: 184)
-            Button {
-                NotificationSounds.playPreview(choice)
-            } label: {
-                Image(systemName: "speaker.wave.2")
-            }
-            .help("Preview \(event.title.lowercased()) sound")
-            .accessibilityLabel("Preview \(event.title.lowercased()) sound")
-            .disabled(choice.id == NotificationSoundChoice.silent.id)
         }
     }
 
     private var quotaThresholds: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            LabeledContent("Quota alert at") { addThresholdControl }
-            QuotaThresholdLayout { thresholdChips }
+        HStack(spacing: 16) {
+            Text("Quota alert at")
+                .fixedSize()
+                .frame(minHeight: 19)
+            HStack(spacing: 8) {
+                QuotaThresholdLayout { thresholdChips }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                addThresholdControl
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var thresholdChips: some View {
@@ -170,7 +173,7 @@ struct SettingsView: View {
                 }
             }
             .font(.system(size: 11.5, weight: .medium))
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .frame(minHeight: 19)
             .background(Color.primary.opacity(0.08), in: Capsule())
@@ -195,21 +198,34 @@ struct SettingsView: View {
     private var addThresholdControl: some View {
         HStack(spacing: 4) {
             if isAddingThreshold {
-                TextField("%", text: $newThresholdText)
-                    .textFieldStyle(.roundedBorder).frame(width: 44)
+                TextField("Threshold percentage", text: $newThresholdText, prompt: Text("%"))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 44)
+                    .focused($thresholdInputFocused)
+                    .onAppear { thresholdInputFocused = true }
                     .onSubmit(addThresholdFromInput)
                     .onExitCommand { isAddingThreshold = false }
+                Button(action: addThresholdFromInput) {
+                    Image(systemName: "checkmark.circle")
+                }
+                .buttonStyle(.plain)
+                .help("Save threshold")
+                .disabled(parsedNewThreshold == nil)
             }
             Button {
-                if isAddingThreshold { addThresholdFromInput() } else {
-                    newThresholdText = "\(newThreshold)"
-                    isAddingThreshold = true
-                }
-            } label: { Image(systemName: isAddingThreshold ? "checkmark.circle" : "plus.circle") }
+                newThresholdText = ""
+                isAddingThreshold.toggle()
+            } label: {
+                Image(systemName: isAddingThreshold ? "xmark.circle" : "plus.circle")
+            }
             .buttonStyle(.plain)
-            .help(isAddingThreshold ? "Save threshold" : "Add threshold")
-            .disabled(isAddingThreshold && parsedNewThreshold == nil)
+            .help(isAddingThreshold ? "Cancel threshold entry" : "Add threshold")
+            .keyboardShortcut(isAddingThreshold ? .cancelAction : nil)
         }
+        .controlSize(.small)
+        .frame(minHeight: 19)
+        .fixedSize()
     }
 
     private var parsedNewThreshold: Int? {
@@ -224,11 +240,55 @@ struct SettingsView: View {
 
     private func addThresholdFromInput() {
         guard let threshold = parsedNewThreshold else { return }
-        newThreshold = threshold
         settings.addNotificationThreshold(threshold)
         service.resetNotificationThresholdState()
-        newThresholdText = "\(threshold)"
+        newThresholdText = ""
         isAddingThreshold = false
+    }
+}
+
+private struct NotificationSoundPicker: NSViewRepresentable {
+    let choices: [NotificationSoundChoice]
+    let selectedID: String
+    let label: String
+    let onSelect: (String) -> Void
+
+    final class Coordinator: NSObject {
+        var onSelect: ((String) -> Void)?
+
+        @objc func selectSound(_ button: NSPopUpButton) {
+            if let id = button.selectedItem?.representedObject as? String {
+                onSelect?(id)
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.bezelStyle = .rounded
+        button.alignment = .left
+        button.cell?.lineBreakMode = .byTruncatingTail
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.selectSound)
+        button.setAccessibilityLabel(label)
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        context.coordinator.onSelect = onSelect
+        if button.itemArray.compactMap({ $0.representedObject as? String }) != choices.map(\.id) {
+            button.removeAllItems()
+            for choice in choices {
+                button.addItem(withTitle: choice.id)
+                button.lastItem?.title = choice.title
+                button.lastItem?.representedObject = choice.id
+            }
+        }
+        if let index = choices.firstIndex(where: { $0.id == selectedID }) {
+            button.selectItem(at: index)
+        }
     }
 }
 
@@ -241,8 +301,10 @@ private struct QuotaThresholdLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let frames = arrange(subviews, width: bounds.width).frames
+        let rowWidths = Dictionary(frames.map { ($0.minY, $0.maxX) }, uniquingKeysWith: max)
         for (subview, frame) in zip(subviews, frames) {
-            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+            let rowWidth = rowWidths[frame.minY, default: frame.maxX]
+            subview.place(at: CGPoint(x: bounds.maxX - rowWidth + frame.minX, y: bounds.minY + frame.minY),
                           anchor: .topLeading, proposal: ProposedViewSize(frame.size))
         }
     }
