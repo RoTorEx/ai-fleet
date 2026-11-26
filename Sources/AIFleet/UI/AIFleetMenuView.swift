@@ -224,6 +224,7 @@ struct AIFleetMenuView: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        .tint(FleetPalette.muted)
         .fixedSize()
         .help(title)
         .accessibilityLabel(title)

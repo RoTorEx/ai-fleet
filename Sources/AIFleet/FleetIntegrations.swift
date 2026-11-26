@@ -51,6 +51,7 @@ final class FleetIntegrations {
         #!/bin/sh
         /bin/rm -f -- "$0"
         cd "$HOME" || exit 1
+        unset NO_COLOR
         exec '\(path)'
         """ + "\n"
         do {

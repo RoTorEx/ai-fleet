@@ -7,6 +7,8 @@ Tracks real product and release progress.
 - Add direct Statistics and Integrations buttons in the menu header. Open Lens in Terminal or Grist in the default browser from Integrations.
 - Pick, preview or mute global sounds for ready replies, requests for attention and quota warnings in General settings, including the local agent sound set.
 - Keep each quota threshold and its percent sign together in Settings, with an aligned add control.
+- Match the muted icon color across the four menu header controls.
+- Show the Lens terminal interface in color when launched through Integrations.
 
 ## [1.7.5] - 2026-11-26
 
