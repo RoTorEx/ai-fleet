@@ -65,6 +65,7 @@ struct QuotaHistoryView: View {
     @Binding var selection: QuotaHistoryRequest?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
+    @State private var refreshingLocalTokens = UsageAnalyticsService.shared.isRefreshing
     @State private var overviewCursor: QuotaChartCursor?
     @State private var hourlyCursor: QuotaChartCursor?
     @AppStorage("quotaHistory.hourlyDays") private var range: QuotaHistoryRange = .sevenDays
@@ -124,8 +125,15 @@ struct QuotaHistoryView: View {
                                            panel: .hourly, cursor: $hourlyCursor)
                     }
                     if let openInStatistics {
-                        Button("Open in Statistics") {
-                            openInStatistics(request)
+                        HStack(spacing: 8) {
+                            Button("Open in Statistics") {
+                                openInStatistics(request)
+                            }
+                            Button(refreshingLocalTokens ? "Refreshing local tokens…" : "Refresh local tokens") {
+                                UsageAnalyticsService.shared.refreshLocalHistory()
+                            }
+                            .disabled(refreshingLocalTokens)
+                            .help("Update the local token chart from session logs")
                         }
                         .controlSize(.small)
                     }
@@ -133,6 +141,7 @@ struct QuotaHistoryView: View {
             }
         }
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
+        .onReceive(UsageAnalyticsService.shared.$isRefreshing) { refreshingLocalTokens = $0 }
         .onChange(of: selection?.targetID) { _ in
             overviewCursor = nil
             hourlyCursor = nil

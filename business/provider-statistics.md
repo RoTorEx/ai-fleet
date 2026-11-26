@@ -97,8 +97,8 @@ bin exceeds it. An off-scale sustainable rate is labelled in the hover readout. 
 keep the zero baseline and omit its label. Hover over the info icon at the
 right edge of a chart header to see its legend inside the chart. Legends use
 one mark and label per row. The weekly legend groups fill bands ahead of lines
-and ends with the cycle dates. Hourly legends show marks, definitions of their
-reference lines, and the selected range in separate sections. Quota headings
+and leads with the cycle dates. Hourly legends lead with their source.
+Paragraph spacing groups marks and reference definitions. Quota headings
 show the window name. The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
@@ -108,7 +108,10 @@ The weekly chart has its own cursor. The two hourly charts share the start of
 the selected hour and show the measurement for that bucket. Their bars use
 muted colors at rest. Both highlight the selected hour and brighten its bars,
 with the readout placed beside the selected column. A covered time with missing
-evidence is labelled as such. The local token chart stacks
+evidence is labelled as such. Token hours beyond the last scan identify that
+scan in the readout. Refresh local tokens in the popover reuses the background
+log scan without starting a provider quota refresh. Statistics uses its existing
+Refresh control. The local token chart stacks
 uncached input, cache reads and writes, and output in distinct colors. Hover shows
 the total on a separate line and each displayed category's count and share
 of the total. Select one category to inspect it on a scale fitted to its own values.
@@ -167,12 +170,13 @@ quota cannot stand in for an account's weekly one.
   coincide. Each ends at reset or at the projected limit crossing, whichever
   comes first. The legend identifies the history needed for an unavailable
   forecast while the latest reading is fresh.
-- An hourly bin requires sufficient observation coverage and a single cycle.
-  A nonzero change spanning an hour boundary cannot identify the spend in
-  either hour. A measured zero and an uncovered hour have distinct treatment.
-  When observation starts mid-hour, any measured increase within that first
-  hour appears as a partial bar. The current hour also uses a partial bar for
-  the elapsed observed portion. The mint bars show measured hourly changes
+- A complete hourly bin requires coverage across the whole hour and a single
+  quota cycle. A nonzero change spanning an hour boundary cannot identify the
+  spend in either hour. Measured subintervals can still contribute to a partial
+  bar. A reset or downward correction inside an hour starts a new subtotal, so
+  the bar represents observed use in the latest segment. A measured zero and an
+  uncovered hour have distinct treatment. The current hour uses a partial bar
+  for the elapsed observed portion. The mint bars show measured hourly changes
   for the selected account. The vertical axis labels the percentage of weekly
   quota. Average and median describe completely observed hours in the selected
   range, including measured zeroes. Both appear as horizontal guides and their

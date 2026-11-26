@@ -656,6 +656,49 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertTrue(result.segments.flatMap { $0 }.allSatisfy { $0.reset == newReset })
     }
 
+    func testHourWithAnEarlyResetKeepsTheObservedNewCycleUsage() throws {
+        let oldReset = base.addingTimeInterval(48 * hour)
+        let newReset = base.addingTimeInterval(WeeklyQuotaPace.weekSeconds + 2 * 60)
+        let readings = [(0, 97), (1, 99), (2, 0), (10, 2), (20, 3), (30, 5), (40, 6), (50, 8), (60, 8)]
+        var history = WeeklyQuotaHistory()
+        for (minute, used) in readings {
+            let time = base.addingTimeInterval(Double(minute * 60))
+            let reset = minute < 2 ? oldReset : newReset
+            history.observe([report("a", at: time, reset: reset, used: used)], now: time)
+        }
+        let now = base.addingTimeInterval(hour)
+        let latest = report("a", at: now, reset: newReset, used: 8)
+        let chart = WeeklyQuotaChart(report: latest, window: latest.limits[0], history: history, now: now)
+        let resetHour = try XCTUnwrap(chart.hours.first { $0.start == base })
+        XCTAssertNil(resetHour.percentagePoints)
+        XCTAssertEqual(resetHour.partialPercentagePoints, 8)
+        let readout = QuotaHistoryDrawing(data: .quota(chart)).accessibilityDetails(for: .hourly, selectedTime: base)
+        XCTAssertTrue(readout.contains("8.0% of weekly quota · partial hour"))
+    }
+
+    func testAStaleTokenSnapshotExplainsAnUnscannedHour() {
+        let calendar = Calendar.current
+        let now = base.addingTimeInterval(hour)
+        let previous = base.addingTimeInterval(-hour)
+        var snapshot = UsageAnalyticsSnapshot.empty
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
+        snapshot.timeZoneIdentifier = calendar.timeZone.identifier
+        snapshot.refreshedAt = base.addingTimeInterval(-10 * 60)
+        let tokens = UsageTotals(inputTokens: 120, cachedInputTokens: 60, cacheWriteInputTokens: 0,
+                                 outputTokens: 8, reasoningOutputTokens: 0, estimatedCostUSD: 0)
+        snapshot.codex.hourlyModels = [HourlyModelUsage(hour: previous, model: "Fixture", tokens: tokens)]
+        let stale = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: now, calendar: calendar)
+        let staleDrawing = QuotaHistoryDrawing(data: .tokens(stale), calendar: calendar)
+        let unscanned = staleDrawing.accessibilityDetails(for: .hourly, selectedTime: base)
+        XCTAssertTrue(unscanned.contains("Awaiting local log scan. Last scan"))
+
+        snapshot.refreshedAt = now
+        snapshot.codex.hourlyModels.append(HourlyModelUsage(hour: base, model: "Fixture", tokens: tokens))
+        let refreshed = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: now, calendar: calendar)
+        let updated = QuotaHistoryDrawing(data: .tokens(refreshed), calendar: calendar)
+        XCTAssertTrue(updated.accessibilityDetails(for: .hourly, selectedTime: base).contains("Total · 128 tokens"))
+    }
+
     func testLocalModelsUseEventHoursIncludingRepeatedLocalHour() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Warsaw"))

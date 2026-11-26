@@ -172,7 +172,6 @@ struct WeeklyQuotaChart {
     let segments: [[WeeklyQuotaObservation]]
     let forecasts: [Forecast]
     let hours: [Hour]
-    let range: QuotaHistoryRange
     let cycleResets: [Date]
     let cycleIndex: Int
     let earlyResetAt: Date?
@@ -231,7 +230,6 @@ struct WeeklyQuotaChart {
     init(report: StatisticsProviderReport, window: ProviderLimitWindow, history: WeeklyQuotaHistory,
          now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays,
          displayedReset: Date? = nil) {
-        self.range = range
         self.now = now
         pace = WeeklyQuotaPace.make(report: report, window: window, now: now)
         var samples = history.records[WeeklyQuotaHistoryKey(report: report, window: window)] ?? []
@@ -342,36 +340,29 @@ struct WeeklyQuotaChart {
             guard let newest = samples.last else { return Hour(start: start) }
             let end = start == hours.last ? min(nominalEnd, newest.time) : nominalEnd
             guard start < end else { return Hour(start: start) }
-            if samples[firstIndex].time > start {
-                let observed = samples[firstIndex...].prefix { $0.time <= end }
-                return Hour(start: start, partialPercentagePoints: partialChange(in: observed))
-            }
             var index = firstIndex
-            var used = 0
+            var complete = samples[index].time <= start && end == hourEnd
+            var observed: Int?
             while index + 1 < samples.count, samples[index].time < end {
                 let left = samples[index]
                 let right = samples[index + 1]
                 let delta = right.used - left.used
-                guard left.sharesCycle(with: right), delta >= 0,
-                      right.time.timeIntervalSince(left.time) <= WeeklyQuotaPace.maximumObservationAge,
-                      delta == 0 || (left.time >= start && right.time <= end) else {
-                    return Hour(start: start)
+                if !left.sharesCycle(with: right) || delta < 0 {
+                    complete = false
+                    // Start a new subtotal when the quota baseline changes inside the hour.
+                    if right.time < end { observed = nil }
+                } else if right.time.timeIntervalSince(left.time) > WeeklyQuotaPace.maximumObservationAge
+                            || (delta > 0 && (left.time < start || right.time > end)) {
+                    complete = false
+                } else {
+                    observed = (observed ?? 0) + delta
                 }
-                used += delta
                 index += 1
             }
-            guard samples[index].time >= end else { return Hour(start: start) }
-            if end < hourEnd { return Hour(start: start, partialPercentagePoints: used) }
-            return Hour(start: start, percentagePoints: used)
+            if complete && samples[index].time >= end {
+                return Hour(start: start, percentagePoints: observed)
+            }
+            return Hour(start: start, partialPercentagePoints: observed)
         }
-    }
-
-    private static func partialChange(in observations: ArraySlice<WeeklyQuotaObservation>) -> Int? {
-        guard let first = observations.first, let last = observations.last, last.used > first.used,
-              zip(observations, observations.dropFirst()).allSatisfy({ left, right in
-                  left.sharesCycle(with: right) && right.used >= left.used
-                      && right.time.timeIntervalSince(left.time) <= WeeklyQuotaPace.maximumObservationAge
-              }) else { return nil }
-        return last.used - first.used
     }
 }

@@ -11,6 +11,8 @@ Tracks real product and release progress.
 - Show seven daily pace ceilings, reaching 100% on day seven. Mark observed early resets on archived cycles and dash the plan after the reset.
 - Draw complete-hour average and median guides on both hourly charts. Show definitions beneath the legend and numeric values in the readouts.
 - Link the selected hour across the two hourly charts and brighten its bars. Keep weekly readings independent, and label partial-hour observations and local token scope.
+- Keep observed quota use for a partial hour that contains a reset. Explain unscanned token hours and offer a local log refresh in the chart popover.
+- Lead chart legends with their data source or cycle dates and group entries with spacing.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 

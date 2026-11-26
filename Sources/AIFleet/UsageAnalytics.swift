@@ -318,6 +318,10 @@ final class UsageAnalyticsService: ObservableObject {
         startRefresh(kimi: kimi, restartExisting: true)
     }
 
+    func refreshLocalHistory() {
+        startRefresh(restartExisting: false)
+    }
+
     func updateKimi(kimi: ProviderStatus) {
         let kimiAnalytics = Self.kimiAnalytics(from: kimi.limitWindows)
         snapshot = snapshot.withKimi(kimiAnalytics)
@@ -334,12 +338,12 @@ final class UsageAnalyticsService: ObservableObject {
     func startDailyRefreshSchedule() {
         if timeZoneObserver == nil {
             timeZoneObserver = NotificationCenter.default.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { [weak self] _ in
-                Task { @MainActor in self?.startRefresh(kimi: StatusService.shared.kimi, restartExisting: true, preserveQuota: true) }
+                Task { @MainActor in self?.startRefresh(restartExisting: true) }
             }
         }
         if snapshot.needsRebuild(timeZone: .current)
             || snapshot.hourlyHistoryDays != QuotaHistoryRange.retained.rawValue {
-            startRefresh(kimi: StatusService.shared.kimi, restartExisting: false, preserveQuota: true)
+            refreshLocalHistory()
         }
         rescheduleDailyRefresh()
     }
@@ -365,7 +369,7 @@ final class UsageAnalyticsService: ObservableObject {
         scheduleTimer = timer
     }
 
-    private func startRefresh(kimi: ProviderStatus, restartExisting: Bool, preserveQuota: Bool = false) {
+    private func startRefresh(kimi: ProviderStatus? = nil, restartExisting: Bool) {
         if isRefreshing {
             guard restartExisting else { return }
             task?.cancel()
@@ -383,7 +387,7 @@ final class UsageAnalyticsService: ObservableObject {
             currentFileName: nil
         )
 
-        let kimiAnalytics = preserveQuota ? snapshot.kimi : Self.kimiAnalytics(from: kimi.limitWindows)
+        let kimiAnalytics = kimi.map { Self.kimiAnalytics(from: $0.limitWindows) } ?? snapshot.kimi
         let existingFileCache = fileCache
         snapshot = snapshot.withKimi(kimiAnalytics)
 

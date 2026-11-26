@@ -85,11 +85,9 @@ struct LocalTokenHistory {
     let models: [String]
     let hours: [Hour]
     let scannedAt: Date?
-    let range: QuotaHistoryRange
 
     init(snapshot: UsageAnalyticsSnapshot, provider: StatisticsProvider, model: String? = nil,
          now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays) {
-        self.range = range
         let history: CodexUsageAnalytics?
         switch provider {
         case .codex: history = snapshot.codex
