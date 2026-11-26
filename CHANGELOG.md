@@ -4,6 +4,8 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+## [1.7.5] - 2026-11-26
+
 - Update local token history with metadata checks, streaming parsers, and verified append checkpoints. Offer a separate rebuild in the Statistics refresh menu.
 - Mark partial hours with hatching, reserve brightness for the selected hour, and show when the local cache stops covering new activity.
 - Keep the provider chart popover in one window while switching accounts and place it after measuring the chart stack.
