@@ -7,10 +7,10 @@ Tracks real product and release progress.
 - Keep the provider chart popover in one window while switching accounts and place it after measuring the chart stack.
 - Offer 3-, 5-, and 7-day ranges in both hourly charts with a 7-day default, and match the active light or dark appearance.
 - Group hourly filters above both hourly plots, and place dated cycle navigation above the weekly chart. Keep all saved quota observations across resets.
-- Use concise quota headings and right-align cycle arrows and hourly filters. Put percentage units on the hourly quota axis.
+- Place compact current readings and cycle arrows in the account header. Move the selected cycle and hourly range into the legends.
 - Show seven daily pace ceilings, reaching 100% on day seven. Mark observed early resets on archived cycles and dash the plan after the reset.
-- Draw complete-hour mean and median guides on both hourly charts. List their values below the uniform legend and in timestamp-first readouts.
-- Synchronize the hover timestamp across quota and token charts. Show token totals and category shares, and use local timestamps without a repeated time-zone label.
+- Draw complete-hour average and median guides on both hourly charts. Show definitions beneath the legend and numeric values in the readouts.
+- Link the selected hour across the two hourly charts and brighten its bars. Keep weekly readings independent, and label partial-hour observations and local token scope.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 

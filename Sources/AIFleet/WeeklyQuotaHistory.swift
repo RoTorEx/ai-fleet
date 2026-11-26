@@ -178,7 +178,6 @@ struct WeeklyQuotaChart {
     let earlyResetAt: Date?
     let now: Date
     let latest: WeeklyQuotaObservation?
-    let firstObservation: Date?
     var sustainablePerHour: Double? { pace.sustainablePercentPerDay.map { $0 / 24 } }
     var isHistorical: Bool { cycleIndex > 0 }
 
@@ -250,7 +249,6 @@ struct WeeklyQuotaChart {
         cycleIndex = index
         let displayed = cycles.isEmpty ? [] : Array(cycles[index])
         let latest = displayed.last
-        firstObservation = samples.first?.time
         self.latest = latest
         cycleStart = latest?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
         if index > 0, let latest, let next = cycles[index - 1].first {
@@ -336,7 +334,8 @@ struct WeeklyQuotaChart {
     private static func hourlyUsage(_ samples: [WeeklyQuotaObservation], window hours: UsageHours, now: Date) -> [Hour] {
         var firstIndex = 0
         return hours.starts.map { start in
-            let nominalEnd = min(start.addingTimeInterval(UsageHours.hour), now)
+            let hourEnd = start.addingTimeInterval(UsageHours.hour)
+            let nominalEnd = min(hourEnd, now)
             while firstIndex + 1 < samples.count, samples[firstIndex + 1].time <= start {
                 firstIndex += 1
             }
@@ -361,7 +360,9 @@ struct WeeklyQuotaChart {
                 used += delta
                 index += 1
             }
-            return Hour(start: start, percentagePoints: samples[index].time >= end ? used : nil)
+            guard samples[index].time >= end else { return Hour(start: start) }
+            if end < hourEnd { return Hour(start: start, partialPercentagePoints: used) }
+            return Hour(start: start, percentagePoints: used)
         }
     }
 

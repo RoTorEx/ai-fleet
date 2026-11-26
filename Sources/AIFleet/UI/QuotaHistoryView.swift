@@ -65,7 +65,8 @@ struct QuotaHistoryView: View {
     @Binding var selection: QuotaHistoryRequest?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
-    @State private var cursor: QuotaChartCursor?
+    @State private var overviewCursor: QuotaChartCursor?
+    @State private var hourlyCursor: QuotaChartCursor?
     @AppStorage("quotaHistory.hourlyDays") private var range: QuotaHistoryRange = .sevenDays
     private var isStatistics: Bool { openInStatistics == nil }
     private var controlLabelWidth: CGFloat { isStatistics ? 142 : 110 }
@@ -93,24 +94,34 @@ struct QuotaHistoryView: View {
                                          range: range, displayedReset: request.cycleReset)
                     : nil
                 let quota = quotaData.map { QuotaHistoryDrawing(data: $0, calendar: calendar, range: range) }
+                let weekly: WeeklyQuotaChart? = if case .quota(let chart)? = quotaData { chart } else { nil }
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         providerControl(target: target, request: request)
-                        quotaReadings(target, calendar: calendar)
+                        if weekly?.isHistorical == true {
+                            Text("Archived cycle")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        } else {
+                            quotaReadings(target, calendar: calendar)
+                        }
+                        if quotaData != nil {
+                            cycleControls(weekly, request: request)
+                        }
                     }
                     .controlSize(.small)
-                    if let quota, let quotaData {
-                        cycleControls(quotaData, request: request, calendar: calendar)
-                        QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $cursor)
+                    if let quota {
+                        QuotaHistoryFigure(drawing: quota, panel: .overview, cursor: $overviewCursor)
                     }
                     hourlyControls(models: tokens.models, request: request)
                     VStack(spacing: 0) {
                         if let quota {
-                            QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $cursor)
+                            QuotaHistoryFigure(drawing: quota, panel: .hourly, cursor: $hourlyCursor)
                         }
                         let data = QuotaHistoryFigureData.tokens(tokens, series: request.tokenSeries)
                         QuotaHistoryFigure(drawing: QuotaHistoryDrawing(data: data, calendar: calendar),
-                                           panel: .hourly, cursor: $cursor)
+                                           panel: .hourly, cursor: $hourlyCursor)
                     }
                     if let openInStatistics {
                         Button("Open in Statistics") {
@@ -122,43 +133,29 @@ struct QuotaHistoryView: View {
             }
         }
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
-        .onChange(of: selection?.targetID) { _ in cursor = nil }
-        .onChange(of: selection?.cycleReset) { _ in cursor = nil }
-        .onChange(of: range) { _ in cursor = nil }
+        .onChange(of: selection?.targetID) { _ in
+            overviewCursor = nil
+            hourlyCursor = nil
+        }
+        .onChange(of: selection?.cycleReset) { _ in overviewCursor = nil }
+        .onChange(of: range) { _ in hourlyCursor = nil }
     }
 
-    private func cycleControls(_ data: QuotaHistoryFigureData, request: QuotaHistoryRequest,
-                               calendar: Calendar) -> some View {
-        Color.clear
-            .frame(height: 20)
-            .overlay {
-                if case .quota(let chart) = data, let label = chart.cycleLabel(calendar: calendar) {
-                    ZStack(alignment: .trailing) {
-                        Text(label)
-                            .font(.system(size: 11, weight: .medium))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                            .accessibilityLabel("Cycle \(label)")
-                            .padding(.horizontal, 80)
-                            .frame(maxWidth: .infinity)
-                        HStack(spacing: 3) {
-                            cycleButton("Previous quota cycle", symbol: "chevron.left", offset: 1, chart: chart, request: request)
-                            cycleButton("Next quota cycle", symbol: "chevron.right", offset: -1, chart: chart, request: request)
-                        }
-                        .controlSize(.small)
-                    }
-                }
-            }
+    private func cycleControls(_ chart: WeeklyQuotaChart?, request: QuotaHistoryRequest) -> some View {
+        HStack(spacing: 3) {
+            cycleButton("Previous quota cycle", symbol: "chevron.left", offset: 1, chart: chart, request: request)
+            cycleButton("Next quota cycle", symbol: "chevron.right", offset: -1, chart: chart, request: request)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func cycleButton(_ label: String, symbol: String, offset: Int, chart: WeeklyQuotaChart,
+    private func cycleButton(_ label: String, symbol: String, offset: Int, chart: WeeklyQuotaChart?,
                              request: QuotaHistoryRequest) -> some View {
-        let reset = chart.cycleReset(offset: offset)
+        let reset = chart?.cycleReset(offset: offset)
         return Button {
             guard let reset else { return }
             var next = request
-            next.cycleReset = reset == chart.cycleResets.first ? nil : reset
+            next.cycleReset = reset == chart?.cycleResets.first ? nil : reset
             selection = next
         } label: {
             Image(systemName: symbol)
@@ -221,20 +218,22 @@ struct QuotaHistoryView: View {
 
     private func quotaReadings(_ target: QuotaHistoryTarget, calendar: Calendar) -> some View {
         let windows = target.quotaWindows
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                if windows.isEmpty {
-                    Text(target.provider == .qwen ? "Local tokens only" : "No quota reading")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(target.status.quotaState == .stale ? "Last used" : "Used").foregroundStyle(.secondary)
-                    HStack(spacing: 14) {
-                        ForEach(windows) { quotaReading($0, calendar: calendar) }
-                    }
-                }
+        let readings = HStack(spacing: 10) {
+            if windows.isEmpty {
+                Text(target.provider == .qwen ? "Local tokens only" : "No quota reading")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(windows) { quotaReading($0, calendar: calendar) }
+                Text(target.status.quotaState == .stale ? "last used" : "used").foregroundStyle(.secondary)
             }
-            .font(.system(size: 11))
         }
+        .font(.system(size: 11))
+        .fixedSize(horizontal: true, vertical: false)
+        return ViewThatFits(in: .horizontal) {
+            readings
+            ScrollView(.horizontal, showsIndicators: false) { readings }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
         .frame(height: 16)
     }
 

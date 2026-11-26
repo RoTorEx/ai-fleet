@@ -80,9 +80,10 @@ and Kimi share the layout. The Statistics account picker keeps the quota
 readings and all three chart positions stable when quota data is missing.
 Qwen shows unavailable quota states in those slots and opens only its local
 token chart in the compact popover.
-Reported quota windows show their current percentages together. The charts use
-the account-wide weekly limit when present, followed by the longest account
-window. Open in Statistics carries the provider, account and local model
+The header places compact current quota readings to the right of the account
+label, followed by the cycle arrows. Archive navigation shows the archive
+state in the same space. The charts use the account-wide weekly limit when
+present, followed by the longest account window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
 Label sizes stay constant. Both hourly plots share a 3-, 5-, or 7-day range.
@@ -92,19 +93,22 @@ The plot dimensions stay fixed as the one-hour bins become denser. The six-hour 
 with dates on a separate row and abbreviated labels when space is limited.
 The charts use the current macOS light or dark appearance. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
-bin exceeds it. An off-scale sustainable rate appears in the legend. Charts
+bin exceeds it. An off-scale sustainable rate is labelled in the hover readout. Charts
 keep the zero baseline and omit its label. Hover over the info icon at the
 right edge of a chart header to see its legend inside the chart. Legends use
-one mark and label per row, with hourly statistics below a separator. Quota
-headings show the window name. The menu popover points at the clicked chart button, resizes
+one mark and label per row. The weekly legend groups fill bands ahead of lines
+and ends with the cycle dates. Hourly legends show marks, definitions of their
+reference lines, and the selected range in separate sections. Quota headings
+show the window name. The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
 Hover readouts start with the date and local time, followed by the measurement.
-Hovering any time axis shares its absolute timestamp with the other charts that
-cover it. The weekly chart uses its selected cycle and each hourly chart reads
-the bucket containing that timestamp. A covered time with missing evidence is
-labelled as such. The local token chart stacks
+The weekly chart has its own cursor. The two hourly charts share the start of
+the selected hour and show the measurement for that bucket. Their bars use
+muted colors at rest. Both highlight the selected hour and brighten its bars,
+with the readout placed beside the selected column. A covered time with missing
+evidence is labelled as such. The local token chart stacks
 uncached input, cache reads and writes, and output in distinct colors. Hover shows
 the total on a separate line and each displayed category's count and share
 of the total. Select one category to inspect it on a scale fitted to its own values.
@@ -129,8 +133,8 @@ quota cannot stand in for an account's weekly one.
   observations across resets without an age limit in
   `~/Library/Application Support/AI Fleet/weekly-quota-history.json`.
   The overview opens on the latest recorded cycle for the selected provider,
-  account, and quota window. Its control row groups the arrows at the right and
-  centers the scheduled cycle dates separately. Overlapping schedules include
+  account, and quota window. Its header groups the arrows at the right. The
+  info legend shows the scheduled cycle dates. Overlapping schedules include
   clock times. Previous cycles display measured usage and the pacing plan. The two
   hourly charts remain on the selected recent range. Provider replies supply
   the current measurement and quota history starts at the first saved observation.
@@ -167,13 +171,13 @@ quota cannot stand in for an account's weekly one.
   A nonzero change spanning an hour boundary cannot identify the spend in
   either hour. A measured zero and an uncovered hour have distinct treatment.
   When observation starts mid-hour, any measured increase within that first
-  hour appears as a partial bar. The current hour covers the elapsed observed
-  portion. The mint bars show measured hourly changes. Show when observations
-  started if the log covers only part of the selected range. The vertical axis
-  labels the percentage of weekly quota. Mean and median describe completely
-  observed hours in the selected range, including measured zeroes. Both appear
-  as horizontal guides, with their values in the legend and the hover readout. The dashed
-  amber sustainable rate is remaining quota divided by hours to reset. Old data can still be
+  hour appears as a partial bar. The current hour also uses a partial bar for
+  the elapsed observed portion. The mint bars show measured hourly changes
+  for the selected account. The vertical axis labels the percentage of weekly
+  quota. Average and median describe completely observed hours in the selected
+  range, including measured zeroes. Both appear as horizontal guides and their
+  values follow the measurement in the hover readout. The dashed amber
+  sustainable rate is remaining quota divided by hours to reset. Old data can still be
   viewed, and the pace and forecast guides require a fresh measurement.
 
 ### Local tokens
@@ -185,8 +189,10 @@ Choose a provider and recorded model, with an input, cache and output breakdown.
 No provider quota or account attribution is inferred from the local totals.
 The cache aggregates up to seven days of hourly token events from local session
 logs. The next scan rebuilds older three-day cache entries that can contribute
-to that range. The mean and median follow the selected model and token series.
-Both guides use complete scanned hours, including hours with zero recorded tokens.
+to that range. The average and median follow the selected model and token
+series across local accounts. Both guides use complete scanned hours, including
+hours with zero recorded tokens. A scan ending within an hour shows the observed
+tokens for that partial hour.
 
 `QuotaHistoryTests` covers native cap and hourly mark geometry, separate
 accounts and model windows, deduplication, freshness, projections, spikes,
