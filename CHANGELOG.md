@@ -5,8 +5,10 @@ Tracks real product and release progress.
 ## [Unreleased]
 
 - Keep the provider chart popover in one window while switching accounts and place it after measuring the chart stack.
-- Offer 3-, 4-, and 7-day ranges in both hourly charts with a 7-day default, and match the active light or dark appearance.
-- Group the range, model, and token category above the hourly charts. Keep the weekly chart focused on the latest cycle and preserve all saved observations across resets.
+- Offer 3-, 5-, and 7-day ranges in both hourly charts with a 7-day default, and match the active light or dark appearance.
+- Group hourly filters above both hourly plots, and place dated cycle navigation above the weekly chart. Keep all saved quota observations across resets.
+- Use the menu reset date and hover timer in the chart header. Align legend icons with the right plot edge, and show token totals and category shares in the hover readout.
+- Reach the 100% pace target at the end of day seven and show the latest measurement clearly at the start of a new cycle.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 

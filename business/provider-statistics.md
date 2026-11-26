@@ -85,7 +85,7 @@ the account-wide weekly limit when present, followed by the longest account
 window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
-Label sizes stay constant. Both hourly plots share a 3-, 4-, or 7-day range.
+Label sizes stay constant. Both hourly plots share a 3-, 5-, or 7-day range.
 The initial range is 7 days. The range, model, and token category controls
 sit above the hourly charts. The model and category filter local tokens.
 The plot dimensions stay fixed as the one-hour bins become denser. The six-hour grid follows local midnight,
@@ -93,14 +93,17 @@ with dates on a separate row and abbreviated labels when space is limited.
 The charts use the current macOS light or dark appearance. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
 bin exceeds it. An off-scale sustainable rate appears in the legend. Charts
-keep the zero baseline and omit its label. Hover over the info icon next to a chart's title to see its legend
-inside the plot. The menu popover points at the clicked chart button, resizes
+keep the zero baseline and omit its label. Hover over the info icon at the
+right edge of a chart header to see its legend inside the plot. The current
+quota header uses the same reset date and hover countdown as the menu, with
+space reserved for the timer. The menu popover points at the clicked chart button, resizes
 to the content and scrolls when the charts exceed the display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
 Hover and reset readouts name that zone. The local token chart stacks uncached
 input, cache reads and writes, and output in distinct colors. Hover shows each
-exact count. Select one category to inspect it on a scale fitted to its own values.
+the total on a separate line and each displayed category's count and share
+of the total. Select one category to inspect it on a scale fitted to its own values.
 
 The main menu reports remaining quota. The chart labels the used percentage,
 calculated as 100 minus remaining. A current-only limit uses the reading from
@@ -121,20 +124,22 @@ quota cannot stand in for an account's weekly one.
   time and used percent. Deduplicate repeated timestamps. Keep saved
   observations across resets without an age limit in
   `~/Library/Application Support/AI Fleet/weekly-quota-history.json`.
-  The overview shows the latest recorded cycle for the selected provider,
-  account, and quota window. The two hourly charts remain on the selected
-  recent range. Provider replies supply the current measurement and quota
-  history starts at the first saved observation.
+  The overview opens on the latest recorded cycle for the selected provider,
+  account, and quota window. Its control row shows the reported start and end
+  dates and adds clock times for overlapping cycles. The arrows browse saved
+  cycles. Previous cycles display measured usage and the pacing plan. The two
+  hourly charts remain on the selected recent range. Provider replies supply
+  the current measurement and quota history starts at the first saved observation.
 - The provider's reset times delimit the cycles. Up to 60 seconds of reset-time
   rounding can identify the same cycle. A passed reset time never implies a
   fresh balance. A decrease within one cycle breaks the plotted series and
   restarts the forecast evidence after the correction.
-- The daily budget steps up by one seventh of the weekly limit at the start
-  of each 24-hour provider day. Earlier allowance carries forward. Headroom
-  is that day's cumulative budget minus the observed usage, in percentage
-  points. The blue steps show reported cumulative use. The gray steps show
-  cumulative budget, with green fill for spare budget and red fill for
-  over-budget use where there are observations.
+- The pacing plan has eight boundaries for seven 24-hour days. It adds one
+  seventh of the limit at the end of each day and reaches 100% at reset.
+  The plan is a visual pacing guide. Headroom is the completed-days target
+  minus observed usage, in percentage points. The blue steps show reported
+  cumulative use with a marker at the latest observation. The gray steps
+  show the plan, with green fill below the plan and red fill above it.
 - A current sample is at most 15 minutes old. That covers three normal Claude
   or saved Codex refresh intervals and fifteen regular polls. Longer gaps break
   the actual series and cannot establish an hourly distribution.

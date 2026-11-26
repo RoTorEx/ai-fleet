@@ -113,30 +113,66 @@ struct QuotaHistoryFigure: View {
         .overlay {
             GeometryReader { geometry in
                 let layout = FigureLayout(canvas: geometry.size, panel: panel)
-                let caption = ChartCaption(drawing.title(for: panel), plot: layout.plot)
                 ZStack(alignment: .topLeading) {
-                    Color.clear.accessibilityHidden(true)
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(legendHovered ? Color.primary : Color.secondary)
-                        .frame(width: caption.infoFrame.width, height: caption.infoFrame.height)
-                        .offset(x: caption.infoFrame.minX, y: caption.infoFrame.minY)
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                selection = drawing.selection(at: location, in: geometry.size, panel: panel)
+                            case .ended:
+                                selection = nil
+                            }
+                        }
                         .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
-                .onContinuousHover { phase in
-                    switch phase {
-                    case .active(let location):
-                        let overInfo = caption.infoFrame.contains(location)
-                        legendHovered = overInfo
-                        selection = overInfo ? nil : drawing.selection(at: location, in: geometry.size, panel: panel)
-                    case .ended:
-                        legendHovered = false
-                        selection = nil
-                    }
+                    heading(drawing.heading(for: panel))
+                        .frame(width: max(0, layout.plot.width), height: layout.plot.minY)
+                        .offset(x: layout.plot.minX)
                 }
             }
         }
+    }
+
+    private func heading(_ heading: ChartHeading) -> some View {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 5) {
+                Text("\(Text(heading.name).bold())\(Text(heading.suffix))")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .accessibilityHidden(true)
+                if let reset = heading.reset {
+                    Text("·").accessibilityHidden(true)
+                    QuotaResetLabel(resetAt: reset.date, now: reset.now, calendar: reset.calendar,
+                                    reservesCountdownWidth: true)
+                        .foregroundColor(FleetPalette.muted)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 22)
+            Image(systemName: "info.circle")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(legendHovered ? Color.primary : Color.secondary)
+                .frame(width: 20, height: 22)
+                .contentShape(Rectangle())
+                .onHover { legendHovered = $0 }
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+fileprivate struct ChartHeading {
+    let name: String
+    var details: [String] = []
+    var reset: (date: Date, now: Date, calendar: Calendar)? = nil
+
+    var suffix: String { details.map { " · " + $0 }.joined() }
+
+    var summary: String {
+        guard let reset else { return name + suffix }
+        return name + suffix + " · " + QuotaResetState(resetAt: reset.date, now: reset.now)
+            .dateLabel(now: reset.now, calendar: reset.calendar)
     }
 }
 
@@ -211,14 +247,38 @@ struct QuotaHistoryDrawing {
         return drawsQuota ? "Hourly provider quota" : "Hourly local tokens"
     }
 
-    fileprivate func title(for panel: QuotaHistoryPanel) -> String {
+    fileprivate func heading(for panel: QuotaHistoryPanel) -> ChartHeading {
         switch (panel, data) {
-        case (.overview, .quota(let quota)): return weekTitle(quota.pace)
-        case (.overview, .currentQuota(let reading)): return readingTitle(reading)
-        case (.overview, .unsupportedQuota): return "Provider quota"
+        case (.overview, .quota(let quota)):
+            if quota.isHistorical, let latest = quota.latest {
+                return ChartHeading(name: "Weekly quota", details: ["\(quotaPercent(Double(latest.used))) recorded"])
+            }
+            var heading = ChartHeading(name: "Weekly quota")
+            if let used = quota.pace.usedPercent { heading.details.append("\(quotaPercent(Double(used))) used") }
+            if quota.pace.state == .stale { heading.details.append("Stale") }
+            if let reset = quota.reportedReset {
+                heading.reset = (reset, quota.now, calendar)
+            } else if quota.pace.state == .partial {
+                heading.details.append("Reset time unavailable")
+            }
+            return heading
+        case (.overview, .currentQuota(let reading)):
+            guard let used = reading.usedPercent, let window = reading.window else {
+                return ChartHeading(name: "Provider quota")
+            }
+            var heading = ChartHeading(name: "\(window.quotaDisplayLabel) quota", details: ["\(quotaPercent(Double(used))) used"])
+            if reading.isStale { heading.details.append("Stale") }
+            if let reset = window.resetAt {
+                heading.reset = (reset, reading.now, calendar)
+            } else {
+                heading.details.append("Reset time unavailable")
+            }
+            return heading
+        case (.overview, .unsupportedQuota): return ChartHeading(name: "Provider quota")
         case (_, .tokens(_, let series)):
-            return "\(series?.rawValue ?? "Local tokens") per hour (last \(range.label))"
-        case (.hourly, _): return "Quota used per hour (% · last \(range.label))"
+            return ChartHeading(name: "\(series?.rawValue ?? "Local tokens") per hour", details: ["last \(range.rawValue) days"])
+        case (.hourly, _):
+            return ChartHeading(name: "Quota used per hour", details: ["%", "last \(range.rawValue) days"])
         }
     }
 
@@ -240,7 +300,7 @@ struct QuotaHistoryDrawing {
                 .map(\.text).joined(separator: ". ")
         }
         if case .unsupportedQuota = data { return unsupportedQuotaText }
-        return title(for: panel)
+        return heading(for: panel).summary
     }
 
     func selection(at point: CGPoint, in canvas: CGSize, panel: QuotaHistoryPanel) -> Date? {
@@ -296,13 +356,11 @@ struct QuotaHistoryDrawing {
                         selectedTime: Date?, showsLegend: Bool) {
         guard canvas.width > 0, canvas.height > 0 else { return }
         let layout = FigureLayout(canvas: canvas, panel: panel)
-        let caption = ChartCaption(title(for: panel), plot: layout.plot)
         let selection = showsLegend ? nil : selectedTime
         context.saveGState()
         context.setAllowsFontSmoothing(false)
         context.setShouldSmoothFonts(false)
         fill(CGRect(origin: .zero, size: canvas), Palette.canvas, in: context)
-        caption.draw(in: context)
         switch (panel, data) {
         case (.overview, .quota(let quota)):
             drawWeek(quota, selectedTime: selection, layout: layout, in: context)
@@ -327,7 +385,7 @@ struct QuotaHistoryDrawing {
             let plot = layout.plot.insetBy(dx: 5, dy: 2)
             let legend = Legend(keys, fontSize: layout.labelSize, maximumWidth: plot.width,
                                 preferHorizontal: !drawsQuota)
-            let x = min(max(caption.infoFrame.midX - legend.size.width / 2, plot.minX), plot.maxX - legend.size.width)
+            let x = plot.maxX - legend.size.width
             context.saveGState()
             context.clip(to: layout.plot)
             legend.draw(at: CGPoint(x: x, y: plot.minY), in: context)
@@ -349,9 +407,6 @@ struct QuotaHistoryDrawing {
         let start = time.lowerBound
         let axis = PlotAxes(frame: plot, time: time, maximum: 100)
         let days = (0...7).map { start.addingTimeInterval(Double($0) * WeeklyQuotaPace.daySeconds) }
-        let firstDay = calendar.startOfDay(for: start)
-        let dates = (0...7).compactMap { calendar.date(byAdding: .day, value: $0, to: firstDay) }
-            .filter { start <= $0 && $0 < latest.reset }
         let levels = stride(from: 0.0, through: 100, by: 20).map { (value: $0, label: String(Int($0))) }
 
         context.saveGState()
@@ -376,7 +431,7 @@ struct QuotaHistoryDrawing {
         context.addPath(overspend)
         context.setFillColor(Palette.overspend)
         context.fillPath()
-        grid(axis, dates: dates, levels: levels.map(\.value), in: context)
+        grid(axis, dates: days, levels: levels.map(\.value), in: context)
         let budget = days.map { axis.point($0, WeeklyQuotaPace.budget(at: $0, cycleStart: start)) }
         stroke(steps(budget), Palette.budget, width: 1, in: context)
         for segment in quota.segments {
@@ -395,10 +450,13 @@ struct QuotaHistoryDrawing {
             stroke([axis.point(latest.time, Double(latest.used)), axis.point(endpoint.time, endpoint.used)],
                    style.color, width: 1.2, dash: style.dash, phase: style.phase, in: context)
         }
+        let current = axis.point(latest.time, Double(latest.used))
+        context.setFillColor(Palette.actual)
+        context.fillEllipse(in: CGRect(x: current.x - 3, y: current.y - 3, width: 6, height: 6))
         context.restoreGState()
 
         axes(axis, levels: levels, layout: layout, in: context)
-        drawDateAxis(axis, dates: dates, layout: layout, calendar: calendar, in: context)
+        drawDateAxis(axis, dates: days, layout: layout, calendar: calendar, in: context)
         drawLimit(plot, in: context)
         if let selectedTime, time.contains(selectedTime) {
             let x = axis.x(selectedTime)
@@ -445,14 +503,14 @@ struct QuotaHistoryDrawing {
     private func weeklyLegend(_ quota: WeeklyQuotaChart) -> [LegendKey] {
         var keys = [
             LegendKey("Usage, %", Palette.actual, .line(1.5)),
-            LegendKey("Cumulative budget · 14.3%/day", Palette.budget, .line(1))
+            LegendKey("Plan through completed days · 14.3%/day", Palette.budget, .line(1))
         ]
-        if let headroom = quota.pace.headroomPoints {
+        if !quota.isHistorical, let headroom = quota.pace.headroomPoints {
             let amount = formattedNumber(abs(headroom), fractionDigits: 0)
-            keys.append(LegendKey(headroom >= 0 ? "End-of-day headroom: \(amount)% of weekly quota"
-                : "Over today's budget: \(amount)% of weekly quota", headroom >= 0 ? Palette.headroom : Palette.overspend, .block))
+            keys.append(LegendKey(headroom >= 0 ? "\(amount) pp below the plan"
+                : "\(amount) pp ahead of the plan", headroom >= 0 ? Palette.headroom : Palette.overspend, .block))
         }
-        if quota.pace.state == .current {
+        if !quota.isHistorical, quota.pace.state == .current {
             for period in WeeklyQuotaChart.Forecast.Period.allCases {
                 let style = period.strokeStyle
                 let text: String
@@ -567,11 +625,15 @@ struct QuotaHistoryDrawing {
     private func hourReadout(_ hour: Hour) -> [ReadoutLine] {
         let timestamp = chartTimestamp(hour.start, calendar: calendar)
         if let totals = hour.tokenTotals {
+            let total = totals.totalTokens
             let rows = tokenSeries.compactMap { series in
-                series.count(in: totals).map { ReadoutLine("\(series.rawValue) · \(groupedInteger($0)) tokens", color: series.color) }
+                series.count(in: totals).map { count in
+                    let share = total > 0 ? Double(count) * 100 / Double(total) : 0
+                    let percent = share > 0 && share < 0.1 ? "<" + quotaPercent(0.1) : quotaPercent(share)
+                    return ReadoutLine("\(series.rawValue) · \(groupedInteger(count)) tokens · \(percent)", color: series.color)
+                }
             }
-            let heading = tokenSeries.count > 1 ? "\(timestamp) · \(groupedInteger(totals.totalTokens)) total" : timestamp
-            return [ReadoutLine(heading)] + rows
+            return [ReadoutLine(timestamp), ReadoutLine("Total · \(groupedInteger(total)) tokens")] + rows
         }
         let amount: String
         if let value = hour.parts?.first {
@@ -580,25 +642,6 @@ struct QuotaHistoryDrawing {
             amount = drawsQuota ? "No sample" : "No recorded data"
         }
         return [ReadoutLine("\(timestamp) · \(amount)")]
-    }
-}
-
-private struct ChartCaption {
-    let infoFrame: CGRect
-    private let label: Label
-    private let labelCenterX: CGFloat
-
-    init(_ title: String, plot: CGRect) {
-        let iconWidth: CGFloat = 20
-        let spacing: CGFloat = 3
-        label = Label(title, size: 13, color: Palette.heading, maximumWidth: plot.width - iconWidth - spacing)
-        labelCenterX = plot.midX - (iconWidth + spacing) / 2
-        let iconCenterX = plot.midX + (label.width + spacing) / 2
-        infoFrame = CGRect(x: iconCenterX - iconWidth / 2, y: 1, width: iconWidth, height: 22)
-    }
-
-    func draw(in context: CGContext) {
-        label.draw(at: CGPoint(x: labelCenterX, y: 17), alignment: 0.5, in: context)
     }
 }
 
@@ -737,9 +780,10 @@ private func drawReadout(_ lines: [ReadoutLine], layout: FigureLayout, alignLeft
     let labels = lines.map { Label($0.text, size: layout.labelSize, color: $0.color, maximumWidth: plot.width - 22) }
     let width = (labels.map(\.width).max() ?? 0) + 8
     let left = alignLeft ? plot.minX + 7 : plot.maxX - 7 - width
-    let top = plot.minY + 5
-    let rowHeight = layout.labelSize + 2
-    fill(CGRect(x: left, y: top, width: width, height: CGFloat(labels.count) * rowHeight + 3), Palette.canvas, in: context)
+    let rowHeight = layout.labelSize + (labels.count > 4 ? 1 : 2)
+    let height = CGFloat(labels.count) * rowHeight + 3
+    let top = max(plot.minY, min(plot.minY + 5, plot.maxY - height))
+    fill(CGRect(x: left, y: top, width: width, height: height), Palette.canvas, in: context)
     for (index, label) in labels.enumerated() {
         let baseline = top + layout.labelSize + 1 + CGFloat(index) * rowHeight
         label.draw(at: CGPoint(x: left + 4, y: baseline), in: context)
@@ -792,30 +836,6 @@ private func weekReadout(_ quota: WeeklyQuotaChart, at date: Date, cycleStart: D
     return [ReadoutLine("\(timestamp) · \(budget)")] + projections.map { period, used in
         ReadoutLine("\(period.rawValue) · \(quotaPercent(used)) projected", color: period.strokeStyle.color)
     }
-}
-
-private func weekTitle(_ pace: WeeklyQuotaPace) -> String {
-    var title = "Weekly quota"
-    if let used = pace.usedPercent { title += " · \(quotaPercent(Double(used))) used" }
-    switch pace.state {
-    case .current:
-        if let remaining = pace.timeToReset { title += " · \(Int(ceil(remaining / UsageHours.hour)))h to reset" }
-    case .stale: title += " · Stale measurement"
-    case .resetPending: title += " · Reset due"
-    case .partial: title += " · Reset time unavailable"
-    case .unavailable: title += " · Unavailable"
-    }
-    return title
-}
-
-private func readingTitle(_ reading: QuotaLimitReading) -> String {
-    guard let used = reading.usedPercent, let window = reading.window else { return "Provider quota" }
-    let title = "\(window.quotaDisplayLabel) quota · \(quotaPercent(Double(used))) used"
-    if reading.isStale { return title + " · Stale measurement" }
-    guard let reset = window.resetAt else { return title + " · Reset time unavailable" }
-    let remaining = reset.timeIntervalSince(reading.now)
-    guard remaining > 0 else { return title + " · Reset due" }
-    return title + " · \(WeeklyQuotaPace.countdownText(remaining)) to reset"
 }
 
 private func forecastText(_ forecast: WeeklyQuotaChart.Forecast, latest: WeeklyQuotaObservation?) -> String {
@@ -960,7 +980,6 @@ private enum Palette {
     static var frame: CGColor { color(0x3d4147, 0xaab3c0) }
     static var legendBorder: CGColor { color(0x30353b, 0xbbc3ce) }
     static var labels: CGColor { color(0xc7c9d0, 0x465268) }
-    static var heading: CGColor { color(0xe8e9ed, 0x172132) }
     static var actual: CGColor { color(0x7da2fa, 0x245db8) }
     static var budget: CGColor { color(0x9499a3, 0x657286) }
     static var limit: CGColor { color(0xe8565d, 0xbd3541) }

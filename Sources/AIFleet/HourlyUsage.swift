@@ -2,7 +2,7 @@ import Foundation
 
 enum QuotaHistoryRange: Int, CaseIterable, Identifiable {
     case threeDays = 3
-    case fourDays = 4
+    case fiveDays = 5
     case sevenDays = 7
 
     static let retained = Self.sevenDays

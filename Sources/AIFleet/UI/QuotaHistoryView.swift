@@ -33,12 +33,12 @@ struct QuotaHistoryTarget: Identifiable, Equatable {
     }
 
     func quotaFigure(history: WeeklyQuotaHistory, now: Date, calendar: Calendar = .current,
-                     range: QuotaHistoryRange = .threeDays) -> QuotaHistoryFigureData {
+                     range: QuotaHistoryRange = .threeDays, displayedReset: Date? = nil) -> QuotaHistoryFigureData {
         guard provider != .qwen else { return .unsupportedQuota }
         let window = primaryQuotaWindow
         if let window, window.weeklyModel == nil, let report, report.weeklyWindows.contains(window) {
             return .quota(WeeklyQuotaChart(report: report, window: window, history: history,
-                                           now: now, calendar: calendar, range: range))
+                                           now: now, calendar: calendar, range: range, displayedReset: displayedReset))
         }
         return .currentQuota(QuotaLimitReading(window: window, measuredAt: status.lastUpdated, now: now,
                                               markedStale: status.quotaState == .stale))
@@ -50,6 +50,7 @@ struct QuotaHistoryRequest: Equatable {
     let provider: StatisticsProvider
     var model: String?
     var tokenSeries: LocalTokenSeries? = nil
+    var cycleReset: Date? = nil
 }
 
 @MainActor
@@ -84,19 +85,21 @@ struct QuotaHistoryView: View {
                 let tokens = LocalTokenHistory(snapshot: snapshot, provider: target.provider, model: model,
                                                now: now, calendar: calendar, range: range)
                 let request = QuotaHistoryRequest(targetID: target.id, provider: target.provider,
-                    model: model.flatMap { tokens.models.contains($0) ? $0 : nil }, tokenSeries: selection?.tokenSeries)
-                let quota = isStatistics || target.provider != .qwen
-                    ? QuotaHistoryDrawing(data: target.quotaFigure(history: quotaHistory.history, now: now,
-                                                                   calendar: calendar, range: range),
-                                          calendar: calendar, range: range)
+                    model: model.flatMap { tokens.models.contains($0) ? $0 : nil }, tokenSeries: selection?.tokenSeries,
+                    cycleReset: selection?.targetID == target.id ? selection?.cycleReset : nil)
+                let quotaData = isStatistics || target.provider != .qwen
+                    ? target.quotaFigure(history: quotaHistory.history, now: now, calendar: calendar,
+                                         range: range, displayedReset: request.cycleReset)
                     : nil
+                let quota = quotaData.map { QuotaHistoryDrawing(data: $0, calendar: calendar, range: range) }
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         providerControl(target: target, request: request)
                         quotaReadings(target, calendar: calendar)
                     }
                     .controlSize(.small)
-                    if let quota {
+                    if let quota, let quotaData {
+                        cycleControls(quotaData, request: request, calendar: calendar)
                         QuotaHistoryFigure(drawing: quota, panel: .overview)
                     }
                     hourlyControls(models: tokens.models, request: request)
@@ -118,6 +121,45 @@ struct QuotaHistoryView: View {
             }
         }
         .onReceive(UsageAnalyticsService.shared.$snapshot) { snapshot = $0 }
+    }
+
+    private func cycleControls(_ data: QuotaHistoryFigureData, request: QuotaHistoryRequest,
+                               calendar: Calendar) -> some View {
+        Group {
+            if case .quota(let chart) = data, let label = chart.cycleLabel(calendar: calendar) {
+                HStack(spacing: 6) {
+                    cycleButton("Previous quota cycle", symbol: "chevron.left", offset: 1, chart: chart, request: request)
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .accessibilityLabel("Cycle \(label)")
+                    cycleButton("Next quota cycle", symbol: "chevron.right", offset: -1, chart: chart, request: request)
+                }
+                .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 20)
+    }
+
+    private func cycleButton(_ label: String, symbol: String, offset: Int, chart: WeeklyQuotaChart,
+                             request: QuotaHistoryRequest) -> some View {
+        let reset = chart.cycleReset(offset: offset)
+        return Button {
+            guard let reset else { return }
+            var next = request
+            next.cycleReset = reset == chart.cycleResets.first ? nil : reset
+            selection = next
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .semibold))
+                .frame(width: 14)
+        }
+        .disabled(reset == nil)
+        .accessibilityLabel(label)
+        .help(label)
     }
 
     private func hourlyControls(models: [String], request: QuotaHistoryRequest) -> some View {

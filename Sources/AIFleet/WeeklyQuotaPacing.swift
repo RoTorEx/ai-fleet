@@ -29,7 +29,7 @@ struct WeeklyQuotaPace: Equatable {
     var usedPercent: Int?
     /// Seconds from `now` to the observed provider reset.
     var timeToReset: TimeInterval?
-    /// Cumulative allowance through the current provider day.
+    /// Pace target at the most recent completed provider day.
     var dailyBudgetPercent: Double?
     /// Daily budget minus used, in percentage points; positive means under budget.
     var headroomPoints: Double?
@@ -64,8 +64,8 @@ struct WeeklyQuotaPace: Equatable {
     }
 
     static func budget(at date: Date, cycleStart: Date) -> Double {
-        let day = floor(max(0, date.timeIntervalSince(cycleStart)) / daySeconds) + 1
-        return min(7, day) * (100.0 / 7)
+        let completedDays = floor(max(0, date.timeIntervalSince(cycleStart)) / daySeconds)
+        return min(7, completedDays) * 100 / 7
     }
 }
 

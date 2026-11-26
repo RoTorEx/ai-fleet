@@ -843,12 +843,57 @@ final class ActionMenu: NSObject {
     }
 }
 
+struct QuotaResetLabel: View {
+    static let font = Font.system(size: 11, weight: .medium, design: .monospaced)
+
+    let resetAt: Date?
+    var now: Date = .now
+    var calendar: Calendar = .autoupdatingCurrent
+    var blocked = false
+    var fixedWidth: CGFloat? = nil
+    var reservesCountdownWidth = false
+    @State private var hovered = false
+
+    var body: some View {
+        let state = QuotaResetState(resetAt: resetAt, now: now)
+        let date = blocked ? "-" : state.dateLabel(now: now, calendar: calendar)
+        let canCountDown: Bool = {
+            if case .upcoming = state { return !blocked }
+            return false
+        }()
+        let showsCountdown = hovered && canCountDown
+        ZStack(alignment: .leading) {
+            Text(date).opacity(showsCountdown ? 0 : 1)
+            if reservesCountdownWidth && canCountDown {
+                // Keep the full timer width while the date is visible.
+                Text("⏱ 88d 88h 88m 88s").hidden()
+            }
+        }
+        .fixedSize(horizontal: reservesCountdownWidth, vertical: false)
+        .frame(width: fixedWidth, alignment: .leading)
+        .overlay(alignment: .leading) {
+            if showsCountdown {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text("⏱ " + QuotaResetState(resetAt: resetAt, now: context.date).text(now: context.date))
+                        .fixedSize()
+                }
+            }
+        }
+        .font(Self.font)
+        .lineLimit(1)
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
+        .transaction { $0.animation = nil }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(date)
+    }
+}
+
 struct LimitWindowLine: View {
     let window: ProviderLimitWindow
     let status: ProviderStatus
     var isActive = true
     var showsLabel = true
-    @State private var isResetHovered = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -863,33 +908,12 @@ struct LimitWindowLine: View {
                 .foregroundColor(windowColor)
                 .frame(width: 34, alignment: .trailing)
 
-            resetCell
+            QuotaResetLabel(resetAt: window.resetAt, blocked: blockingWindow != nil, fixedWidth: FleetRowMetrics.resetWidth)
+                .foregroundColor(resetColor)
                 .padding(.leading, 16)
 
             Spacer(minLength: 0)
         }
-    }
-
-    /// Hovering a date shows the remaining time in the same fixed cell; nothing else moves.
-    private var resetCell: some View {
-        // The date always sets the cell size; the countdown is only an overlay on top of it.
-        Text(resetText)
-            .opacity(showsCountdown ? 0 : 1)
-            .overlay(alignment: .leading) {
-                if showsCountdown {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text("⏱ " + QuotaResetState(resetAt: window.resetAt, now: context.date).text(now: context.date))
-                            .fixedSize()
-                    }
-                }
-            }
-        .font(limitWindowFont)
-        .foregroundColor(resetColor)
-        .lineLimit(1)
-        .frame(width: FleetRowMetrics.resetWidth, alignment: .leading)
-        .contentShape(Rectangle())
-        .onHover { isResetHovered = $0 }
-        .transaction { $0.animation = nil }
     }
 
     /// A qualifier such as "(Fable)" stays smaller than the period it narrows.
@@ -901,7 +925,7 @@ struct LimitWindowLine: View {
     }
 
     private var limitWindowFont: Font {
-        .system(size: 11, weight: .medium, design: .monospaced)
+        QuotaResetLabel.font
     }
 
     private var blockingWindow: ProviderLimitWindow? {
@@ -930,23 +954,6 @@ struct LimitWindowLine: View {
             return "-"
         }
         return "\(window.remainingPercent)%"
-    }
-
-    private var showsCountdown: Bool {
-        guard isResetHovered, blockingWindow == nil,
-              case .upcoming = QuotaResetState(resetAt: window.resetAt, now: Date()) else { return false }
-        return true
-    }
-
-    private var resetText: String {
-        if blockingWindow != nil {
-            return "-"
-        }
-        switch QuotaResetState(resetAt: window.resetAt, now: Date()) {
-        case .notReported: return "—"
-        case .due: return "due"
-        case .upcoming(let date): return "↻ \(formatResetTime(date))"
-        }
     }
 
     private var resetColor: Color {
@@ -1178,7 +1185,23 @@ private func rowColor(for status: ProviderStatus) -> Color {
 
 /// Today's resets show only the time; other days add the date: `10:58`, `9 Nov 10:58`.
 func formatResetTime(_ date: Date, now: Date = Date(), calendar: Calendar = .autoupdatingCurrent) -> String {
-    let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    var clock = Date.FormatStyle.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
+    clock.calendar = calendar
+    clock.timeZone = calendar.timeZone
+    let time = date.formatted(clock)
     if calendar.isDate(date, inSameDayAs: now) { return time }
-    return date.formatted(.dateTime.day().month(.abbreviated)) + " " + time
+    var day = Date.FormatStyle.dateTime.day().month(.abbreviated)
+    day.calendar = calendar
+    day.timeZone = calendar.timeZone
+    return date.formatted(day) + " " + time
+}
+
+extension QuotaResetState {
+    func dateLabel(now: Date, calendar: Calendar = .autoupdatingCurrent) -> String {
+        switch self {
+        case .notReported: return "—"
+        case .due: return "due"
+        case .upcoming(let date): return "↻ \(formatResetTime(date, now: now, calendar: calendar))"
+        }
+    }
 }

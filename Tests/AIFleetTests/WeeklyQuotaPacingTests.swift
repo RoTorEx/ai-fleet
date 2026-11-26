@@ -25,9 +25,17 @@ final class WeeklyQuotaPacingTests: XCTestCase {
         XCTAssertEqual(pace.usedPercent, 40, "The 5h window at 1% left must not stand in for the weekly one")
         XCTAssertEqual(pace.timeToReset, 4 * day)
         let budget = try XCTUnwrap(pace.dailyBudgetPercent)
-        XCTAssertEqual(budget, 3.0 / 7 * 100, accuracy: 1e-9, "Budget includes the current provider day")
+        XCTAssertEqual(budget, 2.0 / 7 * 100, accuracy: 1e-9, "Only completed days contribute to the plan")
         XCTAssertEqual(try XCTUnwrap(pace.headroomPoints), budget - 40, accuracy: 1e-9)
         XCTAssertEqual(try XCTUnwrap(pace.sustainablePercentPerDay), 15, accuracy: 1e-9)
+    }
+
+    func testPlanReachesOneHundredAtTheEndOfTheSeventhDay() {
+        let milestones = (0...7).map { index in
+            WeeklyQuotaPace.budget(at: now.addingTimeInterval(Double(index) * day), cycleStart: now)
+        }
+        XCTAssertEqual(milestones, (0...7).map { Double($0) * 100 / 7 })
+        XCTAssertEqual(WeeklyQuotaPace.budget(at: now.addingTimeInterval(7 * day - 1), cycleStart: now), 600.0 / 7)
     }
 
     func testOverBudgetHasNegativeHeadroomAndExhaustedStillPaces() throws {
