@@ -125,23 +125,27 @@ struct QuotaHistoryView: View {
 
     private func cycleControls(_ data: QuotaHistoryFigureData, request: QuotaHistoryRequest,
                                calendar: Calendar) -> some View {
-        Group {
-            if case .quota(let chart) = data, let label = chart.cycleLabel(calendar: calendar) {
-                HStack(spacing: 6) {
-                    cycleButton("Previous quota cycle", symbol: "chevron.left", offset: 1, chart: chart, request: request)
-                    Text(label)
-                        .font(.system(size: 11, weight: .medium))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .accessibilityLabel("Cycle \(label)")
-                    cycleButton("Next quota cycle", symbol: "chevron.right", offset: -1, chart: chart, request: request)
+        Color.clear
+            .frame(height: 20)
+            .overlay {
+                if case .quota(let chart) = data, let label = chart.cycleLabel(calendar: calendar) {
+                    ZStack(alignment: .leading) {
+                        Text(label)
+                            .font(.system(size: 11, weight: .medium))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .accessibilityLabel("Cycle \(label)")
+                            .padding(.horizontal, 80)
+                            .frame(maxWidth: .infinity)
+                        HStack(spacing: 3) {
+                            cycleButton("Previous quota cycle", symbol: "chevron.left", offset: 1, chart: chart, request: request)
+                            cycleButton("Next quota cycle", symbol: "chevron.right", offset: -1, chart: chart, request: request)
+                        }
+                        .controlSize(.small)
+                    }
                 }
-                .controlSize(.small)
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 20)
     }
 
     private func cycleButton(_ label: String, symbol: String, offset: Int, chart: WeeklyQuotaChart,
@@ -165,7 +169,6 @@ struct QuotaHistoryView: View {
     private func hourlyControls(models: [String], request: QuotaHistoryRequest) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                Spacer(minLength: 0)
                 rangePicker
                 tokenControls(models: models, request: request)
             }
@@ -175,6 +178,7 @@ struct QuotaHistoryView: View {
             }
         }
         .controlSize(.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {

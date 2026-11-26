@@ -176,6 +176,7 @@ struct WeeklyQuotaChart {
     let cycleResets: [Date]
     let cycleIndex: Int
     let reportedReset: Date?
+    let earlyResetAt: Date?
     let now: Date
     let latest: WeeklyQuotaObservation?
     let firstObservation: Date?
@@ -250,9 +251,15 @@ struct WeeklyQuotaChart {
         } ?? 0
         cycleIndex = index
         let displayed = cycles.isEmpty ? [] : Array(cycles[index])
+        let latest = displayed.last
         firstObservation = samples.first?.time
-        latest = displayed.last
-        cycleStart = displayed.last?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
+        self.latest = latest
+        cycleStart = latest?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
+        if index > 0, let latest, let next = cycles[index - 1].first {
+            earlyResetAt = Self.earlyReset(previous: latest, next: next)
+        } else {
+            earlyResetAt = nil
+        }
         segments = Self.segments(from: displayed)
         let correction = displayed.indices.dropFirst().last { index in
             displayed[index].used < displayed[index - 1].used
@@ -261,6 +268,18 @@ struct WeeklyQuotaChart {
         forecasts = index == 0 && pace.state == .current
             ? Self.forecasts(for: forecastSamples, afterCorrection: correction != nil) : []
         hours = Self.hourlyUsage(samples, window: UsageHours(now: now, calendar: calendar, range: range), now: now)
+    }
+
+    private static func earlyReset(previous: WeeklyQuotaObservation, next: WeeklyQuotaObservation) -> Date? {
+        let start = next.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
+        let tolerance = WeeklyQuotaPace.clockTolerance
+        // A lower reading and a new window start together establish the early reset.
+        guard next.used < previous.used,
+              next.reset.timeIntervalSince(previous.reset) > tolerance,
+              previous.reset.timeIntervalSince(start) > tolerance,
+              previous.time.timeIntervalSince(start) <= tolerance,
+              start.timeIntervalSince(next.time) <= tolerance else { return nil }
+        return start
     }
 
     private static func cycles(in samples: [WeeklyQuotaObservation]) -> [ArraySlice<WeeklyQuotaObservation>] {

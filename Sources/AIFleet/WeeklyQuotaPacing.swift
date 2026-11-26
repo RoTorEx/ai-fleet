@@ -19,9 +19,11 @@ struct WeeklyQuotaPace: Equatable {
 
     /// Observations older than this are not current enough for pacing (see business/provider-statistics.md).
     static let maximumObservationAge: TimeInterval = 15 * 60
-    /// Provider windows whose reported duration is exactly one week.
-    static let weekSeconds: TimeInterval = 7 * 24 * 60 * 60
     static let daySeconds: TimeInterval = 24 * 60 * 60
+    static let dayCount = 7
+    /// Provider windows whose reported duration is exactly one week.
+    static let weekSeconds = Double(dayCount) * daySeconds
+    static let budgetStepPercent = 100 / Double(dayCount + 1)
     /// Reset timestamps may round against the observation clock by this much.
     static let clockTolerance: TimeInterval = 60
 
@@ -29,7 +31,7 @@ struct WeeklyQuotaPace: Equatable {
     var usedPercent: Int?
     /// Seconds from `now` to the observed provider reset.
     var timeToReset: TimeInterval?
-    /// Pace target at the most recent completed provider day.
+    /// Pace target for the current provider day.
     var dailyBudgetPercent: Double?
     /// Daily budget minus used, in percentage points; positive means under budget.
     var headroomPoints: Double?
@@ -64,8 +66,8 @@ struct WeeklyQuotaPace: Equatable {
     }
 
     static func budget(at date: Date, cycleStart: Date) -> Double {
-        let completedDays = floor(max(0, date.timeIntervalSince(cycleStart)) / daySeconds)
-        return min(7, completedDays) * 100 / 7
+        let elapsedDays = floor(max(0, date.timeIntervalSince(cycleStart)) / daySeconds)
+        return (min(Double(dayCount), elapsedDays) + 1) * budgetStepPercent
     }
 }
 

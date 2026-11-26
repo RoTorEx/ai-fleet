@@ -148,6 +148,16 @@ struct QuotaHistoryFigure: View {
                                     reservesCountdownWidth: true)
                         .foregroundColor(FleetPalette.muted)
                 }
+                if let statistic = heading.statistic {
+                    Text("· \(statistic)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .help("Complete observed hours, including measured zeroes")
+                        .accessibilityHidden(true)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 22)
@@ -166,6 +176,7 @@ fileprivate struct ChartHeading {
     let name: String
     var details: [String] = []
     var reset: (date: Date, now: Date, calendar: Calendar)? = nil
+    var statistic: String? = nil
 
     var suffix: String { details.map { " · " + $0 }.joined() }
 
@@ -231,6 +242,29 @@ struct QuotaHistoryDrawing {
 
     var hasHourlySamples: Bool { hours.contains { $0.parts != nil } }
 
+    private var hourlyStatistic: String? {
+        let coveredThrough: Date?
+        switch data {
+        case .quota(let quota): coveredThrough = quota.now
+        case .tokens(let tokens, _): coveredThrough = tokens.scannedAt
+        case .currentQuota, .unsupportedQuota: coveredThrough = nil
+        }
+        guard let coveredThrough else { return nil }
+        let values = hours.compactMap { hour -> Double? in
+            guard !hour.partial, hour.start.addingTimeInterval(UsageHours.hour) <= coveredThrough else { return nil }
+            return hour.parts?.reduce(0, +)
+        }
+        guard !values.isEmpty else { return nil }
+        let mean = values.reduce(0, +) / Double(values.count)
+        if drawsQuota {
+            let sorted = values.sorted()
+            let median = (sorted[(sorted.count - 1) / 2] + sorted[sorted.count / 2]) / 2
+            return "Mean \(quotaPercent(mean)) · Median \(quotaPercent(median))"
+        }
+        let count = Int(exactly: mean.rounded()) ?? Int.max
+        return "Mean \(compactCount(count, trimsTrailingZeros: true))/h"
+    }
+
     private var hourlyScale: HourlyChartScale {
         let maximum = hours.compactMap { $0.parts?.reduce(0, +) }.max() ?? 0
         return HourlyChartScale(measuredMaximum: maximum, minimum: drawsQuota ? 1 : 10)
@@ -276,9 +310,10 @@ struct QuotaHistoryDrawing {
             return heading
         case (.overview, .unsupportedQuota): return ChartHeading(name: "Provider quota")
         case (_, .tokens(_, let series)):
-            return ChartHeading(name: "\(series?.rawValue ?? "Local tokens") per hour", details: ["last \(range.rawValue) days"])
+            return ChartHeading(name: "\(series?.rawValue ?? "Local tokens") per hour",
+                                details: ["last \(range.rawValue) days"], statistic: hourlyStatistic)
         case (.hourly, _):
-            return ChartHeading(name: "Quota used per hour", details: ["%", "last \(range.rawValue) days"])
+            return ChartHeading(name: "Quota used per hour", details: ["last \(range.rawValue) days"], statistic: hourlyStatistic)
         }
     }
 
@@ -293,7 +328,8 @@ struct QuotaHistoryDrawing {
                 return hourReadout(hour).map(\.text).joined(separator: ". ")
             }
             let observed = hours.filter { $0.parts != nil }.count
-            return "\(observed) hours with \(drawsQuota ? "quota observations" : "recorded tokens")"
+            let coverage = "\(observed) hours with \(drawsQuota ? "quota observations" : "recorded tokens")"
+            return hourlyStatistic.map { coverage + ". " + $0 + " over complete observed hours" } ?? coverage
         }
         if let selectedTime, case .quota(let quota) = data, let cycle = quota.cycleRange {
             return weekReadout(quota, at: selectedTime, cycleStart: cycle.lowerBound, calendar: calendar)
@@ -311,6 +347,7 @@ struct QuotaHistoryDrawing {
         case .quota(let quota):
             guard let time = quota.cycleRange else { return nil }
             let axis = PlotAxes(frame: plot, time: time, maximum: 100)
+            if let reset = quota.earlyResetAt, abs(axis.x(reset) - point.x) <= 4 { return reset }
             let date = axis.time(at: point.x)
             if quota.measuredUse(at: date) != nil { return date }
             let nearest = quota.segments.lazy.flatMap { $0 }.min {
@@ -406,11 +443,16 @@ struct QuotaHistoryDrawing {
 
         let start = time.lowerBound
         let axis = PlotAxes(frame: plot, time: time, maximum: 100)
-        let days = (0...7).map { start.addingTimeInterval(Double($0) * WeeklyQuotaPace.daySeconds) }
+        let days = (0...WeeklyQuotaPace.dayCount).map { start.addingTimeInterval(Double($0) * WeeklyQuotaPace.daySeconds) }
         let levels = stride(from: 0.0, through: 100, by: 20).map { (value: $0, label: String(Int($0))) }
 
         context.saveGState()
         context.clip(to: plot)
+        if let reset = quota.earlyResetAt {
+            let x = axis.x(reset)
+            let ended = CGRect(x: x, y: plot.minY, width: plot.maxX - x, height: plot.height)
+            fill(ended, Palette.frame.copy(alpha: 0.12) ?? Palette.canvas, in: context)
+        }
         let headroom = CGMutablePath()
         let overspend = CGMutablePath()
         for segment in quota.segments {
@@ -432,8 +474,12 @@ struct QuotaHistoryDrawing {
         context.setFillColor(Palette.overspend)
         context.fillPath()
         grid(axis, dates: days, levels: levels.map(\.value), in: context)
+        context.restoreGState()
+        axes(axis, levels: levels, layout: layout, in: context)
         let budget = days.map { axis.point($0, WeeklyQuotaPace.budget(at: $0, cycleStart: start)) }
         stroke(steps(budget), Palette.budget, width: 1, in: context)
+        context.saveGState()
+        context.clip(to: plot)
         for segment in quota.segments {
             let points = segment.map { axis.point($0.time, Double($0.used)) }
             if points.count == 1, let point = points.first {
@@ -450,14 +496,19 @@ struct QuotaHistoryDrawing {
             stroke([axis.point(latest.time, Double(latest.used)), axis.point(endpoint.time, endpoint.used)],
                    style.color, width: 1.2, dash: style.dash, phase: style.phase, in: context)
         }
-        let current = axis.point(latest.time, Double(latest.used))
-        context.setFillColor(Palette.actual)
-        context.fillEllipse(in: CGRect(x: current.x - 3, y: current.y - 3, width: 6, height: 6))
         context.restoreGState()
 
-        axes(axis, levels: levels, layout: layout, in: context)
         drawDateAxis(axis, dates: days, layout: layout, calendar: calendar, in: context)
         drawLimit(plot, in: context)
+        if let reset = quota.earlyResetAt {
+            let x = axis.x(reset)
+            stroke([CGPoint(x: x, y: plot.minY + 1), CGPoint(x: x, y: plot.maxY)],
+                   Palette.coral, width: 1.2, dash: [3, 2], in: context)
+            let label = Label("Early reset", size: layout.labelSize, color: Palette.coral, maximumWidth: plot.width - 14)
+            let left = max(plot.minX + 5, x + label.width + 10 <= plot.maxX ? x + 5 : x - label.width - 5)
+            fill(CGRect(x: left - 2, y: plot.minY + 4, width: label.width + 4, height: 15), Palette.canvas, in: context)
+            label.draw(at: CGPoint(x: left, y: plot.minY + 15), in: context)
+        }
         if let selectedTime, time.contains(selectedTime) {
             let x = axis.x(selectedTime)
             drawCursor(at: x, in: plot, context: context)
@@ -481,7 +532,7 @@ struct QuotaHistoryDrawing {
             var keys = [measured]
             if let guide = quota.sustainablePerHour {
                 let note = guide > hourlyScale.maximum ? " · above scale" : ""
-                keys.append(LegendKey("Sustainable average: \(quotaPercent(guide))/h\(note)", Palette.amber, .line(1, [3, 2])))
+                keys.append(LegendKey("Sustainable rate · \(quotaPercent(guide))/h\(note)", Palette.amber, .line(1, [3, 2])))
             }
             if hours.contains(where: \.partial) {
                 keys.append(LegendKey("Observed part of hour", Palette.mint.copy(alpha: 0.56) ?? Palette.mint, .block))
@@ -501,10 +552,14 @@ struct QuotaHistoryDrawing {
     }
 
     private func weeklyLegend(_ quota: WeeklyQuotaChart) -> [LegendKey] {
+        let step = formattedNumber(WeeklyQuotaPace.budgetStepPercent, fractionDigits: 1)
         var keys = [
             LegendKey("Usage, %", Palette.actual, .line(1.5)),
-            LegendKey("Plan through completed days · 14.3%/day", Palette.budget, .line(1))
+            LegendKey("Pacing plan · \(step) pp per step", Palette.budget, .line(1))
         ]
+        if let reset = quota.earlyResetAt {
+            keys.append(LegendKey("Early reset · \(chartTimestamp(reset, calendar: calendar))", Palette.coral, .line(1.2, [3, 2])))
+        }
         if !quota.isHistorical, let headroom = quota.pace.headroomPoints {
             let amount = formattedNumber(abs(headroom), fractionDigits: 0)
             keys.append(LegendKey(headroom >= 0 ? "\(amount) pp below the plan"
@@ -562,8 +617,9 @@ struct QuotaHistoryDrawing {
         let scale = hourlyScale
         let axis = PlotAxes(frame: plot, time: hoursDomain, maximum: scale.maximum)
         let ticks = scale.levels
+        let quotaDigits = scale.maximum >= 10 ? 0 : 1
         let levels = ticks.map { value in
-            let label = drawsQuota ? formattedNumber(value, fractionDigits: 1)
+            let label = drawsQuota ? "\(formattedNumber(value, fractionDigits: quotaDigits))%"
                 : compactCount(Int(min(value, Double(Int.max / 2))), trimsTrailingZeros: true)
             return (value: value, label: label)
         }
@@ -826,6 +882,12 @@ func quotaPercent(_ value: Double) -> String {
 }
 
 private func weekReadout(_ quota: WeeklyQuotaChart, at date: Date, cycleStart: Date, calendar: Calendar) -> [ReadoutLine] {
+    if let reset = quota.earlyResetAt, date >= reset, let scheduled = quota.cycleRange?.upperBound {
+        return [
+            ReadoutLine("Early reset · \(chartTimestamp(reset, calendar: calendar))", color: Palette.coral),
+            ReadoutLine("Scheduled reset · \(chartTimestamp(scheduled, calendar: calendar))")
+        ]
+    }
     let timestamp = chartTimestamp(date, calendar: calendar)
     let budget = "Budget \(quotaPercent(WeeklyQuotaPace.budget(at: date, cycleStart: cycleStart)))"
     if let used = quota.measuredUse(at: date) {
@@ -857,7 +919,7 @@ func chartTimestamp(_ date: Date, calendar: Calendar, locale: Locale = .autoupda
     style.calendar = calendar
     style.timeZone = calendar.timeZone
     style.locale = locale
-    return "\(style.format(date)) (\(calendar.timeZone.identifier))"
+    return style.format(date)
 }
 
 private struct LegendKey {

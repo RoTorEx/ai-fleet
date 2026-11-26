@@ -8,7 +8,8 @@ Tracks real product and release progress.
 - Offer 3-, 5-, and 7-day ranges in both hourly charts with a 7-day default, and match the active light or dark appearance.
 - Group hourly filters above both hourly plots, and place dated cycle navigation above the weekly chart. Keep all saved quota observations across resets.
 - Use the menu reset date and hover timer in the chart header. Align legend icons with the right plot edge, and show token totals and category shares in the hover readout.
-- Reach the 100% pace target at the end of day seven and show the latest measurement clearly at the start of a new cycle.
+- Show eight pacing checkpoints from 12.5% on day one to 100% at the weekly reset. Mark observed early resets on archived cycles and group the cycle arrows at the left.
+- Align hourly filters with cycle navigation, put percentage units on the quota axis, and show complete-hour quota mean and median plus local token mean. Use local timestamps without a repeated time-zone label.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 
