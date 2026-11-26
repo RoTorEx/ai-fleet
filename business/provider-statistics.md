@@ -111,13 +111,14 @@ one mark and label per row. The weekly legend groups fill bands ahead of lines
 and leads with the cycle dates. Hourly legends use a short gap after the source,
 followed by a continuous list of marks and reference definitions. A gap in the
 window background separates the two hourly charts. Quota headings show the window name.
-The menu popover points at the clicked chart button, resizes
-to the content and scrolls when the charts exceed the display's available height.
+The menu popover points at the clicked chart button and fits the charts and
+footer up to 640 pt. It scrolls when the stack exceeds that limit or the
+display's available height.
 
 Use the device calendar and current time zone for hourly bins and date labels.
-Keep the info icon on the title line and leave space around the title, summary,
-plot and axes. The cursor opens a bordered card beside the selected mark with
-the date, local time and readings. The card stays within the plot and clears
+Keep the info icon on the title line. Use the same header height and the same
+space below the final axis label on all three plots. The cursor opens a bordered
+card beside the selected mark with the date, local time and readings. The card stays within the plot and clears
 the selected bar and axes. Exact token counts and category shares fit when
 space permits, with compact units at narrow widths.
 The weekly chart has its own cursor.

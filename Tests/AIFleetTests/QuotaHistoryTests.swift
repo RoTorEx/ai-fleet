@@ -478,8 +478,17 @@ final class QuotaHistoryTests: XCTestCase {
         }
         XCTAssertEqual(panel.alphaValue, 1)
         let measured = panel.frame
-        XCTAssertLessThan(measured.height, 600)
-        if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"], let view = panel.contentView,
+        XCTAssertTrue(visible.contains(measured))
+        let view = try XCTUnwrap(panel.contentView)
+        let hosted = try XCTUnwrap(view.subviews.first)
+        let fullContent = NSHostingView(rootView: QuotaHistoryView(
+            targets: [first], selection: .constant(nil), openInStatistics: { _ in })
+            .padding(10).frame(width: hosted.bounds.width))
+        let fullHeight = ceil(fullContent.fittingSize.height)
+        if visible.height >= fullHeight + 16 {
+            XCTAssertGreaterThanOrEqual(hosted.bounds.height, fullHeight)
+        }
+        if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
            let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
             view.cacheDisplay(in: view.bounds, to: bitmap)
             try bitmap.representation(using: .png, properties: [:])?.write(to:

@@ -56,8 +56,14 @@ enum QuotaHistoryPanel: Equatable {
     case overview
     case hourly
 
-    var headerHeight: CGFloat { self == .overview ? 58 : 45 }
-    var axisHeight: CGFloat { self == .overview ? 28 : 36 }
+    static let firstAxisLabelOffset: CGFloat = 15
+    static let secondAxisLabelOffset: CGFloat = 28
+
+    var headerHeight: CGFloat { 58 }
+    var axisHeight: CGFloat {
+        let lastLabel = self == .overview ? Self.firstAxisLabelOffset : Self.secondAxisLabelOffset
+        return lastLabel + 13
+    }
     var plotHeight: CGFloat { self == .overview ? 104 : 69 }
     var height: CGFloat { headerHeight + plotHeight + axisHeight }
 }
@@ -993,7 +999,8 @@ private func drawDateAxis(_ axis: PlotAxes, dates: [Date], layout: FigureLayout,
         let x = axis.x(date)
         let y = axis.frame.maxY
         stroke([CGPoint(x: x, y: y), CGPoint(x: x, y: y + 4)], Palette.labels, width: 0.6, in: context)
-        drawTimeLabel(axisDate(date, calendar: calendar), x: x, y: y + 15, layout: layout, in: context)
+        drawTimeLabel(axisDate(date, calendar: calendar), x: x, y: y + QuotaHistoryPanel.firstAxisLabelOffset,
+                      layout: layout, in: context)
     }
 }
 
@@ -1009,7 +1016,7 @@ private func drawHourAxis(_ axis: PlotAxes, ticks: [QuotaHourTick], layout: Figu
         stroke([CGPoint(x: x, y: y), CGPoint(x: x, y: y + height)], color, width: 0.6, in: context)
         if showsEveryTick || tick.isMajor {
             let hour = String(format: "%02d", tick.hour) + (showsMinutes ? ":00" : "")
-            drawTimeLabel(hour, x: x, y: y + 15, layout: layout, in: context)
+            drawTimeLabel(hour, x: x, y: y + QuotaHistoryPanel.firstAxisLabelOffset, layout: layout, in: context)
         }
     }
 
@@ -1021,7 +1028,8 @@ private func drawHourAxis(_ axis: PlotAxes, ticks: [QuotaHourTick], layout: Figu
         let right = axis.x(min(next, axis.time.upperBound))
         let label = Label(axisDate(day, calendar: calendar), size: layout.labelSize, color: Palette.budget)
         if right - left >= label.width + 4 {
-            label.draw(at: CGPoint(x: (left + right) / 2, y: y + 28), alignment: 0.5, in: context)
+            label.draw(at: CGPoint(x: (left + right) / 2, y: y + QuotaHistoryPanel.secondAxisLabelOffset),
+                       alignment: 0.5, in: context)
         }
         day = next
     }
