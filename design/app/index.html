@@ -1,0 +1,1071 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Fleet · App prototype</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --desk: #14171c; --bar: #1b2027; --window: #24262b; --surface: #2c2f36;
+    --control: #383c45; --line: #454a55; --grid: #3a404a; --text: #f2f4f8;
+    --muted: #b0b8c6; --accent: #91b8ff; --selected: #263e64; --green: #69dca4;
+    --amber: #ffd07d; --red: #ff9b9d; --input: #87afff; --cache: #f2b75a;
+    --output: #65dbb2; --plot: #21252d; --scrim: rgb(8 11 19 / .66);
+    --shadow: 0 18px 55px rgb(0 0 0 / .32);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --desk: #e3e8f0; --bar: #f7f9fc; --window: #f7f8fa; --surface: #fff;
+    --control: #e9edf4; --line: #c9d0dd; --grid: #dde3ea; --text: #192231;
+    --muted: #505c70; --accent: #134f9d; --selected: #d9e8ff; --green: #146748;
+    --amber: #8a4b10; --red: #a52c35; --input: #276bc4; --cache: #bc690d;
+    --output: #168362; --plot: #f5f7fa; --scrim: rgb(42 57 75 / .38);
+    --shadow: 0 18px 55px rgb(35 44 64 / .16);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--desk); color: var(--text); }
+  button, input, select { font: inherit; color: inherit; }
+  button, select {
+    border: 1px solid var(--line); border-radius: 7px; background: var(--control);
+    padding: 5px 10px; cursor: pointer; min-height: 30px;
+  }
+  button:hover, select:hover { border-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button[aria-pressed="true"], .primary { background: var(--selected); color: var(--accent); border-color: var(--accent); }
+  .ghost { background: transparent; border-color: transparent; }
+  .danger { color: var(--red); }
+  [hidden] { display: none !important; }
+  input[type="text"], input[type="email"], input[type="password"] {
+    width: 100%; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--surface); padding: 7px 9px;
+  }
+  p { margin: .25em 0 .7em; }
+  h1, h2, h3 { margin: 0; line-height: 1.25; }
+  h1 { font-size: 17px; }
+  h2 { font-size: 15px; }
+  h3 { font-size: 13px; }
+  .muted, small { color: var(--muted); }
+  .mono, time, td:last-child { font-variant-numeric: tabular-nums; }
+  .toolbar, .row, .window-head, .tab-strip, .chart-head, .sheet-footer {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .spread, .window-head, .chart-head { justify-content: space-between; }
+  .review {
+    padding: 12px clamp(12px, 4vw, 48px); background: var(--bar); border-bottom: 1px solid var(--line);
+    position: relative; z-index: 3;
+  }
+  .review label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .review .toolbar { gap: 10px 15px; }
+  .review-copy { margin-right: auto; }
+  .review-copy strong { display: block; }
+  .review-copy small { display: block; }
+  .desktop { max-width: 1120px; margin: auto; padding: 18px clamp(10px, 3vw, 30px) 34px; }
+  .desktop-bar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+  .desktop-bar button { display: flex; align-items: center; gap: 7px; }
+  .stage { display: flex; justify-content: center; }
+  .window {
+    max-width: 100%; min-width: 0; width: 900px; background: var(--window);
+    border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow);
+  }
+  .menu-window { width: 380px; }
+  .quota-window { width: 630px; }
+  .settings-window { width: 740px; }
+  .logs-window { width: 720px; }
+  .notification-window { width: 600px; }
+  .window-head { padding: 12px 15px; border-bottom: 1px solid var(--line); }
+  .window-head h1 { flex: 1; }
+  .window-body { padding: 13px 15px 15px; min-width: 0; }
+  .menu-window .window-body { padding: 9px; }
+  .tab-strip { gap: 4px; margin-bottom: 10px; }
+  .tab-strip button { font-weight: 600; }
+  .menu-window .tab-strip button { flex: 1; padding-inline: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--green); }
+  .warn .dot, .dot.warn { background: var(--amber); }
+  .danger .dot, .dot.danger { background: var(--red); }
+  .panel, .provider-row, .process-row, .agent-row, .account, .notice {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+  }
+  .panel, .account, .notice { padding: 12px; }
+  .notice { margin: 8px 0; border-left: 3px solid var(--amber); }
+  .agent-row, .process-row { padding: 8px 9px; }
+  .stack { display: grid; gap: 8px; }
+  .provider-list { padding-inline: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
+  .provider-row { border: 0; border-radius: 0; padding: 4px 0 5px; }
+  .provider-row + .provider-row { border-top: 1px solid var(--line); }
+  .provider-row .row strong { flex: 1; }
+  .provider-row p { margin: 0; }
+  .provider-row .icon { min-height: 25px; }
+  .quota-line { display: grid; grid-template-columns: 1fr 5em minmax(8em, auto); gap: 7px; color: var(--muted); font-size: 13px; }
+  .quota-line strong { color: var(--text); text-align: right; }
+  .agent-filters button { flex: 0 0 auto; padding-inline: 6px; white-space: nowrap; font-size: 13px; }
+  .process-row .row { gap: 4px; }
+  .process-row button { padding-inline: 7px; font-size: 13px; }
+  .foot { margin-top: 9px; padding: 4px 3px 0; font-size: 12px; }
+  .icon { padding: 4px 7px; min-width: 30px; font-size: 15px; line-height: 1; }
+  .icon svg { width: 15px; height: 15px; display: block; }
+  .options { position: relative; }
+  summary { cursor: pointer; }
+  .options summary { list-style: none; }
+  .options summary::-webkit-details-marker { display: none; }
+  .options-menu {
+    display: grid; gap: 3px; min-width: 150px; position: absolute; z-index: 4; right: 0;
+    padding: 5px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow);
+  }
+  .options-menu button { text-align: left; }
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .stat-value { display: block; font-size: clamp(18px, 3vw, 25px); font-weight: 670; }
+  .spend-grid { display: grid; grid-template-columns: 1fr 1.25fr 1fr; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 5px 2px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; }
+  th { color: var(--muted); font-weight: 550; }
+  td:last-child, th:last-child { text-align: right; }
+  .activity-grid { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px 14px; margin-top: 10px; }
+  .weekdays, .heatmap { display: grid; grid-template-rows: repeat(7, 13px); gap: 4px; }
+  .weekdays { color: var(--muted); font-size: 10px; line-height: 13px; }
+  .heatmap { grid-auto-flow: column; grid-auto-columns: 13px; }
+  .heatmap button { min-height: 0; padding: 0; border-radius: 2px; background: var(--green); border: 0; }
+  .usage-scale { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  .usage-scale i { width: 10px; height: 10px; border-radius: 2px; background: var(--green); }
+  .chart { padding: 9px 10px 6px; background: var(--plot); border: 1px solid var(--line); border-radius: 8px; position: relative; min-width: 0; }
+  .chart-head { margin-bottom: 4px; gap: 3px 8px; }
+  .chart-head .row { gap: 5px; }
+  .chart .info { padding: 0 5px; min-height: 20px; border-radius: 12px; }
+  .chart canvas { width: 100%; height: 122px; display: block; }
+  .chart canvas[data-chart="weekly"] { height: 131px; }
+  .quota-window .chart canvas { height: 111px; }
+  .quota-window .chart canvas[data-chart="weekly"] { height: 128px; }
+  .legend, .readout {
+    position: absolute; top: 35px; left: 46px; max-width: calc(100% - 58px);
+    z-index: 2; border: 1px solid var(--line); background: var(--surface); border-radius: 7px;
+    padding: 6px 9px; box-shadow: var(--shadow); font-size: 12px; pointer-events: none;
+  }
+  .readout { inset: auto 12px 49px auto; }
+  .swatch { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 2px; }
+  .settings-list { display: grid; gap: 8px; }
+  .setting { min-height: 30px; }
+  .group > summary { padding: 6px 4px; font-weight: 650; }
+  .group .stack { padding: 2px; }
+  .screen-empty { text-align: center; padding: 28px 10px; }
+  .banners .panel { box-shadow: var(--shadow); }
+  .logs-window .notice { margin: 0; }
+  .logs-window .notice p { margin-bottom: 0; }
+  .toast {
+    color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 12px; box-shadow: var(--shadow); position: fixed; left: 50%; bottom: 18px;
+    transform: translateX(-50%); max-width: calc(100% - 24px); z-index: 5;
+  }
+  dialog {
+    max-width: min(450px, calc(100% - 24px)); width: 450px; background: var(--window);
+    color: var(--text); border: 1px solid var(--line); padding: 17px; border-radius: 12px; box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: var(--scrim); }
+  dialog label { display: grid; gap: 4px; }
+  .sheet-footer { justify-content: flex-end; margin-top: 9px; }
+  @media (max-width: 640px) {
+    .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .spend-grid { grid-template-columns: 1fr; }
+    .chart canvas { height: 125px; }
+  }
+</style>
+</head>
+<body>
+<header class="review">
+  <div class="toolbar">
+    <div class="review-copy"><strong>AI Fleet prototype</strong><small>Design review · Synthetic data</small></div>
+    <label>Screen <select id="review-route"></select></label>
+    <label>Fixture <select id="review-state" data-testid="review-state"></select></label>
+    <label>Appearance <select id="review-theme" data-testid="review-theme"></select></label>
+    <button id="reset">Reset demo</button>
+  </div>
+</header>
+<main class="desktop">
+  <div class="desktop-bar"><button data-route="providers"><span class="dot"></span>AI Fleet</button></div>
+  <div id="stage" class="stage"></div>
+</main>
+<div hidden id="toast" role="status" class="toast"></div>
+<dialog id="sheet"></dialog>
+<script>
+const screens = {
+  providers: "Providers", agents: "Agents", processes: "Processes",
+  quota: "Provider quota", statistics: "Token Spend", history: "Quota History",
+  settings: "General", accounts: "Accounts", logs: "Logs", notifications: "Notifications"
+};
+const menuRoutes = ["providers", "agents", "processes"];
+const shortcuts = { "⌃⌥F": "Control + Option + F", "⌃⇧F": "Control + Shift + F" };
+const fixtures = {
+  live: "Populated", empty: "Empty", stale: "Stale", error: "Error", loading: "Loading"
+};
+const themes = { dark: "Dark", light: "Light" };
+const providers = {
+  claude: { label: "Claude", models: ["Opus", "Sonnet"], color: "#db966a" },
+  codex: { label: "Codex", models: ["GPT-6", "GPT-5.6"], color: "#6ed3d5" },
+  kimi: { label: "Kimi", models: ["K2.6", "K2.5"], color: "#c695f4" },
+  qwen: { label: "Qwen", models: ["Qwen Coder", "Qwen Max"], color: "#8d96ee" },
+  grok: { label: "Grok", models: [] }, glm: { label: "GLM", models: [] },
+  antigravity: { label: "Antigravity", models: [] }
+};
+const initialAccounts = [
+  { id: "studio", name: "Studio", badge: "α", email: "studio@example.test", services: { codex: "connected", kimi: "connected", glm: "setup", qwen: "signin" } },
+  { id: "personal", name: "Personal", badge: "β", email: "personal@example.test", services: { claude: "signin", grok: "signin" } },
+  { id: "work", name: "Work", badge: "γ", email: "work@example.test", services: { claude: "connected", antigravity: "signin" } }
+];
+const quotaWindows = {
+  claude: [{ name: "5h", used: 68, hours: 2.6 }, { name: "7d", used: 76, hours: 86 }, { name: "7d (Fable)", used: 100, hours: 86 }],
+  codex: [{ name: "5h", used: 28, hours: 3.1 }, { name: "7d", used: 41, hours: 96 }],
+  kimi: [{ name: "5h", used: 35, hours: 2.8 }, { name: "1m", used: 67, hours: 194 }]
+};
+const mockAgents = [
+  { project: "AI Fleet", provider: "codex", heading: "Quota chart review", status: "Needs you", pane: "fleet:1.2", detail: "Are the four-hour labels readable at the minimum window width?" },
+  { project: "AI Fleet", provider: "claude", heading: "Account fixture pass", status: "Working", pane: "fleet:1.3", detail: "Checking the sign-in and cancel states." },
+  { project: "Mobile studio", provider: "claude", heading: "Accessibility review", status: "Needs you", pane: "studio:2.1", detail: "The review is ready. Should the empty view offer a setup shortcut?" },
+  { project: "Mobile studio", provider: "kimi", heading: "Build summary", status: "Idle", pane: "studio:2.2", detail: "Last reply: the example build passed." },
+  { project: "Sandbox", provider: "qwen", heading: "Local scratch session", status: "Unknown", pane: "", detail: "No current terminal binding." }
+];
+const mockProcesses = [
+  { pid: 2841, provider: "codex", name: "codex", path: "AI Fleet", state: "Waiting", pane: "fleet:1.2", owner: "Interactive session" },
+  { pid: 2902, provider: "claude", name: "claude", path: "AI Fleet", state: "Running", pane: "fleet:1.3", owner: "Interactive session" },
+  { pid: 3154, provider: "kimi", name: "kimi", path: "Mobile studio", state: "Idle", pane: "studio:2.2", owner: "Interactive session" }
+];
+const mockIssues = [
+  { provider: "claude", title: "Quota refresh", detail: "The latest quota request timed out. Last successful measurement is available.", tone: "warn" },
+  { provider: "kimi", title: "Partial token accounting", detail: "A sample session has usage events without token counts.", tone: "warn" },
+  { provider: "qwen", title: "Sign-in required", detail: "Connect a demo account to check provider limits.", tone: "warn" }
+];
+const url = new URL(location.href);
+const routeParam = url.searchParams.get("screen");
+const stateParam = url.searchParams.get("state");
+const themeParam = url.searchParams.get("theme");
+const defaults = () => ({
+  accounts: structuredClone(initialAccounts), processes: structuredClone(mockProcesses),
+  launch: { claude: "work", codex: "studio", kimi: "studio" },
+  enabled: new Set(Object.keys(providers)), refresh: "5", notifications: true,
+  closeOutside: true, hotkey: "⌃⌥F", active: true, agentFilter: "All",
+  groupOpen: new Set(["AI Fleet"]), processFilter: "all", sort: "attention",
+  scope: "all", logScope: "all", period: "30", accountPeriod: "30", provider: "claude", account: "work",
+  tokens: "all", model: "all", agentsInPane: "", dismiss: new Set()
+});
+let data = defaults();
+let route = Object.hasOwn(screens, routeParam) ? routeParam : "providers";
+let fixture = Object.hasOwn(fixtures, stateParam) ? stateParam : "live";
+let theme = Object.hasOwn(themes, themeParam) ? themeParam : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+let refreshed = new Date();
+let toastTimer;
+let returnToLogs = "providers";
+let sheetOrigin;
+const stage = document.querySelector("#stage");
+const sheet = document.querySelector("#sheet");
+const $ = selector => document.querySelector(selector);
+const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+})[char]);
+const entries = object => Object.entries(object);
+const selected = (current, option) => current === option ? " selected" : "";
+const options = (object, current) => entries(object).map(([id, label]) =>
+  '<option value="' + esc(id) + '"' + selected(current, id) + '>' + esc(label) + '</option>'
+).join("");
+const btn = (label, action, attrs = "") => '<button type="button" data-action="' + esc(action) + '" ' + attrs + '>' + label + '</button>';
+const nav = (label, destination, attrs = "") => '<button type="button" data-route="' + destination + '" ' + attrs + '>' + label + '</button>';
+const hook = id => 'data-testid="' + id + '"';
+const choice = (id, object, current, test = id) =>
+  '<select id="' + id + '" ' + hook(test) + '>' + options(object, current) + '</select>';
+const fmt = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const dateTime = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" }).formatToParts(new Date()).find(part => part.type === "timeZoneName")?.value;
+const count = n => fmt.format(n);
+const percent = n => n.toFixed(1) + "%";
+const hour = 3600000;
+const now = new Date();
+now.setMinutes(0, 0, 0);
+const times = Array.from({ length: 72 }, (_, index) => new Date(+now - (71 - index) * hour));
+const series = Object.fromEntries(entries(providers).map(([id, provider], providerIndex) => [
+  id, Object.fromEntries(provider.models.map((model, modelIndex) => [
+    model, times.map((_, index) => {
+      const work = (Math.sin(index * .52 + providerIndex + modelIndex) * .4 + .55) *
+        (Math.cos(index * .26 - providerIndex) * .35 + .65);
+      return (index + providerIndex + modelIndex) % 7 < 2 || index % 24 < 6 ? [0, 0, 0] : [
+        Math.round(work * (providerIndex + 2) * 490000), Math.round(work * 12000000 / (modelIndex + 1)),
+        Math.round(work * 330000)
+      ];
+    })
+  ]))
+]));
+function connectionName(provider, account) {
+  return providers[provider].label + (account ? " (" + account.badge + ")" : "");
+}
+function connectionLabel(provider, id) {
+  return connectionName(provider, data.accounts.find(account => account.id === id));
+}
+function providerChoices() {
+  return Object.fromEntries(entries(providers).filter(([id]) => data.enabled.has(id)).map(([id, value]) => [id, value.label]));
+}
+function analyticsProviders() {
+  return Object.fromEntries(entries(providerChoices()).filter(([id]) => providers[id].models.length));
+}
+function showToast(message) {
+  const toast = $("#toast");
+  toast.textContent = message;
+  toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.hidden = true; }, 3500);
+}
+function empty(title, detail) {
+  return '<div class="panel screen-empty"><h2>' + title + '</h2><p class="muted">' + detail + '</p></div>';
+}
+function banner() {
+  if (fixture === "error") return '<div class="notice"><strong>Refresh failed</strong><p class="muted">The example source could not be reached. ' + btn("Open Logs", "open-logs", hook("open-logs")) + '</p></div>';
+  if (fixture === "stale") return '<div class="notice"><strong>Showing the last known data</strong><p class="muted">The example source has not refreshed recently.</p></div>';
+  if (fixture === "loading") return '<div class="notice" role="status"><strong>Refreshing data…</strong><p class="muted">This fixture stays in the loading state until changed in Review.</p></div>';
+  return "";
+}
+const chartIcon = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 2v12h12M4 10l3-3 3 1 4-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function header(title, extra = "") {
+  return '<header class="window-head"><h1>' + title + '</h1>' + extra + nav("×", "closed", 'class="icon ghost" aria-label="Close window"') + '</header>';
+}
+function tabs(items) {
+  return '<nav class="tab-strip">' + items.map(([id, label, test]) =>
+    nav(label, id, 'aria-pressed="' + (id === route) + '" ' + (test ? hook(test) : ""))
+  ).join("") + '</nav>';
+}
+function renderMenu(content) {
+  const actions = '<details class="options"><summary class="icon" aria-label="Options">•••</summary><div class="options-menu">' +
+    nav("Statistics", "statistics") + nav("Settings", "settings") + btn("Logs", "open-logs", hook("open-logs")) +
+    nav("Notifications", "notifications") + nav("Close menu", "closed") + '</div></details>';
+  const status = '<span class="dot' + (data.active ? "" : " warn") + '"></span> ' + (data.active ? "Active" : "Paused");
+  return header(status, btn("ⓘ", "fleet-status", 'class="icon ghost" aria-label="Fleet status"') +
+    btn("↻", "refresh", 'class="icon ghost" aria-label="Refresh status"') + actions) +
+    '<div class="window-body">' + tabs(menuRoutes.map(id => [id, screens[id]])) +
+    banner() + content + '<footer class="row spread foot muted"><time>Last refresh · ' + time.format(refreshed) +
+    '</time><span>AI Fleet</span></footer></div>';
+}
+function providersView() {
+  if (fixture === "empty") return renderMenu(empty("No connected providers", "Add a provider in Accounts.") + nav("Open Accounts", "accounts"));
+  if (fixture === "loading") return renderMenu("");
+  const rows = data.accounts.flatMap(account => entries(account.services)
+    .filter(([id]) => data.enabled.has(id)).map(([id, status]) => ({ account, id, status })));
+  rows.sort((a, b) => Number(b.status === "connected") - Number(a.status === "connected"));
+  return renderMenu(rows.length ? '<div class="provider-list">' + rows.map(({ account, id, status }) => {
+    const label = connectionName(id, account);
+    const readiness = fixture === "error" && status === "connected" ? "Quota unavailable" :
+      (status === "connected" ? "Connected" : status === "setup" ? "Set up API key" : "Sign in required");
+    const limits = status === "connected" && fixture !== "error" ? (quotaWindows[id] ?? []).map(window =>
+      '<div class="quota-line mono"><span>' + window.name + '</span><strong>' + (100 - window.used) +
+      '% left</strong><time>↻ ' + dateTime.format(+now + window.hours * hour) + '</time></div>'
+    ).join("") : '<p class="muted">' + readiness + '</p>';
+    const key = esc(id + "/" + account.id);
+    return '<article class="provider-row"><div class="row"><strong>' +
+      (data.launch[id] === account.id ? "→ " : "") + label + '</strong>' +
+      btn("ⓘ", "provider-status", 'class="icon ghost" data-key="' + key + '" aria-label="' + label + ' status"') +
+      (providers[id].models.length ? btn(chartIcon, "quota", 'class="icon ghost" data-key="' + key +
+        '" aria-label="' + label + ' quota" ' + (id === "claude" && status === "connected" ? hook("quota-claude") : "")) : "") +
+      '</div>' + limits + '</article>';
+  }).join("") + '</div>' : empty("No visible providers", "Enable a provider in General or add one in Accounts."));
+}
+function agentsView() {
+  if (fixture === "empty") return renderMenu(empty("No agent sessions", "Local sessions will appear after launch."));
+  if (fixture === "loading") return renderMenu("");
+  const filter = ["All", "Needs you", "Working", "Idle", "Unknown"];
+  const rows = mockAgents.filter(row => data.agentFilter === "All" || row.status === data.agentFilter);
+  const groups = new Map();
+  for (const row of rows) {
+    if (!groups.has(row.project)) groups.set(row.project, []);
+    groups.get(row.project).push(row);
+  }
+  return renderMenu('<nav class="tab-strip agent-filters" aria-label="Agent state">' + filter.map(label => btn(label, "agent-filter",
+    'data-value="' + label + '" aria-pressed="' + (label === data.agentFilter) + '" ' + (label === "Needs you" ? hook("needs-you") : ""))).join("") +
+    '</nav>' + (rows.length ? [...groups].map(([project, list]) => '<details class="group" data-group="' + project + '"' +
+      (data.agentFilter !== "All" || data.groupOpen.has(project) ? " open" : "") + '><summary>' + project + ' · ' + list.length +
+      '</summary><div class="stack">' + list.map(row => {
+        const index = mockAgents.indexOf(row);
+        return '<article class="agent-row"><div class="row spread"><strong>' + row.heading + '</strong><small class="' +
+          (row.status === "Needs you" ? "danger" : "") + '">' + row.status + '</small></div><small>' +
+          providers[row.provider].label + '</small><div class="row">' +
+          btn("Context", "agent-detail", 'data-value="' + index + '"') +
+          (row.pane && fixture !== "stale" ? btn("Jump", "jump", hook("jump-session") + ' data-value="' + index + '"') : '<small>Pane unavailable</small>') +
+          '</div></article>';
+      }).join("") + '</div></details>').join("") : empty("No matching sessions", "Choose another agent state.")));
+}
+function processesView() {
+  if (fixture === "empty") return renderMenu(empty("No observed processes", "Start a local coding session to see it here."));
+  if (fixture === "loading") return renderMenu("");
+  const rows = data.processes.filter(row => data.processFilter === "all" || row.provider === data.processFilter);
+  rows.sort((a, b) => data.sort === "pid" ? a.pid - b.pid : Number(b.state === "Waiting") - Number(a.state === "Waiting"));
+  return renderMenu('<div class="row" style="margin-bottom:8px"><label>Provider ' +
+    choice("process-filter", { all: "All", ...providerChoices() }, data.processFilter) + '</label><label>Sort ' +
+    choice("process-sort", { attention: "Attention", pid: "PID" }, data.sort) + '</label></div>' +
+    (rows.length ? '<div class="stack">' + rows.map(row =>
+      '<article class="process-row"><div class="row spread"><strong>' + row.name + ' <small class="mono">' + row.pid + '</small></strong>' +
+        '<small class="' + (row.state === "Waiting" ? "danger" : "") + '">' + row.state + '</small></div><p class="muted">' +
+        row.path + '</p><div class="row">' + btn("Details", "process-detail", 'data-value="' + row.pid + '"') +
+        (row.state === "Waiting" ? nav("Agent session", "agents") : "") +
+        btn("Stop…", "stop", hook("stop-process") + ' data-value="' + row.pid + '"') +
+        btn("Force Quit…", "force-quit", 'data-value="' + row.pid + '" class="danger"') + '</div></article>'
+    ).join("") + '</div>' : empty("No matching processes", "Choose another provider.")));
+}
+const components = [
+  { id: "input", label: "Uncached input", color: "--input" },
+  { id: "cache", label: "Cache", color: "--cache" },
+  { id: "output", label: "Output", color: "--output" }
+];
+const seriesChoices = { all: "All tokens", ...Object.fromEntries(components.map(item => [item.id, item.label])) };
+const periods = { "7": "7d", "30": "30d", "90": "90d", all: "All time" };
+function observations() {
+  const modelSeries = series[data.provider] ?? {};
+  const used = Object.hasOwn(modelSeries, data.model) ? [modelSeries[data.model]] : Object.values(modelSeries);
+  return times.map((_, index) => used.reduce((total, item) => total.map((n, part) => n + item[index][part]), [0, 0, 0]));
+}
+function quotaAccounts() {
+  return Object.fromEntries(data.accounts.filter(account => Object.hasOwn(account.services, data.provider))
+    .map(account => [account.id, connectionName(data.provider, account)]));
+}
+function limitsForSelection() {
+  const account = data.accounts.find(account => account.id === data.account);
+  return account?.services[data.provider] === "connected" && fixture !== "error" ? quotaWindows[data.provider] ?? [] : [];
+}
+function legend(items) {
+  return items.map(([color, label]) => '<div>' + (color ? '<span class="swatch" style="background:var(' + color + ')"></span>' : "") + label + '</div>').join("");
+}
+function chart(id, title, detail, items) {
+  return '<section class="chart"><div class="chart-head"><div class="row"><h3>' + title + '</h3>' +
+    btn("ⓘ", "chart-legend", 'class="icon ghost info" aria-label="' + title + ' legend" aria-expanded="false"') +
+    '</div><small>' + detail + '</small></div><div class="legend" hidden>' + legend(items) + '</div>' +
+    '<canvas data-chart="' + id + '" tabindex="0" aria-label="' + title + '. Left and right arrows inspect values."></canvas>' +
+    '<div class="readout" role="status" hidden></div></section>';
+}
+function quotaContent(isWindow) {
+  const limits = limitsForSelection();
+  const weekly = limits.find(window => window.name === "7d");
+  const quotaProvider = analyticsProviders();
+  if (!Object.keys(quotaProvider).length) {
+    return empty("No supported providers are enabled", "Enable a provider to view recorded usage.") + nav("Open Settings", "settings");
+  }
+  const accountChoices = quotaAccounts();
+  const controls = '<div class="row spread"><div class="row"><label>Provider ' +
+    choice("quota-provider", quotaProvider, data.provider, "provider-filter") + '</label><label>Account ' +
+    choice("quota-account", accountChoices, data.account) + '</label></div><small>Device time · ' + esc(zone ?? "") + '</small></div>';
+  const accountUsage = limits.length ? '<div class="panel row spread"><strong>Account quota</strong><div class="row">' +
+    limits.map(window => '<span class="mono">' + window.name + ' · <strong>' + percent(window.used) + '</strong> used</span>').join(' <span class="muted">·</span> ') +
+    '</div></div>' : '<div class="panel muted">' + (fixture === "error" ? "Provider quota is temporarily unavailable." : "No quota history for this connection.") + '</div>';
+  const models = { all: "All models", ...Object.fromEntries((providers[data.provider]?.models ?? []).map(model => [model, model])) };
+  const tokenControls = '<div class="row spread"><span class="muted">Local to this Mac · ' + providers[data.provider].label +
+    '</span><div class="row"><label>Model ' + choice("token-model", models, data.model) +
+    '</label><label>Series ' + choice("token-series", seriesChoices, data.tokens) + '</label></div></div>';
+  const renderQuota = weekly ? chart("weekly", "Weekly quota", percent(weekly.used) + " used · " + weekly.hours + "h to reset", [
+    ["--input", "Quota used · measured"], ["--muted", "Daily budget · 14.3% of weekly quota per day"],
+    ["--amber", "Forecast at observed pace"], ["--red", "100% limit"]
+  ]) : '<section class="chart"><h3>Weekly quota</h3><p class="muted">This connection does not report a weekly limit.</p></section>';
+  const renderHourly = weekly ? chart("hourly", "Quota used per hour", "Last 72h", [
+    ["--green", "Provider quota delta"], ["--amber", "Sustainable average"]
+  ]) : '<section class="chart"><h3>Quota used per hour</h3><p class="muted">No hourly provider measurements for this connection.</p></section>';
+  const renderTokens = observations().some(parts => parts.some(Boolean))
+    ? chart("tokens", "Local tokens per hour", "Last 72h",
+      components.filter(item => data.tokens === "all" || item.id === data.tokens).map(item => [item.color, item.label]))
+    : '<section class="chart"><h3>Local tokens per hour</h3><p class="muted">No local token events for this provider.</p></section>';
+  return '<div class="stack">' + controls + banner() + (
+    fixture === "empty" ? empty("No usage history yet", "The demo has no samples from this provider.") :
+    fixture === "loading" ? "" : accountUsage + renderQuota + renderHourly + tokenControls + renderTokens
+  ) + (!isWindow ? '<div class="row spread">' + nav("Back to Providers", "providers") +
+    nav("Open in Statistics", "history", hook("open-statistics") + ' class="primary"') + '</div>' : "") + '</div>';
+}
+function statsFrame(extra) {
+  return header("AI Fleet Statistics", btn("↻", "refresh", 'class="icon ghost" aria-label="Refresh statistics"')) +
+    '<div class="window-body">' + tabs([["statistics", "Token Spend", "statistics-spend"], ["history", "Quota History", "statistics-history"]]) + extra + '</div>';
+}
+function quotaView() {
+  return header(esc(connectionLabel(data.provider, data.account))) + '<div class="window-body">' + quotaContent(false) + '</div>';
+}
+function historyView() {
+  return statsFrame(quotaContent(true) + providerReport());
+}
+function dataTable(title, columns, rows, intro = "") {
+  return '<section class="panel"><h2>' + title + '</h2>' + intro + '<table><thead><tr>' +
+    columns.map(label => '<th scope="col">' + label + '</th>').join("") + '</tr></thead><tbody>' +
+    rows.map(row => '<tr>' + row.map(item => '<td>' + item + '</td>').join("") + '</tr>').join("") + '</tbody></table></section>';
+}
+function providerReport() {
+  if (fixture === "empty" || fixture === "loading" || fixture === "error") return "";
+  const account = data.accounts.find(account => account.id === data.account);
+  if (account?.services[data.provider] !== "connected") return "";
+  if (data.provider === "codex") {
+    const reported = { "7": 18200000, "30": 62700000, "90": 156000000, all: 218000000 };
+    const intro = '<div class="row spread foot"><small>Provider totals for the selected account</small><label>Report period ' +
+      choice("account-period", periods, data.accountPeriod) + '</label></div>';
+    return '<div class="foot">' + dataTable("Codex account report", ["Account", "Provider-reported tokens"], [
+      [esc(account.name) + " (" + account.badge + ")", count(reported[data.accountPeriod])]
+    ], intro) + '</div>';
+  }
+  if (data.provider === "kimi") {
+    return '<div class="foot">' + dataTable("Kimi quota windows", ["Window", "Remaining", "Reset"], limitsForSelection().map(window =>
+      [window.name, percent(100 - window.used), dateTime.format(+now + window.hours * hour)]
+    )) + '</div>';
+  }
+  return "";
+}
+function localDay(date) {
+  return +new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+function providerMetrics() {
+  const days = data.period === "all" ? 104 : Number(data.period);
+  return entries(series).filter(([id, models]) => data.enabled.has(id) && Object.keys(models).length)
+    .map(([id, models], providerIndex) => {
+      const daily = [], totals = [0, 0, 0];
+      const modelRows = entries(models).map(([model, samples], modelIndex) => {
+        const sums = [0, 0, 0];
+        const recent = new Map();
+        samples.forEach((sample, index) => {
+          const day = localDay(times[index]);
+          const total = recent.get(day) ?? [0, 0, 0];
+          recent.set(day, sample.map((value, part) => value + total[part]));
+        });
+        const seed = samples.slice(48).reduce((acc, sample) => acc.map((n, i) => n + sample[i]), [0, 0, 0]);
+        for (let offset = 0; offset < days; offset++) {
+          const date = new Date(now);
+          date.setDate(now.getDate() - offset);
+          const activity = .42 + .5 * ((Math.sin((offset + modelIndex + providerIndex * .5) * 1.1) + 1) / 2);
+          const values = recent.get(localDay(date)) ?? seed.map(n => Math.round(n * activity));
+          daily[offset] ??= { date, values: [0, 0, 0] };
+          values.forEach((value, i) => { sums[i] += value; totals[i] += value; daily[offset].values[i] += value; });
+        }
+        return { label: model, total: sums.reduce((a, b) => a + b, 0) };
+      });
+      return { id, label: providers[id].label, totals, total: totals.reduce((a, b) => a + b, 0), models: modelRows, daily };
+    });
+}
+function statsView() {
+  const scopeChoices = analyticsProviders();
+  const controls = '<div class="row spread"><div class="row"><label>Local history ' +
+    choice("spend-provider", { all: "All providers", ...scopeChoices }, data.scope, "provider-filter") + '</label>' +
+    '<label>Period ' + choice("period-filter", periods, data.period) + '</label></div><small>Recorded on this Mac</small></div>';
+  if (fixture === "empty" || fixture === "loading") return statsFrame(controls + banner() +
+    (fixture === "empty" ? empty("No local usage", "Recorded token events appear here once a supported CLI runs.") : ""));
+  const allRows = providerMetrics();
+  const rows = allRows.filter(row => data.scope === "all" || row.id === data.scope).sort((a, b) => b.total - a.total);
+  const totals = rows.reduce((acc, row) => acc.map((n, i) => n + row.totals[i]), [0, 0, 0]);
+  const total = totals.reduce((a, b) => a + b, 0);
+  const daily = (rows[0]?.daily ?? []).map((day, index) => ({
+    ...day, total: rows.reduce((acc, row) => acc + row.daily[index].values.reduce((a, b) => a + b, 0), 0)
+  }));
+  const metrics = [
+    ["Total tokens", count(total), "Local token events"],
+    ["Input", count(totals[0] + totals[1]), count(totals[0]) + " uncached · " + count(totals[1]) + " cached"],
+    ["Output", count(totals[2]), "Local generation"],
+    ["API estimate", (totals[0] * .000004 + totals[1] * .0000004 + totals[2] * .000015).toLocaleString(undefined, { style:"currency", currency:"USD" }), "Example model prices"]
+  ].map(([label, value, note]) => '<div class="panel"><h3>' + label + '</h3><strong class="stat-value mono">' + value +
+    '</strong><small>' + note + '</small></div>').join("");
+  const dayLabel = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+  const activityMax = Math.max(1, ...daily.map(day => day.total));
+  const recentDays = daily.slice(0, 91).reverse();
+  const range = recentDays.length ? dayLabel.format(recentDays[0].date) + " – " +
+    dayLabel.format(recentDays.at(-1).date) : "No recorded days";
+  const activity = '<section class="panel"><div class="row spread"><h2>Activity</h2><small>' + range +
+    '</small></div><div class="activity-grid"><div class="weekdays" aria-hidden="true">' +
+    '<span style="grid-row:2">Mon</span><span style="grid-row:4">Wed</span><span style="grid-row:6">Fri</span></div><div class="heatmap">' +
+    recentDays.map((day, index) => btn("", "activity-day", 'style="' +
+      (index === 0 ? "grid-row-start:" + (day.date.getDay() + 1) + ";" : "") + 'opacity:' +
+      (.15 + day.total / activityMax * .85).toFixed(2) + '" aria-label="' + dayLabel.format(day.date) +
+      ' · ' + count(day.total) + ' tokens" title="' + dayLabel.format(day.date) + ' · ' + count(day.total) + ' tokens"')).join("") +
+    '</div><small class="usage-scale">Less <i style="opacity:.2"></i><i style="opacity:.55"></i><i></i> More</small></div></section>';
+  return statsFrame('<div class="stack">' + controls + banner() + '<div class="metrics">' + metrics + '</div><div class="spend-grid">' +
+    dataTable("By provider", ["Provider", "Tokens", "Share"], rows.map(row => [row.label, count(row.total), percent(total ? row.total / total * 100 : 0)])) +
+    dataTable("Models", ["Model", "Tokens"], rows.flatMap(row => row.models).sort((a, b) => b.total - a.total).slice(0, 6).map(model => [model.label, count(model.total)])) +
+    dataTable("Days", ["Day", "Tokens"], daily.slice(0, 6).map(day => [dayLabel.format(day.date), count(day.total)])) +
+    '</div>' + activity + '</div>');
+}
+function settingsFrame(contents) {
+  return header("AI Fleet Settings") + '<div class="window-body">' +
+    tabs([["settings", "General"], ["accounts", "Accounts"]]) + banner() + contents + '</div>';
+}
+const check = (label, id, checked) => '<label class="row setting"><input type="checkbox" id="' + id + '"' + (checked ? " checked" : "") + '> ' + label + '</label>';
+function settingsView() {
+  return settingsFrame('<div class="stack"><section class="panel settings-list"><h2>Menu</h2><label class="row spread">Prototype menu shortcut ' +
+    choice("hotkey", shortcuts, data.hotkey) + '</label>' + check("Close menu when clicking outside", "setting-outside", data.closeOutside) +
+    '<label class="row spread">Refresh status every ' + choice("refresh-period", { "1": "1 minute", "5": "5 minutes", "15": "15 minutes", off: "Manually" }, data.refresh) + '</label></section>' +
+    '<section class="panel settings-list"><h2>Providers</h2><small>Choose which connections appear in the menu.</small><div class="row">' +
+    entries(providers).map(([id, provider]) => check(provider.label, "enabled-" + id, data.enabled.has(id))).join("") +
+    '</div></section><section class="panel settings-list"><h2>Notifications</h2>' +
+    check("Show quota and agent alerts", "setting-notifications", data.notifications) +
+    '<div class="row">' + nav("Preview notifications", "notifications") + '</div></section></div>');
+}
+function accountsView() {
+  const accounts = fixture === "empty" ? [] : data.accounts;
+  const rows = accounts.map(account => '<article class="account stack"><div class="row spread"><div><h2>' +
+    esc(account.name) + ' (' + account.badge + ')</h2><small>' + esc(account.email) +
+    '</small></div><div class="row">' +
+    btn("Edit…", "edit-account", 'data-value="' + account.id + '"') +
+    btn("Remove…", "remove-account", 'class="danger" data-value="' + account.id + '"') +
+    '</div></div>' + entries(account.services).map(([id, state]) => {
+      const key = id + "/" + account.id;
+      const stateLabel = state === "connected" ? (data.launch[id] === account.id ? "Next launch · Connected" : "Connected") : state === "setup" ? "Key required" : "Sign in required";
+      const label = state === "connected" ? "Actions…" : state === "setup" ? "Set API key…" : "Sign in…";
+      return '<div class="row spread"><div><strong>' + providers[id].label + '</strong> <small>' + stateLabel +
+        '</small></div>' + btn(label, "provider-status", 'data-key="' + key + '"') + '</div>';
+    }).join("") + '</article>').join("");
+  return settingsFrame('<div class="stack"><div class="row spread"><span class="muted">Manage example accounts and provider connections.</span>' +
+    btn("Add account…", "add-account", hook("add-account") + ' class="primary"') + '</div>' +
+    (fixture === "loading" ? "" : rows || empty("No accounts", "Add an example account to preview a provider connection.")) + '</div>');
+}
+function logsView() {
+  const issues = data.logScope === "all" ? mockIssues : mockIssues.filter(issue => issue.provider === data.logScope);
+  return header("AI Fleet Logs") + '<div class="window-body stack"><div class="row spread"><label>Source ' +
+    choice("log-scope", { all: "All sources", ...Object.fromEntries(entries(providers).map(([id, provider]) => [id, provider.label])) }, data.logScope) +
+    '</label><small>Last scan · ' + dateTime.format(refreshed) + '</small></div>' +
+    (fixture === "loading" ? banner() :
+      fixture === "empty" || !issues.length ? empty("No issues to show", "The selected fixture has no diagnostics for this source.") :
+      issues.map(issue => '<article class="notice"><h3>' + providers[issue.provider].label + ' · ' + issue.title +
+        '</h3><p class="muted">' + issue.detail + '</p></article>').join("")) +
+    '<div>' + nav("Back", returnToLogs) + '</div></div>';
+}
+function notificationsView() {
+  const notices = [
+    { key: "quota", title: "Claude quota is low", body: "The example weekly limit has 24.0% remaining.", action: "Open quota" },
+    { key: "agent", title: "AI Fleet needs a reply", body: "Quota chart review is waiting in fleet:1.2.", action: "Open agent" }
+  ].filter(notice => !data.dismiss.has(notice.key));
+  return header("AI Fleet Notifications") + '<div class="window-body stack banners">' + banner() +
+    (!data.notifications ? empty("Notifications paused", "Enable alerts in General to see the example banners.") :
+      fixture === "loading" ? "" :
+      fixture === "empty" || !notices.length ? empty("No notifications", "New demo banners will appear when the fixture is reset.") :
+      notices.map(notice => '<article class="panel"><div class="row spread"><small><span class="dot"></span> AI Fleet</small>' +
+        btn("×", "dismiss-notice", 'class="ghost icon" aria-label="Dismiss ' + notice.title + '" data-value="' + notice.key + '"') +
+        '</div><h2>' + notice.title + '</h2><p class="muted">' + notice.body + '</p><details><summary>Details</summary><p class="muted">' +
+        (notice.key === "quota" ? "Example alert for the Work account (γ)." : "The agent is awaiting input in the bound terminal pane.") +
+        '</p></details><div class="row">' + btn(notice.action, "notification-open", hook("notification-open") + ' data-value="' + notice.key + '"') +
+        '</div></article>').join("")) + '<div>' + nav("Notification settings", "settings") + '</div></div>';
+}
+const views = {
+  providers: providersView, agents: agentsView, processes: processesView,
+  quota: quotaView, statistics: statsView, history: historyView,
+  settings: settingsView, accounts: accountsView, logs: logsView, notifications: notificationsView
+};
+function render() {
+  document.documentElement.dataset.theme = theme;
+  $("#review-route").innerHTML = options(screens, route);
+  $("#review-state").innerHTML = options(fixtures, fixture);
+  $("#review-theme").innerHTML = options(themes, theme);
+  if (route === "closed") {
+    stage.innerHTML = '<p class="muted">Menu closed. Open AI Fleet from the menu bar.</p>';
+    return;
+  }
+  const windowClass = ({
+    providers: "menu-window", agents: "menu-window", processes: "menu-window", quota: "quota-window",
+    settings: "settings-window", accounts: "settings-window", logs: "logs-window", notifications: "notification-window"
+  })[route] ?? "";
+  stage.innerHTML = '<article class="window ' + windowClass + '" data-testid="screen" data-screen="' + route + '">' + views[route]() + '</article>';
+  drawCharts();
+}
+function navigate(screen) {
+  route = screen;
+  render();
+  window.scrollTo({ top: 0 });
+  const title = stage.querySelector("h1");
+  if (title) {
+    title.tabIndex = -1;
+    title.focus({ preventScroll: true });
+  }
+}
+function showDialog(title, detail, fields, submitLabel, submit, danger = false, extra = "") {
+  sheetOrigin = document.activeElement;
+  sheet.innerHTML = '<form class="stack"><h2 id="sheet-title">' + title + '</h2><p class="muted">' + detail +
+    '</p>' + fields + extra + '<div class="sheet-footer"><button type="button" ' + hook("cancel") +
+    ' data-action="cancel">Cancel</button>' + (submit ? '<button type="submit" ' + hook("confirm") +
+    ' class="' + (danger ? "danger" : "primary") + '">' + submitLabel + '</button>' : "") + '</div></form>';
+  sheet.setAttribute("aria-labelledby", "sheet-title");
+  sheet.querySelector("form").onsubmit = event => {
+    event.preventDefault();
+    const values = new FormData(event.target);
+    sheet.close();
+    submit?.(values);
+  };
+  if (!sheet.open) sheet.showModal();
+}
+sheet.addEventListener("close", () => { if (sheetOrigin?.isConnected) sheetOrigin.focus(); });
+function accountForm(account) {
+  const isEdit = Boolean(account);
+  showDialog(isEdit ? "Edit " + esc(account.name) : "Add account", "Example values stay in this prototype.",
+    '<label>Display name<input required name="name" type="text" maxlength="40" value="' + esc(account?.name ?? "") +
+    '" placeholder="Studio"></label><label>Email<input required name="email" type="email" value="' + esc(account?.email ?? "") +
+    '" placeholder="team@example.test"></label>' + (isEdit ? "" : '<label>Provider<select name="provider">' + options(providerChoices(), "claude") + '</select></label>'),
+    "Save", values => {
+      if (isEdit) {
+        account.name = values.get("name");
+        account.email = values.get("email");
+      } else {
+        const badge = [..."αβγδεζηθικ"].find(candidate => !data.accounts.some(row => row.badge === candidate)) ?? "•";
+        const provider = values.get("provider");
+        const id = "account-" + (performance.timeOrigin + performance.now()).toFixed();
+        data.accounts.push({ id, name: values.get("name"), email: values.get("email"), badge, services: { [provider]: provider === "glm" ? "setup" : "signin" } });
+        if (fixture === "empty") fixture = "live";
+      }
+      render();
+      showToast(isEdit ? "Account updated" : "Example account added");
+    });
+}
+function selectConnection(provider, account) {
+  if (data.provider !== provider) {
+    data.model = "all";
+    data.tokens = "all";
+  }
+  data.provider = provider;
+  data.account = account ?? Object.keys(quotaAccounts())[0] ?? "";
+}
+function connectionDialog(provider, id) {
+  const account = data.accounts.find(item => item.id === id);
+  const status = account.services[provider];
+  const label = connectionName(provider, account);
+  const logs = '<div>' + btn("Open Logs", "open-logs", hook("open-logs") + ' data-value="' + provider + '"') + '</div>';
+  if (status === "connected") {
+    showDialog(label, fixture === "error" ? "Quota request failed. This account is still connected." :
+      "This account is ready. The selection applies to the next launch.", "",
+      data.launch[provider] === id ? "" : "Use next launch",
+      data.launch[provider] === id ? null : () => {
+        data.launch[provider] = id;
+        render();
+        showToast(label + " selected for the next launch");
+      }, false, logs + '<div>' + btn("Disconnect…", "disconnect", 'class="danger" data-key="' + provider + '/' + id + '"') + '</div>');
+    return;
+  }
+  showDialog(label, status === "setup" ? "Use an example placeholder for the Coding Plan key." : "Preview the provider sign-in flow using the fixture.",
+    status === "setup" ? '<label>Example key<input name="key" type="password" placeholder="Example only" required autocomplete="off"></label>' :
+      '<label>Example result<select name="result"><option value="success">Signed in</option><option value="failure">Provider unavailable</option></select></label>',
+    status === "setup" ? "Save example key" : "Simulate sign-in", values => {
+      if (values.get("result") === "failure") {
+        data.logScope = provider;
+        showToast(label + " sign-in failed");
+        return;
+      }
+      account.services[provider] = "connected";
+      data.launch[provider] ??= id;
+      render();
+      showToast(label + " is connected");
+    }, false, logs);
+}
+const actions = {
+  refresh: () => { refreshed = new Date(); render(); showToast("Example data refreshed"); },
+  "fleet-status": () => showDialog("Fleet status", data.active ? "The demo is observing example accounts and sessions." : "Status refresh is paused in the demo.", "",
+    data.active ? "Pause" : "Resume", () => { data.active = !data.active; render(); }, false,
+    '<div>' + btn("Open Logs", "open-logs", hook("open-logs")) + '</div>'),
+  "provider-status": control => connectionDialog(...control.dataset.key.split("/")),
+  quota: control => { selectConnection(...control.dataset.key.split("/")); navigate("quota"); },
+  "agent-filter": control => { data.agentFilter = control.dataset.value; render(); },
+  "agent-detail": control => {
+    const row = mockAgents[Number(control.dataset.value)];
+    showDialog(row.heading, row.detail, "", "Jump to pane", row.pane ? () => showToast("Jumped to " + row.pane) : null);
+  },
+  jump: control => { data.agentsInPane = mockAgents[Number(control.dataset.value)].pane; showToast("Jumped to " + data.agentsInPane); },
+  "process-detail": control => {
+    const row = data.processes.find(item => String(item.pid) === control.dataset.value);
+    showDialog(row.name + " · " + row.pid, row.owner + " · " + row.path + " · " + row.pane, "", "", null);
+  },
+  stop: stopProcess,
+  "force-quit": stopProcess,
+  "add-account": () => accountForm(),
+  "edit-account": control => accountForm(data.accounts.find(account => account.id === control.dataset.value)),
+  "remove-account": control => {
+    const id = control.dataset.value;
+    const account = data.accounts.find(row => row.id === id);
+    showDialog("Remove " + esc(account.name) + "?", "This removes the example account and its connections from this demo.", "", "Remove", () => {
+      data.accounts = data.accounts.filter(item => item.id !== id);
+      for (const [provider, accountID] of entries(data.launch)) if (accountID === id) delete data.launch[provider];
+      render();
+      showToast("Example account removed");
+    }, true);
+  },
+  disconnect: control => {
+    const [provider, id] = control.dataset.key.split("/");
+    const account = data.accounts.find(item => item.id === id);
+    sheet.close();
+    showDialog("Disconnect " + connectionName(provider, account) + "?", "The example connection returns to its setup state.", "", "Disconnect", () => {
+      account.services[provider] = provider === "glm" ? "setup" : "signin";
+      if (data.launch[provider] === id) delete data.launch[provider];
+      render();
+      showToast("Example connection disconnected");
+    }, true);
+  },
+  cancel: () => sheet.close(),
+  "open-logs": control => {
+    if (sheet.open) sheet.close();
+    if (route !== "logs") returnToLogs = route;
+    data.logScope = control.dataset.value ?? "all";
+    navigate("logs");
+  },
+  "dismiss-notice": control => { data.dismiss.add(control.dataset.value); render(); },
+  "notification-open": control => {
+    if (control.dataset.value === "quota") {
+      selectConnection("claude", "work");
+      navigate("quota");
+    } else {
+      data.agentFilter = "Needs you";
+      navigate("agents");
+    }
+  },
+  "chart-legend": control => setLegend(control, control.getAttribute("aria-expanded") !== "true"),
+  "activity-day": control => showToast(control.getAttribute("aria-label"))
+};
+function stopProcess(control) {
+  const pid = Number(control.dataset.value);
+  const row = data.processes.find(item => item.pid === pid);
+  const force = control.dataset.action === "force-quit";
+  showDialog((force ? "Force Quit" : "Stop") + " " + row.name + " · " + pid + "?",
+    "Only this process in the example fixture will be removed.", "", force ? "Force Quit" : "Stop", () => {
+      data.processes = data.processes.filter(item => item.pid !== pid);
+      render();
+      showToast("Example process " + pid + " stopped");
+    }, true);
+}
+document.addEventListener("click", event => {
+  const target = event.target.closest("button");
+  if (!target) {
+    if (menuRoutes.includes(route) && data.closeOutside && !event.target.closest(".window,.review,.desktop-bar,dialog")) {
+      navigate("closed");
+    }
+    return;
+  }
+  if (target.dataset.route) navigate(target.dataset.route);
+  else if (target.dataset.action) actions[target.dataset.action]?.(target);
+  else if (target.id === "reset") { data = defaults(); fixture = "live"; navigate("providers"); }
+});
+const changes = {
+  "review-route": control => navigate(control.value),
+  "review-state": control => { fixture = control.value; render(); },
+  "review-theme": control => { theme = control.value; render(); },
+  "quota-provider": control => selectConnection(control.value),
+  "quota-account": control => { data.account = control.value; },
+  "token-series": control => { data.tokens = control.value; },
+  "token-model": control => { data.model = control.value; },
+  "spend-provider": control => { data.scope = control.value; },
+  "period-filter": control => { data.period = control.value; },
+  "account-period": control => { data.accountPeriod = control.value; },
+  "process-filter": control => { data.processFilter = control.value; },
+  "process-sort": control => { data.sort = control.value; },
+  "log-scope": control => { data.logScope = control.value; },
+  "refresh-period": control => { data.refresh = control.value; },
+  "setting-outside": control => { data.closeOutside = control.checked; },
+  "setting-notifications": control => { data.notifications = control.checked; },
+  hotkey: control => { data.hotkey = control.value; }
+};
+document.addEventListener("change", event => {
+  const control = event.target;
+  const id = control.id;
+  if (id.startsWith("enabled-")) {
+    const provider = id.slice("enabled-".length);
+    if (control.checked) data.enabled.add(provider);
+    else data.enabled.delete(provider);
+    if (!data.enabled.has(data.scope)) data.scope = "all";
+    if (!data.enabled.has(data.provider)) {
+      selectConnection(Object.keys(analyticsProviders())[0] ?? data.provider);
+    }
+  } else if (Object.hasOwn(changes, id)) {
+    changes[id](control);
+    if (id === "review-route" || id === "review-state" || id === "review-theme") return;
+  } else return;
+  render();
+  document.getElementById(id)?.focus({ preventScroll: true });
+});
+stage.addEventListener("toggle", event => {
+  const details = event.target;
+  if (details.dataset.group && data.agentFilter === "All" && details.isConnected) {
+    if (details.open) data.groupOpen.add(details.dataset.group);
+    else data.groupOpen.delete(details.dataset.group);
+  }
+}, true);
+function setLegend(control, visible) {
+  control.setAttribute("aria-expanded", String(visible));
+  control.closest(".chart").querySelector(".legend").hidden = !visible;
+}
+stage.addEventListener("pointerover", event => {
+  const info = event.target.closest(".info");
+  if (info) setLegend(info, true);
+});
+stage.addEventListener("pointerout", event => {
+  const info = event.target.closest(".info");
+  if (info && !info.contains(event.relatedTarget)) setLegend(info, false);
+});
+document.addEventListener("keydown", event => {
+  if (event.code === "KeyF" && event.ctrlKey && !event.metaKey && !sheet.open) {
+    const option = data.hotkey === "⌃⌥F";
+    if (event.altKey === option && event.shiftKey !== option) {
+      event.preventDefault();
+      navigate(menuRoutes.includes(route) ? "closed" : "providers");
+    }
+  }
+  if (event.key === "Escape" && !sheet.open) {
+    const openOptions = stage.querySelector(".options[open]");
+    if (openOptions) openOptions.open = false;
+  }
+});
+
+function chartData(id) {
+  const windows = limitsForSelection();
+  const limit = windows.find(window => window.name === "7d");
+  if (id === "tokens") {
+    const parts = data.tokens === "all" ? components.map((_, index) => index) :
+      [components.findIndex(part => part.id === data.tokens)];
+    return { dates: times, points: observations(), parts };
+  }
+  if (id === "hourly") {
+    const points = times.map((_, index) =>
+      index < 47 ? null : ((index * 7 + Math.round(limit.used)) % 13 < 5 ? ((index % 6) + 1) / 6 : 0));
+    return { dates: times, points, max:1, remainingPace: (100 - limit.used) / limit.hours };
+  }
+  const elapsed = 168 - limit.hours;
+  const start = +now - elapsed * hour;
+  const dates = Array.from({ length:169 }, (_, index) => new Date(start + index * hour));
+  const index = Math.floor(elapsed);
+  const trend = limit.used / elapsed;
+  const used = dates.map((_, i) => i > index || i < index - 26 ? null :
+    i === index ? limit.used : Math.max(0, Math.floor(limit.used - (index - i) * trend * 1.13)));
+  return {
+    dates, used, max:100,
+    budget: dates.map((_, i) => Math.min(100, (Math.floor(i / 24) + 1) * 100 / 7)),
+    forecast: dates.map((_, i) => i < index ? null : Math.min(100, limit.used + (i - index) * trend))
+  };
+}
+function drawPlot(canvas, probe = null) {
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const id = canvas.dataset.chart;
+  const color = key => getComputedStyle(document.documentElement).getPropertyValue(key).trim();
+  const scale = devicePixelRatio || 1;
+  canvas.width = Math.round(rect.width * scale);
+  canvas.height = Math.round(rect.height * scale);
+  const g = canvas.getContext("2d");
+  g.scale(scale, scale);
+  const plot = { x:42, y:9, w:rect.width - 48, h:rect.height - (id === "weekly" ? 31 : 47) };
+  if (plot.w <= 0) return;
+  const data = chartData(id);
+  const tokenMax = data.parts ? Math.max(1, ...data.points.map(point => data.parts.reduce((total, part) => total + point[part], 0))) : 0;
+  const power = 10 ** Math.floor(Math.log10(Math.max(1, tokenMax / 4)));
+  const tick = id === "weekly" ? 20 : id === "hourly" ? .2 : Math.ceil(tokenMax / (4 * power)) * power;
+  const maximum = data.max ?? tick * 4;
+  const x = i => plot.x + plot.w * i / (data.dates.length - 1);
+  const y = value => plot.y + (1 - value / maximum) * plot.h;
+  g.font = "11px system-ui";
+  function line(x1, y1, x2, y2, stroke, dash = []) {
+    g.strokeStyle = stroke;
+    g.setLineDash(dash);
+    g.beginPath();
+    g.moveTo(x1, y1);
+    g.lineTo(x2, y2);
+    g.stroke();
+  }
+  for (let i = 0; i <= Math.round(maximum / tick); i++) {
+    const value = i * tick;
+    line(plot.x, y(value), plot.x + plot.w, y(value), color("--grid"));
+    if (!i) continue;
+    g.fillStyle = color("--muted");
+    g.textAlign = "right";
+    g.fillText(id === "tokens" ? count(value) : percent(value), plot.x - 5, y(value) + 4);
+  }
+  const day = new Intl.DateTimeFormat(undefined, { month:"short", day:"numeric" });
+  const pad = number => String(number).padStart(2, "0");
+  const pixelsPerHour = plot.w / (data.dates.length - 1);
+  const step = [4, 8, 12].find(hours => hours * pixelsPerHour >= 40) ?? 12;
+  for (let i = 0; i < data.dates.length; i++) {
+    const date = data.dates[i];
+    const isDaily = id === "weekly";
+    if ((isDaily && i % 24 !== 12) || (!isDaily && date.getHours() % 4 !== 0)) continue;
+    line(x(i), plot.y, x(i), plot.y + plot.h, color("--grid"));
+    g.fillStyle = color("--muted");
+    g.textAlign = "center";
+    const labelX = Math.min(rect.width - 21, Math.max(22, x(i)));
+    if (isDaily) {
+      g.fillText(day.format(date), labelX, plot.y + plot.h + 16);
+    } else {
+      if (date.getHours() % step === 0) g.fillText(pad(date.getHours()) + ":00", labelX, plot.y + plot.h + 16);
+      if (date.getHours() === 0) g.fillText(day.format(date), labelX, plot.y + plot.h + 32);
+    }
+  }
+  g.save();
+  g.beginPath();
+  g.rect(plot.x, plot.y - 1, plot.w, plot.h + 1);
+  g.clip();
+  if (id === "weekly") {
+    line(plot.x, y(100), plot.x + plot.w, y(100), color("--red"));
+    function trace(values, stroke, stepped = false, dash = []) {
+      g.beginPath();
+      g.strokeStyle = stroke;
+      g.setLineDash(dash);
+      g.lineWidth = stepped ? 1 : 1.6;
+      let previous = null;
+      values.forEach((value, i) => {
+        if (value === null) return;
+        if (previous === null) g.moveTo(x(i), y(value));
+        else {
+          if (stepped) g.lineTo(x(i), y(previous));
+          g.lineTo(x(i), y(value));
+        }
+        previous = value;
+      });
+      g.stroke();
+    }
+    g.save();
+    g.globalAlpha = .65;
+    trace(data.budget, color("--muted"), true);
+    g.restore();
+    trace(data.used, color("--input"), true);
+    trace(data.forecast.map((value, index) => value === 100 && data.forecast[index - 1] === 100 ? null : value), color("--amber"), false, [3, 3]);
+  } else {
+    const width = Math.max(2, plot.w / data.dates.length * .78);
+    data.points.forEach((point, i) => {
+      if (point === null) return;
+      if (id === "hourly") {
+        g.fillStyle = color("--green");
+        g.fillRect(x(i) - width / 2, y(point), width, y(0) - y(point));
+      } else {
+        let used = 0;
+        for (const index of data.parts) {
+          g.fillStyle = color(components[index].color);
+          g.fillRect(x(i) - width / 2, y(used + point[index]), width, y(used) - y(used + point[index]));
+          used += point[index];
+        }
+      }
+    });
+    if (id === "hourly") line(plot.x, y(data.remainingPace), plot.x + plot.w, y(data.remainingPace), color("--amber"), [4, 3]);
+  }
+  const readout = canvas.nextElementSibling;
+  if (probe !== null) {
+    const i = Math.max(0, Math.min(data.dates.length - 1, probe));
+    line(x(i), plot.y, x(i), plot.y + plot.h, color("--accent"), [3, 3]);
+    const timeLabel = dateTime.format(data.dates[i]);
+    const display = id === "tokens" ? data.parts.map(index => components[index].label + " " + count(data.points[i][index])).join(" · ") :
+      id === "hourly" ? (data.points[i] === null ? "No measurement" : percent(data.points[i])) :
+      (data.used[i] !== null ? percent(data.used[i]) + " measured" :
+        data.forecast[i] !== null ? percent(data.forecast[i]) + " forecast" : "No measurement") + " · Budget " + percent(data.budget[i]);
+    readout.textContent = timeLabel + " · " + display;
+    readout.hidden = false;
+  } else {
+    readout.hidden = true;
+  }
+  g.restore();
+}
+function drawCharts() {
+  stage.querySelectorAll("canvas[data-chart]").forEach(canvas => {
+    let probe = null;
+    drawPlot(canvas);
+    canvas.addEventListener("pointermove", event => {
+      const bounds = canvas.getBoundingClientRect();
+      const samples = canvas.dataset.chart === "weekly" ? 168 : 71;
+      probe = Math.round((event.clientX - bounds.left - 42) / (bounds.width - 48) * samples);
+      drawPlot(canvas, probe);
+    });
+    canvas.addEventListener("pointerleave", () => { probe = null; drawPlot(canvas); });
+    canvas.addEventListener("blur", () => { probe = null; drawPlot(canvas); });
+    canvas.addEventListener("keydown", event => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const max = canvas.dataset.chart === "weekly" ? 168 : 71;
+      const step = event.key === "ArrowLeft" ? -1 : 1;
+      probe = Math.min(max, Math.max(0, (probe ?? max) + step));
+      drawPlot(canvas, probe);
+      event.preventDefault();
+    });
+  });
+}
+const resize = new ResizeObserver(() => {
+  stage.querySelectorAll("canvas[data-chart]").forEach(canvas => drawPlot(canvas));
+});
+resize.observe(stage);
+render();
+</script>
+</body>
+</html>
