@@ -157,7 +157,10 @@ final class WeeklyQuotaHistoryStore: ObservableObject {
 
 struct WeeklyQuotaChart {
     struct Forecast: Identifiable {
-        enum Period: String { case window = "Window average", day = "Trailing 24h" }
+        enum Period: String, CaseIterable {
+            case window = "Window average"
+            case day = "Trailing 24h"
+        }
         let period: Period
         let atReset: Double
         let exhaustion: Date?
@@ -197,12 +200,15 @@ struct WeeklyQuotaChart {
         return segment?.last { $0.time <= date }?.used
     }
 
-    func windowProjection(at date: Date) -> Double? {
-        guard let latest, date > latest.time, let forecast = forecasts.first(where: { $0.period == .window }) else { return nil }
-        let end = forecast.plotEndpoint(reset: latest.reset)
-        guard date <= end.time else { return nil }
-        let progress = date.timeIntervalSince(latest.time) / end.time.timeIntervalSince(latest.time)
-        return Double(latest.used) + (end.used - Double(latest.used)) * progress
+    func projections(at date: Date) -> [(period: Forecast.Period, used: Double)] {
+        guard let latest, date > latest.time else { return [] }
+        let used = Double(latest.used)
+        return forecasts.compactMap { forecast in
+            let end = forecast.plotEndpoint(reset: latest.reset)
+            guard date <= end.time else { return nil }
+            let progress = date.timeIntervalSince(latest.time) / end.time.timeIntervalSince(latest.time)
+            return (forecast.period, used + (end.used - used) * progress)
+        }
     }
 
     init(report: StatisticsProviderReport, window: ProviderLimitWindow, history: WeeklyQuotaHistory,

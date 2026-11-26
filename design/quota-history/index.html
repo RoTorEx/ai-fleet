@@ -411,7 +411,7 @@ three charts in one compact stack at fixed heights.
         opacity: label ? 1 : .6});
       if (label) {
         const alignment = hour < 3 ? "start" : (hour > extent - 3 ? "end" : "middle");
-        svgElement(svg, "text", {x: x(hour), y: h - 5, "text-anchor": alignment}, label);
+        svgElement(svg, "text", {x: x(hour), y: h - (clockHours ? 20 : 5), "text-anchor": alignment}, label);
       }
     }
   }
@@ -498,19 +498,25 @@ three charts in one compact stack at fixed heights.
     const totals = values.map(value => Array.isArray(value) ? value.reduce((a, b) => a + b, 0) : value);
     const ceiling = tokens ? Math.max(100000, Math.ceil(Math.max(...totals) / 100000) * 100000)
       : Math.max(2, Math.ceil(Math.max(...totals) * 2) / 2);
-    const space = chartSpace(svg, {left: 41, right: 10, top: 6, bottom: 23}, ceiling, 72);
+    const space = chartSpace(svg, {left: 41, right: 10, top: 6, bottom: 33}, ceiling, 72);
     const {x, y} = space;
     const format = value => tokens ? `${Math.round(value / 1000)}k` : value.toFixed(1);
     const ticks = !tokens && space.w >= 650 ? Array.from({length: ceiling * 2 + 1}, (_, i) => i / 2)
       : [0, ceiling * .25, ceiling * .5, ceiling * .75, ceiling];
     const hourTime = hour => clockLabel.format(hourDate(latestHour - 72 + hour));
     const clockHours = Array.from({length: 73}, (_, hour) => hour)
-      .filter(hour => Number(hourTime(hour).slice(0, 2)) % 4 === 0);
-    frame(svg, space, 72, ceiling, ticks, hour => {
-      const time = hourTime(hour);
-      if (time === "12:00") return time;
-      return time === "00:00" ? `${axisDay(latestHour - 72 + hour)} ${time}` : "";
-    }, format, clockHours);
+      .filter(hour => Number(hourTime(hour).slice(0, 2)) % 6 === 0);
+    const showMinutes = x(6) - x(0) >= 38;
+    frame(svg, space, 72, ceiling, ticks, hour => showMinutes ? hourTime(hour) : hourTime(hour).slice(0, 2), format, clockHours);
+    const dayStarts = [0, ...clockHours.filter(hour => hour > 0 && hour < 72 && hourTime(hour) === "00:00"), 72];
+    for (let index = 0; index < dayStarts.length - 1; index++) {
+      const start = dayStarts[index];
+      const end = dayStarts[index + 1];
+      if (x(end) - x(start) >= 34) {
+        svgElement(svg, "text", {x: (x(start) + x(end)) / 2, y: space.h - 5, "text-anchor": "middle"},
+          axisDay(latestHour - 72 + start));
+      }
+    }
     const barWidth = Math.max(1, (x(1) - x(0)) * .76);
     const colors = tokens ? ["--usage", "--cache", "--mint"] : ["--mint"];
     for (const [i, value] of values.entries()) {

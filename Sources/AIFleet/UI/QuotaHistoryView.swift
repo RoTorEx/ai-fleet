@@ -33,6 +33,7 @@ struct QuotaHistoryTarget: Identifiable, Equatable {
     }
 
     func quotaFigure(history: WeeklyQuotaHistory, now: Date, calendar: Calendar = .current) -> QuotaHistoryFigureData {
+        guard provider != .qwen else { return .unsupportedQuota }
         let window = primaryQuotaWindow
         if let window, window.weeklyModel == nil, let report, report.weeklyWindows.contains(window) {
             return .quota(WeeklyQuotaChart(report: report, window: window, history: history, now: now, calendar: calendar))
@@ -61,7 +62,8 @@ struct QuotaHistoryView: View {
     @Binding var selection: QuotaHistoryRequest?
     @ObservedObject private var quotaHistory = WeeklyQuotaHistoryStore.shared
     @State private var snapshot = UsageAnalyticsService.shared.snapshot
-    private var controlLabelWidth: CGFloat { openInStatistics == nil ? 142 : 110 }
+    private var isStatistics: Bool { openInStatistics == nil }
+    private var controlLabelWidth: CGFloat { isStatistics ? 142 : 110 }
 
     init(targets: [QuotaHistoryTarget], selection: Binding<QuotaHistoryRequest?>,
          openInStatistics: ((QuotaHistoryRequest) -> Void)? = nil) {
@@ -81,11 +83,14 @@ struct QuotaHistoryView: View {
                     model: model.flatMap { tokens.models.contains($0) ? $0 : nil }, tokenSeries: selection?.tokenSeries)
                 VStack(alignment: .leading, spacing: 8) {
                     controls(target: target, models: tokens.models, request: request)
-                    if target.provider != .qwen, !target.quotaWindows.isEmpty {
-                        quotaReadings(target.quotaWindows, stale: target.status.quotaState == .stale, calendar: calendar)
+                    let windows = target.quotaWindows
+                    if isStatistics {
+                        statisticsQuotaReadings(target, windows: windows, calendar: calendar)
+                    } else if target.provider != .qwen, !windows.isEmpty {
+                        quotaReadings(windows, stale: target.status.quotaState == .stale, calendar: calendar)
                     }
                     VStack(spacing: 0) {
-                        if target.provider != .qwen {
+                        if isStatistics || target.provider != .qwen {
                             let data = target.quotaFigure(history: quotaHistory.history, now: now, calendar: calendar)
                             let quota = QuotaHistoryDrawing(data: data, calendar: calendar)
                             QuotaHistoryFigure(drawing: quota, panel: .overview)
@@ -123,7 +128,7 @@ struct QuotaHistoryView: View {
     }
 
     @ViewBuilder private func providerControl(target: QuotaHistoryTarget, request: QuotaHistoryRequest) -> some View {
-        if openInStatistics == nil {
+        if isStatistics {
             Picker("Provider and account", selection: Binding(
                 get: { target.id },
                 set: { value in
@@ -144,20 +149,42 @@ struct QuotaHistoryView: View {
         }
     }
 
+    private func statisticsQuotaReadings(_ target: QuotaHistoryTarget, windows: [ProviderLimitWindow],
+                                         calendar: Calendar) -> some View {
+        // The account picker changes the readings without moving the charts below it.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                if windows.isEmpty {
+                    Text(target.provider == .qwen ? "Local tokens only" : "No quota reading")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(target.status.quotaState == .stale ? "Last used" : "Used").foregroundStyle(.secondary)
+                    quotaReadingLine(windows, calendar: calendar)
+                }
+            }
+            .font(.system(size: 11))
+        }
+        .frame(height: 16)
+    }
+
     private func quotaReadings(_ windows: [ProviderLimitWindow], stale: Bool, calendar: Calendar) -> some View {
         let title = stale ? "Last used" : "Used"
         return HStack(alignment: .top, spacing: 10) {
             Text(title).foregroundStyle(.secondary)
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 14) {
-                    ForEach(windows) { quotaReading($0, calendar: calendar) }
-                }
+                quotaReadingLine(windows, calendar: calendar)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 105), alignment: .leading)], alignment: .leading) {
                     ForEach(windows) { quotaReading($0, calendar: calendar) }
                 }
             }
         }
         .font(.system(size: 11))
+    }
+
+    private func quotaReadingLine(_ windows: [ProviderLimitWindow], calendar: Calendar) -> some View {
+        HStack(spacing: 14) {
+            ForEach(windows) { quotaReading($0, calendar: calendar) }
+        }
     }
 
     private func quotaReading(_ window: ProviderLimitWindow, calendar: Calendar) -> some View {

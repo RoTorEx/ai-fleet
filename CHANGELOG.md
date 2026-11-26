@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
+- Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
+
 ## [1.7.4] - 2026-11-26
 
 - Use the device time zone for chart hour bins, axes, reset times, and hover readouts.

@@ -73,14 +73,18 @@ Click the chart icon on a supported provider row to open the compact popover.
 Click the icon again to close it. The quota overview, hourly quota and local
 hourly tokens form one compact stack in the popover and at the top of Quota
 History in Statistics. Provider reports follow the chart group. Claude, Codex
-and Kimi share the layout. Qwen shows the local token chart.
+and Kimi share the layout. The Statistics account picker keeps the quota
+readings and all three chart positions stable when quota data is missing.
+Qwen shows unavailable quota states in those slots and opens only its local
+token chart in the compact popover.
 Reported quota windows show their current percentages together. The charts use
 the account-wide weekly limit when present, followed by the longest account
 window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
-Label sizes stay constant. Both hourly plots share 72 hour bins and a four-hour
-grid from local midnight, with hours and dates on separate rows. The highest
+Label sizes stay constant. Both hourly plots share 72 hour bins and show
+00:00, 06:00, 12:00, and 18:00 in device time, with dates on a separate row.
+The six-hour spacing keeps the labels legible at the popover width. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
 bin exceeds it. An off-scale sustainable rate appears in the legend. Charts
 keep the zero baseline and omit its label. Hover over the info icon next to a chart's title to see its legend
@@ -131,10 +135,13 @@ quota cannot stand in for an account's weekly one.
   correction it waits for an hour of observations. The second projection uses
   two observations about 24 hours apart, with the earlier observation no more
   than 15 minutes before the target. Keep the weekly chart on a fixed percentage
-  scale with the 100% limit at its top edge. A hover shows the corresponding
-  reading, budget or projected usage and identifies gaps in coverage. The gold dotted forecast uses the cycle
-  average and the coral dotted forecast uses the last 24 hours. Each ends at
-  reset or at the projected limit crossing, whichever comes first.
+  scale with the 100% limit at its top edge. A hover shows the observed use or
+  each available forecast at that time, along with the budget. The gold
+  forecast uses the cycle average and the coral forecast uses the last 24
+  hours. Complementary dash patterns preserve both colors when the paths
+  coincide. Each ends at reset or at the projected limit crossing, whichever
+  comes first. The legend identifies the history needed for an unavailable
+  forecast while the latest reading is fresh.
 - An hourly bin requires sufficient observation coverage and a single cycle.
   A nonzero change spanning an hour boundary cannot identify the spend in
   either hour. A measured zero and an uncovered hour have distinct treatment.

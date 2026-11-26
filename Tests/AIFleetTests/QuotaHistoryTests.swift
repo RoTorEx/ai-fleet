@@ -1,4 +1,6 @@
+import AppKit
 import CoreGraphics
+import SwiftUI
 import XCTest
 @testable import AIFleet
 
@@ -103,6 +105,13 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(chart.forecasts.first?.atReset), 43.0 * 168 / 92, accuracy: 1e-8)
         XCTAssertEqual(try XCTUnwrap(chart.forecasts.last?.atReset), 43 + 13.0 / 24 * 76, accuracy: 1e-8)
         XCTAssertEqual(chart.forecasts.map { $0.plotEndpoint(reset: reset).time }, [reset, reset])
+        let atReset = chart.projections(at: reset)
+        XCTAssertEqual(atReset.map { $0.period }, [.window, .day])
+        XCTAssertEqual(atReset.map { $0.used }, chart.forecasts.map(\.atReset))
+        let drawing = QuotaHistoryDrawing(data: .quota(chart))
+        let readout = drawing.accessibilityDetails(for: .overview, selectedTime: base.addingTimeInterval(20 * hour))
+        XCTAssertTrue(readout.contains("Window average · 52.3% projected"))
+        XCTAssertTrue(readout.contains("Trailing 24h · 53.8% projected"))
         XCTAssertEqual(try XCTUnwrap(chart.sustainablePerHour), 57.0 / 76, accuracy: 1e-8)
         let stale = WeeklyQuotaChart(report: current, window: current.limits[0], history: history, now: base.addingTimeInterval(hour))
         XCTAssertEqual(stale.pace.state, .stale)
@@ -120,6 +129,105 @@ final class QuotaHistoryTests: XCTestCase {
         }
         let corrected = report("a", at: base, reset: reset, used: 28)
         XCTAssertTrue(WeeklyQuotaChart(report: corrected, window: corrected.limits[0], history: history, now: base).forecasts.isEmpty)
+    }
+
+    func testCoincidentForecastsDrawBothColors() throws {
+        let reset = base.addingTimeInterval(72 * hour)
+        let previous = base.addingTimeInterval(-24 * hour)
+        let current = report("a", at: base, reset: reset, used: 60)
+        var history = WeeklyQuotaHistory()
+        history.observe([report("a", at: previous, reset: reset, used: 45)], now: previous)
+        let chart = WeeklyQuotaChart(report: current, window: current.limits[0], history: history, now: base)
+        XCTAssertEqual(chart.forecasts.map(\.atReset), [105, 105])
+
+        let size = CGSize(width: 480, height: QuotaHistoryPanel.overview.height)
+        let width = Int(size.width * 2)
+        let height = Int(size.height * 2)
+        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 2, y: -2)
+        QuotaHistoryDrawing(data: .quota(chart)).draw(.overview, in: context, size: size)
+        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+        var gold = 0
+        var coral = 0
+        // Sample the projected path beyond the last reading, below the limit rail.
+        for y in 54..<152 {
+            for x in 600..<830 {
+                let offset = (y * width + x) * 4
+                let red = Int(pixels[offset])
+                let green = Int(pixels[offset + 1])
+                let blue = Int(pixels[offset + 2])
+                if red > 210 && green - blue > 70 { gold += 1 }
+                if red > 210 && (105...135).contains(green) && (65...85).contains(blue) { coral += 1 }
+            }
+        }
+        XCTAssertGreaterThan(gold, 20)
+        XCTAssertGreaterThan(coral, 20)
+        if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
+           let image = context.makeImage() {
+            try NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to:
+                URL(fileURLWithPath: directory).appendingPathComponent("quota-coincident-forecasts.png"))
+        }
+    }
+
+    @MainActor
+    func testStatisticsQuotaStackKeepsItsHeightWhenTheSelectedAccountChanges() async throws {
+        let now = Date()
+        let weekly = ProviderLimitWindow(id: "weekly", label: "7d", remainingPercent: 57,
+                                         resetAt: now.addingTimeInterval(76 * hour))
+        let short = ProviderLimitWindow(id: "primary", label: "5h", remainingPercent: 20,
+                                       resetAt: now.addingTimeInterval(2 * hour))
+        let monthly = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 74,
+                                         resetAt: now.addingTimeInterval(8 * 24 * hour))
+        func target(_ provider: StatisticsProvider, id: String, windows: [ProviderLimitWindow]) throws -> QuotaHistoryTarget {
+            let connection = ProviderConnection(id: id, providerID: provider.rawValue, globalAssociation: true)
+            let account = FleetAccount(id: id, badgeIndex: windows.isEmpty ? 1 : 0, name: "Fixture", email: "fixture@example.test",
+                                       connections: [connection])
+            let status = ProviderStatus(id: provider.rawValue, name: provider.title,
+                                        state: windows.isEmpty ? .noKey : .ok, detail: "Fixture", lastUpdated: now,
+                                        remainingPercent: windows.first?.remainingPercent, limitWindows: windows)
+            let row = MenuAccountConnection(account: account, connection: connection, status: status, isSelected: true)
+            return try XCTUnwrap(QuotaHistoryTarget(row: row, codex: CodexMonitoringStore.shared))
+        }
+
+        let connected = try target(.codex, id: "codex-connected", windows: [weekly])
+        let disconnected = try target(.codex, id: "codex-disconnected", windows: [])
+        let kimi = try target(.kimi, id: "kimi", windows: [short, monthly])
+        let qwen = try target(.qwen, id: "qwen", windows: [])
+        let targets = [connected, disconnected, kimi, qwen]
+        XCTAssertEqual(Set(targets.map(\.id)).count, targets.count)
+        let fixture = QuotaHistorySelectionFixture()
+        let view = QuotaHistoryLayoutFixture(targets: targets, fixture: fixture)
+        let host = NSHostingController(rootView: view)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 450),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentViewController = host
+        defer { window.contentViewController = nil }
+        host.view.layoutSubtreeIfNeeded()
+        let originalHeight = host.view.fittingSize.height
+        XCTAssertGreaterThan(originalHeight, 412)
+
+        for target in [disconnected, kimi, qwen, connected] {
+            fixture.request = QuotaHistoryRequest(targetID: target.id, provider: target.provider)
+            for _ in 0..<5 {
+                try await Task.sleep(nanoseconds: 10_000_000)
+                host.view.layoutSubtreeIfNeeded()
+            }
+            let size = host.view.fittingSize
+            XCTAssertEqual(size.height, originalHeight, accuracy: 1, target.id)
+            if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"] {
+                window.setContentSize(size)
+                host.view.layoutSubtreeIfNeeded()
+                if let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) {
+                    host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+                    let name = target.id.replacingOccurrences(of: ":", with: "-")
+                    try bitmap.representation(using: .png, properties: [:])?.write(to:
+                        URL(fileURLWithPath: directory).appendingPathComponent("quota-\(name).png"))
+                }
+            }
+        }
     }
 
     func testTheFirstPartialHourShowsOnlyItsObservedIncrease() throws {
@@ -189,7 +297,7 @@ final class QuotaHistoryTests: XCTestCase {
         let selected = try XCTUnwrap(figure.selection(at: CGPoint(x: actualX, y: 46), in: overview, panel: .overview))
         XCTAssertTrue(figure.accessibilityDetails(for: .overview, selectedTime: selected).contains("56.0% used"))
         XCTAssertNil(chart.measuredUse(at: base.addingTimeInterval(hour)))
-        XCTAssertNotNil(chart.windowProjection(at: base.addingTimeInterval(hour)))
+        XCTAssertEqual(chart.projections(at: base.addingTimeInterval(hour)).map { $0.period }, [.window])
 
         func rows(_ range: Range<Int>) -> Data {
             Data(bytes: pixels.advanced(by: range.lowerBound * bytesPerRow), count: range.count * bytesPerRow)
@@ -225,13 +333,13 @@ final class QuotaHistoryTests: XCTestCase {
     func testClockGridUsesMidnightAndFixedLocalHoursAcrossDaylightSaving() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Warsaw"))
-        for (month, day, midnightToFour) in [(3, 29, 3), (10, 25, 5)] {
+        for (month, day, midnightToSix) in [(3, 29, 5), (10, 25, 7)] {
             let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: month, day: day)))
             let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: start))
             let ticks = QuotaHourTick.inDomain(start...tomorrow, calendar: calendar)
-            XCTAssertEqual(ticks.map(\.hour), [0, 4, 8, 12, 16, 20, 0])
+            XCTAssertEqual(ticks.map(\.hour), [0, 6, 12, 18, 0])
             XCTAssertEqual(ticks.filter(\.isMajor).map(\.hour), [0, 12, 0])
-            XCTAssertEqual(ticks[1].date.timeIntervalSince(start), Double(midnightToFour) * hour)
+            XCTAssertEqual(ticks[1].date.timeIntervalSince(start), Double(midnightToSix) * hour)
             XCTAssertTrue(ticks.allSatisfy {
                 calendar.component(.hour, from: $0.date) == $0.hour &&
                     calendar.component(.minute, from: $0.date) == 0
@@ -347,5 +455,21 @@ final class QuotaHistoryTests: XCTestCase {
         return StatisticsProviderReport(provider: "claude", accountID: id,
             identity: ConnectionIdentity(email: "\(id)@example.test", organizationID: "org"),
             fetchedAt: date, accountUsage: nil, limits: windows, quotaAuthentication: .signedIn, quotaState: state)
+    }
+}
+
+@MainActor
+private final class QuotaHistorySelectionFixture: ObservableObject {
+    @Published var request: QuotaHistoryRequest?
+}
+
+private struct QuotaHistoryLayoutFixture: View {
+    let targets: [QuotaHistoryTarget]
+    @ObservedObject var fixture: QuotaHistorySelectionFixture
+
+    var body: some View {
+        QuotaHistoryView(targets: targets, selection: $fixture.request)
+            .frame(width: 740)
+            .background(Color(nsColor: .windowBackgroundColor))
     }
 }
