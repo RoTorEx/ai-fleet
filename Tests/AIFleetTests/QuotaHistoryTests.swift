@@ -58,7 +58,7 @@ final class QuotaHistoryTests: XCTestCase {
         XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains(first.identity.email))
     }
 
-    func testRetainsNinetyDaysOfObservationsAcrossWeeklyResets() throws {
+    func testRetainsObservationsAcrossWeeklyResetsWithoutAnAgeLimit() throws {
         let day = 24 * hour
         let daysAgo = [91, 90, 30, 8, 0]
         let reports = daysAgo.map { days in
@@ -76,13 +76,122 @@ final class QuotaHistoryTests: XCTestCase {
         let latest = try XCTUnwrap(reports.last)
         let window = try XCTUnwrap(latest.weeklyWindows.first)
         let key = WeeklyQuotaHistoryKey(report: latest, window: window)
-        let retainedTimes = daysAgo.dropFirst().map { base.addingTimeInterval(-Double($0) * day) }
+        let retainedTimes = daysAgo.map { base.addingTimeInterval(-Double($0) * day) }
         XCTAssertEqual(history.records[key]?.map(\.time), retainedTimes)
-        XCTAssertEqual(history.records.count, 1)
+        XCTAssertEqual(history.records.count, 2)
 
         let chart = WeeklyQuotaChart(report: latest, window: window, history: history, now: base)
         XCTAssertEqual(chart.segments.flatMap { $0 }.map(\.time), [base])
         XCTAssertEqual(chart.hours.count, 72)
+    }
+
+    func testWeeklyCycleNavigationKeepsTheHourlyChartOnTheSelectedRange() throws {
+        let oldReset = base.addingTimeInterval(-2 * hour)
+        let currentReset = oldReset.addingTimeInterval(WeeklyQuotaPace.weekSeconds)
+        let oldTime = oldReset.addingTimeInterval(-hour)
+        let previous = report("a", at: oldTime, reset: oldReset, used: 89)
+        let current = report("a", at: base, reset: currentReset, used: 2)
+        var history = WeeklyQuotaHistory()
+        history.observe([previous], now: oldTime)
+        history.observe([current], now: base)
+        let live = WeeklyQuotaChart(report: current, window: current.limits[0], history: history,
+                                    now: base, range: .sevenDays)
+        XCTAssertEqual(live.latest?.used, 2)
+        XCTAssertNil(live.measuredUse(at: oldTime))
+        let earlier = try XCTUnwrap(live.cycleReset(offset: 1))
+        XCTAssertEqual(earlier, oldReset)
+        let archived = WeeklyQuotaChart(report: current, window: current.limits[0], history: history,
+                                        now: base, range: .sevenDays, displayedReset: earlier)
+        XCTAssertTrue(archived.isHistorical)
+        XCTAssertEqual(archived.measuredUse(at: oldTime), 89)
+        XCTAssertTrue(archived.forecasts.isEmpty)
+        XCTAssertEqual(archived.cycleReset(offset: -1), currentReset)
+        XCTAssertEqual(archived.hours.count, 168)
+        XCTAssertEqual(archived.hours.map(\.percentagePoints), live.hours.map(\.percentagePoints))
+        XCTAssertEqual(archived.sustainablePerHour, live.sustainablePerHour)
+    }
+
+    func testSevenDayTokensPreserveMissingCoverageFromAnOlderSnapshot() {
+        let calendar = Calendar(identifier: .gregorian)
+        let hours = UsageHours(now: base, calendar: calendar, range: .sevenDays)
+        var snapshot = UsageAnalyticsSnapshot.empty
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
+        snapshot.timeZoneIdentifier = calendar.timeZone.identifier
+        snapshot.refreshedAt = base
+        let tokens = UsageTotals(inputTokens: 240, cachedInputTokens: 120, cacheWriteInputTokens: 0,
+                                 outputTokens: 30, reasoningOutputTokens: 0, estimatedCostUSD: 0)
+        snapshot.codex.hourlyModels = [HourlyModelUsage(hour: hours.last, model: "Fixture", tokens: tokens)]
+        let legacy = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: base, calendar: calendar, range: .sevenDays)
+        XCTAssertNil(legacy.hours.first?.tokens)
+        XCTAssertNotNil(legacy.hours.last?.tokens)
+        snapshot.hourlyHistoryDays = 7
+        snapshot.codex.hourlyModels.insert(HourlyModelUsage(hour: hours.start, model: "Fixture", tokens: tokens), at: 0)
+        let refreshed = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: base, calendar: calendar, range: .sevenDays)
+        XCTAssertEqual(refreshed.hours.first?.tokens?.totalTokens, 270)
+        XCTAssertEqual(refreshed.hours.count, 168)
+        let fourDays = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: base, calendar: calendar, range: .fourDays)
+        XCTAssertEqual(fourDays.hours.count, 96)
+        XCTAssertEqual(fourDays.hours.first?.tokens?.totalTokens, 0)
+    }
+
+    func testSevenDayPlotsRenderOnTheSameSizeCanvasInBothThemes() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = base.addingTimeInterval(20 * 60)
+        let window = UsageHours(now: now, calendar: calendar, range: .sevenDays)
+        let reset = window.last.addingTimeInterval(hour)
+        var history = WeeklyQuotaHistory()
+        var used = 0
+        for minute in stride(from: 0, through: Int(now.timeIntervalSince(window.start) / 60), by: 10) {
+            let time = window.start.addingTimeInterval(Double(minute) * 60)
+            if minute % 60 == 20 && (minute / 60) % 17 < 6 { used += 1 + (minute / 60) % 3 }
+            history.observe([report("preview", at: time, reset: reset, used: min(used, 96))], now: time)
+        }
+        let current = report("preview", at: now, reset: reset, used: min(used, 96))
+        let quota = WeeklyQuotaChart(report: current, window: current.limits[0], history: history, now: now,
+                                     calendar: calendar, range: .sevenDays)
+        XCTAssertTrue(quota.hours.prefix(24).contains { ($0.percentagePoints ?? 0) > 0 })
+        var snapshot = UsageAnalyticsSnapshot.empty
+        snapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
+        snapshot.timeZoneIdentifier = calendar.timeZone.identifier
+        snapshot.refreshedAt = now
+        snapshot.hourlyHistoryDays = 7
+        snapshot.codex.hourlyModels = window.starts.enumerated().compactMap { index, start in
+            let activity = index % 23
+            guard (3...15).contains(activity) else { return nil }
+            let total = (1 + index % 11) * 540_000
+            let tokens = UsageTotals(inputTokens: total, cachedInputTokens: total * 3 / 4,
+                                     cacheWriteInputTokens: 0, outputTokens: total / 8,
+                                     reasoningOutputTokens: 0, estimatedCostUSD: 0)
+            return HourlyModelUsage(hour: start, model: "Preview", tokens: tokens)
+        }
+        let tokens = LocalTokenHistory(snapshot: snapshot, provider: .codex, now: now, calendar: calendar, range: .sevenDays)
+        let size = CGSize(width: 740, height: QuotaHistoryPanel.hourly.height)
+        let width = Int(size.width * 2)
+        let height = Int(size.height * 4)
+        for theme in [ColorScheme.light, .dark] {
+            let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                                  bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.scaleBy(x: 2, y: -2)
+            QuotaHistoryDrawing(data: .quota(quota), calendar: calendar).draw(.hourly, in: context,
+                                                                              size: size, colorScheme: theme)
+            context.translateBy(x: 0, y: size.height)
+            QuotaHistoryDrawing(data: .tokens(tokens), calendar: calendar).draw(.hourly, in: context,
+                                                                                size: size, colorScheme: theme)
+            let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+            if theme == .light {
+                XCTAssertGreaterThan(pixels[0], 230)
+            } else {
+                XCTAssertLessThan(pixels[0], 35)
+            }
+            if let directory = ProcessInfo.processInfo.environment["FLEET_UI_CAPTURE_DIR"],
+               let image = context.makeImage() {
+                let name = theme == .light ? "quota-seven-days-light.png" : "quota-seven-days-dark.png"
+                try NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to:
+                    URL(fileURLWithPath: directory).appendingPathComponent(name))
+            }
+        }
     }
 
     func testWindowAndDayForecastsAreDistinctAndNeedFreshHistory() throws {
@@ -181,21 +290,10 @@ final class QuotaHistoryTests: XCTestCase {
                                        resetAt: now.addingTimeInterval(2 * hour))
         let monthly = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 74,
                                          resetAt: now.addingTimeInterval(8 * 24 * hour))
-        func target(_ provider: StatisticsProvider, id: String, windows: [ProviderLimitWindow]) throws -> QuotaHistoryTarget {
-            let connection = ProviderConnection(id: id, providerID: provider.rawValue, globalAssociation: true)
-            let account = FleetAccount(id: id, badgeIndex: windows.isEmpty ? 1 : 0, name: "Fixture", email: "fixture@example.test",
-                                       connections: [connection])
-            let status = ProviderStatus(id: provider.rawValue, name: provider.title,
-                                        state: windows.isEmpty ? .noKey : .ok, detail: "Fixture", lastUpdated: now,
-                                        remainingPercent: windows.first?.remainingPercent, limitWindows: windows)
-            let row = MenuAccountConnection(account: account, connection: connection, status: status, isSelected: true)
-            return try XCTUnwrap(QuotaHistoryTarget(row: row, codex: CodexMonitoringStore.shared))
-        }
-
-        let connected = try target(.codex, id: "codex-connected", windows: [weekly])
-        let disconnected = try target(.codex, id: "codex-disconnected", windows: [])
-        let kimi = try target(.kimi, id: "kimi", windows: [short, monthly])
-        let qwen = try target(.qwen, id: "qwen", windows: [])
+        let connected = try target(.codex, id: "codex-connected", windows: [weekly], now: now)
+        let disconnected = try target(.codex, id: "codex-disconnected", windows: [], now: now)
+        let kimi = try target(.kimi, id: "kimi", windows: [short, monthly], now: now)
+        let qwen = try target(.qwen, id: "qwen", windows: [], now: now)
         let targets = [connected, disconnected, kimi, qwen]
         XCTAssertEqual(Set(targets.map(\.id)).count, targets.count)
         let fixture = QuotaHistorySelectionFixture()
@@ -228,6 +326,57 @@ final class QuotaHistoryTests: XCTestCase {
                 }
             }
         }
+    }
+
+    @MainActor
+    func testMenuQuotaPopoverWaitsForLayoutAndReusesThePanelAcrossProviderClicks() async throws {
+        let app = NSApplication.shared
+        let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+        let frame = CGRect(x: visible.maxX - 374, y: visible.maxY - 580, width: 354, height: 570)
+        let owner = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        let firstAnchor = NSView(frame: CGRect(x: 325, y: 463, width: 23, height: 20))
+        let secondAnchor = NSView(frame: CGRect(x: 325, y: 375, width: 23, height: 20))
+        let thirdAnchor = NSView(frame: CGRect(x: 325, y: 295, width: 23, height: 20))
+        let now = Date()
+        let weekly = ProviderLimitWindow(id: "weekly", label: "7d", remainingPercent: 57, resetAt: now.addingTimeInterval(76 * hour))
+        let monthly = ProviderLimitWindow(id: "monthly", label: "1m", remainingPercent: 71, resetAt: now.addingTimeInterval(48 * hour))
+        let first = try target(.claude, id: "popover-claude", windows: [weekly], now: now)
+        let second = try target(.codex, id: "popover-codex", windows: [weekly], now: now)
+        let third = try target(.kimi, id: "popover-kimi", windows: [monthly], now: now)
+        let presentation = MenuQuotaHistory()
+        for anchor in [firstAnchor, secondAnchor, thirdAnchor] {
+            owner.contentView?.addSubview(anchor)
+            presentation.register(anchor)
+        }
+        owner.alphaValue = 0
+        owner.orderFrontRegardless()
+        defer { presentation.dismiss(); owner.orderOut(nil) }
+
+        presentation.toggle(first, anchoredTo: firstAnchor, openStatistics: {})
+        let panel = try XCTUnwrap(owner.childWindows?.first)
+        XCTAssertEqual(panel.alphaValue, 0)
+        for _ in 0..<50 where panel.alphaValue == 0 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(panel.alphaValue, 1)
+        let measured = panel.frame
+        XCTAssertLessThan(measured.height, 600)
+        for (target, anchor) in [(second, secondAnchor), (third, thirdAnchor), (first, firstAnchor)] {
+            let down = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown,
+                location: anchor.convert(CGPoint(x: 11, y: 10), to: nil), modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: owner.windowNumber,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+            app.sendEvent(down)
+            XCTAssertTrue(owner.childWindows?.first === panel)
+            presentation.toggle(target, anchoredTo: anchor, openStatistics: {})
+            try await Task.sleep(nanoseconds: 30_000_000)
+            XCTAssertTrue(owner.childWindows?.first === panel)
+            XCTAssertEqual(presentation.presented, target.id)
+            XCTAssertEqual(panel.alphaValue, 1)
+            XCTAssertEqual(panel.frame, measured)
+        }
+        presentation.toggle(first, anchoredTo: firstAnchor, openStatistics: {})
+        XCTAssertNil(presentation.presented)
     }
 
     func testTheFirstPartialHourShowsOnlyItsObservedIncrease() throws {
@@ -455,6 +604,19 @@ final class QuotaHistoryTests: XCTestCase {
         return StatisticsProviderReport(provider: "claude", accountID: id,
             identity: ConnectionIdentity(email: "\(id)@example.test", organizationID: "org"),
             fetchedAt: date, accountUsage: nil, limits: windows, quotaAuthentication: .signedIn, quotaState: state)
+    }
+
+    @MainActor
+    private func target(_ provider: StatisticsProvider, id: String, windows: [ProviderLimitWindow],
+                        now: Date) throws -> QuotaHistoryTarget {
+        let connection = ProviderConnection(id: id, providerID: provider.rawValue, globalAssociation: true)
+        let account = FleetAccount(id: id, badgeIndex: windows.isEmpty ? 1 : 0, name: "Fixture", email: "fixture@example.test",
+                                   connections: [connection])
+        let status = ProviderStatus(id: provider.rawValue, name: provider.title,
+                                    state: windows.isEmpty ? .noKey : .ok, detail: "Fixture", lastUpdated: now,
+                                    remainingPercent: windows.first?.remainingPercent, limitWindows: windows)
+        let row = MenuAccountConnection(account: account, connection: connection, status: status, isSelected: true)
+        return try XCTUnwrap(QuotaHistoryTarget(row: row, codex: CodexMonitoringStore.shared))
     }
 }
 

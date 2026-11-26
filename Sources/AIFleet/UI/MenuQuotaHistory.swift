@@ -10,6 +10,7 @@ final class MenuQuotaHistory: ObservableObject {
     private var content: QuotaPopoverTarget?
     private var contentHeight: CGFloat?
     private weak var anchor: NSView?
+    private let chartAnchors = NSHashTable<NSView>.weakObjects()
     private var windowObservers: [NSObjectProtocol] = []
     private var outsideClickMonitor: Any?
 
@@ -20,7 +21,16 @@ final class MenuQuotaHistory: ObservableObject {
         }
         guard let owner = anchor.window, let visible = owner.screen?.visibleFrame ?? NSScreen.main?.visibleFrame,
               let source = sourceRect(for: anchor),
-              let placement = QuotaPopoverPlacement(anchor: source, screen: visible, contentHeight: visible.height) else { return }
+              let placement = QuotaPopoverPlacement(anchor: source, screen: visible, contentHeight: visible.height,
+                                                    preferredTop: owner.frame.maxY) else { return }
+        if let panel, panel.parent === owner, let content {
+            self.anchor = anchor
+            content.selection = nil
+            content.target = target
+            presented = target.id
+            reposition()
+            return
+        }
         dismiss()
 
         let content = QuotaPopoverTarget(target, viewport: placement.viewport)
@@ -36,6 +46,7 @@ final class MenuQuotaHistory: ObservableObject {
                     guard let self, let content, self.content === content, height > 1 else { return }
                     self.contentHeight = height
                     self.reposition()
+                    self.panel?.alphaValue = 1
                 }
             }
         ))
@@ -43,18 +54,23 @@ final class MenuQuotaHistory: ObservableObject {
         let panel = QuotaPopoverPanel(content: host)
         panel.identifier = Self.windowIdentifier
         panel.level = owner.level
+        panel.alphaValue = 0
         self.panel = panel
         self.content = content
         self.anchor = anchor
         presented = target.id
 
         monitorWindow(owner)
-        monitorClicks(in: owner, outside: anchor)
-        // SwiftUI can report its measured height after the window is on screen.
+        monitorClicks(in: owner)
+        // Lay out the hosted view invisibly until SwiftUI measures the chart stack.
         panel.layout(placement)
         owner.addChildWindow(panel, ordered: .above)
         panel.orderFront(nil)
     }
+
+    func register(_ chartAnchor: NSView) { chartAnchors.add(chartAnchor) }
+
+    func unregister(_ chartAnchor: NSView) { chartAnchors.remove(chartAnchor) }
 
     func update(_ target: QuotaHistoryTarget) {
         guard presented == target.id else { return }
@@ -69,7 +85,8 @@ final class MenuQuotaHistory: ObservableObject {
             return
         }
         guard let placement = QuotaPopoverPlacement(anchor: source, screen: visible,
-                                                    contentHeight: contentHeight ?? visible.height) else {
+                                                    contentHeight: contentHeight ?? visible.height,
+                                                    preferredTop: owner.frame.maxY) else {
             dismiss()
             return
         }
@@ -110,12 +127,14 @@ final class MenuQuotaHistory: ObservableObject {
             }
     }
 
-    private func monitorClicks(in window: NSWindow, outside anchor: NSView) {
+    private func monitorClicks(in window: NSWindow) {
         outsideClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
-            [weak self, weak window, weak anchor] event in
-            if let window, let anchor, event.window === window,
-               !anchor.bounds.contains(anchor.convert(event.locationInWindow, from: nil)) {
-                self?.dismiss()
+            [weak self, weak window] event in
+            if let self, let window, event.window === window {
+                let switchesChart = self.chartAnchors.allObjects.contains { anchor in
+                    anchor.window === window && anchor.visibleRect.contains(anchor.convert(event.locationInWindow, from: nil))
+                }
+                if !switchesChart { self.dismiss() }
             }
             return event
         }
@@ -149,7 +168,11 @@ struct MenuQuotaHistoryButton: View {
             .allowsHitTesting(false)
         }
         .onChange(of: target) { presentation.update($0) }
-        .onDisappear { presentation.dismiss(id: target.id) }
+        .onAppear { presentation.register(anchor) }
+        .onDisappear {
+            presentation.unregister(anchor)
+            presentation.dismiss(id: target.id)
+        }
     }
 }
 
@@ -157,6 +180,7 @@ struct MenuQuotaHistoryButton: View {
 private final class QuotaPopoverTarget: ObservableObject {
     @Published var target: QuotaHistoryTarget
     @Published var viewport: CGSize
+    @Published var selection: QuotaHistoryRequest?
 
     init(_ target: QuotaHistoryTarget, viewport: CGSize) {
         self.target = target
@@ -166,13 +190,12 @@ private final class QuotaPopoverTarget: ObservableObject {
 
 private struct QuotaPopoverContent: View {
     @ObservedObject var content: QuotaPopoverTarget
-    @State private var selection: QuotaHistoryRequest?
     let openInStatistics: (QuotaHistoryRequest) -> Void
     let onContentHeightChange: (CGFloat) -> Void
 
     var body: some View {
         MenuRowsViewport(maxHeight: content.viewport.height, onContentHeightChange: onContentHeightChange) {
-            QuotaHistoryView(targets: [content.target], selection: $selection, openInStatistics: openInStatistics)
+            QuotaHistoryView(targets: [content.target], selection: $content.selection, openInStatistics: openInStatistics)
                 .padding(10)
                 .frame(width: content.viewport.width)
         }

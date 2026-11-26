@@ -70,7 +70,10 @@ remains unsupported; local history does not establish subscription availability.
 ## Quota history
 
 Click the chart icon on a supported provider row to open the compact popover.
-Click the icon again to close it. The quota overview, hourly quota and local
+Click the icon again to close it. Selecting a different provider in the same
+menu updates the open popover and moves its pointer to the selected button.
+The popover appears after measuring its content and stays aligned to the menu
+where the pointer fits. The quota overview, hourly quota and local
 hourly tokens form one compact stack in the popover and at the top of Quota
 History in Statistics. Provider reports follow the chart group. Claude, Codex
 and Kimi share the layout. The Statistics account picker keeps the quota
@@ -82,9 +85,11 @@ the account-wide weekly limit when present, followed by the longest account
 window. Open in Statistics carries the provider, account and local model
 and category selection and includes the provider in the visible filter. The plots use a shared axis gutter and fixed heights so changing the
 window width keeps all three charts in view at the default Statistics size.
-Label sizes stay constant. Both hourly plots share 72 hour bins and show
-00:00, 06:00, 12:00, and 18:00 in device time, with dates on a separate row.
-The six-hour spacing keeps the labels legible at the popover width. The highest
+Label sizes stay constant. Both hourly plots share a 3-, 4-, or 7-day range.
+The 3-day default preserves the initial view. The plot dimensions stay fixed
+as the one-hour bins become denser. The six-hour grid follows local midnight,
+with dates on a separate row and abbreviated labels when space is limited.
+The charts use the current macOS light or dark appearance. The highest
 tick names the plot ceiling. Hourly quota uses a 1.0% ceiling until a measured
 bin exceeds it. An off-scale sustainable rate appears in the legend. Charts
 keep the zero baseline and omit its label. Hover over the info icon next to a chart's title to see its legend
@@ -112,11 +117,14 @@ quota cannot stand in for an account's weekly one.
 
 - Reuse existing quota measurements with their original timestamps. Record
   provider, stable account, window, a digest of the verified identity, reset
-  time and used percent. Deduplicate repeated timestamps and keep the latest
-  90 days of local observations across quota resets. Prune older observations
-  on refresh. The charts show the active cycle and a 72-hour histogram across
-  resets. Provider replies supply a current measurement. Quota history starts
-  at the first saved observation.
+  time and used percent. Deduplicate repeated timestamps. Keep saved
+  observations across resets without an age limit in
+  `~/Library/Application Support/AI Fleet/weekly-quota-history.json`.
+  The overview opens on the latest cycle. Its arrows visit saved cycles for
+  the same provider, account, and quota window. Historical views show the
+  usage recorded in that cycle. The two hourly charts remain on the selected
+  recent range. Provider replies supply the current measurement and quota
+  history starts at the first saved observation.
 - The provider's reset times delimit the cycles. Up to 60 seconds of reset-time
   rounding can identify the same cycle. A passed reset time never implies a
   fresh balance. A decrease within one cycle breaks the plotted series and
@@ -148,19 +156,21 @@ quota cannot stand in for an account's weekly one.
   When observation starts mid-hour, any measured increase within that first
   hour appears as a partial bar. The current hour covers the elapsed observed
   portion. The mint bars show measured hourly changes. Show when observations
-  started if the log covers only part of the last 72 hours. The dashed amber
+  started if the log covers only part of the selected range. The dashed amber
   guide is remaining quota divided by hours to reset. Old data can still be
   viewed, and the pace and forecast guides require a fresh measurement.
 
 ### Local tokens
 
-The On this Mac section uses timestamps from the retained session
-records. Its 72 consecutive hour buckets include the current hour and retain
+The On this Mac section uses timestamps from the retained session records.
+Its consecutive hour buckets include the current hour and retain
 both occurrences of a repeated local hour at daylight-saving transitions.
 Choose a provider and recorded model, with an input, cache and output breakdown.
 No provider quota or account attribution is inferred from the local totals.
-Expired buckets are pruned during the next scan. Unscanned hours are marked
-separately from a scanned hour with zero recorded tokens.
+The cache aggregates up to seven days of hourly token events from local session
+logs. The next scan rebuilds older three-day cache entries that can contribute
+to that range. Unscanned hours stay distinct from scanned hours with zero
+recorded tokens.
 
 `QuotaHistoryTests` covers native cap and hourly mark geometry, separate
 accounts and model windows, deduplication, freshness, projections, spikes,

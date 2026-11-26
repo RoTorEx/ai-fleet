@@ -4,6 +4,9 @@ Tracks real product and release progress.
 
 ## [Unreleased]
 
+- Keep the provider chart popover in one window while switching accounts and place it after measuring the chart stack.
+- Offer 3-, 4-, and 7-day ranges in both hourly charts and match the active light or dark appearance.
+- Preserve all saved quota observations across resets and browse previous cycles in the weekly chart.
 - Distinguish the weekly and trailing 24-hour quota forecasts, including when their lines overlap. Show both in the hover readout when available.
 - Label both hourly charts every six local hours and keep the Statistics charts in place when switching accounts with different quota coverage.
 

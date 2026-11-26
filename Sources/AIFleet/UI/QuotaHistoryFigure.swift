@@ -1,3 +1,4 @@
+import AppKit
 import CoreText
 import SwiftUI
 
@@ -79,6 +80,7 @@ struct QuotaHistoryFigure: View {
     let panel: QuotaHistoryPanel
     @State private var selection: Date?
     @State private var legendHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         let tracksHours = panel == .hourly && drawing.hasHourlySamples
@@ -87,7 +89,8 @@ struct QuotaHistoryFigure: View {
         let description = selectedTime == nil ? details + ". " + drawing.legendDescription(for: panel) : details
         let chart = Canvas { graphics, size in
             graphics.withCGContext {
-                drawing.draw(panel, in: $0, size: size, selectedTime: selectedTime, showsLegend: legendHovered)
+                drawing.draw(panel, in: $0, size: size, selectedTime: selectedTime, showsLegend: legendHovered,
+                             colorScheme: colorScheme)
             }
         }
         .frame(height: panel.height)
@@ -110,12 +113,12 @@ struct QuotaHistoryFigure: View {
         .overlay {
             GeometryReader { geometry in
                 let layout = FigureLayout(canvas: geometry.size, panel: panel)
-                let caption = ChartCaption(drawing.title(for: panel), plot: layout.plot)
+                let caption = drawing.caption(for: panel, plot: layout.plot)
                 ZStack(alignment: .topLeading) {
                     Color.clear.accessibilityHidden(true)
                     Image(systemName: "info.circle")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color(cgColor: legendHovered ? Palette.heading : Palette.labels))
+                        .foregroundStyle(legendHovered ? Color.primary : Color.secondary)
                         .frame(width: caption.infoFrame.width, height: caption.infoFrame.height)
                         .offset(x: caption.infoFrame.minX, y: caption.infoFrame.minY)
                         .accessibilityHidden(true)
@@ -151,12 +154,14 @@ struct QuotaHistoryDrawing {
     private let drawsQuota: Bool
     private let calendar: Calendar
     private let tokenSeries: [LocalTokenSeries]
+    private let range: QuotaHistoryRange
 
-    init(data: QuotaHistoryFigureData, calendar: Calendar = .current) {
+    init(data: QuotaHistoryFigureData, calendar: Calendar = .current, range: QuotaHistoryRange = .threeDays) {
         self.data = data
         self.calendar = calendar
         switch data {
         case .quota(let quota):
+            self.range = quota.range
             drawsQuota = true
             tokenSeries = []
             hours = quota.hours.map { hour in
@@ -165,14 +170,17 @@ struct QuotaHistoryDrawing {
                      partial: hour.partialPercentagePoints != nil)
             }
         case .currentQuota(let reading):
+            self.range = range
             drawsQuota = true
             tokenSeries = []
-            hours = UsageHours(now: reading.now, calendar: calendar).starts.map { Hour(start: $0, parts: nil) }
+            hours = UsageHours(now: reading.now, calendar: calendar, range: range).starts.map { Hour(start: $0, parts: nil) }
         case .unsupportedQuota:
+            self.range = range
             drawsQuota = true
             tokenSeries = []
             hours = []
         case .tokens(let tokens, let series):
+            self.range = tokens.range
             drawsQuota = false
             let visible = series.map { [$0] } ?? LocalTokenSeries.allCases
             tokenSeries = visible
@@ -205,13 +213,23 @@ struct QuotaHistoryDrawing {
 
     fileprivate func title(for panel: QuotaHistoryPanel) -> String {
         switch (panel, data) {
-        case (.overview, .quota(let quota)): return weekTitle(quota.pace)
+        case (.overview, .quota(let quota)): return weekTitle(quota, calendar: calendar)
         case (.overview, .currentQuota(let reading)): return readingTitle(reading)
         case (.overview, .unsupportedQuota): return "Provider quota"
         case (_, .tokens(_, let series)):
-            return "\(series?.rawValue ?? "Local tokens") per hour (last 72h)"
-        case (.hourly, _): return "Quota used per hour (% · last 72h)"
+            return "\(series?.rawValue ?? "Local tokens") per hour (last \(range.label))"
+        case (.hourly, _): return "Quota used per hour (% · last \(range.label))"
         }
+    }
+
+    fileprivate func caption(for panel: QuotaHistoryPanel, plot: CGRect) -> ChartCaption {
+        var bounds = plot
+        if panel == .overview, case .quota = data {
+            let inset = max(0, 56 - plot.minX)
+            bounds.origin.x += inset
+            bounds.size.width = max(1, bounds.width - inset)
+        }
+        return ChartCaption(title(for: panel), plot: bounds)
     }
 
     fileprivate func legendDescription(for panel: QuotaHistoryPanel) -> String {
@@ -275,10 +293,20 @@ struct QuotaHistoryDrawing {
 
     /// The caller provides an upper-left coordinate system.
     func draw(_ panel: QuotaHistoryPanel, in context: CGContext, size canvas: CGSize, selectedTime: Date? = nil,
-              showsLegend: Bool = false) {
+              showsLegend: Bool = false, colorScheme: ColorScheme = .dark) {
+        let draw = { render(panel, in: context, size: canvas, selectedTime: selectedTime, showsLegend: showsLegend) }
+        if let appearance = colorScheme == .dark ? Palette.darkAppearance : Palette.lightAppearance {
+            appearance.performAsCurrentDrawingAppearance(draw)
+        } else {
+            draw()
+        }
+    }
+
+    private func render(_ panel: QuotaHistoryPanel, in context: CGContext, size canvas: CGSize,
+                        selectedTime: Date?, showsLegend: Bool) {
         guard canvas.width > 0, canvas.height > 0 else { return }
         let layout = FigureLayout(canvas: canvas, panel: panel)
-        let caption = ChartCaption(title(for: panel), plot: layout.plot)
+        let caption = caption(for: panel, plot: layout.plot)
         let selection = showsLegend ? nil : selectedTime
         context.saveGState()
         context.setAllowsFontSmoothing(false)
@@ -429,12 +457,12 @@ struct QuotaHistoryDrawing {
             LegendKey("Usage, %", Palette.actual, .line(1.5)),
             LegendKey("Cumulative budget · 14.3%/day", Palette.budget, .line(1))
         ]
-        if let headroom = quota.pace.headroomPoints {
+        if !quota.isHistorical, let headroom = quota.pace.headroomPoints {
             let amount = formattedNumber(abs(headroom), fractionDigits: 0)
             keys.append(LegendKey(headroom >= 0 ? "End-of-day headroom: \(amount)% of weekly quota"
                 : "Over today's budget: \(amount)% of weekly quota", headroom >= 0 ? Palette.headroom : Palette.overspend, .block))
         }
-        if quota.pace.state == .current {
+        if !quota.isHistorical, quota.pace.state == .current {
             for period in WeeklyQuotaChart.Forecast.Period.allCases {
                 let style = period.strokeStyle
                 let text: String
@@ -565,7 +593,7 @@ struct QuotaHistoryDrawing {
     }
 }
 
-private struct ChartCaption {
+fileprivate struct ChartCaption {
     let infoFrame: CGRect
     private let label: Label
     private let labelCenterX: CGFloat
@@ -776,7 +804,13 @@ private func weekReadout(_ quota: WeeklyQuotaChart, at date: Date, cycleStart: D
     }
 }
 
-private func weekTitle(_ pace: WeeklyQuotaPace) -> String {
+private func weekTitle(_ quota: WeeklyQuotaChart, calendar: Calendar) -> String {
+    if quota.isHistorical, let latest = quota.latest {
+        var date = Date.FormatStyle.dateTime.day().month(.abbreviated).year()
+        date.timeZone = calendar.timeZone
+        return "Weekly quota · \(quotaPercent(Double(latest.used))) recorded · \(latest.time.formatted(date))"
+    }
+    let pace = quota.pace
     var title = "Weekly quota"
     if let used = pace.usedPercent { title += " · \(quotaPercent(Double(used))) used" }
     switch pace.state {
@@ -933,26 +967,31 @@ private struct Label {
 }
 
 private enum Palette {
-    static let canvas = rgb(0x15171a)
-    static let plot = rgb(0x1b1f25)
-    static let grid = rgb(0x2c3036)
-    static let frame = rgb(0x3d4147)
-    static let legendBorder = rgb(0x30353b)
-    static let labels = rgb(0xc7c9d0)
-    static let heading = rgb(0xe8e9ed)
-    static let actual = rgb(0x7da2fa)
-    static let budget = rgb(0x9499a3)
-    static let limit = rgb(0xe8565d)
-    static let headroom = rgb(0x26403b)
-    static let overspend = rgb(0x412b31)
-    static let mint = rgb(0x5ed5a0)
-    static let amber = rgb(0xf4b558)
-    static let coral = rgb(0xe9784c)
-    static let uncachedInput = rgb(0x6eabff)
-    static let cache = rgb(0xf2b66d)
+    static let darkAppearance = NSAppearance(named: .darkAqua)
+    static let lightAppearance = NSAppearance(named: .aqua)
 
-    private static func rgb(_ value: UInt32) -> CGColor {
-        CGColor(srgbRed: Double((value >> 16) & 255) / 255,
-                green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255, alpha: 1)
+    static var canvas: CGColor { color(0x15171a, 0xf6f7f9) }
+    static var plot: CGColor { color(0x1b1f25, 0xffffff) }
+    static var grid: CGColor { color(0x2c3036, 0xdde2ea) }
+    static var frame: CGColor { color(0x3d4147, 0xaab3c0) }
+    static var legendBorder: CGColor { color(0x30353b, 0xbbc3ce) }
+    static var labels: CGColor { color(0xc7c9d0, 0x465268) }
+    static var heading: CGColor { color(0xe8e9ed, 0x172132) }
+    static var actual: CGColor { color(0x7da2fa, 0x245db8) }
+    static var budget: CGColor { color(0x9499a3, 0x657286) }
+    static var limit: CGColor { color(0xe8565d, 0xbd3541) }
+    static var headroom: CGColor { color(0x26403b, 0xd9ede5) }
+    static var overspend: CGColor { color(0x412b31, 0xf7dfe0) }
+    static var mint: CGColor { color(0x5ed5a0, 0x177b59) }
+    static var amber: CGColor { color(0xf4b558, 0x946010) }
+    static var coral: CGColor { color(0xe9784c, 0xad4527) }
+    static var uncachedInput: CGColor { color(0x6eabff, 0x2b6aba) }
+    static var cache: CGColor { color(0xf2b66d, 0xb47629) }
+
+    private static func color(_ dark: UInt32, _ light: UInt32) -> CGColor {
+        let appearance = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua])
+        let value = appearance == .darkAqua ? dark : light
+        return CGColor(srgbRed: Double((value >> 16) & 255) / 255,
+                       green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255, alpha: 1)
     }
 }

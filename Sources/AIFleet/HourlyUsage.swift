@@ -1,18 +1,30 @@
 import Foundation
 
+enum QuotaHistoryRange: Int, CaseIterable, Identifiable {
+    case threeDays = 3
+    case fourDays = 4
+    case sevenDays = 7
+
+    static let retained = Self.sevenDays
+    var id: Self { self }
+    var hours: Int { rawValue * 24 }
+    var label: String { "\(rawValue)d" }
+}
+
 struct UsageHours {
-    static let count = 72
     static let hour: TimeInterval = 3_600
     let start: Date
     let last: Date
+    let range: QuotaHistoryRange
 
-    init(now: Date, calendar: Calendar = .autoupdatingCurrent) {
+    init(now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays) {
+        self.range = range
         last = calendar.dateInterval(of: .hour, for: now)?.start ?? now
-        start = last.addingTimeInterval(-Double(Self.count - 1) * Self.hour)
+        start = last.addingTimeInterval(-Double(range.hours - 1) * Self.hour)
     }
 
     var starts: [Date] {
-        (0..<Self.count).map { start.addingTimeInterval(Double($0) * Self.hour) }
+        (0..<range.hours).map { start.addingTimeInterval(Double($0) * Self.hour) }
     }
 
     func contains(_ date: Date) -> Bool { start <= date && date <= last }
@@ -29,7 +41,7 @@ struct HourlyModelUsage: Codable, Equatable {
     }
 
     static func aggregate(entries: [CodexUsageLogEntry], now: Date, calendar: Calendar) -> [Self] {
-        let hours = UsageHours(now: now, calendar: calendar)
+        let hours = UsageHours(now: now, calendar: calendar, range: .retained)
         return merge(entries.lazy.compactMap { entry in
             guard entry.timestamp >= hours.start, entry.timestamp <= now,
                   let hour = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start else { return nil }
@@ -73,9 +85,11 @@ struct LocalTokenHistory {
     let models: [String]
     let hours: [Hour]
     let scannedAt: Date?
+    let range: QuotaHistoryRange
 
     init(snapshot: UsageAnalyticsSnapshot, provider: StatisticsProvider, model: String? = nil,
-         now: Date, calendar: Calendar = .autoupdatingCurrent) {
+         now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays) {
+        self.range = range
         let history: CodexUsageAnalytics?
         switch provider {
         case .codex: history = snapshot.codex
@@ -83,9 +97,13 @@ struct LocalTokenHistory {
         case .kimi: history = snapshot.kimiUsage
         case .qwen: history = snapshot.qwen
         }
-        let window = UsageHours(now: now, calendar: calendar)
+        let window = UsageHours(now: now, calendar: calendar, range: range)
+        let recordedRange = snapshot.hourlyHistoryDays.flatMap(QuotaHistoryRange.init(rawValue:)) ?? .threeDays
+        let coverageStarts = snapshot.refreshedAt.map { UsageHours(now: $0, calendar: calendar, range: recordedRange).start }
         let rows = snapshot.needsRebuild(timeZone: calendar.timeZone) ? []
-            : (history?.hourlyModels ?? []).filter { window.contains($0.hour) }
+            : (history?.hourlyModels ?? []).filter { row in
+                window.contains(row.hour) && coverageStarts.map { $0 <= row.hour } != false
+            }
         let availableModels = Set(rows.map(\.model)).sorted()
         models = availableModels
         let selectedModel = model.flatMap { availableModels.contains($0) ? $0 : nil }
@@ -97,6 +115,7 @@ struct LocalTokenHistory {
         let earliestDay = history?.dailyModels.first?.day
         hours = window.starts.map { start in
             guard !rows.isEmpty, let scannedAt = snapshot.refreshedAt, start <= scannedAt,
+                  coverageStarts.map({ $0 <= start }) != false,
                   earliestDay.map({ $0 <= start }) != false else {
                 return Hour(start: start, tokens: nil)
             }

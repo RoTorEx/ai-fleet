@@ -14,7 +14,7 @@ struct QuotaPopoverPlacement: Equatable {
     let arrowOnRight: Bool
     let shoulderY: CGFloat
 
-    init?(anchor: CGRect, screen: CGRect, contentHeight: CGFloat) {
+    init?(anchor: CGRect, screen: CGRect, contentHeight: CGFloat, preferredTop: CGFloat? = nil) {
         let center = CGPoint(x: anchor.midX, y: anchor.midY)
         guard !anchor.isEmpty, screen.contains(center) else { return nil }
         let inset = screen.insetBy(dx: Self.screenMargin, dy: Self.screenMargin)
@@ -25,7 +25,9 @@ struct QuotaPopoverPlacement: Equatable {
         guard viewport.width > 0, viewport.height > 0 else { return nil }
 
         let height = min(viewport.height, max(1, ceil(contentHeight)))
-        let bottom = min(max(center.y - height / 2, inset.minY), inset.maxY - height)
+        let desiredBottom = preferredTop.map { min(max($0 - height, center.y - height), center.y) }
+            ?? center.y - height / 2
+        let bottom = min(max(desiredBottom, inset.minY), inset.maxY - height)
         let windowBottom = min(bottom, max(screen.minY, center.y - 0.5))
         let windowTop = max(bottom + height, min(screen.maxY, center.y + 0.5))
         let width = viewport.width + Self.arrowWidth

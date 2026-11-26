@@ -80,24 +80,13 @@ struct WeeklyQuotaObservation: Codable, Equatable {
 }
 
 struct WeeklyQuotaHistory: Codable, Equatable {
-    private static let retention: TimeInterval = 90 * 24 * 60 * 60
-
     private(set) var records: [WeeklyQuotaHistoryKey: [WeeklyQuotaObservation]] = [:]
 
     mutating func observe(_ reports: [StatisticsProviderReport], now: Date) {
-        let cutoff = now.addingTimeInterval(-Self.retention)
-        for (key, samples) in records {
-            let retained = samples.drop(while: { $0.time < cutoff })
-            if retained.isEmpty {
-                records.removeValue(forKey: key)
-            } else if retained.count < samples.count {
-                records[key] = Array(retained)
-            }
-        }
         for report in reports where report.quotaState == .available || report.quotaState == .exhausted {
             for window in report.weeklyWindows {
                 guard let sample = WeeklyQuotaObservation(report: report, window: window, now: now),
-                      sample.time >= cutoff, now.timeIntervalSince(sample.time) <= WeeklyQuotaPace.maximumObservationAge else { continue }
+                      now.timeIntervalSince(sample.time) <= WeeklyQuotaPace.maximumObservationAge else { continue }
                 let key = WeeklyQuotaHistoryKey(report: report, window: window)
                 if let last = records[key]?.last {
                     guard last != sample, last.time <= sample.time else { continue }
@@ -183,13 +172,22 @@ struct WeeklyQuotaChart {
     let segments: [[WeeklyQuotaObservation]]
     let forecasts: [Forecast]
     let hours: [Hour]
+    let range: QuotaHistoryRange
+    let cycleResets: [Date]
+    let cycleIndex: Int
     let latest: WeeklyQuotaObservation?
     let firstObservation: Date?
     var sustainablePerHour: Double? { pace.sustainablePercentPerDay.map { $0 / 24 } }
+    var isHistorical: Bool { cycleIndex > 0 }
 
     var cycleRange: ClosedRange<Date>? {
         guard let cycleStart, let latest, cycleStart < latest.reset else { return nil }
         return cycleStart...latest.reset
+    }
+
+    func cycleReset(offset: Int) -> Date? {
+        let next = cycleIndex + offset
+        return cycleResets.indices.contains(next) ? cycleResets[next] : nil
     }
 
     func measuredUse(at date: Date) -> Int? {
@@ -212,7 +210,9 @@ struct WeeklyQuotaChart {
     }
 
     init(report: StatisticsProviderReport, window: ProviderLimitWindow, history: WeeklyQuotaHistory,
-         now: Date, calendar: Calendar = .autoupdatingCurrent) {
+         now: Date, calendar: Calendar = .autoupdatingCurrent, range: QuotaHistoryRange = .threeDays,
+         displayedReset: Date? = nil) {
+        self.range = range
         pace = WeeklyQuotaPace.make(report: report, window: window, now: now)
         var samples = history.records[WeeklyQuotaHistoryKey(report: report, window: window)] ?? []
         if let sample = WeeklyQuotaObservation(report: report, window: window, now: now),
@@ -220,18 +220,37 @@ struct WeeklyQuotaChart {
             if samples.last?.time == sample.time { samples.removeLast() }
             samples.append(sample)
         }
-        let current = samples.last
+        let cycles = Self.cycles(in: samples)
+        let resets = cycles.compactMap { $0.last?.reset }
+        cycleResets = resets
+        let index = displayedReset.flatMap { reset in
+            resets.firstIndex { abs($0.timeIntervalSince(reset)) <= WeeklyQuotaPace.clockTolerance }
+        } ?? 0
+        cycleIndex = index
+        let displayed = cycles.isEmpty ? [] : Array(cycles[index])
         firstObservation = samples.first?.time
-        latest = current
-        cycleStart = current?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
-        let currentCycle = current.map { latest in samples.filter { $0.sharesCycle(with: latest) } } ?? []
-        segments = Self.segments(from: currentCycle)
-        let correction = currentCycle.indices.dropFirst().last { index in
-            currentCycle[index].used < currentCycle[index - 1].used
+        latest = displayed.last
+        cycleStart = displayed.last?.reset.addingTimeInterval(-WeeklyQuotaPace.weekSeconds)
+        segments = Self.segments(from: displayed)
+        let correction = displayed.indices.dropFirst().last { index in
+            displayed[index].used < displayed[index - 1].used
         }
-        let forecastSamples = correction.map { Array(currentCycle[$0...]) } ?? currentCycle
-        forecasts = pace.state == .current ? Self.forecasts(for: forecastSamples, afterCorrection: correction != nil) : []
-        hours = Self.hourlyUsage(samples, now: now, calendar: calendar)
+        let forecastSamples = correction.map { Array(displayed[$0...]) } ?? displayed
+        forecasts = index == 0 && pace.state == .current
+            ? Self.forecasts(for: forecastSamples, afterCorrection: correction != nil) : []
+        hours = Self.hourlyUsage(samples, window: UsageHours(now: now, calendar: calendar, range: range), now: now)
+    }
+
+    private static func cycles(in samples: [WeeklyQuotaObservation]) -> [ArraySlice<WeeklyQuotaObservation>] {
+        var cycles: [ArraySlice<WeeklyQuotaObservation>] = []
+        var end = samples.endIndex
+        while end > samples.startIndex {
+            let newest = samples[end - 1]
+            let start = samples[..<end].lastIndex { !$0.sharesCycle(with: newest) }.map { $0 + 1 } ?? samples.startIndex
+            cycles.append(samples[start..<end])
+            end = start
+        }
+        return cycles
     }
 
     private static func segments(from samples: [WeeklyQuotaObservation]) -> [[WeeklyQuotaObservation]] {
@@ -275,8 +294,7 @@ struct WeeklyQuotaChart {
         return projections
     }
 
-    private static func hourlyUsage(_ samples: [WeeklyQuotaObservation], now: Date, calendar: Calendar) -> [Hour] {
-        let hours = UsageHours(now: now, calendar: calendar)
+    private static func hourlyUsage(_ samples: [WeeklyQuotaObservation], window hours: UsageHours, now: Date) -> [Hour] {
         var firstIndex = 0
         return hours.starts.map { start in
             let nominalEnd = min(start.addingTimeInterval(UsageHours.hour), now)

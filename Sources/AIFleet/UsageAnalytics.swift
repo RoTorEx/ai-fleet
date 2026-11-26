@@ -16,6 +16,7 @@ struct UsageAnalyticsSnapshot: Codable, Equatable {
     var legacyLocalHistory: [String: CodexUsageAnalytics]? = nil
     var refreshedAt: Date?
     var lastLoadDuration: TimeInterval?
+    var hourlyHistoryDays: Int? = nil
 
     static let empty = UsageAnalyticsSnapshot(
         codex: .empty,
@@ -194,6 +195,7 @@ struct CodexFileUsageRecord: Codable, Equatable {
     var excluded: Bool? = nil
     var modifiedAtEpoch: Double? = nil
     var hourlyModels: [HourlyModelUsage]? = nil
+    var hourlyHistoryDays: Int? = nil
 
     var eventCount: Int {
         dailyModels.reduce(0) { $0 + $1.events }
@@ -205,6 +207,10 @@ struct CodexFileUsageRecord: Codable, Equatable {
             && timeZoneIdentifier == timeZone.identifier
             && size == file.size && (modifiedAtEpoch.map { $0 == file.modifiedAt.timeIntervalSince1970 }
                 ?? (revision == nil && abs(modifiedAt.timeIntervalSince(file.modifiedAt)) < 1))
+    }
+
+    func coversHourlyHistory(since day: Date) -> Bool {
+        hourlyHistoryDays == QuotaHistoryRange.retained.rawValue || dailyModels.allSatisfy { $0.day < day }
     }
 }
 
@@ -331,7 +337,8 @@ final class UsageAnalyticsService: ObservableObject {
                 Task { @MainActor in self?.startRefresh(kimi: StatusService.shared.kimi, restartExisting: true, preserveQuota: true) }
             }
         }
-        if snapshot.needsRebuild(timeZone: .current) {
+        if snapshot.needsRebuild(timeZone: .current)
+            || snapshot.hourlyHistoryDays != QuotaHistoryRange.retained.rawValue {
             startRefresh(kimi: StatusService.shared.kimi, restartExisting: false, preserveQuota: true)
         }
         rescheduleDailyRefresh()
@@ -383,6 +390,8 @@ final class UsageAnalyticsService: ObservableObject {
         task = Task { [self, startedAt, kimiAnalytics] in
             let discover = self.discoverFiles
             let scanTimeZone = TimeZone.current.identifier
+            let firstHour = UsageHours(now: startedAt, range: .retained).start
+            let firstDay = Calendar.current.startOfDay(for: firstHour)
             let files = await Task.detached(priority: .background) { discover() }.value
             guard !Task.isCancelled else { return }
 
@@ -394,7 +403,8 @@ final class UsageAnalyticsService: ObservableObject {
                 self.progress.currentFileName = file.url.lastPathComponent
 
                 let provider = statisticsProvider(for: file.url.path)
-                if let cached = existingFileCache[file.url.path], cached.matches(file, revision: provider.parserRevision) {
+                if let cached = existingFileCache[file.url.path], cached.matches(file, revision: provider.parserRevision),
+                   cached.coversHourlyHistory(since: firstDay) {
                     nextFileCache[file.url.path] = cached
                 } else {
                     let record = await Task.detached(priority: .background) {
@@ -456,6 +466,7 @@ final class UsageAnalyticsService: ObservableObject {
             nextSnapshot.statisticsRevision = UsageAnalyticsSnapshot.currentRevision
             nextSnapshot.rateRevision = CodexAPIRates.revision
             nextSnapshot.timeZoneIdentifier = scanTimeZone
+            nextSnapshot.hourlyHistoryDays = QuotaHistoryRange.retained.rawValue
             nextSnapshot.unattributedAccountUsage = self.snapshot.unattributedAccountUsage
             nextSnapshot.legacyLocalHistory = self.snapshot.legacyLocalHistory
             nextSnapshot.sourceIssues = nextFileCache.values.compactMap { record in
@@ -463,7 +474,7 @@ final class UsageAnalyticsService: ObservableObject {
             } + existingFileCache.keys.filter { nextFileCache[$0] == nil && !FileManager.default.fileExists(atPath: $0) }.map { StatisticsSourceIssue(provider: statisticsProvider(for: $0), message: "Missing source: " + $0) }
             self.snapshot = nextSnapshot
             // Missing records remain available for migration/recovery but not active totals.
-            let recentHours = UsageHours(now: completedAt)
+            let recentHours = UsageHours(now: completedAt, range: .retained)
             self.fileCache = existingFileCache.merging(nextFileCache) { _, current in current }.mapValues { value in
                 var record = value
                 record.hourlyModels?.removeAll { !recentHours.contains($0.hour) }
@@ -660,7 +671,7 @@ struct CodexUsageLogReader {
     func analytics(from records: [CodexFileUsageRecord], fileCount: Int) -> CodexUsageAnalytics {
         var result = analytics(from: mergeDailyModels(records.flatMap(\.dailyModels)), fileCount: fileCount)
         result.hourlyModels = HourlyModelUsage.merge(records.lazy.flatMap { $0.hourlyModels ?? [] },
-                                                   in: UsageHours(now: Date(), calendar: calendar))
+                                                   in: UsageHours(now: Date(), calendar: calendar, range: .retained))
         return result
     }
 
@@ -675,7 +686,8 @@ struct CodexUsageLogReader {
             parserRevision: provider.parserRevision, rateRevision: CodexAPIRates.revision,
             sourceIssue: file.issue ?? parsed.issue, excluded: file.issue != nil || parsed.unreadable,
             modifiedAtEpoch: file.modifiedAt.timeIntervalSince1970,
-            hourlyModels: HourlyModelUsage.aggregate(entries: parsed.entries, now: Date(), calendar: calendar))
+            hourlyModels: HourlyModelUsage.aggregate(entries: parsed.entries, now: Date(), calendar: calendar),
+            hourlyHistoryDays: QuotaHistoryRange.retained.rawValue)
     }
 
     private func analytics(from dailyModels: [DailyModelUsage], fileCount: Int) -> CodexUsageAnalytics {
